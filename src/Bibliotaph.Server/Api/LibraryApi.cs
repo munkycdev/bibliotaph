@@ -33,6 +33,15 @@ public static class LibraryApi
             return Results.Ok(await SuggestAsync(lease.Library, field, text ?? "", Query(request.Query), ct));
         });
 
+        // The search box's field guide: a field's values among the books shown, with their counts.
+        api.MapGet("/library/guide/{field}", async (string field, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (SearchFields.Find(field) is not { ListsValues: true } info) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var library = lease.Library;
+            return Results.Ok(await SearchGuideValues.LoadAsync(library.Get<LibraryQueries>(), library.Get<LibraryStore>(), info, ct));
+        });
+
         api.MapGet("/home", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);

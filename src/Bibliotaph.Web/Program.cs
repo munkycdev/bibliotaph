@@ -20,6 +20,7 @@ builder.Services.AddScoped<CollectionActions>();
 builder.Services.AddScoped<BinderDialogs>();
 builder.Services.AddScoped<BinderActions>();
 builder.Services.AddScoped<Pins>();
+builder.Services.AddScoped<SearchGuideModel>();
 builder.Services.AddScoped<Breadcrumb>();
 builder.Services.AddScoped<AskScope>();
 

@@ -9,6 +9,7 @@
 @inject Pins Pins
 @inject Breadcrumb Breadcrumb
 @inject IJSRuntime JS
+@inject SearchGuideModel Guide
 @using Bibliotaph.Core.Search
 
 @if (_loading)
@@ -28,14 +29,22 @@ else if (PoppedOut)
 }
 else
 {
-    <div class="bt-shell">
+    <div class="bt-shell @(_folded ? "folded" : "")">
         <aside class="bt-sidebar">
-            <a class="bt-brand" href="" aria-label="Bibliotaph home"><span class="bt-monogram">b.</span><span>Bibliotaph</span></a>
+            @* Folded, the unfold button takes the brand's place, as in the Windows app. *@
+            @if (_folded)
+            {
+                <button class="bt-icon bt-unfold" title="@FoldLabel" aria-label="@FoldLabel" @onclick="ToggleSidebarAsync"><Icon Name="PanelLeft" /></button>
+            }
+            else
+            {
+                <a class="bt-brand" href="" aria-label="Bibliotaph home"><span class="bt-monogram">b.</span><span>Bibliotaph</span></a>
+            }
             <nav class="bt-navigation" aria-label="Main navigation">
                 @foreach (var item in Items)
                 {
                     var active = item.Href == ActiveHref;
-                    <a class="bt-nav @(active ? "active" : "")" href="@item.Href" aria-current="@(active ? "page" : null)"><Icon Name="@item.Icon" />@item.Label@if (CountOf(item.Href) is { } count)
+                    <a class="bt-nav @(active ? "active" : "")" href="@item.Href" aria-current="@(active ? "page" : null)" title="@(_folded ? item.Label : null)"><Icon Name="@item.Icon" /><span class="bt-navlabel">@item.Label</span>@if (CountOf(item.Href) is { } count)
                     {
                         <span class="bt-count" aria-label="@($"{count} to review")">@count</span>
                     }</a>
@@ -57,7 +66,7 @@ else
                         var active = IsShown(pin);
                         <div class="bt-pinrow @(_dropAt == at && _dragging is not null ? "drop" : "")" role="listitem" @key="(pin.Kind, pin.Id)"
                              @ondragover="() => _dropAt = at" @ondragover:preventDefault="true" @ondrop="() => DropAsync(at)">
-                            <a class="bt-nav @(active ? "active" : "") @(pin.Dimmed ? "dimmed" : "")" href="@pin.Href" title="@pin.Tip" aria-current="@(active ? "page" : null)"
+                            <a class="bt-nav @(active ? "active" : "") @(pin.Dimmed ? "dimmed" : "")" href="@pin.Href" title="@(_folded ? pin.Label : pin.Tip)" aria-current="@(active ? "page" : null)"
                                draggable="true" @ondragstart="() => _dragging = pin" @ondragend="EndDrag"
                                @oncontextmenu="() => _pinMenu = pin" @oncontextmenu:preventDefault="true" @onkeydown="e => PinKeyAsync(pin, at, e)">
                                 <Icon Name="@pin.Icon" /><span class="bt-navlabel">@pin.Label</span>
@@ -86,7 +95,13 @@ else
                 </div>
             </div>
             <div class="bt-sidebottom">
-                <NavLink class="bt-nav" href="settings"><Icon Name="Settings2" />Settings</NavLink>
+                <div class="bt-settingsrow">
+                    <NavLink class="bt-nav" href="settings" title="@(_folded ? "Settings" : null)"><Icon Name="Settings2" /><span class="bt-navlabel">Settings</span></NavLink>
+                    @if (!_folded)
+                    {
+                        <button class="bt-icon bt-fold" title="@FoldLabel" aria-label="@FoldLabel" @onclick="ToggleSidebarAsync"><Icon Name="PanelLeft" /></button>
+                    }
+                </div>
                 @* As in the Windows app: one or two lines of what the library is doing, the whole text on hover. *@
                 <div class="bt-sync" role="status" title="@Activity.Current?.Text"><span class="bt-status-dot @(Activity.Current?.Busy == true ? "busy" : "")"></span><span>@(Activity.Current?.Text ?? "Opening your library")</span></div>
             </div>
@@ -103,12 +118,49 @@ else
                 {
                     <div class="bt-breadcrumb">@Section</div>
                 }
-                <label class="bt-search">
-                    <Icon Name="Search" Size="15" />
-                    <span class="visually-hidden">Search</span>
-                    <input type="search" placeholder="@(_asking ? AskPanelText.Placeholder : "Search books, topics, passages…")" value="@_searchText"
-                           @ref="_searchBox" @oninput="OnSearchInput" @onkeydown="OnSearchKey" />
-                </label>
+                <div class="bt-searchwrap">
+                    <label class="bt-search">
+                        <Icon Name="Search" Size="15" />
+                        <span class="visually-hidden">Search</span>
+                        <input type="search" placeholder="@(_asking ? AskPanelText.Placeholder : "Search books, topics, passages…")" value="@_searchText"
+                               @ref="_searchBox" @oninput="OnSearchInput" @onkeydown="OnSearchKey"
+                               role="combobox" aria-autocomplete="list" aria-controls="bt-guide" aria-expanded="@(GuideShown ? "true" : "false")"
+                               aria-activedescendant="@(GuideShown && Guide.Highlighted >= 0 ? $"bt-guide-{Guide.Highlighted}" : null)"
+                               data-guide="@(GuideShown ? "open" : null)" />
+                    </label>
+                    @* The Windows app's field guide: the fields to search by, and after a field's colon its values in the
+                       library. The box keeps the keyboard; the arrow keys move the highlight and Enter or Tab picks it. *@
+                    @if (GuideShown)
+                    {
+                        <div class="bt-guide" @onmousedown:preventDefault="true">
+                            <span class="bt-eyebrow">@Guide.Heading</span>
+                            @if (Guide.Hint is { } hint)
+                            {
+                                <div class="bt-guidehint"><strong>@hint.Field.Prefix</strong> <span class="bt-muted">@(hint.Field.Description), e.g. </span>@hint.Field.Example</div>
+                            }
+                            <div class="bt-guiderows" id="bt-guide" role="listbox" aria-label="Search suggestions">
+                                @for (var i = 0; i < Guide.Rows.Count; i++)
+                                {
+                                    var row = Guide.Rows[i];
+                                    var highlighted = i == Guide.Highlighted;
+                                    <div class="bt-guiderow @(highlighted ? "highlighted" : "")" id="bt-guide-@i" role="option" aria-selected="@(highlighted ? "true" : "false")"
+                                         aria-label="@row.Spoken" @onclick="() => PickGuideRowAsync(row)">
+                                        @if (row is GuideFieldRow field)
+                                        {
+                                            <span><strong>@field.Field.Prefix</strong> <span class="bt-muted">@(field.Field.Description), e.g. </span>@field.Field.Example</span>
+                                        }
+                                        else if (row is GuideValueRow value)
+                                        {
+                                            <span class="bt-guidevalue">@value.Value.Label<span class="bt-muted">@value.Search</span></span>
+                                            <span class="bt-muted">@value.Count</span>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                            <div class="bt-guidesyntax">@SearchFields.Syntax</div>
+                        </div>
+                    }
+                </div>
                 @* Ask: the box takes a request in plain English, read by AI on Enter, or a question for the library on Ctrl+Enter. *@
                 <button class="bt-icon bt-askbutton @(_asking ? "active" : "")" title="Ask in plain English" aria-label="Ask in plain English"
                         aria-pressed="@(_asking ? "true" : "false")" @onclick="ToggleAskAsync"><Icon Name="Sparkles" /></button>
@@ -188,10 +240,12 @@ else
             Pins.Changed += OnPinsChanged;
             Breadcrumb.Changed += OnPinsChanged;
             await Pins.LoadAsync();
+            await LoadFoldAsync();
             await StartWhereChosenAsync();
         }
         _theme = await Theme.CurrentAsync();
         Theme.Changed += OnThemeChanged;
+        Guide.Changed += OnGuideChanged;
         _loading = false;
     }
 
@@ -202,15 +256,120 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_self is not null || _me is null) return;
-        _self = DotNetObjectReference.Create(this);
+        if (_guideCaret is { } caret && _self is not null)
+        {
+            _guideCaret = null;
+            try
+            {
+                await JS.InvokeVoidAsync("bibliotaphGuide.place", _searchBox, caret);
+            }
+            catch (JSException)
+            {
+                // The cursor stays at the end.
+            }
+        }
+        if (_self is null && _me is not null)
+        {
+            _self = DotNetObjectReference.Create(this);
+            try
+            {
+                await JS.InvokeVoidAsync("bibliotaphShell.start", _self);
+            }
+            catch (JSException)
+            {
+                // Ctrl+/ does nothing; Settings still has the list.
+            }
+        }
+        if (!_guideAttached && _self is not null && !_loading && !PoppedOut)
+        {
+            // The box is drawn only once the shell is: not while opening, nor in a popped-out reader.
+            _guideAttached = true;
+            try
+            {
+                await JS.InvokeVoidAsync("bibliotaphGuide.attach", _searchBox, _self);
+            }
+            catch (JSException)
+            {
+                // The box searches without its guide.
+            }
+        }
+    }
+
+    bool GuideShown => Guide.IsOpen && !_asking;
+
+    bool _guideAttached;
+
+    /// <summary>Where the cursor goes once a pick's text is drawn in the box.</summary>
+    int? _guideCaret;
+
+    /// <summary>The guide's rows, from the box's script, which knows where the cursor is.</summary>
+    [JSInvokable] public void GuideFocused(string text, int caret) { if (!_asking) Guide.Focused(text, caret); }
+
+    [JSInvokable] public void GuideTextChanged(string text, int caret) { if (!_asking) Guide.TextChanged(text, caret); }
+
+    [JSInvokable] public void GuideCaretMoved(string text, int caret) { if (!_asking) Guide.CaretMoved(text, caret); }
+
+    [JSInvokable] public void GuideRequest(string text, int caret) { if (!_asking) Guide.Request(text, caret); }
+
+    [JSInvokable] public void GuideMove(int step) => Guide.Move(step);
+
+    [JSInvokable] public void GuideClose() => Guide.Close();
+
+    [JSInvokable]
+    public Task GuidePickAsync() => Guide.PickHighlighted() is { } edit ? ApplyGuideEditAsync(edit) : Task.CompletedTask;
+
+    Task PickGuideRowAsync(GuideRow row) => Guide.Pick(row) is { } edit ? ApplyGuideEditAsync(edit) : Task.CompletedTask;
+
+    /// <summary>Puts a pick in the box with the cursor after it, then searches as typing does.</summary>
+    async Task ApplyGuideEditAsync(GuideEdit edit)
+    {
+        _searchText = edit.Text;
+        _guideCaret = edit.Caret;
+        Guide.TextChanged(edit.Text, edit.Caret);
+        StateHasChanged();
+        await OnSearchInput(new ChangeEventArgs { Value = edit.Text });
+    }
+
+    void OnGuideChanged() => InvokeAsync(StateHasChanged);
+
+    /// <summary>Folded to its icons, as the Windows app's sidebar folds, and remembered in this browser.</summary>
+    bool _folded;
+
+    const string FoldKey = "sidebar.folded";
+
+    string FoldLabel => _folded ? "Expand the sidebar (Ctrl+B)" : "Collapse the sidebar (Ctrl+B)";
+
+    /// <summary>Ctrl+B, from the page's script, which doesn't draw the page again by itself.</summary>
+    [JSInvokable]
+    public async Task ToggleSidebarFromKeyAsync()
+    {
+        await ToggleSidebarAsync();
+        StateHasChanged();
+    }
+
+    /// <summary>The fold button.</summary>
+    async Task ToggleSidebarAsync()
+    {
+        _folded = !_folded;
         try
         {
-            await JS.InvokeVoidAsync("bibliotaphShell.start", _self);
+            await JS.InvokeVoidAsync("bibliotaphPrefs.set", FoldKey, _folded ? "1" : "");
         }
         catch (JSException)
         {
-            // Ctrl+/ does nothing; Settings still has the list.
+            // Folded for this visit only.
+        }
+    }
+
+    async Task LoadFoldAsync()
+    {
+        try
+        {
+            _folded = await JS.InvokeAsync<string?>("bibliotaphPrefs.get", FoldKey) == "1";
+        }
+        catch (JSException)
+        {
+            // Open, as it starts.
         }
     }
 
@@ -265,6 +424,7 @@ else
     async Task ToggleAskAsync()
     {
         _asking = !_asking;
+        Guide.Close();
         _searchDelay?.Cancel();
         _searchDelay = null;
         if (_asking) await _searchBox.FocusAsync();
@@ -396,6 +556,7 @@ else
         Pins.Changed -= OnPinsChanged;
         Breadcrumb.Changed -= OnPinsChanged;
         Theme.Changed -= OnThemeChanged;
+        Guide.Changed -= OnGuideChanged;
         _self?.Dispose();
     }
 }
