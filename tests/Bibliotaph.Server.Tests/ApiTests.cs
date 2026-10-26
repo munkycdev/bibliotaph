@@ -76,13 +76,14 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
-    public async Task Someone_signed_out_gets_the_landing_page_at_the_root_and_each_site_page_links_the_rest()
+    public async Task The_root_is_the_landing_page_for_everyone_and_each_site_page_links_the_rest()
     {
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
 
         var landing = await Client().GetStringAsync("/", ct);
-        using var signedIn = await Client(user).GetAsync("/", ct);
+        var signedIn = await Client(user).GetStringAsync("/", ct);
+        using var app = await Client(user).GetAsync("/home", ct);
         var pages = new Dictionary<string, string>();
         foreach (var path in new[] { "/features", "/about", "/changelog", "/terms", "/privacy", "/licences", "/contact" })
         {
@@ -99,8 +100,10 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         // Its icons are drawn in place, none left as a placeholder.
         Assert.Contains("""<svg class="bt-ico" """, landing, StringComparison.Ordinal);
         Assert.DoesNotContain("{{", landing, StringComparison.Ordinal);
-        // Signed in, the root is the app's, not the landing page.
-        Assert.DoesNotContain("The exact page you need.", await signedIn.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        // Signed in, the root is still the landing page, with the way into the app where Sign in was; the app is at /home.
+        Assert.Contains("The exact page you need.", signedIn, StringComparison.Ordinal);
+        Assert.Contains("""href="/home">Open your library""", signedIn, StringComparison.Ordinal);
+        Assert.DoesNotContain("The exact page you need.", await app.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
         Assert.Contains("Open your library", openLibrary, StringComparison.Ordinal);
         Assert.All(pages.Values, html => Assert.Contains("""<a href="/terms""", html, StringComparison.Ordinal));
         Assert.Contains("""<a href="/terms" aria-current="page">""", pages["/terms"], StringComparison.Ordinal);

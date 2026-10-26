@@ -7,7 +7,7 @@ using Bibliotaph.Web.Services;
 namespace Bibliotaph.Server.Site;
 
 /// <summary>
-/// The site's own pages, around the app: the landing page someone signed out sees at /, Features, About, the change
+/// The site's own pages, around the app: the landing page at /, Features, About, the change
 /// log, Terms, Privacy, Licences and Contact us. They are plain HTML in one layout, read from the server's resources
 /// once, so they load without the WebAssembly client and work for anyone. The change log and licences come from the
 /// repository's own CHANGELOG.md, THIRD-PARTY-NOTICES.md and LICENSE-EXCEPTION.md, so they can't drift from them.
@@ -38,24 +38,13 @@ public static partial class SitePages
     }.ToFrozenDictionary();
 
     const string SignIn = """<a class="bt-button primary" href="/signin">Sign in</a>""";
-    const string OpenLibrary = """<a class="bt-button primary" href="/">Open your library</a>""";
+    const string OpenLibrary = """<a class="bt-button primary" href="/home">Open your library</a>""";
 
     static readonly Lazy<FrozenDictionary<string, (string SignedOut, string SignedIn)>> Rendered = new(Render);
 
     public static WebApplication MapSite(this WebApplication app)
     {
-        // Someone signed in gets the app at /, from the fallback below; anyone else gets the landing page.
-        app.Use(async (context, next) =>
-        {
-            if (context.Request.Path == "/" && HttpMethods.IsGet(context.Request.Method) && context.User.Identity?.IsAuthenticated != true)
-            {
-                await WriteAsync(context, "/");
-                return;
-            }
-            await next(context);
-        });
-
-        foreach (var page in Pages.Where(p => p.Path != "/"))
+        foreach (var page in Pages)
             app.MapGet(page.Path, (HttpContext context) => WriteAsync(context, page.Path));
 
         // Addresses given out before the pages had their own, and the other spelling.

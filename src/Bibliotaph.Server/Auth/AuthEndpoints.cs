@@ -33,7 +33,7 @@ public static class AuthEndpoints
                     outcome = await accounts.SignInAsync(identity, code, null, context.RequestAborted);
                 }
                 await context.SignInAsync(AuthSetup.SessionScheme, AuthSetup.SessionPrincipal(outcome.User!));
-                return Results.LocalRedirect("/");
+                return Results.LocalRedirect("/home");
             });
 
         if (auth0 is not null)
@@ -93,5 +93,5 @@ public static class AuthEndpoints
     internal static string LocalOrHome(string? url) =>
         url is { Length: > 0 } && url[0] == '/' && !url.StartsWith("//", StringComparison.Ordinal) && !url.StartsWith("/\\", StringComparison.Ordinal)
             ? url
-            : "/";
+            : "/home";
 }
