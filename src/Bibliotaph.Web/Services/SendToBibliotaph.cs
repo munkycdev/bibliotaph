@@ -16,7 +16,7 @@ public static class SendToBibliotaph
         if(t=='checkbox'||t=='radio')i.toggleAttribute('checked',i.checked);
         else if((t=='text'||t=='search')&&!i.form?.querySelector('input[type=password]'))i.setAttribute('value',i.value)}
         const h=document.documentElement.outerHTML,u=location.href,w=window.open(B+'/online/receive');let s=0;
-        const no=()=>alert('Bibliotaph couldn\'t take this page from here. Check you\'re signed in at '+B+'. Or use the Send to Bibliotaph extension, or save the page with Save as and import it in Settings, Online libraries.');
+        const no=()=>alert('Bibliotaph couldn\'t take this page from here. Check you\'re signed in at '+B+', or use the Send to Bibliotaph extension.');
         if(!w||w.closed)return no();
         addEventListener('message',async e=>{if(e.origin!=B||e.source!=w)return;const d=e.data||{};
         if(d.bibliotaph=='ready'&&!s){s=1;w.postMessage({bibliotaph:'page',url:u,html:h},B)}
