@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Clearer New version? cards.** None of the choices looks already chosen: the card's three buttons look alike, in
+  the Windows app and on the web, and nothing is picked until you click one. Page headings on the web
+  no longer show an outline when a page opens. See [Cataloging](docs/guide/cataloging.md).
 - **The front page, signed in too.** bibliotaph.online shows the front page to everyone, with **Open your library** in
   place of **Sign in**, and the web app's Home moved to bibliotaph.online/home. **b. Bibliotaph** at the top of the
   app's sidebar goes to the front page. See [The site](docs/guide/web.md#the-site).
@@ -37,7 +40,7 @@
   on** and what waits for review; and **Members** holds invitations and accounts for those who can invite. Old links,
   such as settings#storage, open the section that holds it now. See [Settings](docs/guide/web.md#settings).
 - **Choose which file is the current version.** A New version? card names both files with their pages, and asks
-  which one the book opens: **This file is current** or **The book's file is current**. See
+  which one the book opens, each button naming its file, such as **Handbook_v2.pdf is current**. See
   [Needs review](docs/guide/cataloging.md#needs-review).
 
 ## 1.3 · 19 October 2026

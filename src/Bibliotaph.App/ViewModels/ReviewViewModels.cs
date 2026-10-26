@@ -311,8 +311,8 @@ public sealed partial class TermCardViewModel : DecidedCardViewModel
 
 /// <summary>
 /// "Looks like a new version of" a book: a file that shares most of its pages with a book in the library, or its
-/// title and publisher, but isn't the same text page for page. This file is current, the book's file is current, or it's
-/// a separate book.
+/// title and publisher, but isn't the same text page for page. Either file becomes the one the book opens, or it's a
+/// separate book.
 /// </summary>
 public sealed partial class VersionCardViewModel(VersionItem item, IReviewActions actions) : DecidedCardViewModel(actions)
 {
@@ -329,6 +329,14 @@ public sealed partial class VersionCardViewModel(VersionItem item, IReviewAction
     public string Evidence => Text.Evidence;
 
     public string Detail => Text.Detail;
+
+    public string MakeCurrentLabel => Text.MakeCurrentLabel;
+
+    public string MakeCurrentHint => Text.MakeCurrentHint;
+
+    public string KeepAsCopyLabel => Text.KeepAsCopyLabel;
+
+    public string KeepAsCopyHint => Text.KeepAsCopyHint;
 
     public string Path => Item.Path ?? "";
 

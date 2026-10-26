@@ -129,7 +129,7 @@ static class ReviewOffers
         {
             var text = new VersionCardText(item);
             offers.Add(Make(item, $"versions:{item.Version.Id}", "versions", item.Title, VersionCardText.Chip, text.Heading, Where(item.Path), text.Evidence,
-                text.Detail, VersionCardText.Choices, null, new ReviewLink(item.Version.EntryId.Value, item.Title, "Open this file"),
+                text.Detail, text.Choices, null, new ReviewLink(item.Version.EntryId.Value, item.Title, "Open this file"),
                 [new ReviewLink(item.Version.MatchedEntryId.Value, "Open the book", "Open the book")]));
         }
         foreach (var proposal in list.Packs)
