@@ -77,8 +77,8 @@ public sealed class GoogleDriveTests : IDisposable
         var notifications = new DriveNotifications(_fixture.Connections, _fixture.Drives, _fixture.Libraries,
             Options.Create(new ServerOptions()), NullLogger<DriveNotifications>.Instance);
         await notifications.StartAsync(Ct);
-        var changes = new GoogleDriveChanges(_fixture.Connections, _fixture.Tokens, _fixture.Http, notifications, TimeProvider.System,
-            NullLogger<GoogleDriveChanges>.Instance);
+        var changes = new PolledDriveChanges(_fixture.Connections, _fixture.Drives, notifications, TimeProvider.System,
+            NullLogger<PolledDriveChanges>.Instance);
         try
         {
             await using var lease = await _fixture.Libraries.OpenAsync(userId, Ct);
@@ -103,7 +103,7 @@ public sealed class GoogleDriveTests : IDisposable
     {
         var (_, drive) = await _fixture.UserWithGoogleDriveAsync();
 
-        var identity = await StorageProviders.Find(GoogleDriveProvider.Key)!.IdentifyAsync(_fixture.Http.CreateClient("googledrive"), "access", Ct);
+        var identity = await ((OAuthStorageProvider)StorageProviders.Find(GoogleDriveProvider.Key)!).IdentifyAsync(_fixture.Http.CreateClient("googledrive"), "access", Ct);
 
         Assert.Equal(new StorageIdentity(FakeGoogleDrive.PermissionId, "Google Drive · Dana", null), identity);
         Assert.Equal("google-access", await _fixture.Tokens.AccessTokenAsync(drive.Id, Ct));

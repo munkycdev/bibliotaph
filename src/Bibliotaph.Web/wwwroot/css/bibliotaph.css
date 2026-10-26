@@ -280,6 +280,9 @@ a{color:var(--bt-accent)}
 .bt-signin-card h1{font-size:30px}
 .bt-signin-card .bt-button{width:100%;margin-top:10px;padding:11px 12px;font-size:12px}
 .bt-message{margin-top:16px;padding:12px;border-radius:6px;background:var(--bt-warm);font-size:12px}
+.bt-webdav{display:flex;flex-direction:column;gap:10px;margin-top:20px;max-width:560px}
+.bt-webdav .bt-field{flex:none}
+.bt-webdav .bt-subheading{margin:0}
 .bt-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px}
 .bt-table th{text-align:left;font-size:10px;letter-spacing:1.5px;font-weight:600;color:var(--bt-muted);padding:8px 8px 8px 0;border-bottom:1px solid var(--bt-line)}
 .bt-table td{padding:10px 8px 10px 0;border-bottom:1px solid var(--bt-line);vertical-align:top}

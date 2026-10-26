@@ -161,6 +161,10 @@
 - **At hand and Pop out in the web binder reader.** At hand lists the binders kept at hand with their pages, those for
   the binder's game systems first, and opens a page in a window of its own; Pop out moves the binder into its own
   window and Return to main window brings it back. See [Binders](docs/guide/web.md#binders).
+- **WebDAV and Nextcloud on the web.** Settings › Storage connects a WebDAV server, such as Nextcloud, ownCloud or a
+  NAS on the internet, with its folder's address, your user name and an app password, kept encrypted and used only to
+  read. Its books open in the reader through the server, and Nextcloud's changes are noticed within five minutes. See
+  [Connecting your storage](docs/guide/web.md#connecting-your-storage).
 
 ## 1.3 · 19 October 2026
 

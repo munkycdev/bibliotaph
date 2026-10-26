@@ -4,7 +4,7 @@ using Bibliotaph.Storage.OneDrive;
 namespace Bibliotaph.Server.Storage;
 
 /// <summary>OneDrive, personal or work and school, through the Microsoft identity platform and Microsoft Graph.</summary>
-public sealed class OneDriveProvider : StorageProvider
+public sealed class OneDriveProvider : OAuthStorageProvider
 {
     public const string Key = "onedrive";
 
@@ -38,6 +38,6 @@ public sealed class OneDriveProvider : StorageProvider
         return new StorageIdentity(drive.Id, drive.OwnerName is { Length: > 0 } owner ? $"OneDrive · {owner}" : "OneDrive", drive.DriveType);
     }
 
-    public override IStorageDrive Drive(HttpClient http, ConnectedAccount account, Func<CancellationToken, Task<string>> accessToken, TimeProvider clock) =>
-        new OneDriveDrive(new OneDriveClient(http, accessToken, clock), account.AccountId);
+    public override IStorageDrive Drive(DriveContext context) =>
+        new OneDriveDrive(new OneDriveClient(context.Http, context.Credential, context.Clock), context.Account.AccountId);
 }

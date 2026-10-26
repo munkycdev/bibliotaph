@@ -13,9 +13,14 @@ public sealed class StorageApp
 public sealed record StorageIdentity(string AccountId, string DisplayName, string? AccountKind);
 
 /// <summary>
-/// One kind of storage a user can connect: its OAuth endpoints and the access asked for, who an account is, and its
-/// client behind <see cref="IStorageDrive"/>. Everything else, from tokens to the folder picker, is shared.
+/// What a provider's client is made with: the HTTP client its calls go through, the connected account, its credential
+/// (an access token, or what the user typed for a provider without OAuth) read when a request is made, and what to do
+/// when the provider refuses that credential.
 /// </summary>
+public sealed record DriveContext(HttpClient Http, ConnectedAccount Account, Func<CancellationToken, Task<string>> Credential,
+    Func<CancellationToken, Task> Refused, TimeProvider Clock);
+
+/// <summary>One kind of storage a user can connect, and its client behind <see cref="IStorageDrive"/>.</summary>
 public abstract class StorageProvider
 {
     /// <summary>The ID in library paths, routes and accounts.db: "onedrive".</summary>
@@ -27,6 +32,23 @@ public abstract class StorageProvider
     /// <summary>Who asks the user for access, in "allow Bibliotaph to read your files when Microsoft asks".</summary>
     public abstract string Owner { get; }
 
+    /// <summary>Whether this server can connect it, which for an OAuth provider needs its app.</summary>
+    public abstract bool IsAvailable(IConfiguration configuration);
+
+    /// <summary>What a connection was granted, as Settings lists it.</summary>
+    public abstract IReadOnlyList<string> Access(string? scopes);
+
+    public abstract IStorageDrive Drive(DriveContext context);
+
+    protected const string KeepAccess = "keep access while you're signed out";
+}
+
+/// <summary>
+/// Storage connected through OAuth: its endpoints and the access asked for, and who an account is. Everything else, from
+/// tokens to the folder picker, is shared.
+/// </summary>
+public abstract class OAuthStorageProvider : StorageProvider
+{
     /// <summary>The configuration section's last part: "OneDrive" for "Storage:OneDrive".</summary>
     protected abstract string ConfigurationName { get; }
 
@@ -49,10 +71,10 @@ public abstract class StorageProvider
     public string Section => $"Storage:{ConfigurationName}";
 
     /// <summary>
-    /// What a connection was granted, as Settings lists it. Every connection holds a refresh token, so keeping access
-    /// is always among it, whether or not the provider names that as a scope.
+    /// Every connection holds a refresh token, so keeping access is always among what it was granted, whether or not
+    /// the provider names that as a scope.
     /// </summary>
-    public IReadOnlyList<string> Access(string? scopes)
+    public override IReadOnlyList<string> Access(string? scopes)
     {
         var granted = (scopes ?? string.Join(' ', Scopes)).Split(' ', StringSplitOptions.RemoveEmptyEntries)
             .Select(scope => ScopeText.TryGetValue(scope, out var text) ? text : scope)
@@ -63,7 +85,7 @@ public abstract class StorageProvider
     /// <summary>Text for a scope that's part of signing in to the provider rather than access worth listing.</summary>
     protected const string Unlisted = "";
 
-    protected const string KeepAccess = "keep access while you're signed out";
+    public override bool IsAvailable(IConfiguration configuration) => App(configuration) is not null;
 
     /// <summary>The OAuth app, or null until it's configured, which leaves the provider out of Settings.</summary>
     public StorageApp? App(IConfiguration configuration) =>
@@ -71,16 +93,14 @@ public abstract class StorageProvider
 
     /// <summary>The account an access token from connecting belongs to.</summary>
     public abstract Task<StorageIdentity> IdentifyAsync(HttpClient http, string accessToken, CancellationToken ct);
-
-    public abstract IStorageDrive Drive(HttpClient http, ConnectedAccount account, Func<CancellationToken, Task<string>> accessToken, TimeProvider clock);
 }
 
-/// <summary>Every storage provider the server knows, whether or not its OAuth app is configured here.</summary>
+/// <summary>Every storage provider the server knows, whether or not it can be connected here.</summary>
 public static class StorageProviders
 {
-    public static readonly IReadOnlyList<StorageProvider> All = [new OneDriveProvider(), new DropboxProvider(), new GoogleDriveProvider()];
+    public static readonly IReadOnlyList<StorageProvider> All = [new OneDriveProvider(), new DropboxProvider(), new GoogleDriveProvider(), new WebDavProvider()];
 
     public static StorageProvider? Find(string id) => All.FirstOrDefault(p => p.Id == id);
 
-    public static IEnumerable<StorageProvider> Configured(IConfiguration configuration) => All.Where(p => p.App(configuration) is not null);
+    public static IEnumerable<StorageProvider> Configured(IConfiguration configuration) => All.Where(p => p.IsAvailable(configuration));
 }

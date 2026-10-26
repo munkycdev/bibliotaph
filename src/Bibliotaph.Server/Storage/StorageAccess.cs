@@ -8,7 +8,8 @@ namespace Bibliotaph.Server.Storage;
 
 /// <summary>
 /// Access tokens for connected storage, made from each connection's refresh token when needed and kept in memory
-/// until shortly before they expire. A refused refresh token marks the connection as needing to be connected again.
+/// until shortly before they expire. A refused refresh token marks the connection as needing to be connected again. A
+/// provider without OAuth keeps what the user typed instead, which is its credential as it is.
 /// </summary>
 public sealed class DriveTokens(IHttpClientFactory http, IConfiguration configuration, StorageConnections connections, TimeProvider clock,
     ILogger<DriveTokens> log)
@@ -36,6 +37,14 @@ public sealed class DriveTokens(IHttpClientFactory http, IConfiguration configur
     /// <summary>Forgets a connection's access token, as when it's disconnected.</summary>
     public void Forget(string connectionId) => _cache.TryRemove(connectionId, out _);
 
+    /// <summary>The provider refused a connection's credential: only the user can fix that, by connecting again.</summary>
+    public async Task RefusedAsync(string connectionId, CancellationToken ct)
+    {
+        log.LogWarning("Storage connection {Connection} was refused and needs connecting again", connectionId);
+        Forget(connectionId);
+        await connections.SetNeedsReconnectAsync(connectionId, ct);
+    }
+
     string? Cached(string connectionId) =>
         _cache.TryGetValue(connectionId, out var cached) && cached.Expires - Margin > clock.GetUtcNow() ? cached.Token : null;
 
@@ -46,8 +55,14 @@ public sealed class DriveTokens(IHttpClientFactory http, IConfiguration configur
         var provider = StorageProviders.Find(connection.Provider)
             ?? throw new StorageException(HttpStatusCode.Unauthorized, $"Bibliotaph can't read {connection.Provider} storage.");
         if (connection.NeedsReconnect) throw new StorageException(HttpStatusCode.Unauthorized, $"{provider.Name} needs connecting again.");
+        if (provider is not OAuthStorageProvider oauth)
+        {
+            var credential = connections.RefreshToken(connection);
+            _cache[connectionId] = (credential, DateTimeOffset.MaxValue);
+            return credential;
+        }
 
-        var app = provider.App(configuration) ?? new StorageApp();
+        var app = oauth.App(configuration) ?? new StorageApp();
         var form = new Dictionary<string, string>
         {
             ["client_id"] = app.ClientId ?? "",
@@ -55,20 +70,16 @@ public sealed class DriveTokens(IHttpClientFactory http, IConfiguration configur
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = connections.RefreshToken(connection),
         };
-        if (provider.ScopesOnRefresh) form["scope"] = string.Join(' ', provider.Scopes);
+        if (oauth.ScopesOnRefresh) form["scope"] = string.Join(' ', oauth.Scopes);
         using var request = new FormUrlEncodedContent(form);
-        using var response = await http.CreateClient(nameof(DriveTokens)).PostAsync(provider.TokenEndpoint, request, ct);
+        using var response = await http.CreateClient(nameof(DriveTokens)).PostAsync(oauth.TokenEndpoint, request, ct);
         using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         var root = json.RootElement;
         if (!response.IsSuccessStatusCode)
         {
             var error = root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : null;
             // invalid_grant: revoked, expired, or the password changed. Only the user can fix that, by connecting again.
-            if (error == "invalid_grant")
-            {
-                log.LogWarning("Storage connection {Connection} was refused and needs connecting again", connectionId);
-                await connections.SetNeedsReconnectAsync(connectionId, ct);
-            }
+            if (error == "invalid_grant") await RefusedAsync(connectionId, ct);
             throw new StorageException(response.StatusCode, $"Signing in to {provider.Name} failed: {error ?? response.StatusCode.ToString()}");
         }
 
@@ -114,7 +125,8 @@ public sealed class UserDriveFactory(StorageConnections connections, DriveTokens
 
     /// <summary>A connection's drive, or null for a provider this server doesn't know.</summary>
     public IStorageDrive? Drive(ConnectedAccount account) =>
-        StorageProviders.Find(account.Provider)?.Drive(http.CreateClient(account.Provider), account, c => tokens.AccessTokenAsync(account.Id, c), clock);
+        StorageProviders.Find(account.Provider)?.Drive(new DriveContext(http.CreateClient(account.Provider), account,
+            c => tokens.AccessTokenAsync(account.Id, c), c => tokens.RefusedAsync(account.Id, c), clock));
 
     /// <summary>The HTTP client a provider's calls go through, as while an account is being connected.</summary>
     public HttpClient Http(StorageProvider provider) => http.CreateClient(provider.Id);

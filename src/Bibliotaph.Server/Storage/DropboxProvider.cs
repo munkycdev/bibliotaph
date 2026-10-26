@@ -4,7 +4,7 @@ using Bibliotaph.Storage.Dropbox;
 namespace Bibliotaph.Server.Storage;
 
 /// <summary>Dropbox, personal or a team's, through its OAuth 2 endpoints and API v2.</summary>
-public sealed class DropboxProvider : StorageProvider
+public sealed class DropboxProvider : OAuthStorageProvider
 {
     public const string Key = "dropbox";
 
@@ -39,9 +39,10 @@ public sealed class DropboxProvider : StorageProvider
             account.TeamRoot is { } root ? TeamKind + root : "personal");
     }
 
-    public override IStorageDrive Drive(HttpClient http, ConnectedAccount account, Func<CancellationToken, Task<string>> accessToken, TimeProvider clock)
+    public override IStorageDrive Drive(DriveContext context)
     {
-        var teamRoot = account.AccountKind is { } kind && kind.StartsWith(TeamKind, StringComparison.Ordinal) ? kind[TeamKind.Length..] : null;
-        return new DropboxDrive(new DropboxClient(http, accessToken, teamRoot, clock));
+        var kind = context.Account.AccountKind;
+        var teamRoot = kind is not null && kind.StartsWith(TeamKind, StringComparison.Ordinal) ? kind[TeamKind.Length..] : null;
+        return new DropboxDrive(new DropboxClient(context.Http, context.Credential, teamRoot, context.Clock));
     }
 }

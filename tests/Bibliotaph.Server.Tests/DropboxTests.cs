@@ -112,7 +112,7 @@ public sealed class DropboxTests : IDisposable
         var (_, drive) = await _fixture.UserWithDropboxAsync();
         var http = new FakeHttp(new FakeHosts(_fixture.Graph, _fixture.Dropbox)).CreateClient("dropbox");
 
-        var identity = await StorageProviders.Find(DropboxProvider.Key)!.IdentifyAsync(http, "access", Ct);
+        var identity = await ((OAuthStorageProvider)StorageProviders.Find(DropboxProvider.Key)!).IdentifyAsync(http, "access", Ct);
 
         Assert.Equal(new StorageIdentity(FakeDropbox.AccountId, "Dropbox · Dana", "personal"), identity);
         Assert.Equal("dropbox-access", await _fixture.Tokens.AccessTokenAsync(drive.Id, Ct));

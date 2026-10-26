@@ -22,7 +22,7 @@ public static class DropboxWebhook
         storage.MapPost($"/notifications/{DropboxProvider.Key}", async (HttpContext context, IConfiguration configuration, StorageConnections connections,
             DriveNotifications notifications, CancellationToken ct) =>
         {
-            if (StorageProviders.Find(DropboxProvider.Key)!.App(configuration) is not { } app) return Results.NotFound();
+            if (((OAuthStorageProvider)StorageProviders.Find(DropboxProvider.Key)!).App(configuration) is not { } app) return Results.NotFound();
             var body = await ReadAsync(context.Request.Body, ct);
             if (body is null || !Signed(body, context.Request.Headers["X-Dropbox-Signature"].ToString(), app.ClientSecret!)) return Results.StatusCode(StatusCodes.Status403Forbidden);
             foreach (var account in Accounts(body))
