@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **The site around the web app.** bibliotaph.online now opens, for anyone signed out, on a page saying what
+  Bibliotaph is, and has pages of its own for Features, About, the Change log, Contact us, Terms, Privacy and Licences
+  (Bibliotaph's licence and every component's). Signed in, it opens your library as before. See
+  [The site](docs/guide/web.md#the-site).
+- **A clearer tab icon on the web.** The "b." in the browser tab is bolder and bigger, and light on a dark tab bar.
 - **Weekly backups and Restore, on the web.** Bibliotaph on the web makes a backup each week and keeps the last four,
   and Settings › Backup lists them to download or restore. Restore also reads a backup you choose, made on the web or
   by the Windows app, shows what it holds before anything changes, and keeps your current catalog first. See

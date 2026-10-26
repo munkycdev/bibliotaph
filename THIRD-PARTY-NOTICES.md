@@ -55,6 +55,28 @@ written by `tools/LicenseNotices` from the package's own licence and notice file
 id, kept in `tools/LicenseNotices/texts/`), plus `packages\pdfium.txt` with the pdfium-binaries notices for the
 pinned PDFium build. The tool fails the build when a shipped package's licence is unknown or not GPL-3.0-compatible.
 
+## The web version (bibliotaph.online)
+
+What the web server runs, and what it sends to the browser. The browser gets the Blazor WebAssembly client, PDF.js,
+the fonts and the icons; everything else runs only on the server.
+
+| Component | Runs in | Licence | Project |
+| --- | --- | --- | --- |
+| .NET runtime, ASP.NET Core and Blazor WebAssembly | Server and browser | MIT | https://github.com/dotnet |
+| Microsoft.AspNetCore.Authentication.OpenIdConnect, Microsoft.EntityFrameworkCore.Sqlite, Microsoft.Data.Sqlite | Server | MIT | https://github.com/dotnet |
+| SQLitePCLRaw and SQLite | Server | Apache-2.0; SQLite is public domain | https://github.com/ericsink/SQLitePCL.raw |
+| Azure.Identity, Azure.Storage.Blobs, Azure.Extensions.AspNetCore.DataProtection.Blobs and .Keys | Server | MIT | https://github.com/Azure/azure-sdk-for-net |
+| SkiaSharp, with its native library for Linux (Skia) | Server | MIT; Skia BSD-3-Clause | https://github.com/mono/SkiaSharp |
+| PDFiumCore, with PDFium's Linux build and its bundled libraries (as above) | Server | Apache-2.0; PDFium BSD-3-Clause | https://github.com/Dtronix/PDFiumCore |
+| Dapper | Server | Apache-2.0 | https://github.com/DapperLib/Dapper |
+| AngleSharp (reads e-books' HTML) | Server and browser | MIT | https://github.com/AngleSharp/AngleSharp |
+| Tesseract OCR and its English data, from Debian's packages | Server | Apache-2.0 | https://github.com/tesseract-ocr/tesseract |
+| Litestream (replicates the libraries' databases to Azure storage) | Server | Apache-2.0 | https://github.com/benbjohnson/litestream |
+| Debian and the .NET container images the server is built on | Server | Each package's own free licence | https://github.com/dotnet/dotnet-docker |
+| PDF.js (Mozilla) | Browser | Apache-2.0 | https://github.com/mozilla/pdf.js |
+| DM Sans and Libre Caslon Display | Browser | SIL Open Font License 1.1 | https://github.com/googlefonts/dm-fonts, https://github.com/impallari/Libre-Caslon |
+| Lucide icons | Browser | ISC; icons derived from Feather are MIT | https://github.com/lucide-icons/lucide |
+
 ## Build, test and tooling only (not shipped)
 
 | Component | Licence |

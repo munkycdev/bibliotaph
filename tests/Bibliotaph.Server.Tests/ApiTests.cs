@@ -75,6 +75,41 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Someone_signed_out_gets_the_landing_page_at_the_root_and_each_site_page_links_the_rest()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+
+        var landing = await Client().GetStringAsync("/", ct);
+        using var signedIn = await Client(user).GetAsync("/", ct);
+        var pages = new Dictionary<string, string>();
+        foreach (var path in new[] { "/features", "/about", "/changelog", "/terms", "/privacy", "/licences", "/contact" })
+        {
+            using var response = await Client().GetAsync(path, ct);
+            Assert.Equal((path, HttpStatusCode.OK, "text/html"), (path, response.StatusCode, response.Content.Headers.ContentType?.MediaType));
+            pages[path] = await response.Content.ReadAsStringAsync(ct);
+        }
+        var openLibrary = await Client(user).GetStringAsync("/features", ct);
+        using var oldPrivacy = await Client().GetAsync("/privacy.html", ct);
+        using var picture = await Client().GetAsync("/site/library.png", ct);
+
+        Assert.Contains("Find the right book, and the right page", landing, StringComparison.Ordinal);
+        Assert.Contains("""href="/signin">Sign in""", landing, StringComparison.Ordinal);
+        // Signed in, the root is the app's, not the landing page.
+        Assert.DoesNotContain("Find the right book, and the right page", await signedIn.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        Assert.Contains("Open your library", openLibrary, StringComparison.Ordinal);
+        Assert.All(pages.Values, html => Assert.Contains("""<a href="/terms""", html, StringComparison.Ordinal));
+        Assert.Contains("""<a href="/terms" aria-current="page">""", pages["/terms"], StringComparison.Ordinal);
+        // The change log and licences come from the repository's own files.
+        Assert.Contains("""<h2 id="unreleased">Unreleased</h2>""", pages["/changelog"], StringComparison.Ordinal);
+        Assert.Contains("Windows SDK projection", pages["/licences"], StringComparison.Ordinal);
+        Assert.Contains("Litestream", pages["/licences"], StringComparison.Ordinal);
+        Assert.Contains("Privacy policy", pages["/privacy"], StringComparison.Ordinal);
+        Assert.Equal(("/privacy", HttpStatusCode.MovedPermanently), (oldPrivacy.Headers.Location?.OriginalString, oldPrivacy.StatusCode));
+        Assert.Equal("image/png", picture.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
     public async Task Without_a_session_the_API_answers_401()
     {
         using var response = await Client().GetAsync("/api/me", TestContext.Current.CancellationToken);
