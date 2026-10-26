@@ -143,7 +143,7 @@ a file or the file an adventure is in, a pack's files, **About the file**, **Whe
 when it has more than one, and how far reading it has got. **Esc**, the **×** or a click outside closes them.
 
 **Home** greets you with the books you opened last and those added last, a cover each; a click opens the book's details
-in the Library.
+in the Library, and a right-click has the same menu as in the Library.
 
 Covers are kept with your account, so they don't need drawing again when the server restarts.
 

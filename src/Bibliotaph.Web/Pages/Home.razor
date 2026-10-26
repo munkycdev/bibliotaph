@@ -32,6 +32,12 @@ else
     <span class="bt-eyebrow bt-eyebrow-block">YOUR NEXT GOOD STORY</span>
     <h1 tabindex="-1">Welcome back.</h1>
     <div class="bt-subtitle">A familiar shelf. A few places you haven't been.</div>
+    @if (_note is not null)
+    {
+        <div class="bt-librarynote bt-pagenote">
+            <DoneNote Result="_note" UndoName="Undo" Dismissed="() => _note = null" Undone="LoadAsync" />
+        </div>
+    }
     @if (_shelves is { } shelves)
     {
         @if (shelves.Added.Count == 0)
@@ -56,7 +62,7 @@ else
                     <strong>Recently opened</strong>
                     <a class="bt-link bt-inline" href="library">Browse your library<Icon Name="ArrowRight" Size="13" /></a>
                 </div>
-                <Shelf Books="shelves.Opened" Label="Recently opened" Open="ShowDetails" />
+                <Shelf Books="shelves.Opened" Label="Recently opened" Open="ShowDetails" Correct="CorrectBook" Changed="LoadAsync" Done="r => _note = r" />
             }
             <div class="bt-sectionline">
                 <strong>Recently added</strong>
@@ -65,7 +71,7 @@ else
                     <a class="bt-link bt-inline" href="library">Browse your library<Icon Name="ArrowRight" Size="13" /></a>
                 }
             </div>
-            <Shelf Books="shelves.Added" Label="Recently added" Open="ShowDetails" />
+            <Shelf Books="shelves.Added" Label="Recently added" Open="ShowDetails" Correct="CorrectBook" Changed="LoadAsync" Done="r => _note = r" />
         }
         @if (Pins.Items.Count > 0)
         {
@@ -87,6 +93,7 @@ else
 @code {
     LibrarySummary? _summary;
     HomeShelves? _shelves;
+    ActionResult? _note;
     bool _wasBusy;
     DateTime _loaded;
 
@@ -125,6 +132,7 @@ else
     /// <summary>A cover: the Library with that book's details open, as on Windows.</summary>
     void ShowDetails(BookCard book) => Navigation.NavigateTo($"library?book={book.EntryId}");
 
+    void CorrectBook(BookCard book) => Navigation.NavigateTo($"library?book={book.EntryId}&correct=true");
     public void Dispose()
     {
         Activity.Changed -= OnActivityChanged;
