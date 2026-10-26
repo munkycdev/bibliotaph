@@ -113,8 +113,12 @@ public static class StorageApi
         });
     }
 
-    static StorageAccount Account(ConnectedAccount a) =>
-        new(a.Id, a.Provider, a.DisplayName ?? StorageProviders.Find(a.Provider)?.Name ?? a.Provider, a.NeedsReconnect, new DateTimeOffset(a.Created, TimeSpan.Zero));
+    static StorageAccount Account(ConnectedAccount a)
+    {
+        var provider = StorageProviders.Find(a.Provider);
+        return new(a.Id, a.Provider, a.DisplayName ?? provider?.Name ?? a.Provider, a.NeedsReconnect, new DateTimeOffset(a.Created, TimeSpan.Zero),
+            provider?.Access(a.Scopes) ?? [], a.Scopes);
+    }
 
     static async Task<IReadOnlyList<LibraryFolder>> FoldersAsync(UserLibrary library, CancellationToken ct)
     {

@@ -15,6 +15,9 @@
 - **Google Drive on the web.** Connect one or more Google Drives in Settings › Storage and add library folders from
   them. Google Docs and Sheets are left out, two files of one name are told apart, and changes are noticed within five
   minutes.
+- **What your storage allowed, in Settings.** Each storage account in Settings › Storage now says what Bibliotaph was
+  allowed to do, such as read your files and keep access while you're signed out. OneDrive no longer asks to write to a
+  folder of Bibliotaph's own, as nothing on the web uses it yet.
 - **Your books read on the web.** bibliotaph.online reads each book in your library folders as the Windows app does:
   pages, outline, text for search, covers, and hints from file and folder names. A book is downloaded once to be read
   and its copy deleted when it's done. OCR and AI on the web come later.

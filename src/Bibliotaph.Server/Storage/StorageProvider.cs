@@ -40,7 +40,30 @@ public abstract class StorageProvider
     /// <summary>Whether redeeming a refresh token names the scopes again, as Microsoft's endpoint wants.</summary>
     public virtual bool ScopesOnRefresh => false;
 
+    /// <summary>
+    /// What each scope lets Bibliotaph do, in Settings' words: "read your files". A scope left out is shown by its
+    /// own name, so nothing granted goes unmentioned.
+    /// </summary>
+    protected abstract IReadOnlyDictionary<string, string> ScopeText { get; }
+
     public string Section => $"Storage:{ConfigurationName}";
+
+    /// <summary>
+    /// What a connection was granted, as Settings lists it. Every connection holds a refresh token, so keeping access
+    /// is always among it, whether or not the provider names that as a scope.
+    /// </summary>
+    public IReadOnlyList<string> Access(string? scopes)
+    {
+        var granted = (scopes ?? string.Join(' ', Scopes)).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(scope => ScopeText.TryGetValue(scope, out var text) ? text : scope)
+            .Append(KeepAccess);
+        return [.. granted.Where(text => text.Length > 0).Distinct()];
+    }
+
+    /// <summary>Text for a scope that's part of signing in to the provider rather than access worth listing.</summary>
+    protected const string Unlisted = "";
+
+    protected const string KeepAccess = "keep access while you're signed out";
 
     /// <summary>The OAuth app, or null until it's configured, which leaves the provider out of Settings.</summary>
     public StorageApp? App(IConfiguration configuration) =>

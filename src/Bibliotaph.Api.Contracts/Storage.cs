@@ -1,7 +1,11 @@
 namespace Bibliotaph.Api.Contracts;
 
-/// <summary>A storage account the user connected, such as their OneDrive.</summary>
-public sealed record StorageAccount(string Id, string Provider, string Name, bool NeedsReconnect, DateTimeOffset Added);
+/// <summary>
+/// A storage account the user connected, such as their OneDrive. <see cref="Access"/> is what it was granted, in
+/// plain words ("read your files"); <see cref="Scopes"/> is the same as the provider names it.
+/// </summary>
+public sealed record StorageAccount(string Id, string Provider, string Name, bool NeedsReconnect, DateTimeOffset Added,
+    IReadOnlyList<string>? Access = null, string? Scopes = null);
 
 /// <summary>A kind of storage this server can connect: "OneDrive", whose consent screen is "Microsoft"'s.</summary>
 public sealed record StorageProviderInfo(string Id, string Name, string Owner);

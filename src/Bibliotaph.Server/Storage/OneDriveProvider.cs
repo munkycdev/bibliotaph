@@ -16,11 +16,19 @@ public sealed class OneDriveProvider : StorageProvider
     public override string AuthorizationEndpoint => "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
     public override string TokenEndpoint => "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 
-    /// <summary>
-    /// Read every file (the library folders), read and write only Bibliotaph's own app folder (where imported books
-    /// go), and keep access while the user is away. Nothing broader: no write access to the user's own folders.
-    /// </summary>
-    public override IReadOnlyList<string> Scopes { get; } = ["offline_access", "Files.Read", "Files.ReadWrite.AppFolder"];
+    /// <summary>Read every file (the library folders), and keep access while the user is away. Nothing that writes.</summary>
+    public override IReadOnlyList<string> Scopes { get; } = ["offline_access", "Files.Read"];
+
+    // Microsoft adds the sign-in scopes to every token it grants.
+    protected override IReadOnlyDictionary<string, string> ScopeText { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Files.Read"] = "read your files",
+        ["offline_access"] = KeepAccess,
+        ["openid"] = Unlisted,
+        ["profile"] = Unlisted,
+        ["email"] = Unlisted,
+        ["User.Read"] = "see your name",
+    };
 
     public override bool ScopesOnRefresh => true;
 

@@ -7,7 +7,7 @@ namespace Bibliotaph.Server.Storage;
 
 /// <summary>A drive or account a user connected, as one row of storage_connections, before its tokens are read.</summary>
 public sealed record ConnectedAccount(string Id, string UserId, string Provider, string AccountId, string? DisplayName, string? AccountKind,
-    bool NeedsReconnect, DateTime Created);
+    bool NeedsReconnect, DateTime Created, string? Scopes = null);
 
 /// <summary>
 /// The storage each user connected, in accounts.db. Refresh tokens are kept encrypted with Data Protection, whose key
@@ -107,5 +107,6 @@ public sealed class StorageConnections(AccountsDatabase database, IDataProtectio
     }
 
     static ConnectedAccount Summary(StorageConnection c) =>
-        new(c.Id, c.UserId, c.Provider, c.AccountId, c.DisplayName, c.AccountKind, c.NeedsReconnect, DateTime.SpecifyKind(c.Created, DateTimeKind.Utc));
+        new(c.Id, c.UserId, c.Provider, c.AccountId, c.DisplayName, c.AccountKind, c.NeedsReconnect, DateTime.SpecifyKind(c.Created, DateTimeKind.Utc),
+            c.Scopes);
 }

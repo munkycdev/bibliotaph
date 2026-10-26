@@ -23,6 +23,11 @@ public sealed class GoogleDriveProvider : StorageProvider
     /// </summary>
     public override IReadOnlyList<string> Scopes { get; } = ["https://www.googleapis.com/auth/drive.readonly"];
 
+    protected override IReadOnlyDictionary<string, string> ScopeText { get; } = new Dictionary<string, string>
+    {
+        ["https://www.googleapis.com/auth/drive.readonly"] = "see and read your files",
+    };
+
     /// <summary>
     /// Google hands out a refresh token only for offline access, and only the first time unless consent is asked again,
     /// which a reconnect needs.

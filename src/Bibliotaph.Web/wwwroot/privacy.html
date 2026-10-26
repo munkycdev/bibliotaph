@@ -40,13 +40,12 @@
     <h2>Signing in and connecting your storage</h2>
     <p>Signing in and storage are separate. You sign in with an account you already have, then connect one or more storage services where your books live. Each service shows you what Bibliotaph is asking for before you agree.</p>
     <p><strong>Signing in.</strong> Sign-in is run for us by Auth0, a service of Okta. You sign in on its page with an account you already have, such as Microsoft, Google or Apple, or with your email address. We receive only your name, email address and a unique account ID. We never see or store your password; if you sign in with an email address, Auth0 keeps the password, protected, on our behalf. You can link more than one sign-in to the same account.</p>
-    <p><strong>Connecting storage.</strong> You can connect storage services such as OneDrive, Google Drive or Dropbox, and add folders from each one to your library. For every service, we ask for the least access the service offers:</p>
+    <p><strong>Connecting storage.</strong> You can connect storage services such as OneDrive, Google Drive or Dropbox, and add folders from each one to your library. For every service, we ask for the least access that lets Bibliotaph read the folders you add, and nothing that writes:</p>
     <table class="bt-table">
       <thead><tr><th>Access</th><th>What Bibliotaph does with it</th></tr></thead>
       <tbody>
-        <tr><td>Read your files</td><td>List and read the folders you add to your library. Bibliotaph never changes or deletes files in those folders.</td></tr>
-        <tr><td>Its own folder</td><td>Read and write one folder that belongs to Bibliotaph, such as Apps/Bibliotaph, where the service offers one. This is your main storage location, where books you import from online libraries are saved.</td></tr>
-        <tr><td>Write to a folder you choose</td><td>Asked for only if you pick a main storage location outside Bibliotaph's own folder. Bibliotaph writes only to that folder.</td></tr>
+        <tr><td>Read your files</td><td>List and read the folders you add to your library. Bibliotaph never changes, moves or deletes anything in your storage.</td></tr>
+        <tr><td>See your name</td><td>Name the connection in Settings, such as &ldquo;Dropbox &middot; Dana&rdquo;, where the service includes it.</td></tr>
         <tr><td>Keep access</td><td>Keep your library up to date while you're not signed in</td></tr>
       </tbody>
     </table>
@@ -85,7 +84,7 @@
         <tr><td>Storage tokens and AI key</td><td>Until you disconnect that service, remove the key, or close your account</td></tr>
       </tbody>
     </table>
-    <p><strong>Closing your account.</strong> You can close your account from Settings. We delete your account, library index, your work, tokens and key straight away, and they drop out of backups within 30 days. Nothing in your storage is touched. Books you imported stay in your main storage location, because they're yours.</p>
+    <p><strong>Closing your account.</strong> You can close your account from Settings. We delete your account, library index, your work, tokens and key straight away, and they drop out of backups within 30 days. Nothing in your storage is touched.</p>
     <p><strong>Your rights.</strong> You can:</p>
     <ul>
       <li>see and <strong>export</strong> everything we hold about you, from Settings, as a file the Windows app can open;</li>

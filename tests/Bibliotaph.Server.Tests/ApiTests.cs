@@ -1061,9 +1061,29 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var authorize = connect.Headers.Location!.ToString();
         Assert.StartsWith("https://login.microsoftonline.com/common/oauth2/v2.0/authorize?", authorize, StringComparison.Ordinal);
         var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(authorize).Query);
-        Assert.Equal("offline_access Files.Read Files.ReadWrite.AppFolder", query["scope"].ToString());
+        Assert.Equal("offline_access Files.Read", query["scope"].ToString());
         Assert.EndsWith("/storage/callback/onedrive", query["redirect_uri"].ToString(), StringComparison.Ordinal);
         Assert.Equal("/settings?problem=storage", unknown.Headers.Location!.ToString());
+    }
+
+    [Fact]
+    public async Task Settings_lists_what_each_connection_was_granted_in_plain_words()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        await connections.SaveAsync(user.Id, DropboxProvider.Key, FakeDropbox.AccountId, "Dropbox · Dana", "personal", "refresh",
+            "account_info.read files.metadata.read files.content.read", ct);
+        await connections.SaveAsync(user.Id, OneDriveProvider.Key, "drive", "OneDrive · Dana", "personal", "refresh",
+            "Files.Read openid profile email offline_access Sites.Read.All", ct);
+
+        var accounts = (await Client(user).GetFromJsonAsync<List<StorageAccount>>("/api/storage", ct))!.ToDictionary(a => a.Provider);
+
+        var dropbox = accounts[DropboxProvider.Key];
+        Assert.Equal(["see your name", "see your file and folder names", "read your files", "keep access while you're signed out"], dropbox.Access!);
+        Assert.Equal("account_info.read files.metadata.read files.content.read", dropbox.Scopes);
+        // Anything granted that Bibliotaph has no words for is still listed, by its own name.
+        Assert.Equal(["read your files", "keep access while you're signed out", "Sites.Read.All"], accounts[OneDriveProvider.Key].Access!);
     }
 
     [Fact]
