@@ -104,7 +104,9 @@ the same book.
 If you use [Bibliotaph on the web](web.md), connect this PC to it in **Settings > Web library**: **Connect…** opens
 bibliotaph.online in your browser, where you sign in, check the code the app shows and approve this PC. Your work then
 travels between this PC and the web as it does between two PCs, with the same list of what travels; the section says
-whose library it's connected to and when it last merged, and **Disconnect** ends it. See [Connecting a Windows PC](web.md#connecting-a-windows-pc).
+whose library it's connected to and when it last merged, and **Disconnect** ends it. What the AI found in a book is
+shared with your web library and your other connected PCs as well, so the same book is read by the AI once, wherever
+that happens first. See [Connecting a Windows PC](web.md#connecting-a-windows-pc).
 
 ---
 

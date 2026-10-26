@@ -18,6 +18,7 @@ public static class ApiEndpoints
         // Connecting a PC: partly without a session, and partly with the PC's own key instead.
         app.MapDevicesApi();
         app.MapSyncApi();
+        app.MapResultsApi();
 
         var api = app.MapGroup("/api").RequireAuthorization();
 

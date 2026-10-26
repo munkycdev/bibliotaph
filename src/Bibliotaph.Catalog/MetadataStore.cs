@@ -12,6 +12,9 @@ public sealed record EntryMetadata(EntryId EntryId, IReadOnlyList<MetadataClaim>
     public EffectiveMetadata Compute() => EffectiveMetadata.Compute(Claims, Rejections);
 }
 
+/// <summary>What a classifier run suggested for the copy it read, whatever the user has said about it since.</summary>
+public sealed record RunClaim(string RunId, string Field, string Value, string? Quote, IReadOnlyList<int> Pages, bool FromSampling);
+
 /// <summary>
 /// Metadata assertions in catalog.db. Sources add suggestions; the user's decisions change assertion states and add
 /// rejections. Nothing here overwrites a value: the effective metadata is always computed from these rows, so a
@@ -208,6 +211,21 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         }
         if (added > 0) await db.SaveChangesAsync(ct);
         return added;
+    }
+
+    /// <summary>
+    /// What these runs suggested, from the suggestions that still name them: a value suggested again by a later run
+    /// names the later one, so the newest run of a copy has everything it found.
+    /// </summary>
+    public async Task<IReadOnlyList<RunClaim>> GetRunClaimsAsync(IReadOnlyCollection<string> runIds, CancellationToken ct = default)
+    {
+        var claims = new List<RunClaim>();
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        foreach (var ids in runIds.Distinct().Chunk(500))
+            foreach (var row in await db.Assertions.AsNoTracking().Where(a => a.RunId != null && ids.Contains(a.RunId)).OrderBy(a => a.Id).ToListAsync(ct))
+                claims.Add(new RunClaim(row.RunId!, row.Field, JsonSerializer.Deserialize<string>(row.ValueJson) ?? "", row.EvidenceQuote,
+                    row.EvidencePagesJson is { } pages ? JsonSerializer.Deserialize<List<int>>(pages) ?? [] : [], row.FromSampling));
+        return claims;
     }
 
     /// <summary>

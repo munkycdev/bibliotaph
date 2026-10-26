@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The AI reads each book once, for all your devices.** With a PC connected to your web library, what the AI found
+  in a book is shared by the file's contents: the web library gets the PC's suggestions for the same file, ready in
+  Needs review without an AI key of its own, and a book the AI has already read on one device isn't sent to the AI on
+  another. Whole-book scans are shared the same way. See [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
 - **Send to Bibliotaph, on the web.** A bookmark in Settings › Online libraries, dragged to the bookmarks bar and clicked
   on your D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG library page, sends the page to Bibliotaph with its
   covers, so there's no saving and picking files. See [Online libraries](docs/guide/web.md#online-libraries).

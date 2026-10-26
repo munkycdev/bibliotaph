@@ -2030,6 +2030,69 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.False(pcWeb.IsOn);
     }
 
+    [Fact]
+    public async Task A_connected_PC_shares_what_its_AI_read_and_the_web_library_gives_it_to_the_same_book()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(_pdfs.KnownText, ct));
+        var web = Client(user);
+        web.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await web.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await web.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 1 } one ? one[0] : null, ct);
+        var libraries = _factory.Services.GetRequiredService<UserLibraries>();
+        string hash;
+        await using (var lease = await libraries.OpenAsync(user.Id, ct))
+            hash = Assert.Single(await lease.Library.Get<LibraryStore>().GetDocumentHashesAsync(ct)).ContentHash;
+
+        var path = Path.Combine(_folder.Path, "pc-catalog.db");
+        var catalog = new CatalogDatabase(path, Path.Combine(_folder.Path, "pc-backups"));
+        await using (var db = catalog.CreateContext()) await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database, ct);
+        var settings = new SettingsStore(new CatalogFile(path));
+        await settings.SetAsync(SettingKeys.WebAddress, "http://localhost", ct);
+        var key = new MemoryWebLibraryKey();
+        var pc = new WebLibrary(new HttpClient(_factory.Server.CreateHandler()), key, settings, TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WebLibrary>.Instance);
+        var started = (await pc.StartAsync("DESKTOP-1", ct))!;
+        var waiting = pc.WaitAsync(started, ct);
+        (await web.PostAsync($"/api/devices/connect/{started.Code}", null, ct)).EnsureSuccessStatusCode();
+        Assert.Equal(WebConnectOutcome.Connected, await waiting);
+
+        // What the PC's AI read in its copy of the same file.
+        var finished = new DateTime(2026, 10, 20, 9, 0, 0, DateTimeKind.Utc);
+        var reading = new SharedResult(hash, SharedResultKinds.Classification, ClassifierPrompt.Version, "run-on-the-pc", finished,
+            JsonSerializer.Serialize(new SharedClassification("qwen3-8b", ClassifierPrompt.SchemaVersion, [0], finished.AddMinutes(-1),
+                [new SharedClaim("levels", "3", null, "characters of 3rd level", [0], false)]), JsonSerializerOptions.Web));
+        var sent = await pc.WriteResultsAsync([reading], ct);
+        var applied = await WaitAsync(async () =>
+        {
+            await using var lease = await libraries.OpenAsync(user.Id, ct);
+            return await lease.Library.Get<ClassificationStore>().HasSharedRunAsync(hash, ClassifierPrompt.Version, ct) ? "applied" : null;
+        }, ct);
+        var details = (await web.GetFromJsonAsync<BookDetails>($"/api/library/books/{book.EntryId}", ct))!;
+
+        // Sent again, or older, it isn't kept; the PC isn't given its own back; only a PC's key reaches the results.
+        var keyed = new HttpClient(_factory.Server.CreateHandler()) { BaseAddress = new Uri("http://localhost") };
+        keyed.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key.Find());
+        keyed.DefaultRequestHeaders.Add(ApiHeaders.Client, "windows");
+        using var again = await keyed.PostAsJsonAsync("/api/results", new SharedResultUpload([reading, reading with { Id = "older", FinishedUtc = finished.AddDays(-1) }]), ct);
+        var kept = (await again.Content.ReadFromJsonAsync<SharedResultsKept>(ct))!;
+        var page = (await pc.ReadResultsAsync(0, ct))!;
+        using var session = await web.GetAsync("/api/results", ct);
+
+        Assert.True(sent);
+        Assert.Equal("applied", applied);
+        var levels = details.Fields.Single(f => f.Key == "levels");
+        Assert.True(levels.Suggested);
+        Assert.Contains("3", levels.Display, StringComparison.Ordinal);
+        Assert.Equal(0, kept.Kept);
+        Assert.Empty(page.Results);
+        Assert.False(page.More);
+        Assert.Equal(HttpStatusCode.Unauthorized, session.StatusCode);
+    }
+
     static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
