@@ -264,6 +264,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
 
             // Before the Classify lane looks at whether it may send anything.
             await library.Get<ServerApiKeys>().LoadAsync();
+            await library.Get<ServerPdfPasswords>().LoadAsync();
             await library.Get<AiSettings>().LoadAsync();
             // A rebuilt index.db gets its chapters back from catalog.db, without the AI reading a book again.
             await library.Get<ChapterProjection>().RestoreAsync();

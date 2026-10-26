@@ -269,6 +269,45 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task A_locked_pdf_opens_to_unlock_and_its_password_makes_it_searchable_and_is_remembered_sealed()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/locked.pdf", await File.ReadAllBytesAsync(_pdfs.PasswordProtected, ct));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+
+        var locked = await WaitAsync(async () => (await client.GetFromJsonAsync<ReviewFiles>("/api/review/files", ct))!.Cards
+            .SelectMany(c => c.Files).FirstOrDefault(f => f.CanUnlock), ct);
+        var document = $"/api/library/documents/{locked.DocumentId}/password";
+        var before = (await client.GetFromJsonAsync<ReaderPassword>(document, ct))!;
+        using var kept = await client.PostAsJsonAsync(document, new ReaderPasswordUse(SyntheticPdfs.Password, Remember: true, Searchable: true), ct);
+        var found = await WaitAsync(async () => (await client.GetFromJsonAsync<ReaderFind>(
+            $"/api/library/documents/{locked.DocumentId}/find?q={Uri.EscapeDataString("owlbear")}", ct))!.Pages is { Count: > 0 } pages ? pages : null, ct);
+        var remembered = (await client.GetFromJsonAsync<ReaderPassword>(document, ct))!;
+        var listed = (await client.GetFromJsonAsync<List<RememberedPassword>>("/api/library/passwords", ct))!;
+        string? sealedPasswords;
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+            sealedPasswords = await lease.Library.Get<SettingsStore>().GetAsync(SettingKeys.ServerPdfPasswords, ct);
+        using var forgot = await client.DeleteAsync($"/api/library/passwords/{listed[0].ContentHash}", ct);
+        var after = (await client.GetFromJsonAsync<ReaderPassword>(document, ct))!;
+
+        Assert.NotNull(locked.EntryId);
+        Assert.False(locked.CanRetry);
+        Assert.Null(before.Password);
+        Assert.Equal(HttpStatusCode.NoContent, kept.StatusCode);
+        Assert.NotEmpty(found);
+        Assert.Equal(SyntheticPdfs.Password, remembered.Password);
+        Assert.Single(listed);
+        Assert.DoesNotContain(SyntheticPdfs.Password, sealedPasswords, StringComparison.Ordinal);
+        Assert.Empty((await forgot.Content.ReadFromJsonAsync<List<RememberedPassword>>(ct))!);
+        Assert.Null(after.Password);
+    }
+
+    [Fact]
     public async Task Collections_are_made_filled_and_changed_as_the_windows_app_changes_them()
     {
         var ct = TestContext.Current.CancellationToken;

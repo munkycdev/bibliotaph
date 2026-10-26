@@ -184,6 +184,10 @@
   own it on, Ask this book, Forget its text and Read it again, and Download the file for one whose protection Bibliotaph
   can't open. Reprocess has Reprocess with OCR on every page…, a book owned only online opens its page there, and Home
   offers to set up AI as the Windows app does.
+- **Locked PDFs on the web, as in the Windows app.** The reader's password dialog has Make its text searchable, so the
+  book is read for search with it, and Remember it, which keeps the password sealed in your web library so the book
+  opens without asking. Settings › Passwords lists those books and forgets their passwords, and Needs review's locked
+  files have Open to unlock, and protected ones Download the file. See [Reading a book](docs/guide/web.md#reading-a-book).
 
 ## 1.3 · 19 October 2026
 

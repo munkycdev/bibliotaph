@@ -280,6 +280,28 @@ public sealed class ApiClient(HttpClient http)
     public Task<ReaderLink> ReaderLinkAsync(long documentId, CancellationToken ct = default) =>
         SendAsync<ReaderLink>(HttpMethod.Get, $"{Document(documentId)}/link", null, ct);
 
+    /// <summary>The password remembered for a locked PDF, tried before the reader asks.</summary>
+    public Task<ReaderPassword> RememberedPasswordAsync(long documentId, CancellationToken ct = default) =>
+        SendAsync<ReaderPassword>(HttpMethod.Get, $"{Document(documentId)}/password", null, ct);
+
+    /// <summary>A password that opened the book, for indexing to read it with and, when asked, to remember.</summary>
+    public Task UsePasswordAsync(long documentId, ReaderPasswordUse use, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Post, $"{Document(documentId)}/password", use, ct);
+
+    /// <summary>Forgets a remembered password that no longer opens the book.</summary>
+    public Task ForgetPasswordAsync(long documentId, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Delete, $"{Document(documentId)}/password", null, ct);
+
+    /// <summary>Settings › Passwords: the books with a remembered password.</summary>
+    public Task<List<RememberedPassword>> RememberedPasswordsAsync(CancellationToken ct = default) =>
+        SendAsync<List<RememberedPassword>>(HttpMethod.Get, "api/library/passwords", null, ct);
+
+    public Task<List<RememberedPassword>> ForgetRememberedPasswordAsync(string contentHash, CancellationToken ct = default) =>
+        SendAsync<List<RememberedPassword>>(HttpMethod.Delete, $"api/library/passwords/{Uri.EscapeDataString(contentHash)}", null, ct);
+
+    public Task<List<RememberedPassword>> ForgetAllPasswordsAsync(CancellationToken ct = default) =>
+        SendAsync<List<RememberedPassword>>(HttpMethod.Delete, "api/library/passwords", null, ct);
+
     /// <summary>Ask this book as the reader opens it, which also starts its pages being read for meaning.</summary>
     public Task<AskBook> AskBookAsync(long documentId, CancellationToken ct = default) => SendAsync<AskBook>(HttpMethod.Get, Ask(documentId), null, ct);
 

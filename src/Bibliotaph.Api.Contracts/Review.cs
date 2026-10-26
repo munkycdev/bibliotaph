@@ -114,8 +114,13 @@ public sealed record ReviewFiles(IReadOnlyList<AttentionCard> Cards, bool CanRet
 /// <summary>A card of one file or many, with Try again when any of them can be tried again.</summary>
 public sealed record AttentionCard(string Heading, string Detail, bool CanRetry, string? BugDetails, IReadOnlyList<AttentionFile> Files);
 
-/// <summary>A file on a card, which Try again can give another go when it isn't locked or protected.</summary>
-public sealed record AttentionFile(long? DocumentId, string Title, bool CanRetry);
+/// <summary>
+/// A file on a card, which Try again can give another go when it isn't locked or protected. A locked one opens in the
+/// reader to be unlocked; one with protection Bibliotaph can't open is downloaded for another app. Either opens on its
+/// card (<paramref name="EntryId"/>).
+/// </summary>
+public sealed record AttentionFile(long? DocumentId, string Title, bool CanRetry, bool CanUnlock = false, bool CanOpenElsewhere = false,
+    long? EntryId = null);
 
 /// <summary>Try again for these files.</summary>
 public sealed record ReviewRetry(IReadOnlyList<long> Documents);

@@ -570,6 +570,9 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-suggestioncount{color:var(--bt-muted);flex:0 0 auto}
 .bt-typeahead .bt-chips{margin-top:6px}
 .bt-dialogintro{margin-top:6px}
+/* The password dialog's ticks, each with its note under it as in the Windows dialog. */
+.bt-passwordtick{margin-top:12px;font-size:12px}
+.bt-passwordnote{margin:2px 0 0 24px;color:var(--bt-muted)}
 /* Add a book you own elsewhere, and its details' cover and Remove from library: the Windows app's dialog and buttons. */
 .bt-owns{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:4px}
 .bt-filebutton{position:relative;align-self:flex-start;cursor:pointer;color:var(--bt-text)}
@@ -1094,3 +1097,4 @@ a.bt-menuitem{text-decoration:none}
 .bt-onlinerows .bt-check span{min-width:0}
 .bt-onlinemissing{display:flex;gap:16px;justify-content:space-between;align-items:center}
 @media (max-width:640px){.bt-onlineservice,.bt-onlinesummary,.bt-onlinecovers{flex-direction:column;align-items:stretch}.bt-onlineactions{align-items:flex-start}}
+.bt-passwordbook{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}

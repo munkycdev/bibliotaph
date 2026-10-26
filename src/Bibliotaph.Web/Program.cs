@@ -23,5 +23,6 @@ builder.Services.AddScoped<Pins>();
 builder.Services.AddScoped<SearchGuideModel>();
 builder.Services.AddScoped<Breadcrumb>();
 builder.Services.AddScoped<AskScope>();
+builder.Services.AddScoped<UnlockedBooks>();
 
 await builder.Build().RunAsync();

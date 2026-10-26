@@ -14,7 +14,7 @@ namespace Bibliotaph.Server.Libraries;
 /// <summary>
 /// What every library shares with the server: logging, the clock, the way to reach a user's drives, the PDF worker
 /// and image codec, so one worker reads for every user in turn rather than one each, where covers are kept, the keys
-/// that seal a user's AI keys, and how a model service is reached.
+/// that seal a user's AI keys and PDF passwords, and how a model service is reached.
 /// </summary>
 public sealed record LibraryHost(ILoggerFactory Logs, TimeProvider Clock, UserDriveFactory Drives, string TemporaryFolder, IPdfEngine Pdf,
     IImageCodec Images, ICoverStore Covers, IDataProtectionProvider Protection, ModelClientFactory Models);
@@ -71,7 +71,10 @@ public static class LibraryServices
         services.AddSingleton<StorageChangeFeed>();
         services.AddSingleton(host.Pdf);
         services.AddSingleton(host.Images);
-        services.AddSingleton<IPasswordStore, NoPasswords>();
+        // Passwords the reader gave a locked PDF, sealed as AI keys are, which indexing opens it with as the Windows app's do.
+        services.AddSingleton(sp => new ServerPdfPasswords(sp.GetRequiredService<SettingsStore>(),
+            host.Protection.CreateProtector($"Bibliotaph.Pdf.Passwords.{userId}")));
+        services.AddSingleton<IPasswordStore>(sp => sp.GetRequiredService<ServerPdfPasswords>());
         services.AddSingleton<IDiskSpace, DiskSpace>();
         services.AddSingleton<IFileIdentity, NoFileIdentity>();
         services.AddSingleton<ICloudFiles, NoCloudFiles>();
