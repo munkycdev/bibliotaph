@@ -9,6 +9,9 @@ artifacts
 TestResults
 spikes
 docs
+# Except the screenshots the site's landing page shows.
+!docs/images/library.png
+!docs/images/reader.png
 *.db
 *.db-wal
 *.db-shm

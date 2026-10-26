@@ -1,5 +1,5 @@
 @* .bt-dialog: the Windows app's About popup: the version, the GPL's notice, and links to the licence, third-party
-   notices, source code, problem reports and the privacy policy. The GPL asks for these notices in the UI. *@
+   notices, source code, problem reports, the privacy policy, terms and change log. The GPL asks for these notices in the UI. *@
 @using System.Reflection
 
 <div class="bt-backdrop fixed bt-dialogback" @onclick="Closed"></div>
@@ -19,6 +19,8 @@
         <a class="bt-button" href="@SourceUrl" target="_blank" rel="noopener">Source code</a>
         <a class="bt-button" href="@($"{SourceUrl}/issues")" target="_blank" rel="noopener">Report a problem</a>
         <a class="bt-button" href="privacy" target="_blank">Privacy policy</a>
+        <a class="bt-button" href="terms" target="_blank">Terms</a>
+        <a class="bt-button" href="changelog" target="_blank">Change log</a>
     </div>
 </div>
 
