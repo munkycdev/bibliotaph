@@ -361,7 +361,9 @@ names, to paste into a bug report. Opening a locked file to unlock it comes with
 A book opens in the reader as in the Windows app: double-click it in the Library, or click it once and click **Open**
 in its details. A matching page under **Inside documents** has **Open page**, which opens the book at that page with
 the search's words marked. A book opened from the Library opens where you left it, and says so; an adventure inside a
-file opens at its own first page and shows where you are in it ("page 3 of 19 of this adventure").
+file opens at its own first page and shows where you are in it ("page 3 of 19 of this adventure"). While a book is
+open, the screen stays on, so a tablet at the table doesn't dim between glances; it dims as usual once you leave the
+book or switch away.
 
 The pages are read from your storage a piece at a time, so a big book shows its first page in a moment: straight from
 OneDrive, and through the server from Dropbox and Google Drive, which passes each piece on without keeping it. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.

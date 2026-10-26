@@ -38,6 +38,45 @@ const l10n = {
   destroy: async () => { },
 };
 
+// The screen stays on while a book is open, as an e-book app's does, so a tablet at the table doesn't dim mid-session.
+// The browser lets the lock go whenever the page is hidden, so it's asked for again when the page shows.
+let awake = 0;
+let wakeLock = null;
+let locking = false;
+async function lockScreen() {
+  if (awake === 0 || wakeLock || locking || document.visibilityState !== 'visible' || !('wakeLock' in navigator)) return;
+  locking = true;
+  try {
+    const lock = await navigator.wakeLock.request('screen');
+    if (awake === 0) {
+      lock.release();
+    } else {
+      wakeLock = lock;
+      lock.addEventListener('release', () => { if (wakeLock === lock) wakeLock = null; });
+    }
+  } catch {
+    // Battery saver, or a browser that refuses: the screen dims as it usually does.
+  } finally {
+    locking = false;
+  }
+}
+document.addEventListener('visibilitychange', lockScreen);
+
+/** Keeps the screen on until the returned function is called. */
+function stayAwake() {
+  awake++;
+  lockScreen();
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    if (--awake === 0 && wakeLock) {
+      wakeLock.release();
+      wakeLock = null;
+    }
+  };
+}
+
 /**
  * Opens a book in the reader's stage.
  * @param {HTMLElement} stage .bt-pages, which scrolls the pages
@@ -60,6 +99,7 @@ class Reader {
     this.book = book;
     this.page = page;
     this.closed = false;
+    this.awake = stayAwake();
     this.marks = new Marks(this);
     this.thumbnails = null;
     this.canCopy = true;
@@ -356,6 +396,7 @@ class Reader {
 
   dispose() {
     this.closed = true;
+    this.awake();
     for (const stop of this.listeners) stop();
     this.marks.dispose();
     this.thumbnails?.dispose();
@@ -667,6 +708,7 @@ class ImageReader {
     this.page = page;
     this.scale = book.scale || 'page-fit';
     this.closed = false;
+    this.awake = stayAwake();
     this.listeners = [];
   }
 
@@ -764,6 +806,7 @@ class ImageReader {
 
   dispose() {
     this.closed = true;
+    this.awake();
     for (const stop of this.listeners) stop();
     this.cache?.close();
     this.host.replaceChildren();
@@ -836,6 +879,7 @@ class EbookReader {
     this.scale = book.scale || 'page-width';
     this.version = 0;
     this.closed = false;
+    this.awake = stayAwake();
     this.listeners = [];
     this.found = null;
   }
@@ -1074,6 +1118,7 @@ class EbookReader {
 
   dispose() {
     this.closed = true;
+    this.awake();
     ebooks.delete(this.session);
     for (const stop of this.listeners) stop();
     this.cache?.close();
