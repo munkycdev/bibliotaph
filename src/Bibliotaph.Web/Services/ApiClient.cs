@@ -1,5 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using Microsoft.AspNetCore.Components.WebAssembly.Http;
 using Bibliotaph.Api.Contracts;
 
 namespace Bibliotaph.Web.Services;
@@ -229,6 +232,31 @@ public sealed class ApiClient(HttpClient http)
 
     public Task<ReaderLink> ReaderLinkAsync(long documentId, CancellationToken ct = default) =>
         SendAsync<ReaderLink>(HttpMethod.Get, $"{Document(documentId)}/link", null, ct);
+
+    /// <summary>Ask this book as the reader opens it, which also starts its pages being read for meaning.</summary>
+    public Task<AskBook> AskBookAsync(long documentId, CancellationToken ct = default) => SendAsync<AskBook>(HttpMethod.Get, Ask(documentId), null, ct);
+
+    /// <summary>New conversation: forgets the book's questions and answers so far.</summary>
+    public Task NewAskConversationAsync(long documentId, CancellationToken ct = default) => SendAsync(HttpMethod.Delete, Ask(documentId), null, ct);
+
+    /// <summary>
+    /// Asks the book a question, yielding each change to the panel as the server finds the pages and the model writes
+    /// its answer. Cancelling <paramref name="ct"/> stops the model.
+    /// </summary>
+    public async IAsyncEnumerable<AskUpdate> AskAsync(long documentId, string question, [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, Ask(documentId)) { Content = JsonContent.Create(new AskQuestion(question)) };
+        // Read as it comes, rather than once the whole answer is in.
+        request.SetBrowserResponseStreamingEnabled(true);
+        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        await EnsureAsync(response, ct);
+        await using var body = await response.Content.ReadAsStreamAsync(ct);
+        using var lines = new StreamReader(body);
+        while (await lines.ReadLineAsync(ct) is { } line)
+            if (line.Length > 0 && JsonSerializer.Deserialize<AskUpdate>(line, JsonSerializerOptions.Web) is { } update) yield return update;
+    }
+
+    static string Ask(long documentId) => "api/ask/" + documentId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
     /// <summary>Every page with a match, in pages <paramref name="from"/> to <paramref name="to"/> when given (an adventure's).</summary>
     public Task<ReaderFind> FindInBookAsync(long documentId, string text, int? from, int? to, CancellationToken ct = default)

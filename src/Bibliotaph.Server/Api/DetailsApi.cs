@@ -135,6 +135,8 @@ public static class DetailsApi
             DetailsText.SplitPackTip(hasPdfs),
             chips,
             await ChaptersAsync(library, entry, labels, ct),
+            library.Get<AskService>().IsOn && !entry.IsElsewhere && !entry.IsPack && SourceFormats.HasPages(entry.Format)
+                && entry.TextAccess == TextAccess.Readable,
             entry.IsElsewhere && await library.Get<ChosenCovers>().HasChosenAsync(entryId, ct));
     }
 

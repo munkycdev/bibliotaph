@@ -437,7 +437,21 @@ the next time.
 
 What it finds shows under **Found inside the book** in a book's details, apart from the book's own details, which it
 never changes, and in the reader's **Contents** under the chapter it was found in. **Scan again** forgets what was found
-in a book and reads it again. Ask, Ask this book and questions to your library aren't on the web yet.
+in a book and reads it again.
+
+### Ask this book
+
+With AI on, **Ask** in the reader's toolbar opens a panel where you ask the open book a question, as in the Windows
+app (see [Ask this book](reading.md#ask-this-book)); **Ask this book** in a book's details opens it with the panel
+showing. It's offered for PDFs and e-books with text. Bibliotaph finds the pages most likely to answer, and the model
+answers from those pages only, shown as it writes: each [p. 112] opens its page with the words marked, a quotation
+that isn't on its page is in italics, and **Stop** ends an answer early. The pages it read are listed under the
+answer. Follow-up questions are understood in the light of the ones before, each book keeps its conversation, and
+**New conversation** starts afresh.
+
+Ask finds pages by their words. Choose an **Embedding model, for Ask this book** in Settings › AI, such as OpenAI's
+`text-embedding-3-small`, and it finds them by meaning too: a book's pages are read for meaning when you open it, on
+your key, and the panel says how far that has got. Questions to your whole library aren't on the web yet.
 
 ## Your theme
 

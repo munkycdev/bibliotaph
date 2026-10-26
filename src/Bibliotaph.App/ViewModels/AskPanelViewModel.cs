@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Windows.Threading;
 using Bibliotaph.Classification;
 using Bibliotaph.Processing;
@@ -16,17 +15,12 @@ public sealed class AskPassageRow(AskPassage passage)
     public AskPassage Passage { get; } = passage;
 
     /// <summary>"p. 112 · The Mill", or "p. 112" for a page under no bookmark.</summary>
-    public string Link => Passage.Heading is { } heading ? $"p. {Passage.Page} · {heading}" : $"p. {Passage.Page}";
+    public string Link => AskText.Link(Passage);
 
     public string Text => Passage.Text;
 
     /// <summary>"Found by its words", "by its meaning", or both.</summary>
-    public string Found => (Passage.ByWords, Passage.ByMeaning) switch
-    {
-        (true, true) => "Found by its words and its meaning",
-        (false, true) => "Found by its meaning",
-        _ => "Found by its words",
-    };
+    public string Found => AskText.Found(Passage);
 
     public string AccessibleName => $"Go to page {Passage.Page}";
 }
@@ -39,7 +33,7 @@ public sealed class AskTurnRow(AskTurnView turn)
     public string Question => Turn.Info.Question;
 
     /// <summary>"Looked for: where is the red dragon's lair?", for a follow-up the model rewrote; else null.</summary>
-    public string? LookedFor => Turn.Info.Rewritten is { } rewritten ? $"Looked for: {rewritten}" : null;
+    public string? LookedFor => Turn.Info.Rewritten is { } rewritten ? AskText.LookedFor(rewritten) : null;
 
     public IReadOnlyList<AnswerPart> Answer => Turn.Parts;
 }
@@ -53,8 +47,6 @@ public sealed class AskTurnRow(AskTurnView turn)
 /// </summary>
 public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
 {
-    const string PagesHeading = "Pages that look like they answer it";
-
     readonly AskService _ask;
     readonly Dispatcher _dispatcher;
     readonly ILogger _log;
@@ -135,7 +127,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
 
     /// <summary>Over the pages: "Read from pages 112, 113 and 140" once answered from them, else what they are.</summary>
     [ObservableProperty]
-    public partial string PassagesHeading { get; private set; } = PagesHeading;
+    public partial string PassagesHeading { get; private set; } = AskText.PagesHeading;
 
     /// <summary>Why there is no answer: nothing looks like it's about the question, the pages don't answer it, or the book can't be asked.</summary>
     [ObservableProperty]
@@ -214,7 +206,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         Answer = [];
         Passages.Clear();
         HasPassages = false;
-        PassagesHeading = PagesHeading;
+        PassagesHeading = AskText.PagesHeading;
         Message = null;
         CoverageText = null;
         MeaningText = null;
@@ -263,12 +255,12 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
             var rewritten = false;
             if (earlier.Count > 0 && _ask.CanAnswer)
             {
-                Step = "Working out the follow-up…";
+                Step = AskText.Rewriting;
                 (looked, rewritten) = await Task.Run(() => _ask.RewriteAsync(documentId, question, earlier));
                 if (version != _version) return;
-                if (rewritten) LookedFor = $"Looked for: {looked}";
+                if (rewritten) LookedFor = AskText.LookedFor(looked);
             }
-            Step = "Looking through the book…";
+            Step = AskText.Looking;
             var findings = await Task.Run(() => _ask.FindAsync(documentId, looked));
             if (version != _version) return;
             Show(findings);
@@ -288,7 +280,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _log.LogError(ex, "Asking document {DocumentId} failed", documentId);
-            if (version == _version) Message = "That didn't work. The log has the details.";
+            if (version == _version) Message = AskText.Failed;
         }
         finally
         {
@@ -306,32 +298,32 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         var pages = AskService.PromptPages(findings);
         var stop = _answering = new CancellationTokenSource();
         IsAnswering = true;
-        Step = "Waiting for the model…";
+        Step = AskText.Waiting;
         try
         {
             var answer = await Task.Run(() => _ask.AnswerAsync(documentId, findings, new Streamed(this, version, pages), earlier, stop.Token), stop.Token);
             if (version != _version) return null;
             Answered = answer;
-            PassagesHeading = $"Read from {Pages([.. pages.Select(p => p.Marker)])}";
+            PassagesHeading = AskText.ReadFrom(pages);
             if (answer.Checked.NotAnswered)
             {
                 Answer = [];
-                Message = "The pages it read don't answer that. They're below, in case they help.";
+                Message = AskText.NotAnswered;
             }
             else Answer = answer.Checked.Parts;
             return answer;
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            if (version == _version) Message = "Stopped. What was written so far is above.";
+            if (version == _version) Message = AskText.Stopped;
         }
         catch (ModelEmptyAnswerException)
         {
-            if (version == _version) Message = "The model sent back nothing. Try asking another way.";
+            if (version == _version) Message = AskText.Empty;
         }
         catch (ModelEndpointException ex)
         {
-            if (version == _version) Message = $"The model couldn't answer: {ex.Message}";
+            if (version == _version) Message = AskText.CouldNotAnswer(ex.Message);
         }
         finally
         {
@@ -354,7 +346,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _log.LogError(ex, "Starting the Ask conversation of document {DocumentId} again failed", documentId);
-            Message = "That didn't work. The log has the details.";
+            Message = AskText.Failed;
             return;
         }
         if (_documentId != documentId) return;
@@ -389,13 +381,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
     void ShowProgress(int version, ModelProgress progress, IReadOnlyList<AskPromptPage> pages)
     {
         if (version != _version || !IsAnswering) return;
-        Step = progress.Step switch
-        {
-            ModelStep.Reading when progress.Read is { } read => $"Reading the pages… {read.ToString("P0", CultureInfo.CurrentCulture)}",
-            ModelStep.Reading => "Reading the pages…",
-            ModelStep.Writing => "Writing…",
-            _ => "Waiting for the model…",
-        };
+        Step = AskText.Step(progress);
         if (progress.Step == ModelStep.Writing) Answer = AskAnswerCheck.Check(progress.Answer, pages).Parts;
     }
 
@@ -407,12 +393,8 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         _findings = findings;
         foreach (var passage in findings.Passages) Passages.Add(new AskPassageRow(passage));
         HasPassages = Passages.Count > 0;
-        Message = findings.Weak
-            ? "Nothing in this book looks like it's about that." + (findings.LookedAt.Count > 0 ? $" These pages came closest: {Pages(findings.LookedAt)}." : "")
-            : null;
-        var coverage = findings.Coverage;
-        CoverageText = coverage.Pages == 0 ? "This book has no pages with text yet."
-            : $"{Count(coverage.WithText)} of {Count(coverage.Pages)} pages have text" + (coverage.AwaitingOcr > 0 ? $"; {Count(coverage.AwaitingOcr)} await OCR." : ".");
+        Message = AskText.Weak(findings);
+        CoverageText = AskText.Coverage(findings.Coverage);
         ShowMeaning();
     }
 
@@ -420,17 +402,7 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
     void ShowMeaning()
     {
         if (_findings is not { } findings || _documentId is not { } documentId) return;
-        var fill = _ask.FillOf(documentId);
-        MeaningText = findings.Meaning switch
-        {
-            AskMeaning.Off => "Found by words alone. Choose an embedding model in Settings > AI to find passages by meaning too.",
-            _ when findings.MeaningProblem is { } problem => $"Found by words alone this time: {problem}",
-            AskMeaning.On => "Found by words and by meaning.",
-            _ when fill is { Running: true } => $"Found by words, and by meaning where it could: {Count(fill.Done)} of {Count(fill.Total)} pages are read for meaning so far, the rest in the background.",
-            _ when fill is { Problem: { } stopped } => $"Found by words, and by meaning where it could. Reading the rest for meaning stopped: {stopped}",
-            _ when fill is { Done: var done, Total: var total } && done >= total && total > 0 => "Found by words, and partly by meaning. Every page is read for meaning now: ask again to use them all.",
-            _ => "Found by words, and by meaning where it could.",
-        };
+        MeaningText = AskText.Meaning(findings, _ask.FillOf(documentId));
     }
 
     /// <summary>Opens the passage's page with its matching word marked.</summary>
@@ -448,14 +420,4 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         var phrase = part.Phrase ?? Passages.FirstOrDefault(p => p.Passage.PdfPage == page)?.Passage.Phrase;
         return _show(page, phrase);
     }
-
-    /// <summary>"page 4", or "pages 112, 113 and 140".</summary>
-    public static string Pages(IReadOnlyList<string> pages) => pages.Count switch
-    {
-        0 => "",
-        1 => $"page {pages[0]}",
-        _ => $"pages {string.Join(", ", pages.Take(pages.Count - 1))} and {pages[^1]}",
-    };
-
-    static string Count(int count) => count.ToString("N0", CultureInfo.CurrentCulture);
 }

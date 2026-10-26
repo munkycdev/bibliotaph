@@ -6,7 +6,7 @@ namespace Bibliotaph.Api.Contracts;
 /// are scanned whole, with how far that has got.
 /// </summary>
 public sealed record AiPage(bool Enabled, string? Endpoint, string? Model, bool RemoteAllowed, string? KeyEnding, string Progress,
-    string? Waiting, AiReclassify? Reclassify, IReadOnlyList<AiFolder> Folders, bool ScanWholeBooks, string ScanProgress);
+    string? Waiting, AiReclassify? Reclassify, IReadOnlyList<AiFolder> Folders, bool ScanWholeBooks, string ScanProgress, string? EmbeddingModel);
 
 public sealed record AiReclassify(string Text, string Label, bool HasFailed);
 
@@ -18,8 +18,11 @@ public sealed record AiConnect(string Endpoint, string? Key);
 /// <summary>What Connect found, or why it found nothing.</summary>
 public sealed record AiConnection(string? Endpoint, string? Text, string? Problem, IReadOnlyList<string> Models);
 
-/// <summary>Save: the setup on the page. A blank key keeps the one saved for the address.</summary>
-public sealed record AiSave(string Endpoint, string Model, string? Key, bool RemoteAllowed);
+/// <summary>
+/// Save: the setup on the page. A blank key keeps the one saved for the address; a blank embedding model finds Ask's
+/// passages by their words alone.
+/// </summary>
+public sealed record AiSave(string Endpoint, string Model, string? Key, bool RemoteAllowed, string? EmbeddingModel = null);
 
 /// <summary>What a change said: a note, or a problem that stopped it.</summary>
 public sealed record AiNote(string? Note, string? Problem);

@@ -1,0 +1,245 @@
+@* .bt-askpanel: the reader's Ask panel (Ask this book), as the Windows reader's: a question about the open book, the
+   answer as the model writes it with each [p. N] a link into the book, and the pages it was read from, each opening its
+   page with the matching word marked. Each question and answer joins the book's conversation, which New conversation
+   starts again. *@
+@implements IDisposable
+@inject ApiClient Api
+
+<aside class="bt-askpanel" aria-label="Ask this book">
+    <span class="bt-eyebrow">ASK THIS BOOK</span>
+    @if (Book.Unavailable is { } why)
+    {
+        <p class="bt-small">@why</p>
+    }
+    else
+    {
+        <input class="bt-input bt-askbox" aria-label="Your question about this book" title="Ask about something in this book, then press Enter"
+               @ref="_box" @bind="_question" @bind:event="oninput" @onkeydown="BoxKeyAsync" />
+        <div class="bt-askactions">
+            <button class="bt-button primary" disabled="@(!CanAsk)" @onclick="AskClickedAsync">Ask</button>
+            @if (_step is { } step) { <span class="bt-small bt-askstep" role="status">@step</span> }
+            @if (_answering)
+            {
+                <button class="bt-link bt-askstop" title="Stop the answer here" aria-label="Stop answering" @onclick="Stop">Stop</button>
+            }
+        </div>
+
+        @if (_history.Count > 0 || _current is not null)
+        {
+            <div class="bt-askhistoryhead">
+                @if (_history.Count > 0) { <span>Earlier in this conversation</span> }
+                <button class="bt-link" title="Forget the questions asked of this book so far, and start again" aria-label="Start a new conversation"
+                        disabled="@(_asking)" @onclick="NewConversationAsync">New conversation</button>
+            </div>
+            <div aria-label="Earlier in this conversation">
+                @foreach (var turn in _history)
+                {
+                    <div class="bt-askturn">
+                        <div class="bt-askquestion">@turn.Question</div>
+                        @if (turn.LookedFor is { } lookedFor) { <div class="bt-small">@lookedFor</div> }
+                        <div class="bt-askanswer small">@Answer(turn.Answer)</div>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_asked is { } asked) { <div class="bt-askquestion bt-asked">@asked</div> }
+        @if (_lookedFor is { } looked) { <div class="bt-small">@looked</div> }
+        @if (_answer.Count > 0) { <div class="bt-askanswer" aria-label="The answer">@Answer(_answer)</div> }
+        @if (_message is { } message) { <div class="bt-askmessage" role="status">@message</div> }
+        @if (_passages.Count > 0)
+        {
+            <div class="bt-askpageshead">@_passagesHeading</div>
+            <div aria-label="Pages that look like they answer it">
+                @foreach (var passage in _passages)
+                {
+                    <div class="bt-askpassage">
+                        <button class="bt-link" title="Open this page, with the matching word marked" aria-label="Go to page @passage.Link"
+                                @onclick="() => Show.InvokeAsync((passage.Page, passage.Phrase))">@passage.Link</button>
+                        <div class="bt-askpassagetext">@passage.Text</div>
+                        <div class="bt-small">@passage.Found</div>
+                    </div>
+                }
+            </div>
+        }
+        @if (_meaning is { } meaning) { <p class="bt-small bt-asknote">@meaning</p> }
+        @if (_coverage is { } coverage) { <p class="bt-small bt-asknote">@coverage</p> }
+    }
+</aside>
+
+@code {
+    /// <summary>The book, as the reader opened it: whether it can be asked, and its conversation so far.</summary>
+    [Parameter, EditorRequired] public AskBook Book { get; set; } = default!;
+
+    [Parameter] public long DocumentId { get; set; }
+
+    /// <summary>Opens a page, with the words found on it marked.</summary>
+    [Parameter] public EventCallback<(int Page, string? Phrase)> Show { get; set; }
+
+    ElementReference _box;
+    string _question = "";
+    bool _asking, _answering, _focus = true;
+    string? _step, _asked, _lookedFor, _message, _coverage, _meaning;
+    string _passagesHeading = "";
+    IReadOnlyList<AskPart> _answer = [];
+    IReadOnlyList<AskPassageLine> _passages = [];
+    readonly List<AskTurn> _history = [];
+    AskTurn? _current;
+    CancellationTokenSource? _stop;
+    long _shown = -1;
+
+    bool CanAsk => !_asking && _question.Trim().Length > 0;
+
+    protected override void OnParametersSet()
+    {
+        if (DocumentId == _shown) return;
+        _shown = DocumentId;
+        // An answer to the last book stops, and says nothing here.
+        _stop?.Cancel();
+        _stop = null;
+        _asking = false;
+        Clear();
+        _current = null;
+        _history.Clear();
+        _history.AddRange(Book.History);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focus || Book.Unavailable is not null) return;
+        _focus = false;
+        await _box.FocusAsync();
+    }
+
+    void Clear()
+    {
+        _asked = _lookedFor = _message = _coverage = _meaning = _step = null;
+        _answer = [];
+        _passages = [];
+        _passagesHeading = "";
+        _answering = false;
+    }
+
+    async Task BoxKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await AskAsync();
+    }
+
+    // The answer shows as it streams in, so AskAsync draws the panel itself after each change.
+    async Task AskClickedAsync() => await AskAsync();
+
+    /// <summary>Finds the pages that answer the question, then has the model answer from them, shown as it is written.</summary>
+    async Task AskAsync()
+    {
+        if (!CanAsk) return;
+        var question = _question.Trim();
+        // The answer shown becomes the latest of the conversation's earlier turns.
+        if (_current is { } previous) _history.Add(previous);
+        _current = null;
+        Clear();
+        _asking = true;
+        _asked = question;
+        var stop = _stop = new CancellationTokenSource();
+        try
+        {
+            await foreach (var update in Api.AskAsync(DocumentId, question, stop.Token))
+            {
+                Apply(update);
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException) when (stop.IsCancellationRequested)
+        {
+            if (_stop == stop) _message = "Stopped. What was written so far is above.";
+        }
+        catch (ApiProblemException e)
+        {
+            _message = e.Message;
+        }
+        catch (HttpRequestException)
+        {
+            _message = "Bibliotaph couldn't reach its server just now. Try again in a moment.";
+        }
+        finally
+        {
+            if (_stop == stop)
+            {
+                _asking = _answering = false;
+                _step = null;
+                _stop = null;
+            }
+            stop.Dispose();
+        }
+    }
+
+    void Apply(AskUpdate update)
+    {
+        _step = update.Step;
+        _answering = update.Answering;
+        if (update.LookedFor is { } looked) _lookedFor = looked;
+        if (update.Answer is { } answer) _answer = answer;
+        if (update.Passages is { } passages) _passages = passages;
+        if (update.PassagesHeading is { } heading) _passagesHeading = heading;
+        if (update.Message is { } message) _message = message;
+        if (update.Coverage is { } coverage) _coverage = coverage;
+        if (update.Meaning is { } meaning) _meaning = meaning;
+        if (update.Turn is { } turn) _current = turn;
+    }
+
+    void Stop() => _stop?.Cancel();
+
+    /// <summary>Forgets the book's questions and answers so far, so the next question starts afresh.</summary>
+    async Task NewConversationAsync()
+    {
+        try
+        {
+            await Api.NewAskConversationAsync(DocumentId);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _message = "That didn't work. Try again in a moment.";
+            return;
+        }
+        _history.Clear();
+        _current = null;
+        Clear();
+        _question = "";
+    }
+
+    /// <summary>
+    /// Opens the page a citation names, marking the quotation it follows when that was on the page, else the word the
+    /// page was found by.
+    /// </summary>
+    Task OpenCitationAsync(AskPart part) => part.Page is { } page
+        ? Show.InvokeAsync((page, part.Phrase ?? _passages.FirstOrDefault(p => p.Page == page)?.Phrase))
+        : Task.CompletedTask;
+
+    /// <summary>An answer as checked: each citation a link, a quotation not on its page in italics, and a muted note where citations were taken out.</summary>
+    RenderFragment Answer(IReadOnlyList<AskPart> parts) => __builder =>
+    {
+        foreach (var part in parts)
+        {
+            switch (part.Kind)
+            {
+                case AskPartKind.Citation:
+                    <button class="bt-citation" title="Open this page" aria-label="Go to page @part.Text.Trim('[', ']').Replace("p. ", "")"
+                            @onclick="() => OpenCitationAsync(part)">@part.Text</button>
+                    break;
+                case AskPartKind.Paraphrase:
+                    <em title="Not the book's exact words: this quotation isn't on the page it cites.">@part.Text</em>
+                    break;
+                case AskPartKind.Unsupported:
+                    <em class="bt-unsupported" title="This cited a page Ask didn't read, so the citation was taken out."> @part.Text</em>
+                    break;
+                default:
+                    @part.Text
+                    break;
+            }
+        }
+    };
+
+    public void Dispose()
+    {
+        _stop?.Cancel();
+    }
+}

@@ -802,6 +802,28 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-notestoggle.on{color:var(--bt-accent)}
 .bt-notespanel{grid-column:3;grid-row:1/3;width:280px;overflow:auto;background:var(--bt-panel);border-left:1px solid var(--bt-line);padding:14px 14px 10px}
 .bt-notespanel>.bt-eyebrow{display:block;margin-bottom:8px}
+.bt-askpanel{grid-column:3;grid-row:1/3;width:320px;overflow:auto;background:var(--bt-panel);border-left:1px solid var(--bt-line);padding:14px 14px 12px;font-size:12px;color:var(--bt-text)}
+.bt-askpanel>.bt-eyebrow{display:block;margin-bottom:8px}
+.bt-askbox{width:100%}
+.bt-askactions{display:flex;align-items:center;gap:10px;margin-top:8px;min-height:30px}
+.bt-askstep{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-askstop{margin-left:auto}
+.bt-askhistoryhead{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:11px;font-weight:600;color:var(--bt-muted)}
+.bt-askhistoryhead .bt-link{margin-left:auto;font-weight:400}
+.bt-askturn{border-bottom:1px solid var(--bt-line);padding:6px 0 8px}
+.bt-askquestion{font-size:12px;font-weight:600;overflow-wrap:anywhere}
+.bt-asked{margin-top:14px}
+.bt-askanswer{font-size:13px;line-height:19px;margin-top:8px;white-space:pre-wrap;overflow-wrap:anywhere}
+.bt-askanswer.small{font-size:12px;line-height:17px;margin-top:4px}
+.bt-askanswer em.bt-unsupported{color:var(--bt-muted)}
+.bt-citation{color:var(--bt-accent);padding:0;font:inherit;cursor:pointer}
+.bt-citation:hover{text-decoration:underline}
+.bt-askmessage{font-size:11px;margin-top:8px}
+.bt-askpageshead{font-size:11px;font-weight:600;color:var(--bt-muted);margin:14px 0 6px}
+.bt-askpassage{background:var(--bt-side);border-radius:6px;padding:8px 10px;margin-bottom:6px}
+.bt-askpassage .bt-link{padding:0;text-align:left}
+.bt-askpassagetext{font-size:12px;margin:4px 0}
+.bt-asknote{margin:8px 0 0}
 .bt-reader-actions .bt-addpagemenu{margin-left:-6px}
 .bt-notepagefields .bt-select{width:100%}
 .bt-readerbars{position:absolute;left:50%;top:14px;transform:translateX(-50%);width:min(560px,calc(100% - 36px));z-index:3;pointer-events:none}
@@ -826,7 +848,7 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-back{margin:0 -4px 0 -8px}
 ::highlight(bt-mark){background-color:#f1d27a80}
 ::highlight(bt-mark-current){background-color:#e8a33dcc}
-@media(max-width:620px){.bt-reader{height:calc(100vh - 140px)}.bt-contents{width:180px}.bt-notespanel{width:200px}}
+@media(max-width:620px){.bt-reader{height:calc(100vh - 140px)}.bt-contents{width:180px}.bt-notespanel{width:200px}.bt-askpanel{width:240px}}
 /* A binder's reader, as the Windows binder reader: the list on the left gives way first, then the notes on the right. */
 .bt-binderreader{display:flex;flex-direction:column;height:calc(100vh - 68px - 66px);min-height:460px}
 .bt-binderreaderhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}

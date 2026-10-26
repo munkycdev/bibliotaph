@@ -76,6 +76,13 @@
             }
         </div>
 
+        @if (book.CanAsk)
+        {
+            var asks = Card is { } askedCard && askedCard.EntryId == book.Card.EntryId ? askedCard : book.Card;
+            <div class="bt-detailbuttons">
+                <a class="bt-button" href="@ReaderUrl.For(asks, ask: true)" title="Open this book with its Ask panel, to ask it a question"><Icon Name="Sparkles" />Ask this book</a>
+            </div>
+        }
         @if (book.Card.Elsewhere)
         {
             @* A book owned elsewhere has no file to draw a cover from or to open; the user made it, so they can remove it. *@
