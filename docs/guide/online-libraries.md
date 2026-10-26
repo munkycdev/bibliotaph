@@ -49,18 +49,12 @@ Import again whenever you buy something. When the page you read is your whole li
 it no longer lists show under **No longer in this library**, each with **Remove from library**. Nothing is removed
 unless you remove it.
 
-### A saved page instead
+### Without Bibliotaph's browser
 
 Bibliotaph's browser needs the Microsoft Edge WebView2 Runtime. Windows 11 has it; on Windows 10 you may need to install
-it from Microsoft. Without it, or if **Read this page** doesn't recognize your library, import a saved page:
-
-1. In your everyday browser, open your library, signed in, and save it with **Save as**, choosing
-   **Webpage, complete**. That keeps the covers too.
-2. In **Settings > Online libraries**, click **Import a saved page…** and pick the file. The same preview shows.
-
-Bibliotaph's browser has **Save page…** too. It saves the page as it shows, signed in as you, without pictures, for
-when you want to show someone a page that **Read this page** doesn't recognize. It holds whatever the page showed you,
-so share it only with people you trust.
+it from Microsoft. Without it, or if **Read this page** doesn't recognize your library, import from your everyday
+browser with **Send to Bibliotaph** on the web (see [Online libraries on the web](web.md#online-libraries)). A PC
+connected to your web library gets the imported books when it next syncs.
 
 ## Read a book you own online
 

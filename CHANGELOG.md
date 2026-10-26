@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+- **Saved pages are no longer imported.** **Import a saved page…** and **Save page…** are gone from the Windows app,
+  and **Import a saved page…** and **Choose pictures…** from the web: Bibliotaph's browser reads the page on Windows,
+  and **Send to Bibliotaph** brings it, covers included, on the web. See
+  [Online libraries](docs/guide/online-libraries.md#without-bibliotaphs-browser).
 - **PDFs with copy or print restrictions open on the web again.** The reader failed on them. When a book can't be
   opened for a reason Bibliotaph doesn't recognise, it now says so plainly instead of showing the technical error.
+
 
 ## 1.3 · 19 October 2026
 

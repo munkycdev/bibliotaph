@@ -40,17 +40,10 @@ public sealed record MissingBook(EntryId EntryId, string Title, string Link);
 /// An import's preview: every book read and what it becomes, how many books shared with the user were left out, and
 /// the books from earlier imports that are missing, listed only when the page is the whole library.
 /// </summary>
-public sealed record OnlineImportPlan(IOnlineLibraryReader Reader, IReadOnlyList<OnlineImportRow> Rows, int Shared, IReadOnlyList<MissingBook> Missing)
-{
-    /// <summary>Where a saved page's images are, to find covers in; null for a page read in the in-app browser.</summary>
-    public string? SavedImages { get; init; }
-}
+public sealed record OnlineImportPlan(IOnlineLibraryReader Reader, IReadOnlyList<OnlineImportRow> Rows, int Shared, IReadOnlyList<MissingBook> Missing);
 
 /// <summary>What an import did: how many books it added and how many cards it changed, and what Undo needs.</summary>
 public sealed record OnlineImportResult(int Added, int Changed, ImportReceipt Undo);
-
-/// <summary>A saved library page read by one of the readers, with the folder its images were saved in.</summary>
-public sealed record SavedLibraryPage(IOnlineLibraryReader Reader, OnlinePage Page, string Images);
 
 /// <summary>
 /// Importing the books the user owns on an online service as books owned elsewhere. A reader turns a library page
@@ -60,7 +53,7 @@ public sealed record SavedLibraryPage(IOnlineLibraryReader Reader, OnlinePage Pa
 /// in Get it from.
 /// </summary>
 public sealed class OnlineImports(MetadataStore store, MetadataService metadata, EntryStore entries,
-    MetadataProjector projector, IndexQueries queries, ISourceFileReader files, IImageCodec images, CoverCache covers, TimeProvider? clock = null,
+    MetadataProjector projector, IndexQueries queries, IImageCodec images, CoverCache covers, TimeProvider? clock = null,
     ILogger<OnlineImports>? log = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
@@ -77,22 +70,6 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
 #pragma warning disable CA1822 // The app reaches the services through the imports it is given.
     public IReadOnlyList<IOnlineLibraryReader> Readers => Services;
 #pragma warning restore CA1822
-
-    /// <summary>
-    /// A library page saved with Save as, Webpage complete, read by whichever reader recognises it, or null when none
-    /// does. Its images are in the folder the browser saved beside it, "… _files".
-    /// </summary>
-    public async Task<SavedLibraryPage?> ReadSavedPageAsync(string path, CancellationToken ct = default)
-    {
-        string html;
-        await using (var stream = files.OpenRead(path))
-        using (var reader = new StreamReader(stream))
-            html = await reader.ReadToEndAsync(ct);
-        var images = Path.Combine(Path.GetDirectoryName(path) ?? "", Path.GetFileNameWithoutExtension(path) + "_files");
-        foreach (var candidate in Readers)
-            if (candidate.Read(html) is { } page) return new SavedLibraryPage(candidate, page, images);
-        return null;
-    }
 
     /// <summary>
     /// The preview: each book on the page and what importing it does. A book whose link is already on a card was
@@ -208,24 +185,8 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
     }
 
     /// <summary>
-    /// The covers a saved page's images hold: each cover is looked up by its file name in the folder the browser saved
-    /// the page's images in, whether the page gives it as a web address or as the saved file ("./… _files/cover.jpg").
-    /// Nothing is fetched.
-    /// </summary>
-    public Func<string, CancellationToken, Task<byte[]?>> SavedCovers(string folder) => async (url, ct) =>
-    {
-        if (CoverFileName(url) is not { } name) return null;
-        var file = Path.Combine(folder, name);
-        if (!File.Exists(file) || new FileInfo(file).Length > MaxCoverBytes) return null;
-        await using var stream = files.OpenRead(file);
-        using var copy = new MemoryStream();
-        await stream.CopyToAsync(copy, ct);
-        return copy.ToArray();
-    };
-
-    /// <summary>
-    /// The file name a saved page keeps a cover under, whether the page gives it as a web address or as the saved file
-    /// ("./… _files/cover.jpg"); null for one that can't be a file's name.
+    /// The file name a cover's picture is sent under, from its address on the page; null for one that can't be a file's
+    /// name. Send to Bibliotaph sends each picture by this name, which matches it to the books whose cover it is.
     /// </summary>
     public static string? CoverFileName(string url)
     {

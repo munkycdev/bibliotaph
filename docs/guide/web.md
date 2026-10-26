@@ -226,16 +226,14 @@ the new books' covers from the service's page, and shows the preview in **Online
 the new tab, allow pop-ups from the service; if the service's site won't let the page reach Bibliotaph, the bookmark
 says so. The **Send to Bibliotaph** extension for Chrome and Edge does the same from a button in the browser's toolbar,
 and can fetch covers the services keep on other sites, which the bookmark sometimes can't; once it is in your browser,
-Settings says so in place of the bookmark. You can always save the page with your browser's **Save as** instead, choosing **Webpage, complete**, then
-choose **Import a saved page…** beside the service and pick the page you saved. Bibliotaph on the web never visits the
+Settings says so in place of the bookmark. Bibliotaph on the web never visits the
 service itself and never sees your password; the Windows app does the same with a browser of its own.
 
 Bibliotaph shows what importing does before anything changes, as the Windows app does: **New** books become books owned
 elsewhere, opening on their service (or, from a store, books to get there); a book **Already in your library** gets the
 service and its link rather than a second card; one **Imported before** only has its empty fields filled. Untick what
-you'd rather leave out and choose **Import**, with **Undo**. A page sent with the bookmark brings its covers. For a saved
-page, the new books' covers come from **Choose pictures…**: pick the pictures your browser saved beside the page, in the folder ending in "_files"; only the pictures the page names are
-used. Books imported before that the page no longer lists are offered under **No longer in this library**, where
+you'd rather leave out and choose **Import**, with **Undo**. A page sent with the bookmark brings its covers; when some
+didn't come, the preview says how many did. Books imported before that the page no longer lists are offered under **No longer in this library**, where
 **Remove from library** takes one out; nothing goes unless you say so.
 
 ### Check a download

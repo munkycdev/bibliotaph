@@ -13,10 +13,10 @@ namespace Bibliotaph.App.Services;
 static partial class SmokeTest
 {
     /// <summary>
-    /// Online libraries: a made-up D&amp;D Beyond library page, saved with its covers beside the data root by verify.ps1,
-    /// imported from Settings &gt; Online libraries, which the Library's Import from an online library opens. The preview,
-    /// the two new books with their links and covers, the preview again with both imported, then Undo and the library as
-    /// it was.
+    /// Online libraries: a made-up D&amp;D Beyond library page, put beside the data root by verify.ps1, read in
+    /// Bibliotaph's browser from Settings &gt; Online libraries, which the Library's Import from an online library opens.
+    /// The preview, the two new books with their links, the preview again with both imported, then Undo and the library
+    /// as it was.
     /// </summary>
     static async Task ImportOnlineLibraryAsync(IServiceProvider services, Window window, int books)
     {
@@ -24,7 +24,7 @@ static partial class SmokeTest
         var saved = System.IO.Path.Combine(root, "online", "dndbeyond-library.html");
         if (!System.IO.File.Exists(saved))
         {
-            Log.Warning("Smoke test: no saved library page at {Path}, so importing one is left out", saved);
+            Log.Warning("Smoke test: no made-up library page at {Path}, so importing one is left out", saved);
             return;
         }
 
@@ -42,10 +42,13 @@ static partial class SmokeTest
         if (page.Services.Select(s => s.Name).ToList() is not ["D&D Beyond", "Demiplane", "Humble Bundle", "DriveThruRPG"])
             throw new InvalidOperationException($"Online libraries lists {string.Join(", ", page.Services.Select(s => s.Name))}.");
 
-        // The file picker can't be driven here, so the page is read as the picker would read it.
-        await page.ReadSavedPageAsync(saved);
+        if (!await ReadInBrowserAsync(window, page, saved))
+        {
+            navigation.GoBack();
+            await Settle(window);
+            return;
+        }
         await Settle(window);
-        if (page.Problem is { } problem) throw new InvalidOperationException($"The saved page wasn't read: {problem}");
         if (page.Summary != "Your D&D Beyond library: 2 books. 1 book shared with you was left out.")
             throw new InvalidOperationException($"The preview says “{page.Summary}”.");
         if (page.Groups is not [{ Outcome: OnlineOutcome.New, Items.Count: 2 }] || page.HasMissing)
@@ -62,8 +65,9 @@ static partial class SmokeTest
         var visible = await services.GetRequiredService<LibraryStore>().GetVisibleEntryIdsAsync();
         var cards = await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible)));
         var vault = cards.FirstOrDefault(c => c.Title == "The Ember Vault") ?? throw new InvalidOperationException("The imported book isn't in the library.");
-        if (cards.Count != books + 2 || !vault.IsElsewhere || vault.OnlineLink != "https://www.dndbeyond.com/sources/dnd/ember-vault" || vault.Cover is null)
-            throw new InvalidOperationException($"The library has {cards.Count} cards; the imported book links to {vault.OnlineLink} with cover {vault.Cover}.");
+        // Its covers are pictures beside the made-up page, not the service's; the import's own tests check covers.
+        if (cards.Count != books + 2 || !vault.IsElsewhere || vault.OnlineLink != "https://www.dndbeyond.com/sources/dnd/ember-vault")
+            throw new InvalidOperationException($"The library has {cards.Count} cards; the imported book links to {vault.OnlineLink}.");
         await AuditAsync(window, "an online library imported");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "UndoOnline"), "Undo the import");
@@ -72,7 +76,6 @@ static partial class SmokeTest
         cards = await Task.Run(() => services.GetRequiredService<LibraryQueries>().ListAsync(new LibraryFilter(visible)));
         if (cards.Count != books) throw new InvalidOperationException($"After Undo the library has {cards.Count} cards, not {books}.");
 
-        await ReadInBrowserAsync(window, page, saved);
         navigation.GoBack();
         await Settle(window);
     }
@@ -80,13 +83,14 @@ static partial class SmokeTest
     /// <summary>
     /// The in-app browser opened at the made-up page instead of D&amp;D Beyond's: Read this page lights up once the
     /// reader recognises it, and pressing it shows its books in the preview. Pressed again, the same books count once.
+    /// False, with nothing read, where there is no WebView2 Runtime to run it.
     /// </summary>
-    static async Task ReadInBrowserAsync(Window window, OnlineLibrariesViewModel page, string saved)
+    static async Task<bool> ReadInBrowserAsync(Window window, OnlineLibrariesViewModel page, string saved)
     {
         if (OnlineBrowsers.RuntimeVersion is null)
         {
-            Log.Warning("Smoke test: there is no WebView2 Runtime, so the in-app browser is left out");
-            return;
+            Log.Warning("Smoke test: there is no WebView2 Runtime, so importing from an online library is left out");
+            return false;
         }
         var browser = page.OpenBrowser(page.Services[0].Reader, new Uri(saved)) ?? throw new InvalidOperationException($"The browser didn't open: {page.Problem}");
         try
@@ -96,7 +100,7 @@ static partial class SmokeTest
             while (!browser.State.CanRead)
             {
                 if (System.Diagnostics.Stopwatch.GetTimestamp() > deadline)
-                    throw new InvalidOperationException($"Read this page didn't light up on the saved page: “{browser.State.Status}”");
+                    throw new InvalidOperationException($"Read this page didn't light up on the made-up page: “{browser.State.Status}”");
                 await Task.Delay(200);
             }
             await AuditAsync(browser, "the in-app browser on a library page");
@@ -117,6 +121,7 @@ static partial class SmokeTest
         {
             browser.Close();
         }
+        return true;
     }
 
     /// <summary>
@@ -282,12 +287,6 @@ static partial class SmokeTest
                 || !string.Equals(System.IO.Path.GetDirectoryName(download.Path), inside, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException($"The download went to {download.Path} ({download.Status}), not the downloads folder.");
             if (!browser.State.HasDownloads) throw new InvalidOperationException("The browser window doesn't list the download.");
-
-            // Save page keeps the page as it shows, outside the library.
-            var copy = System.IO.Path.Combine(outside, "Humble Bundle page.html");
-            var said = await browser.SavePageAsync(copy);
-            if (!System.IO.File.Exists(copy) || !System.IO.File.ReadAllText(copy).Contains("My Library | Dungeons", StringComparison.Ordinal) || System.IO.File.Exists(copy + ".partial"))
-                throw new InvalidOperationException($"Save page didn't keep the page: “{said}”.");
             await AuditAsync(browser, "the in-app browser with a download");
 
             // A Download button that opens a new tab: Bibliotaph hosts the tab, saves the file to the downloads folder
