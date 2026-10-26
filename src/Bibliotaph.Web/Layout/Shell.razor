@@ -8,6 +8,7 @@
 @inject Pins Pins
 @inject Breadcrumb Breadcrumb
 @inject IJSRuntime JS
+@using Bibliotaph.Core.Search
 
 @if (_loading)
 {
@@ -104,10 +105,18 @@ else
                 <label class="bt-search">
                     <Icon Name="Search" Size="15" />
                     <span class="visually-hidden">Search</span>
-                    <input type="search" placeholder="Search books, topics, passages…" value="@_searchText" @oninput="OnSearchInput" @onkeydown="OnSearchKey" />
+                    <input type="search" placeholder="@(_asking ? AskPanelText.Placeholder : "Search books, topics, passages…")" value="@_searchText"
+                           @ref="_searchBox" @oninput="OnSearchInput" @onkeydown="OnSearchKey" />
                 </label>
+                @* Ask: the box takes a request in plain English, read by AI on Enter, or a question for the library on Ctrl+Enter. *@
+                <button class="bt-icon bt-askbutton @(_asking ? "active" : "")" title="Ask in plain English" aria-label="Ask in plain English"
+                        aria-pressed="@(_asking ? "true" : "false")" @onclick="ToggleAskAsync"><Icon Name="Sparkles" /></button>
                 <button class="bt-icon" title="@Theme.Label(_theme)" aria-label="@Theme.Label(_theme)" @onclick="CycleTheme"><Icon Name="SunMoon" /></button>
             </header>
+            @if (_asking)
+            {
+                <AskBar @ref="_askBar" Text="@_searchText" Close="CloseAsk" Search="SearchFromAsk" />
+            }
             <main id="bt-main">@Body</main>
         </div>
     </div>
@@ -192,10 +201,35 @@ else
     string _searchText = "";
     CancellationTokenSource? _searchDelay;
 
+    bool _asking;
+    AskBar? _askBar;
+    ElementReference _searchBox;
+
+    /// <summary>The Ask button: Ask mode on or off. On puts the keyboard in the box for the request.</summary>
+    async Task ToggleAskAsync()
+    {
+        _asking = !_asking;
+        _searchDelay?.Cancel();
+        _searchDelay = null;
+        if (_asking) await _searchBox.FocusAsync();
+    }
+
+    void CloseAsk() => _asking = false;
+
+    /// <summary>Ask's Search: the chips as query text, in the box and run, leaving Ask.</summary>
+    void SearchFromAsk(string text)
+    {
+        _asking = false;
+        _searchText = text;
+        SubmitSearch();
+    }
+
     /// <summary>As in the Windows app, a pause in typing searches; Enter searches at once and Esc clears the box.</summary>
     async Task OnSearchInput(ChangeEventArgs e)
     {
         _searchText = e.Value as string ?? "";
+        // In Ask mode the box holds a request, which is read on Enter rather than searched as it is typed.
+        if (_asking) return;
         _searchDelay?.Cancel();
         var delay = _searchDelay = new CancellationTokenSource();
         try
@@ -209,8 +243,17 @@ else
         SubmitSearch();
     }
 
-    void OnSearchKey(KeyboardEventArgs e)
+    /// <summary>In Ask mode, Enter reads the request, Ctrl+Enter answers it from the library's pages, and Esc leaves Ask, keeping the text.</summary>
+    async Task OnSearchKey(KeyboardEventArgs e)
     {
+        if (_asking)
+        {
+            if (_askBar is not { } ask) return;
+            if (e.Key == "Enter" && e.CtrlKey) await ask.AnswerAsync(_searchText);
+            else if (e.Key == "Enter" && !e.AltKey && !e.ShiftKey && !e.MetaKey) await ask.InterpretAsync(_searchText);
+            else if (e.Key == "Escape") _asking = false;
+            return;
+        }
         if (e.Key == "Enter") SubmitSearch();
         else if (e.Key == "Escape")
         {

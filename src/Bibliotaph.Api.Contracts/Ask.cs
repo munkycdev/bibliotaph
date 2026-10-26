@@ -28,13 +28,20 @@ public enum AskPartKind
     Unsupported,
 }
 
-/// <summary>A piece of an answer; a citation has the page it opens and the words to mark there.</summary>
-public sealed record AskPart(AskPartKind Kind, string Text, int? Page = null, string? Phrase = null);
+/// <summary>
+/// A piece of an answer; a citation has the page it opens and the words to mark there, and in an answer from the
+/// library, the book: its document, and the card the reader opens it under.
+/// </summary>
+public sealed record AskPart(AskPartKind Kind, string Text, int? Page = null, string? Phrase = null, long? DocumentId = null, long? EntryId = null);
 
 public sealed record AskQuestion(string Question);
 
-/// <summary>A page that looks like it answers the question: "p. 112 · The Mill", a few of its lines, and how it was found.</summary>
-public sealed record AskPassageLine(int Page, string Link, string Text, string Found, string? Phrase);
+/// <summary>
+/// A page that looks like it answers the question: "p. 112 · The Mill", a few of its lines, and how it was found. In
+/// an answer from the library, "The Sunken Keep · p. 112", with the book it opens and what a screen reader says for it.
+/// </summary>
+public sealed record AskPassageLine(int Page, string Link, string Text, string Found, string? Phrase, long? DocumentId = null, long? EntryId = null,
+    string? Open = null);
 
 /// <summary>
 /// One line of the stream a question is answered in: each says what has changed since the last. The panel shows
@@ -58,3 +65,18 @@ public sealed record AskUpdate
     public bool Done { get; init; }
     public AskTurn? Turn { get; init; }
 }
+
+/// <summary>Whether Ask in the top bar can read a request or answer a question: AI is set up and on.</summary>
+public sealed record AskStatus(bool Ready);
+
+/// <summary>A question to the books the Library shows: its filters and the search box's fields in <see cref="Scope"/>.</summary>
+public sealed record AskLibraryQuestion(string Question, LibraryQuery Scope);
+
+/// <summary>
+/// A request read as a search: the chips, each a field and its value or words to find, and notes on anything changed
+/// or left out. Or why there is no reading: <see cref="NeedsAi"/> when AI is off.
+/// </summary>
+public sealed record AskReading(IReadOnlyList<AskChip> Parts, IReadOnlyList<string> Notes, string? Problem, bool NeedsAi = false);
+
+/// <summary>One chip: the search field's name ("system"), or null for words to find, its value, and whether it leaves the value out.</summary>
+public sealed record AskChip(string? Field, string Value, bool Exclude);

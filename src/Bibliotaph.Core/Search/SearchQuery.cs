@@ -185,6 +185,17 @@ public sealed record SearchQuery(string Text, QueryNode? Root, IReadOnlyList<Que
             }
         }
     }
+
+    /// <summary>The query's field clauses as typed, for saying what a search narrows to: "system:dnd", "not type:map".</summary>
+    public IEnumerable<string> FieldClauses()
+    {
+        var clauses = Root is AndNode and ? and.Items : Root is null ? [] : [Root];
+        foreach (var clause in clauses)
+        {
+            if (clause is FieldNode field) yield return field.ToString();
+            else if (clause is NotNode { Operand: FieldNode excluded }) yield return "not " + excluded;
+        }
+    }
 }
 
 /// <summary>A hand-written recursive-descent parser. Grammar, loosest binding first:

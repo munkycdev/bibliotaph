@@ -21,5 +21,6 @@ builder.Services.AddScoped<BinderDialogs>();
 builder.Services.AddScoped<BinderActions>();
 builder.Services.AddScoped<Pins>();
 builder.Services.AddScoped<Breadcrumb>();
+builder.Services.AddScoped<AskScope>();
 
 await builder.Build().RunAsync();

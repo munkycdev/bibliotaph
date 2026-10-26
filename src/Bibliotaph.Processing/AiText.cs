@@ -60,6 +60,23 @@ public static class AiText
             : $"{progress.ScannedWhole:N0} whole {Books(progress.ScannedWhole)} scanned.";
     }
 
+    /// <summary>"12,345 of 98,765 pages read for meaning (13%). Waiting while the AI is in use.", or null without an embedding model.</summary>
+    public static string? LibraryVectors(LibraryVectorsStatus status)
+    {
+        if (status.State == LibraryVectorsState.Unavailable) return null;
+        var share = status.Pages == 0 ? "" : $" ({(double)status.WithVectors / status.Pages:P0})";
+        var counted = $"{status.WithVectors:N0} of {status.Pages:N0} pages read for meaning{share}.";
+        return status.State switch
+        {
+            LibraryVectorsState.Off => counted + " Switched off: questions to the library find the other pages by their words.",
+            LibraryVectorsState.Reading => counted + " Reading the rest in the background.",
+            LibraryVectorsState.Waiting => counted + " Waiting while the AI is in use.",
+            LibraryVectorsState.Done => counted + " Every page is read.",
+            LibraryVectorsState.Stopped => counted + $" Stopped for now: {status.Problem ?? "the model server didn't answer"}. It tries again in a few minutes.",
+            _ => counted,
+        };
+    }
+
     public static string Reclassify(int earlier, long failed) => earlier > 0 && failed > 0
         ? $"{earlier:N0} {Books(earlier)} were classified by another model or an earlier version of Bibliotaph, and {failed:N0} couldn't be."
         : earlier > 0 ? $"{earlier:N0} {Books(earlier)} were classified by another model or an earlier version of Bibliotaph."

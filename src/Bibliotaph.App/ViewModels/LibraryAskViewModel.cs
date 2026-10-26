@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
@@ -19,19 +18,14 @@ public sealed class LibraryAskPassageRow(LibraryAskPassage passage)
     public LibraryAskPassage Passage { get; } = passage;
 
     /// <summary>"The Sunken Keep · p. 112 · The Mill", or without the bookmark for a page under none.</summary>
-    public string Link => $"{Passage.Book} · p. {Passage.Page}" + (Passage.Heading is { } heading ? $" · {heading}" : "");
+    public string Link => LibraryAskText.Link(Passage);
 
     public string Text => Passage.Text;
 
     /// <summary>"Found by its words", "by its meaning", or both.</summary>
-    public string Found => (Passage.ByWords, Passage.ByMeaning) switch
-    {
-        (true, true) => "Found by its words and its meaning",
-        (false, true) => "Found by its meaning",
-        _ => "Found by its words",
-    };
+    public string Found => LibraryAskText.Found(Passage);
 
-    public string AccessibleName => $"Open {Passage.Book} at page {Passage.Page}";
+    public string AccessibleName => LibraryAskText.Open(Passage);
 }
 
 /// <summary>
@@ -42,8 +36,6 @@ public sealed class LibraryAskPassageRow(LibraryAskPassage passage)
 /// </summary>
 public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
 {
-    const string PagesHeading = "Pages that look like they answer it";
-
     readonly LibraryAskService _ask;
     readonly LibraryAskScope _scope;
     readonly LibraryStore _library;
@@ -101,7 +93,7 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
 
     /// <summary>Over the pages: "Read from 4 pages in 3 books" once answered from them, else what they are.</summary>
     [ObservableProperty]
-    public partial string PassagesHeading { get; private set; } = PagesHeading;
+    public partial string PassagesHeading { get; private set; } = AskText.PagesHeading;
 
     /// <summary>Why there is no answer: nothing looks like it's about the question, the pages don't answer it, or AI is off.</summary>
     [ObservableProperty]
@@ -112,9 +104,7 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
     public partial string? CoverageText { get; private set; }
 
     /// <summary>Which books a question goes to: "Answers come from the books the Library shows: D&amp;D 5e, Adventure."</summary>
-    public string ScopeText => _scope.Labels is { Count: > 0 } labels
-        ? $"Answers come from the books the Library shows: {string.Join(", ", labels)}."
-        : "Answers come from every book in your library. Filter the Library first to ask fewer.";
+    public string ScopeText => AskPanelText.Scope(_scope.Labels);
 
     /// <summary>Puts the answer away: Ask was closed, or a request is being read as a search instead.</summary>
     public void Clear()
@@ -133,7 +123,7 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
         Answer = [];
         Passages.Clear();
         HasPassages = false;
-        PassagesHeading = PagesHeading;
+        PassagesHeading = AskText.PagesHeading;
         Message = null;
         CoverageText = null;
         Step = null;
@@ -166,7 +156,7 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ScopeText));
         try
         {
-            Step = "Looking through your books…";
+            Step = LibraryAskText.Looking;
             var filters = await FiltersAsync();
             var findings = await Task.Run(() => _ask.FindAsync(question, filters));
             if (version != _version) return;
@@ -180,7 +170,7 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _log.LogError(ex, "Asking the library failed");
-            if (version == _version) Message = "That didn't work. The log has the details.";
+            if (version == _version) Message = AskText.Failed;
         }
         finally
         {
@@ -205,32 +195,31 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
         var pages = LibraryAskService.PromptPages(findings);
         var stop = _answering = new CancellationTokenSource();
         IsAnswering = true;
-        Step = "Waiting for the model…";
+        Step = AskText.Waiting;
         try
         {
             var answer = await Task.Run(() => _ask.AnswerAsync(findings, new Streamed(this, version, pages, findings.Evidence), stop.Token), stop.Token);
             if (version != _version) return;
             Answered = answer;
-            var books = findings.Evidence.Select(e => e.DocumentId).Distinct().Count();
-            PassagesHeading = $"Read from {Count(findings.Evidence.Count)} {(findings.Evidence.Count == 1 ? "page" : "pages")} in {Count(books)} {(books == 1 ? "book" : "books")}";
+            PassagesHeading = LibraryAskText.ReadFrom(findings);
             if (answer.Checked.NotAnswered)
             {
                 Answer = [];
-                Message = "The pages it read don't answer that. They're below, in case they help.";
+                Message = AskText.NotAnswered;
             }
             else Answer = answer.Checked.Parts;
         }
         catch (OperationCanceledException) when (stop.IsCancellationRequested)
         {
-            if (version == _version) Message = "Stopped. What was written so far is above.";
+            if (version == _version) Message = AskText.Stopped;
         }
         catch (ModelEmptyAnswerException)
         {
-            if (version == _version) Message = "The model sent back nothing. Try asking another way.";
+            if (version == _version) Message = AskText.Empty;
         }
         catch (ModelEndpointException ex)
         {
-            if (version == _version) Message = $"The model couldn't answer: {ex.Message}";
+            if (version == _version) Message = AskText.CouldNotAnswer(ex.Message);
         }
         finally
         {
@@ -260,13 +249,7 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
     void ShowProgress(int version, ModelProgress progress, IReadOnlyList<AskPromptPage> pages, IReadOnlyList<LibraryAskEvidence> evidence)
     {
         if (version != _version || !IsAnswering) return;
-        Step = progress.Step switch
-        {
-            ModelStep.Reading when progress.Read is { } read => $"Reading the pages… {read.ToString("P0", CultureInfo.CurrentCulture)}",
-            ModelStep.Reading => "Reading the pages…",
-            ModelStep.Writing => "Writing…",
-            _ => "Waiting for the model…",
-        };
+        Step = AskText.Step(progress);
         if (progress.Step == ModelStep.Writing) Answer = LibraryAskService.Check(progress.Answer, pages, evidence).Parts;
     }
 
@@ -277,20 +260,8 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
     {
         foreach (var passage in findings.Passages) Passages.Add(new LibraryAskPassageRow(passage));
         HasPassages = Passages.Count > 0;
-        Message = findings.Weak
-            ? "Nothing in these books looks like it's about that, so there's no answer to give." +
-              (findings.LookedAt.Count > 0 ? $" These pages came closest: {string.Join("; ", findings.LookedAt)}." : "")
-            : null;
-        var coverage = findings.Coverage;
-        var searched = coverage.Books == 0 ? "None of these books has pages with text yet."
-            : $"Searched {Count(coverage.PagesWithText)} pages in {Count(coverage.Books)} {(coverage.Books == 1 ? "book" : "books")}";
-        CoverageText = coverage.Books == 0 ? searched : findings.Meaning switch
-        {
-            AskMeaning.Off => searched + " by their words. Choose an embedding model in Settings > AI to find pages by meaning too.",
-            _ when findings.MeaningProblem is { } problem => searched + $" by their words alone this time: {problem}",
-            AskMeaning.On => searched + " by their words and their meaning.",
-            _ => searched + $" by their words, and {Count(coverage.PagesWithVectors)} of them by their meaning too; the rest are read for meaning in the background.",
-        };
+        Message = LibraryAskText.Weak(findings);
+        CoverageText = LibraryAskText.Coverage(findings);
     }
 
     /// <summary>Opens the passage's book at its page, with its matching word marked.</summary>
@@ -316,6 +287,4 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
         var query = words is { Length: > 0 } ? SearchQuery.Parse($"\"{words}\"") : null;
         _readers.OpenInMainWindow(new ViewerRequest(documentId, book, pdfPage, query));
     }
-
-    static string Count(int count) => count.ToString("N0", CultureInfo.CurrentCulture);
 }

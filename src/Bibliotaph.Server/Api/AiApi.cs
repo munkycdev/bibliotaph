@@ -120,6 +120,14 @@ public static class AiApi
             return Results.NoContent();
         });
 
+        ai.MapPut("/library", async (AiSwitch change, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var service = lease.Library.Get<AiService>();
+            if (service.Setup.LibraryVectors != change.On) await service.SaveAsync(service.Setup with { LibraryVectors = change.On }, ct);
+            return Results.NoContent();
+        });
+
         ai.MapPost("/reclassify", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
@@ -170,6 +178,7 @@ public static class AiApi
         return new AiPage(setup.Enabled, setup.Endpoint, setup.Model, setup.RemoteAllowed,
             setup.Endpoint is { } endpoint ? library.Get<ServerApiKeys>().Ending(endpoint) : null,
             AiText.Progress(setup, summary, progress), waiting, reclassify, folders, scan,
-            AiText.ScanProgress(setup, scan, progress), setup.EmbeddingModel);
+            AiText.ScanProgress(setup, scan, progress), setup.EmbeddingModel, setup.LibraryVectors,
+            AiText.LibraryVectors(library.Get<LibraryVectors>().Status));
     }
 }

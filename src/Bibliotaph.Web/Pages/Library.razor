@@ -8,6 +8,7 @@
 @inject CollectionDialogs Dialogs
 @inject Pins Pins
 @inject BinderActions BinderActions
+@inject AskScope AskScope
 
 @* The Windows app's Library page: its heading, the toolbar (results tabs while searching, filters, order, covers or
    list, packs or each file), the filter panel and its chips, the count, then the covers, the list or the matching pages. *@
@@ -690,6 +691,8 @@ else
             var results = await Api.LibraryAsync(_query with { Sort = Sort, EachFile = _eachFile }, _loading.Token);
             if (version != _version) return;
             _results = results;
+            // Ask in the top bar answers from the books shown here.
+            AskScope.Set(_query, Chips.Select(c => c.Label));
             _loaded = DateTime.UtcNow;
             _hasFolders = results.Empty?.Action != "add-folder";
             if (_selecting) await UpdateSelectionAsync();

@@ -824,6 +824,28 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-askpassage .bt-link{padding:0;text-align:left}
 .bt-askpassagetext{font-size:12px;margin:4px 0}
 .bt-asknote{margin:8px 0 0}
+.bt-askbar{display:flex;align-items:flex-start;gap:10px;padding:12px 18px 12px 24px;background:var(--bt-panel);border-bottom:1px solid var(--bt-line);color:var(--bt-text)}
+.bt-askbar>svg{flex:none;margin-top:8px;color:var(--bt-accent)}
+.bt-askbarbody{flex:1;min-width:0}
+.bt-askbarmessage{font-size:12px;margin:7px 0 0;line-height:1.45}
+.bt-askbarlink{display:inline-flex;align-items:center;gap:6px;margin-top:6px}
+.bt-askbaranswer{max-width:760px;max-height:min(440px,50vh);overflow:auto;margin-top:10px}
+.bt-askbarreading{display:flex;align-items:center;gap:12px;margin-top:8px}
+.bt-askbarreading .bt-busybar{width:160px}
+.bt-askbarchips{display:flex;flex-wrap:wrap;margin-top:8px}
+.bt-askchip{margin:0 6px 6px 0;padding:2px 2px 2px 8px}
+.bt-askchipname{font-size:11px;color:var(--bt-muted)}
+.bt-askchipvalue{border:0;border-bottom:1px solid var(--bt-line);background:transparent;color:var(--bt-text);font-size:11px;padding:1px 2px;max-width:260px;min-width:24px;outline:none}
+.bt-askchipvalue:focus{border-bottom-color:var(--bt-accent)}
+.bt-askbarnote{display:flex;align-items:flex-start;gap:6px;font-size:11px;color:var(--bt-muted);margin:0 0 4px}
+.bt-askbarnote svg{flex:none;margin-top:1px}
+.bt-askbarsearch{display:flex;align-items:center;gap:12px;margin-top:6px}
+.bt-askbarsearch .bt-button{display:inline-flex;align-items:center;gap:6px}
+.bt-askbarquery{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-askbarclose{flex:none}
+.bt-askbutton{color:var(--bt-muted)}
+.bt-readlibrary .bt-sample{max-width:640px;line-height:1.5}
+.bt-askbutton.active{color:var(--bt-accent);background:var(--bt-soft)}
 .bt-reader-actions .bt-addpagemenu{margin-left:-6px}
 .bt-notepagefields .bt-select{width:100%}
 .bt-readerbars{position:absolute;left:50%;top:14px;transform:translateX(-50%);width:min(560px,calc(100% - 36px));z-index:3;pointer-events:none}

@@ -1,5 +1,6 @@
 using Bibliotaph.Catalog;
 using Bibliotaph.Classification;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -56,5 +57,5 @@ public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabulari
 /// <summary>Ask's wording that more than one place shows.</summary>
 public static class PlainSearchText
 {
-    public const string NeedsAi = "Ask needs AI to read your question. Set AI up in Settings > AI, or close Ask and search as usual.";
+    public const string NeedsAi = AskPanelText.NeedsAi;
 }
