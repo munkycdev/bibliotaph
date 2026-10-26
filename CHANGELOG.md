@@ -5,7 +5,6 @@
 - **A new home page for bibliotaph.online.** It shows what Bibliotaph does, with examples of search, the catalog,
   binders and online libraries, the Windows app and the web side by side, and answers to common questions. See
   [The site](docs/guide/web.md#the-site).
-
 - **Saved pages are no longer imported.** **Import a saved page…** and **Save page…** are gone from the Windows app,
   and **Import a saved page…** and **Choose pictures…** from the web: Bibliotaph's browser reads the page on Windows,
   and **Send to Bibliotaph** brings it, covers included, on the web. See
