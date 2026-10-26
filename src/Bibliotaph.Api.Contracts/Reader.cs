@@ -37,6 +37,9 @@ public sealed record ReaderBook(long EntryId, long DocumentId, string Title, str
 
     /// <summary>The files of the pack the file is in, in order, to step through; empty for a file on its own.</summary>
     public IReadOnlyList<ReaderPackFile> Pack { get; init; } = [];
+
+    /// <summary>The page the file's card shows: 0 unless Use this page as the cover chose another.</summary>
+    public int CoverPage { get; init; }
 }
 
 /// <summary>The readers a file can open in, by its format.</summary>
@@ -51,7 +54,8 @@ public static class ReaderKinds
 /// <param name="DocumentId">The file.</param>
 /// <param name="Name">Its name in the pack.</param>
 /// <param name="IsImage">Whether it's a picture; a pack with any other file steps by "file" rather than "image".</param>
-public sealed record ReaderPackFile(long DocumentId, string Name, bool IsImage);
+/// <param name="MemberEntryId">The file's own card in the pack, which Use this image as the pack's cover names.</param>
+public sealed record ReaderPackFile(long DocumentId, string Name, bool IsImage, long? MemberEntryId = null);
 
 /// <summary>One line of a file's contents.</summary>
 /// <param name="Title">The line as the file names it.</param>
@@ -60,7 +64,14 @@ public sealed record ReaderPackFile(long DocumentId, string Name, bool IsImage);
 /// <param name="PageText">The page as the page box shows it.</param>
 /// <param name="InPart">Whether the line is inside the adventure being read, which the panel shows as such.</param>
 /// <param name="Found">What the AI found reading the chapter it starts: "Found inside: Creatures: Goblin".</param>
-public sealed record ReaderOutline(string Title, int Page, int Depth, string PageText, bool InPart, string? Found = null);
+public sealed record ReaderOutline(string Title, int Page, int Depth, string PageText, bool InPart, string? Found = null)
+{
+    /// <summary>
+    /// The last page Index as its own adventure… offers: the page before the next line at the same depth or above, or
+    /// the end of the file.
+    /// </summary>
+    public int LastPage { get; init; } = Page;
+}
 
 /// <summary>An adventure's pages in its file, as PDF page indexes, and how far into them the reader is.</summary>
 public sealed record ReaderPart(int FirstPage, int LastPage)
@@ -87,6 +98,15 @@ public sealed record ReaderFindPage(int Page, int Count);
 
 /// <summary>The page a book was left at, kept so it opens there next time.</summary>
 public sealed record ReaderPosition(int Page);
+
+/// <summary>Use this page as the cover: the page, or 0 for the first page again.</summary>
+public sealed record ReaderCover(int Page);
+
+/// <summary>What Use this page as the cover did: the cover page now, and what the reader says about it.</summary>
+public sealed record ReaderCoverUsed(int CoverPage, string Message);
+
+/// <summary>Add pages…'s label to start with: the bookmark the page sits under, or none.</summary>
+public sealed record ReaderBookmark(string? Title);
 
 /// <summary>The notes on the open book's pages, from all its copies, in page order, as the reader's Notes panel lists them.</summary>
 public sealed record ReaderNotes(IReadOnlyList<ReaderNote> Notes, string Label);

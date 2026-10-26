@@ -228,6 +228,49 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
     }
 
     [Fact]
+    public async Task The_reader_changes_the_cover_marks_an_adventure_and_adds_pages_to_a_binder()
+    {
+        Fixture.Graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(pdfs.KnownText, Ct));
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
+        var library = lease.Library;
+        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        library.Indexing.RequestScan(root.Id);
+        var card = await WaitAsync(async () =>
+            (await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct)).Books is [{ Cover: not null } only] ? only : null);
+        var document = card.DocumentId;
+        var opened = (await ReaderApi.OpenAsync(library, new EntryId(card.EntryId), null, null, null, false, Ct))!;
+        Assert.Equal(0, opened.CoverPage);
+        Assert.All(opened.Outline, o => Assert.InRange(o.LastPage, o.Page, opened.PageCount - 1));
+
+        var used = (await ReaderApi.UseCoverAsync(library, document, 1, Ct))!;
+        Assert.Equal((1, "This page is the cover now."), (used.CoverPage, used.Message));
+        Assert.Equal(1, (await ReaderApi.OpenAsync(library, new EntryId(card.EntryId), null, null, null, false, Ct))!.CoverPage);
+        Assert.Equal((0, "The first page is the cover again."), ((await ReaderApi.UseCoverAsync(library, document, 0, Ct))!) is var back ? (back.CoverPage, back.Message) : default);
+        Assert.Null(await ReaderApi.UseCoverAsync(library, long.MaxValue, 1, Ct));
+
+        Assert.Equal("Give the adventure a title.", (await ReaderApi.MarkAsync(library, document, new PartEdit(" ", "1", ""), Ct)).Problem);
+        Assert.Equal(ReaderApi.PagesHint, (await ReaderApi.MarkAsync(library, document, new PartEdit("Ambush", "999", ""), Ct)).Problem);
+        var marked = await ReaderApi.MarkAsync(library, document, new PartEdit("Ambush", "3", "2"), Ct);
+        Assert.Equal((null, "“Ambush” has a card of its own in the Library now."), (marked.Problem, marked.Message));
+        Assert.Contains((await DetailsApi.DetailsAsync(library, new EntryId(card.EntryId), Ct))!.Parts, p => p.Title == "Ambush");
+
+        var sessions = library.Get<SessionsService>();
+        var binder = await sessions.CreateAsync("Harbor night", ct: Ct);
+        var maps = await sessions.AddSectionAsync(binder.Id, "Maps", Ct);
+        Assert.Equal("Added page 1 to Harbor night.", (await BindersApi.AddAsync(library, binder.Id, new BinderAdd([], DocumentId: document, Page: 0), Ct))!.Message);
+        var pages = (await BindersApi.AddAsync(library, binder.Id,
+            new BinderAdd([], DocumentId: document, Page: 2, LastPage: 1, Label: " Warehouse ambush ", SectionId: maps.Id), Ct))!;
+        Assert.Equal("Added Warehouse ambush to Harbor night.", pages.Message);
+        var item = (await sessions.GetAsync(binder.Id, Ct))!.Items.Single(i => i.Label == "Warehouse ambush");
+        Assert.Equal((maps.Id, 1, 2), (item.SectionId, item.Range!.FirstPdfPage, item.Range.LastPdfPage));
+        Assert.Equal("That couldn't be added.", (await BindersApi.AddAsync(library, binder.Id, new BinderAdd([], DocumentId: document, Page: 0, LastPage: 999), Ct))!.Message);
+        Assert.Null(await BindersApi.AddAsync(library, long.MaxValue, new BinderAdd([], DocumentId: document, Page: 0), Ct));
+        await library.Get<HeldActions>().Take(pages.Undo!)!(Ct);
+        Assert.DoesNotContain((await sessions.GetAsync(binder.Id, Ct))!.Items, i => i.Label == "Warehouse ambush");
+    }
+
+    [Fact]
     public async Task A_picture_opens_in_the_picture_reader_and_a_pack_steps_through_its_files()
     {
         Fixture.Graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(pdfs.KnownText, Ct));
@@ -257,6 +300,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         Assert.Equal(2, first.Pack.Count);
         Assert.Equal(first.Pack[0].DocumentId, first.DocumentId);
         Assert.Equal([true, false], first.Pack.Select(f => f.IsImage).OrderDescending());
+        Assert.Equal(new[] { map.EntryId, sheet.EntryId }.Order(), first.Pack.Select(f => f.MemberEntryId!.Value).Order());
         // The next file opens from the same card, in the same pack, in its own reader.
         var next = first.Pack.Single(f => f.DocumentId != first.DocumentId);
         var stepped = (await ReaderApi.OpenAsync(library, new EntryId(pack.EntryId), next.DocumentId, null, null, false, Ct))!;

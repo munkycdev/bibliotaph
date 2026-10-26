@@ -52,6 +52,26 @@ public static partial class ReaderApi
             return new ReaderFind(Find(texts.Select(t => (t.PdfPage, t.Text)), q, from, to));
         });
 
+        // An adventure's cover is its first page, so only a whole PDF can have another.
+        document.MapPut("/cover-page", async (long documentId, ReaderCover cover, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await UseCoverAsync(lease.Library, documentId, cover.Page, ct) is { } used ? Results.Ok(used) : Results.NotFound();
+        });
+
+        // Mark as adventure and Index as its own adventure…: pages typed as the book numbers them.
+        document.MapPost("/parts", async (long documentId, PartEdit edit, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Results.Ok(await MarkAsync(lease.Library, documentId, edit, ct));
+        });
+
+        document.MapGet("/bookmark", async (long documentId, int page, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return new ReaderBookmark(await lease.Library.Get<SessionsService>().SuggestLabelAsync(documentId, page, ct));
+        });
+
         document.MapPut("/position", async (long documentId, ReaderPosition position, ClaimsPrincipal principal, UserLibraries libraries,
             CancellationToken ct) =>
         {
@@ -113,9 +133,37 @@ public static partial class ReaderApi
             Outline = await OutlineAsync(library, documentId, pageCount, labels, part, ct),
             KeepsPlace = ordinary || keep,
             Kind = readerKind,
-            Pack = [.. pack.Select(p => new ReaderPackFile(p.DocumentId, p.Name, SourceFormats.IsImage(p.Format)))],
+            Pack = [.. pack.Select(p => new ReaderPackFile(p.DocumentId, p.Name, SourceFormats.IsImage(p.Format), p.MemberEntryId.Value))],
+            CoverPage = readerKind == ReaderKinds.Pdf ? await library.Get<CoverPages>().GetAsync(documentId, ct) : 0,
         };
     }
+
+    internal static async Task<ReaderCoverUsed?> UseCoverAsync(UserLibrary library, long documentId, int page, CancellationToken ct)
+    {
+        if (await library.Get<LibraryStore>().GetSourceAsync(documentId, ct) is not { Format: SourceFormats.Pdf }) return null;
+        var pageCount = await library.Get<IndexQueries>().GetPageCountAsync(documentId, ct) ?? 0;
+        page = page > 0 && page < pageCount ? page : 0;
+        var drawn = await library.Get<CoverPages>().UseAsync(documentId, page, ct);
+        return new ReaderCoverUsed(page, !drawn ? "The cover will change when the file is next read."
+            : page == 0 ? "The first page is the cover again." : "This page is the cover now.");
+    }
+
+    internal static async Task<EditResult> MarkAsync(UserLibrary library, long documentId, PartEdit edit, CancellationToken ct)
+    {
+        var title = edit.Title?.Trim() ?? "";
+        if (title.Length == 0) return new EditResult(null, "Give the adventure a title.");
+        var index = library.Get<IndexQueries>();
+        var labels = await index.GetPageLabelsAsync(documentId, ct);
+        var pageCount = await index.GetPageCountAsync(documentId, ct) ?? 0;
+        if (ReaderPageNumbers.Find(edit.From, labels, pageCount) is not { } first
+            || (edit.To.Trim().Length == 0 ? first : ReaderPageNumbers.Find(edit.To, labels, pageCount)) is not { } last)
+            return new EditResult(null, PagesHint);
+        var added = await library.Get<PartsService>().AddAsync(documentId, new PartPages(Math.Min(first, last), Math.Max(first, last)), title, ct);
+        return added.Problem is { } problem ? new EditResult(null, problem) : new EditResult(null, Message: $"“{title}” has a card of its own in the Library now.");
+    }
+
+    /// <summary>As the reader's page boxes say it.</summary>
+    internal const string PagesHint = "Type pages as the book numbers them, or PDF page numbers.";
 
     /// <summary>
     /// The file's bookmarks, with what the AI found in each chapter under the bookmark the chapter starts at. A file with
@@ -128,18 +176,24 @@ public static partial class ReaderApi
         var found = chapters.Where(c => c.Tags.Count > 0)
             .GroupBy(c => c.FirstPage)
             .ToDictionary(g => g.Key, g => "Found inside: " + string.Join(" · ", ChapterFields.Describe(g.First().Tags)));
-        var outline = (await library.Get<IndexQueries>().GetOutlineAsync(documentId, ct))
-            .Where(o => o.PdfPage >= 0 && o.PdfPage < pageCount && !string.IsNullOrWhiteSpace(o.Title))
-            .Select(o => new ReaderOutline(o.Title.Trim(), o.PdfPage, Math.Min(o.Depth, 5), ReaderPageNumbers.Display(o.PdfPage, labels),
-                part?.Contains(o.PdfPage) == true))
+        // Index as its own adventure… runs a bookmark's pages to the next at its depth or above, as the Windows reader
+        // does, over every bookmark the file has, shown or not.
+        var bookmarks = await library.Get<IndexQueries>().GetOutlineAsync(documentId, ct);
+        var starts = bookmarks.Select(o => (o.PdfPage, Math.Min(o.Depth, 5))).ToList();
+        var outline = bookmarks
+            .Select((o, i) => (o, i))
+            .Where(p => p.o.PdfPage >= 0 && p.o.PdfPage < pageCount && !string.IsNullOrWhiteSpace(p.o.Title))
+            .Select(p => new ReaderOutline(p.o.Title.Trim(), p.o.PdfPage, Math.Min(p.o.Depth, 5), ReaderPageNumbers.Display(p.o.PdfPage, labels),
+                part?.Contains(p.o.PdfPage) == true) { LastPage = PartRanges.FromBookmark(starts, p.i, pageCount).Last })
             .ToList();
         if (outline.Count == 0)
             return [.. chapters.Where(c => c.FirstPage < pageCount).Select(c => new ReaderOutline(c.Title, c.FirstPage, 0,
-                ReaderPageNumbers.Display(c.FirstPage, labels), part?.Contains(c.FirstPage) == true, found.GetValueOrDefault(c.FirstPage)))];
+                ReaderPageNumbers.Display(c.FirstPage, labels), part?.Contains(c.FirstPage) == true, found.GetValueOrDefault(c.FirstPage))
+                { LastPage = Math.Clamp(c.LastPage, c.FirstPage, pageCount - 1) })];
         // The shallowest bookmark at a chapter's first page is the chapter's own.
-        var starts = outline.Select((o, i) => (o, i)).Where(p => found.ContainsKey(p.o.Page))
+        var chapterStarts = outline.Select((o, i) => (o, i)).Where(p => found.ContainsKey(p.o.Page))
             .GroupBy(p => p.o.Page).Select(g => g.MinBy(p => p.o.Depth).i).ToHashSet();
-        return [.. outline.Select((o, i) => starts.Contains(i) ? o with { Found = found[o.Page] } : o)];
+        return [.. outline.Select((o, i) => chapterStarts.Contains(i) ? o with { Found = found[o.Page] } : o)];
     }
 
     static ReaderBook Unreadable(LibraryEntry entry, bool favorite, ReaderProblem problem) =>

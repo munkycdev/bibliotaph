@@ -80,7 +80,10 @@ public sealed record BinderMenu(IReadOnlyList<BinderMenuChoice> Choices, IReadOn
 }
 
 /// <summary>
-/// What Add to binder adds: these books whole (<see cref="Title"/> names one in the note), or one page of a
-/// document.
+/// What Add to binder adds: these books whole (<see cref="Title"/> names one in the note), or pages of a document,
+/// from <see cref="Page"/> to <see cref="LastPage"/> (the one page when it's null) or the whole file
+/// (<see cref="WholeFile"/>, a picture, which <see cref="Title"/> names). Add pages… also gives the item a
+/// <see cref="Label"/> and puts it in a section: <see cref="SectionId"/> 0 for before the first, null for the end.
 /// </summary>
-public sealed record BinderAdd(IReadOnlyList<long> Books, string? Title = null, long? DocumentId = null, int? Page = null);
+public sealed record BinderAdd(IReadOnlyList<long> Books, string? Title = null, long? DocumentId = null, int? Page = null, int? LastPage = null,
+    string? Label = null, long? SectionId = null, bool WholeFile = false);
