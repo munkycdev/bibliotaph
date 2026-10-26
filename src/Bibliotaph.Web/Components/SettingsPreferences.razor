@@ -1,0 +1,119 @@
+@* Settings › Preferences, as the Windows app's: how Bibliotaph looks, where it opens, and what waits for review. Light
+   or dark is kept in this browser, as the Windows app keeps it on each PC, and the top bar's button changes the same
+   setting; the other two belong to the library. Changing what waits for review counts every book's cards again, which
+   the sidebar's count then shows. *@
+@implements IDisposable
+@inject Theme Theme
+@inject ApiClient Api
+@inject LibraryActivity Activity
+
+<section class="bt-section" aria-labelledby="preferences-heading">
+    <h2 id="preferences-heading">Preferences</h2>
+    <p class="bt-copy">A quiet place to read, opening where you like.</p>
+    <div class="bt-settingrow">
+        <div>Light or dark<small>Use system follows this device. It's kept in this browser.</small></div>
+        <div class="bt-segments" role="group" aria-label="Light or dark">
+            @foreach (var (mode, label) in Themes)
+            {
+                <button class="@(_mode == mode ? "on" : "")" aria-pressed="@(_mode == mode)" @onclick="() => Theme.SetAsync(mode)">@label</button>
+            }
+        </div>
+    </div>
+    <div class="bt-settingrow">
+        <div>Start on<small>What Bibliotaph shows when it opens.</small></div>
+        @if (_startOnLibrary is { } library)
+        {
+            <div class="bt-segments" role="group" aria-label="Start on">
+                <button class="@(library ? "" : "on")" aria-pressed="@(!library)" @onclick="() => StartOnAsync(false)">Home</button>
+                <button class="@(library ? "on" : "")" aria-pressed="@library" @onclick="() => StartOnAsync(true)">Library</button>
+            </div>
+        }
+    </div>
+    <div class="bt-settingrow">
+        <div>What waits for review<small>Suggestions are used either way. When unsure: only what sources disagree about, and missing titles.</small>
+            @if (_note is not null)
+            {
+                <small role="status">@_note</small>
+            }
+        </div>
+        @if (_all is { } all)
+        {
+            <div class="bt-segments" role="group" aria-label="What waits for review">
+                <button class="@(all ? "" : "on")" aria-pressed="@(!all)" disabled="@_counting" @onclick="() => ReviewAsync(false)">When unsure</button>
+                <button class="@(all ? "on" : "")" aria-pressed="@all" disabled="@_counting" @onclick="() => ReviewAsync(true)">All suggestions</button>
+            </div>
+        }
+    </div>
+    @if (_problem is not null)
+    {
+        <div class="bt-message" role="alert">@_problem</div>
+    }
+</section>
+
+@code {
+    static readonly (string Mode, string Label)[] Themes = [("system", "Use system"), ("light", "Light"), ("dark", "Dark")];
+
+    const string NotChanged = "That couldn't be changed just now. Try again in a moment.";
+
+    string _mode = "system";
+    bool? _startOnLibrary;
+    bool? _all;
+    bool _counting;
+    string? _note;
+    string? _problem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Theme.Changed += OnThemeChanged;
+        _mode = await Theme.CurrentAsync();
+        var start = Api.StartPageAsync();
+        var review = Api.ReviewModeAsync();
+        _startOnLibrary = (await start).Library;
+        _all = (await review).All;
+    }
+
+    void OnThemeChanged(string mode)
+    {
+        _mode = mode;
+        StateHasChanged();
+    }
+
+    async Task StartOnAsync(bool library)
+    {
+        if (_startOnLibrary == library) return;
+        _startOnLibrary = library;
+        _problem = null;
+        try
+        {
+            await Api.SetStartPageAsync(library);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _startOnLibrary = !library;
+            _problem = NotChanged;
+        }
+    }
+
+    async Task ReviewAsync(bool all)
+    {
+        if (_all == all) return;
+        _all = all;
+        _counting = true;
+        _problem = null;
+        _note = "Counting what needs review…";
+        try
+        {
+            _all = (await Api.SetReviewModeAsync(all)).All;
+            Activity.Refresh();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _all = !all;
+            _problem = NotChanged;
+        }
+        _note = null;
+        _counting = false;
+    }
+
+    public void Dispose() => Theme.Changed -= OnThemeChanged;
+}

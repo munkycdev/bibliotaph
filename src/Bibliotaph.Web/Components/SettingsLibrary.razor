@@ -20,7 +20,7 @@
             No folders yet.
             @if (_storage.Count == 0)
             {
-                <SettingsLink To="storage">Connect your storage first.</SettingsLink>
+                @:Connect your storage above first.
             }
         </p>
     }
@@ -42,7 +42,7 @@
         <div class="bt-message" role="alert">@_problem</div>
     }
     <div class="bt-actions">
-        <button class="bt-button primary" disabled="@(_storage is not { Count: > 0 })" title="@(_storage is { Count: 0 } ? "Connect your storage first." : null)"
+        <button class="bt-button primary" disabled="@(_storage is not { Count: > 0 })" title="@(_storage is { Count: 0 } ? "Connect your storage above first." : null)"
                 @onclick="() => _picking = true"><Icon Name="FolderPlus" />Add a folder</button>
         @if (_folders.Count > 0)
         {
@@ -50,17 +50,6 @@
         }
     </div>
     <p class="bt-fine">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
-
-    <div class="bt-settingrow bt-settingsrule-above">
-        <div>Start on<small>What Bibliotaph shows when it opens.</small></div>
-        @if (_preferences is { } start)
-        {
-            <div class="bt-segments" role="group" aria-label="Start on">
-                <button class="@(start.StartOnLibrary ? "" : "on")" aria-pressed="@(!start.StartOnLibrary)" @onclick="() => StartOnAsync(false)">Home</button>
-                <button class="@(start.StartOnLibrary ? "on" : "")" aria-pressed="@start.StartOnLibrary" @onclick="() => StartOnAsync(true)">Library</button>
-            </div>
-        }
-    </div>
 
     <div class="bt-settingshead bt-settingsheadrow">
         <span>Folder names</span>
@@ -125,17 +114,6 @@
     }
 
     async Task LoadPreferencesAsync() => await ChangeAsync(() => Api.LibraryPreferencesAsync());
-
-    async Task StartOnAsync(bool library)
-    {
-        if (_preferences is null || _preferences.StartOnLibrary == library) return;
-        _preferences = _preferences with { StartOnLibrary = library };
-        await ChangeAsync(async () =>
-        {
-            await Api.SetStartPageAsync(library);
-            return _preferences;
-        });
-    }
 
     // Each switch reads the hints of the books it touches again before answering, so the others wait for it.
     Task SwitchNameAsync(FolderNameLabel label, bool enabled) =>

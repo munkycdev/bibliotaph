@@ -319,7 +319,7 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<LibrarySyncStore>>()));
-        builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
+        builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<LibrarySync>>(), channels: [sp.GetRequiredService<WebLibrary>()]));
         builder.Services.AddHostedService(sp => sp.GetRequiredService<LibrarySync>());
@@ -397,11 +397,10 @@ public partial class App : Application
         builder.Services.AddTransient<SettingsViewModel>();
         builder.Services.AddTransient<LibrarySectionViewModel>();
         builder.Services.AddTransient<ProcessingSectionViewModel>();
-        builder.Services.AddTransient<AppearanceSectionViewModel>();
-        builder.Services.AddTransient<ReviewSectionViewModel>();
+        builder.Services.AddTransient<PreferencesSectionViewModel>();
         builder.Services.AddTransient<VocabularyViewModel>();
         builder.Services.AddTransient<PasswordsSectionViewModel>();
-        builder.Services.AddTransient<WebLibrarySectionViewModel>();
+        builder.Services.AddTransient<DevicesSectionViewModel>();
         builder.Services.AddTransient<StartOverSectionViewModel>();
         builder.Services.AddTransient<BackupSectionViewModel>();
         builder.Services.AddTransient<AiSettingsViewModel>();

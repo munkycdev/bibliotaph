@@ -9,8 +9,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Bibliotaph.Processing.Tests;
 
 /// <summary>
-/// Library sync end to end: two catalogs, as on two PCs, each writing its sync file to one folder and merging the
-/// other's, as OneDrive would carry them.
+/// Library sync end to end: two catalogs, as on two PCs, each writing its sync file to one place and merging the
+/// other's, as the web library would carry them.
 /// </summary>
 public sealed class LibrarySyncTests : IAsyncLifetime
 {
@@ -20,7 +20,54 @@ public sealed class LibrarySyncTests : IAsyncLifetime
 
     static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    string Folder => Path.Combine(_dir, "OneDrive");
+    readonly Hub _hub = new();
+
+    /// <summary>Where the PCs' sync files meet, as the web library keeps them, and which can be out of reach.</summary>
+    sealed class Hub
+    {
+        readonly Dictionary<string, byte[]> _files = [];
+
+        public bool Offline { get; set; }
+
+        public bool Has(string machine) => _files.ContainsKey(machine);
+
+        public string Text(string machine) => System.Text.Encoding.UTF8.GetString(_files[machine]);
+
+        public async Task<SyncChannelRead> ReadAsync(string machine, CancellationToken ct)
+        {
+            if (Offline) return new SyncChannelRead([], "The web library can't be reached.");
+            var peers = new List<SyncFileContent>();
+            foreach (var bytes in _files.Where(f => f.Key != machine).Select(f => f.Value).ToList())
+            {
+                using var stream = new MemoryStream(bytes);
+                peers.Add(await SyncFile.ReadAsync(stream, ct));
+            }
+            return new SyncChannelRead(peers, null);
+        }
+
+        public async Task<string?> WriteAsync(string machine, Func<Stream, CancellationToken, Task> write, CancellationToken ct)
+        {
+            if (Offline) return "The web library can't be reached.";
+            using var stream = new MemoryStream();
+            await write(stream, ct);
+            _files[machine] = stream.ToArray();
+            return null;
+        }
+    }
+
+    /// <summary>One PC's way to the hub.</summary>
+    sealed class Channel(Hub hub, string machine) : ISyncChannel
+    {
+        public bool IsOn => true;
+
+        public Task<SyncChannelRead> ReadPeersAsync(CancellationToken ct) => hub.ReadAsync(machine, ct);
+
+        public Task<string?> WriteOwnAsync(Func<Stream, CancellationToken, Task> write, CancellationToken ct) => hub.WriteAsync(machine, write, ct);
+
+        public Task<bool> HasChangesAsync(CancellationToken ct) => Task.FromResult(false);
+
+        public event EventHandler? Changed { add { } remove { } }
+    }
 
     /// <summary>A clock the test moves on, so which change is newer is the test's to say.</summary>
     sealed class Clock(DateTimeOffset start) : TimeProvider
@@ -36,7 +83,7 @@ public sealed class LibrarySyncTests : IAsyncLifetime
     }
 
     /// <summary>One PC: its own data folder, catalog and stores, and its library sync.</summary>
-    sealed class Pc(string name, AppPaths paths, CatalogDatabase catalog, Clock clock) : IDisposable
+    sealed class Pc(string name, AppPaths paths, CatalogDatabase catalog, Clock clock, Hub hub) : IDisposable
     {
         public string Name => name;
         public AppPaths Paths => paths;
@@ -48,7 +95,7 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         public CollectionStore Collections => new(Contexts, clock);
 
         public void Start() => Sync = new LibrarySync(new LibrarySyncStore(Contexts, Metadata, new VocabularyStore(Contexts), clock), new SettingsStore(Contexts),
-            paths, catalog, null, clock, null, name);
+            catalog, null, clock, null, name, [new Channel(hub, name)]);
 
         /// <summary>Adds a file's document and its card, as indexing would: content hash <paramref name="hash"/> (64 of that character).</summary>
         public async Task<EntryId> AddBookAsync(char hash)
@@ -90,19 +137,16 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         var clock = new Clock(start);
         var catalog = new CatalogDatabase(paths.CatalogDatabase, paths.Backups, clock);
         await catalog.MigrateFromTemplateAsync(Ct);
-        var pc = new Pc(name, paths, catalog, clock);
+        var pc = new Pc(name, paths, catalog, clock, _hub);
         pc.Start();
         return pc;
     }
 
     public async ValueTask InitializeAsync()
     {
-        Directory.CreateDirectory(Folder);
         var nine = new DateTimeOffset(2026, 10, 11, 9, 0, 0, TimeSpan.Zero);
         _desk = await PcAsync("DESKTOP-1", nine);
         _laptop = await PcAsync("LAPTOP-2", nine.AddSeconds(30));
-        Assert.Null(await _desk.Sync.SetFolderAsync(Folder, Ct));
-        Assert.Null(await _laptop.Sync.SetFolderAsync(Folder, Ct));
     }
 
     public ValueTask DisposeAsync()
@@ -113,7 +157,7 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         return ValueTask.CompletedTask;
     }
 
-    /// <summary>The desk writes and merges, then the laptop, then the desk again: what a round of OneDrive carrying both files does.</summary>
+    /// <summary>The desk writes and merges, then the laptop, then the desk again: what a round of the web library carrying both files does.</summary>
     async Task RoundAsync()
     {
         await _desk.Sync.SyncNowAsync(Ct);
@@ -137,8 +181,8 @@ public sealed class LibrarySyncTests : IAsyncLifetime
 
         await RoundAsync();
 
-        Assert.True(File.Exists(Path.Combine(Folder, SyncFile.FolderName, "DESKTOP-1.json")));
-        Assert.True(File.Exists(Path.Combine(Folder, SyncFile.FolderName, "LAPTOP-2.json")));
+        Assert.True(_hub.Has("DESKTOP-1"));
+        Assert.True(_hub.Has("LAPTOP-2"));
         var book = await _laptop.BookAsync('a');
         Assert.Equal("The Drowned Abbey", await _laptop.TitleAsync('a'));
         Assert.True(await new FavoriteStore(_laptop.Contexts).IsFavoriteAsync(book, Ct));
@@ -150,7 +194,7 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         var pack = Assert.Single(await new SessionStore(_laptop.Contexts).ListAsync(Ct));
         var contents = await new SessionStore(_laptop.Contexts).GetAsync(pack.Id, Ct);
         Assert.Equal("Bell tower", Assert.Single(contents!.Items).Label);
-        Assert.Equal("Last merged from DESKTOP-1 at 09:00.", LibrarySync.Describe(_laptop.Sync.Status, _laptop.Clock.Now, TimeZoneInfo.Utc));
+        Assert.Equal("Last merged from DESKTOP-1 at 09:00.", LibrarySync.DescribeWeb(_laptop.Sync.Status, _laptop.Clock.Now, TimeZoneInfo.Utc));
     }
 
     [Fact]
@@ -221,7 +265,7 @@ public sealed class LibrarySyncTests : IAsyncLifetime
 
         // The laptop has the collection, but not the book yet; nor does its file say anything of the book.
         Assert.Single(await _laptop.Collections.ListAsync(Ct));
-        var laptopFile = await File.ReadAllTextAsync(Path.Combine(Folder, SyncFile.FolderName, "LAPTOP-2.json"), Ct);
+        var laptopFile = _hub.Text("LAPTOP-2");
         Assert.DoesNotContain(new string('c', 64), laptopFile, StringComparison.Ordinal);
 
         // The file arrives, and the user hearts it before the next merge: both the desk's work and the heart stay.
@@ -249,8 +293,8 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         await _desk.Collections.CreateAsync("Spring campaign", ct: Ct);
         await RoundAsync();
         await _laptop.Sync.SyncNowAsync(Ct);
-        var deskFile = await File.ReadAllTextAsync(Path.Combine(Folder, SyncFile.FolderName, "DESKTOP-1.json"), Ct);
-        var laptopFile = await File.ReadAllTextAsync(Path.Combine(Folder, SyncFile.FolderName, "LAPTOP-2.json"), Ct);
+        var deskFile = _hub.Text("DESKTOP-1");
+        var laptopFile = _hub.Text("LAPTOP-2");
 
         _desk.Later(5);
         _laptop.Later(5);
@@ -261,8 +305,8 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         Assert.False(laptop.Changed);
         Assert.False(desk.Wrote);
         Assert.False(laptop.Wrote);
-        Assert.Equal(deskFile, await File.ReadAllTextAsync(Path.Combine(Folder, SyncFile.FolderName, "DESKTOP-1.json"), Ct));
-        Assert.Equal(laptopFile, await File.ReadAllTextAsync(Path.Combine(Folder, SyncFile.FolderName, "LAPTOP-2.json"), Ct));
+        Assert.Equal(deskFile, _hub.Text("DESKTOP-1"));
+        Assert.Equal(laptopFile, _hub.Text("LAPTOP-2"));
     }
 
     [Fact]
@@ -284,18 +328,7 @@ public sealed class LibrarySyncTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Bibliotaphs_own_data_folder_is_refused()
-    {
-        Assert.NotNull(LibrarySync.CheckFolder(_desk.Paths.Root, _desk.Paths));
-        Assert.NotNull(LibrarySync.CheckFolder(_desk.Paths.Backups, _desk.Paths));
-        Assert.NotNull(LibrarySync.CheckFolder(Path.Combine(_dir, "not there"), _desk.Paths));
-        Assert.Null(LibrarySync.CheckFolder(Folder, _desk.Paths));
-        Assert.NotNull(await _desk.Sync.SetFolderAsync(_desk.Paths.Root, Ct));
-        Assert.Equal(Folder, await _desk.Sync.GetFolderAsync(Ct));
-    }
-
-    [Fact]
-    public async Task A_change_on_the_other_PC_while_this_one_is_offline_is_merged_when_the_folder_is_back()
+    public async Task A_change_on_the_other_PC_while_this_one_is_offline_is_merged_when_it_is_back()
     {
         var abbey = await _desk.AddBookAsync('a');
         await _laptop.AddBookAsync('a');
@@ -303,11 +336,11 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         await _desk.Metadata.SetValuesAsync(abbey, MetadataFields.Title, ["The Drowned Abbey"], Ct);
         await _desk.Sync.SyncNowAsync(Ct);
 
-        Directory.Move(Folder, Folder + " (offline)");
+        _hub.Offline = true;
         var offline = await _laptop.Sync.SyncNowAsync(Ct);
         Assert.Empty(offline.MergedFrom);
-        Directory.Delete(Folder, recursive: true);
-        Directory.Move(Folder + " (offline)", Folder);
+        Assert.NotNull(_laptop.Sync.Status.Problem);
+        _hub.Offline = false;
         await _laptop.Sync.SyncNowAsync(Ct);
 
         Assert.Equal("The Drowned Abbey", await _laptop.TitleAsync('a'));

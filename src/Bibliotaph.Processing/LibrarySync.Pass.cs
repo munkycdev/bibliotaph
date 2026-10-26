@@ -18,15 +18,7 @@ public sealed partial class LibrarySync
         public bool Dirty { get; set; }
     }
 
-    /// <summary>Another PC's file as last read, so an unchanged file isn't parsed again.</summary>
-    sealed record PeerFile(DateTime LastWriteUtc, long Length, SyncFileContent Content);
-
-    readonly Dictionary<string, PeerFile> _peerFiles = [with(StringComparer.OrdinalIgnoreCase)];
-
-    /// <summary>Set when this PC's file is behind what it knows: changes not written yet, or none written since Bibliotaph started.</summary>
-    bool _unwritten = true;
-
-    /// <summary>The channels this PC's file is behind in, as <see cref="_unwritten"/> is for the folder.</summary>
+    /// <summary>The channels this device's file is behind in: changes not written there yet.</summary>
     readonly HashSet<ISyncChannel> _channelsBehind = [];
 
     /// <summary>The channels this PC's file has been written to since Bibliotaph started, which the first pass writes to whatever changed.</summary>
@@ -41,10 +33,8 @@ public sealed partial class LibrarySync
     /// </summary>
     async Task<SyncPass> PassAsync(bool merge, CancellationToken ct)
     {
-        var folder = await GetFolderAsync(ct);
         var channels = _channels.Where(c => c.IsOn).ToList();
-        if (folder is null && channels.Count == 0) return new SyncPass([], false, false);
-        var files = folder is null ? null : Path.Combine(folder, SyncFile.FolderName);
+        if (channels.Count == 0) return new SyncPass([], false, false);
         var machineId = await MachineIdAsync(ct);
         var snapshot = await _store.ReadAsync(ct);
         var state = (await _store.LoadStateAsync(ct)).ToDictionary(k => k.Key, k => new Known(k.Value.Record, k.Value.Pending), StringComparer.Ordinal);
@@ -57,14 +47,13 @@ public sealed partial class LibrarySync
         HashSet<string> waiting = [with(StringComparer.Ordinal)];
         if (merge)
         {
-            if (files is not null) (mergedFrom, problem) = await ReadPeersAsync(files, machineId, ct);
             foreach (var channel in channels)
             {
                 var read = await channel.ReadPeersAsync(ct);
                 mergedFrom.AddRange(read.Peers.Where(p => p.MachineId != machineId));
                 problem ??= read.Problem;
             }
-            // A device reached through both the folder and a channel counts once, as its newest file.
+            // A device reached through more than one channel counts once, as its newest file.
             mergedFrom = [.. mergedFrom.GroupBy(p => p.MachineId).Select(g => g.MaxBy(p => p.WrittenUtc)!)];
             var aliases = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
             foreach (var record in mergedFrom.SelectMany(p => p.Records).Concat(state.Values.Select(k => k.Record)).Where(r => r.Aliases.Count > 0))
@@ -105,25 +94,9 @@ public sealed partial class LibrarySync
         foreach (var key in removed.Where(state.ContainsKey).ToList()) removed.Remove(key);
         var dirty = state.Values.Where(k => k.Dirty).Select(k => (k.Record, k.Pending)).ToList();
         await _store.SaveStateAsync(dirty, removed, ct);
-        if (dirty.Count > 0 || removed.Count > 0)
-        {
-            _unwritten = true;
-            _channelsBehind.UnionWith(_channels);
-        }
+        if (dirty.Count > 0 || removed.Count > 0) _channelsBehind.UnionWith(_channels);
 
         var wrote = false;
-        if (files is not null && (problem is null || !problem.StartsWith(DuplicateName, StringComparison.Ordinal)))
-        {
-            try
-            {
-                wrote = await WriteOwnAsync(files, machineId, state.Values, ct);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                _log.LogWarning(ex, "Writing the library sync file to {Folder} failed", files);
-                problem ??= $"This PC's sync file couldn't be written: {ex.Message} Bibliotaph tries again in a few minutes.";
-            }
-        }
 
         foreach (var channel in channels.Where(c => _channelsBehind.Contains(c) || !_channelsWritten.Contains(c)))
         {
@@ -146,7 +119,6 @@ public sealed partial class LibrarySync
         if (from is not null) await _settings.SetAsync(SettingKeys.SyncLastMerge, JsonSerializer.Serialize(new LastMerge(from, now), SyncJson.Options), ct);
         SetStatus(s => s with
         {
-            Folder = folder,
             Problem = problem,
             LastMergedFrom = from ?? s.LastMergedFrom,
             LastMergedUtc = from is null ? s.LastMergedUtc : now,
@@ -278,90 +250,6 @@ public sealed partial class LibrarySync
 
     static bool Same(IReadOnlyDictionary<string, string> a, IReadOnlyDictionary<string, string> b) =>
         a.Count == b.Count && a.All(f => b.TryGetValue(f.Key, out var v) && v == f.Value);
-
-    const string DuplicateName = "Another PC called";
-
-    /// <summary>
-    /// The other PCs' files in the folder. A file that can't be read is skipped with a problem to show, and tried again
-    /// next time; one the cloud app is still writing is simply tried again.
-    /// </summary>
-    async Task<(List<SyncFileContent> Peers, string? Problem)> ReadPeersAsync(string files, Guid machineId, CancellationToken ct)
-    {
-        var peers = new List<SyncFileContent>();
-        IEnumerable<string> paths;
-        try
-        {
-            Directory.CreateDirectory(files);
-            paths = [.. Directory.EnumerateFiles(files, "*.json")];
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _log.LogInformation(ex, "The library sync folder {Folder} can't be reached", files);
-            return (peers, $"The sync folder can't be reached: {ex.Message} Bibliotaph tries again in a few minutes.");
-        }
-
-        string? problem = null;
-        var own = SyncFile.FileName(MachineName);
-        foreach (var path in paths)
-        {
-            var name = Path.GetFileName(path);
-            SyncFileContent content;
-            try
-            {
-                var info = new FileInfo(path);
-                if (_peerFiles.TryGetValue(path, out var cached) && cached.LastWriteUtc == info.LastWriteTimeUtc && cached.Length == info.Length)
-                    content = cached.Content;
-                else
-                {
-                    await using (var stream = File.OpenRead(path)) content = await SyncFile.ReadAsync(stream, ct);
-                    _peerFiles[path] = new PeerFile(info.LastWriteTimeUtc, info.Length, content);
-                }
-            }
-            catch (InvalidDataException ex)
-            {
-                problem ??= $"{Path.GetFileNameWithoutExtension(name)}'s sync file can't be read. {ex.Message}";
-                continue;
-            }
-            catch (IOException ex)
-            {
-                // Most likely the cloud app is still writing it: it changes again when done, and is read then.
-                _log.LogDebug(ex, "Library sync file {Path} isn't readable yet", path);
-                continue;
-            }
-            if (string.Equals(name, own, StringComparison.OrdinalIgnoreCase))
-            {
-                if (content.MachineId != machineId)
-                    problem = $"{DuplicateName} {MachineName} also syncs with this folder, so this PC stops writing its file. Rename one of the PCs in Windows Settings > System > About.";
-                continue;
-            }
-            // This PC's own file from before it was renamed.
-            if (content.MachineId == machineId) continue;
-            peers.Add(content);
-        }
-        return (peers, problem);
-    }
-
-    /// <summary>Writes this PC's file when it is behind: everything this PC has or did, never what is pending. Returns whether it wrote.</summary>
-    async Task<bool> WriteOwnAsync(string files, Guid machineId, IEnumerable<Known> state, CancellationToken ct)
-    {
-        var path = Path.Combine(files, SyncFile.FileName(MachineName));
-        if (!_unwritten && File.Exists(path)) return false;
-        Directory.CreateDirectory(files);
-        // Written aside and moved in, so the cloud app and the other PC never see half a file.
-        var partial = Path.Combine(files, "~$" + SyncFile.FileName(MachineName) + ".partial");
-        try
-        {
-            await using (var stream = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None))
-                await SyncFile.WriteAsync(stream, MachineName, machineId, BackupService.AppVersion, Now, Own(state), ct);
-            File.Move(partial, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(partial)) File.Delete(partial);
-        }
-        _unwritten = false;
-        return true;
-    }
 
     /// <summary>What this PC's file holds: everything this PC has or did, never what is pending.</summary>
     static IEnumerable<SyncRecord> Own(IEnumerable<Known> state) =>

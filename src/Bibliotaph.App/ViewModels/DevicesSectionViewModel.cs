@@ -7,21 +7,22 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Settings > Web library: connects this PC to the user's library at bibliotaph.online. Connect opens the approval
+/// Settings > Devices: connects this PC to the user's library at bibliotaph.online, which keeps the user's work the
+/// same on every PC connected to it and on the web. Connect opens the approval
 /// page in the browser and shows the code the page shows, then waits for the user's answer there; leaving the section
 /// stops waiting. Once connected, it says whose library and how library sync with it is going, and Disconnect
 /// forgets the PC's key here and on the web.
 /// </summary>
-public sealed partial class WebLibrarySectionViewModel(WebLibrary web, LibrarySync sync, IDesktopShell shell, TimeProvider clock,
-    ILogger<WebLibrarySectionViewModel> log) : SettingsSectionViewModel
+public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync sync, IDesktopShell shell, TimeProvider clock,
+    ILogger<DevicesSectionViewModel> log) : SettingsSectionViewModel
 {
     System.Windows.Threading.Dispatcher? _dispatcher;
     // Stops the wait; the wait itself owns its token source.
     Action? _stopWaiting;
     string? _approveUrl;
 
-    public override SettingsSection Section => SettingsSection.WebLibrary;
-    public override string Label => "Web library";
+    public override SettingsSection Section => SettingsSection.Devices;
+    public override string Label => "Devices";
 
     [ObservableProperty]
     public partial bool IsConnected { get; private set; }
