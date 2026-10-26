@@ -416,6 +416,28 @@
             }
             <DoneNote Result="_partNote" UndoName="Undo the change to the adventures" Dismissed="() => _partNote = null" Undone="ChangedAsync" />
 
+            @* What the AI found reading the whole book, chapter by chapter: apart from the book's own details, which it never changes. *@
+            @if (book.Chapters.Count > 0)
+            {
+                <div class="bt-drawerhead-row">
+                    <h3 class="bt-drawerhead">FOUND INSIDE THE BOOK</h3>
+                    <button class="bt-link bt-iconlink" title="Forget what the AI found in this book and read it again" aria-label="Scan this book again"
+                            @onclick="ScanAgainAsync"><Icon Name="RotateCcw" Size="13" />Scan again</button>
+                </div>
+                <div class="bt-small bt-foundnote">Found by the AI reading each chapter. These describe parts of the book, not the whole book, and don't change its details.</div>
+                <div aria-label="Found inside the book">
+                    @foreach (var chapter in book.Chapters)
+                    {
+                        <div class="bt-detailbox" aria-label="@chapter.Title, @chapter.Pages">
+                            <div class="bt-chapterhead"><span class="bt-chaptertitle">@chapter.Title</span><span class="bt-small">@chapter.Pages</span></div>
+                            @foreach (var line in chapter.Lines) { <div class="bt-chapterline">@line</div> }
+                            @if (chapter.Note is { } note) { <div class="bt-small">@note</div> }
+                        </div>
+                    }
+                </div>
+            }
+            @if (_chaptersMessage is { } said) { <div class="bt-small bt-foundnote" role="status">@said</div> }
+
             <h3 class="bt-drawerhead bt-sectionhead">@book.FactsHeading</h3>
             <dl class="bt-facts">
                 @foreach (var fact in book.Facts)
@@ -577,6 +599,7 @@
         _part = null;
         // The file an adventure was removed from shows what was done, with its Undo.
         _partNote = _carried;
+        _chaptersMessage = null;
         _carried = null;
         _focus = true;
         await LoadAsync();
@@ -923,6 +946,16 @@
     }
 
     // Reprocess, a pack's cover and split, and copies.
+
+    // Scan again says what it will do until the details are opened again.
+    string? _chaptersMessage;
+
+    async Task ScanAgainAsync()
+    {
+        if (await TryAsync(() => Api.ScanAgainAsync(EntryId)) is not { } result) return;
+        if (result.Details is { } details) _details = details;
+        _chaptersMessage = result.Message;
+    }
 
     async Task ReprocessAsync()
     {

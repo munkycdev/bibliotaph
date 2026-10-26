@@ -424,8 +424,20 @@ one of your books and shows what it kept, with each page and quote, and what it 
 **Off** or **On** without losing your setup, **Reclassify** reads again the books an earlier model read or couldn't
 read, and **Library folders sent to AI** keeps a folder's books away from the model.
 
-The service bills you for what it reads: cataloguing reads a few thousand words of each book once. Scanning whole
-books, Ask, Ask this book and questions to your library aren't on the web yet.
+The service bills you for what it reads: cataloguing reads a few thousand words of each book once.
+
+### Scanning whole books
+
+**Scan whole books** in Settings › AI has the AI read all of each book once it's catalogued, chapter by chapter, and
+note each chapter's setting, environments, themes and creatures, with the page that shows them, as in the Windows app
+(see [Scanning whole books](ai.md#scanning-whole-books)). It's off on the web until you tick it, since every chapter is
+a request on your key and costs far more than cataloguing. It goes after everything else and stops whenever you ask the
+AI something; Settings and the sidebar show **Scanning whole books · 12 of 840**, and a scan carries on where it was
+the next time.
+
+What it finds shows under **Found inside the book** in a book's details, apart from the book's own details, which it
+never changes, and in the reader's **Contents** under the chapter it was found in. **Scan again** forgets what was found
+in a book and reads it again. Ask, Ask this book and questions to your library aren't on the web yet.
 
 ## Your theme
 

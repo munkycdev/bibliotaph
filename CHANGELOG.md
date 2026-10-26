@@ -44,6 +44,10 @@
   worked on last, another or a new one, as in the Windows app, with Undo. See [Binders](docs/guide/web.md#binders).
 - **Copies and new versions on the web.** Two files of one book on your drive become one card with two copies, and a
   file that shares most of a book's pages is offered as its new version, as in the Windows app.
+- **Scan whole books on the web.** Settings › AI's Scan whole books reads each book chapter by chapter, as in the
+  Windows app, and a book's details show what it found under Found inside the book, with Scan again. It's off on the
+  web until you tick it, since every chapter is a request on your key. See
+  [Scanning whole books](docs/guide/web.md#scanning-whole-books).
 - **AI on the web, with your own key.** Settings › AI catalogues your books as the Windows app's AI does, with a model
   service you choose on the internet, such as OpenAI or OpenRouter, and your own key, kept encrypted and never shown
   again. Use AI, Test with a book, Reclassify and the folders sent to AI work as on Windows. See

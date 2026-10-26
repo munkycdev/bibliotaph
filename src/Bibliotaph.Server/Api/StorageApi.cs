@@ -135,7 +135,9 @@ public static class StorageApi
         var folders = (await library.Get<SourceRootStore>().ListAsync(ct)).Count;
         var unhashed = counts.Unhashed - indexing.Unreadable.Count;
         var progress = await library.Get<IndexQueries>().GetProgressAsync(ct);
-        var ai = library.Get<AiSettings>().Setup.IsReady && progress.ToClassify > 0;
+        var settings = library.Get<AiSettings>();
+        var ai = settings.Setup.IsReady && progress.ToClassify > 0;
+        var scanning = settings.Setup.IsReady && settings.ScanWholeBooks && progress.ToScanWhole > 0;
         var text = indexing.IsScanning ? "Looking through your folders"
             : unhashed > 0 && indexing.IsPaused(Lane.Index) ? "Indexing paused"
             : unhashed > 0 ? $"Reading {unhashed:N0} new {FolderText.Plural(unhashed, "file", "files")}"
@@ -143,6 +145,10 @@ public static class StorageApi
             : ai && indexing.IsPaused(Lane.Classify) ? "Cataloguing with AI paused"
             : ai && indexing.Unavailable(Lane.Classify) is not null ? "Cataloguing with AI is waiting"
             : ai ? $"Cataloguing with AI · {progress.ToClassify:N0} left"
+            // Reading whole books comes last and is slow, so it says how far it has got rather than what is left.
+            : scanning && indexing.IsPaused(Lane.Classify) ? "Scanning whole books paused"
+            : scanning && indexing.Unavailable(Lane.Classify) is not null ? "Scanning whole books is waiting"
+            : scanning ? $"Scanning whole books · {progress.ScannedWhole:N0} of {progress.ScannedWhole + progress.ToScanWhole:N0}"
             : counts.Documents == 0 ? "Nothing to process"
             : $"Up to date · {counts.Documents:N0} {FolderText.Plural(counts.Documents, "item", "items")}";
         var suggestions = await library.Get<ReviewService>().CountAsync(ct);

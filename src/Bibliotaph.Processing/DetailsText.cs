@@ -35,6 +35,20 @@ public static class DetailsText
     /// <summary>A book owned elsewhere has no file to say anything about.</summary>
     public static string FactsHeading(LibraryEntry entry) => entry.IsElsewhere ? "IN YOUR LIBRARY" : "ABOUT THE FILE";
 
+    /// <summary>Why a chapter shows no values, or null when it has some.</summary>
+    public static string? ChapterNote(ScannedChapter chapter, int lines) => chapter.Reading switch
+    {
+        ChapterReading.Waiting => "Not read yet.",
+        ChapterReading.Failed => "The AI couldn't read this chapter.",
+        _ when lines == 0 => "Nothing found.",
+        _ => null,
+    };
+
+    /// <summary>What Scan again says it will do.</summary>
+    public static string ScanAgain(bool scanWholeBooks) => scanWholeBooks
+        ? "The AI reads this book again, chapter by chapter, when it has nothing else to do."
+        : "Turn on Scan whole books in Settings > AI for the AI to read this book again.";
+
     /// <summary>"IMAGES (12)", or "FILES (12)" once PDFs are among them.</summary>
     public static string PackFilesHeading(int count, bool hasPdfs) => $"{(hasPdfs ? "FILES" : "IMAGES")} ({count.ToString("N0", CultureInfo.CurrentCulture)})";
 

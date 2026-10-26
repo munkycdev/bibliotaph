@@ -56,14 +56,7 @@ public sealed partial class InspectorViewModel
     InspectorChapter ToChapter(ScannedChapter chapter)
     {
         var lines = ChapterFields.Describe(chapter.Tags);
-        var note = chapter.Reading switch
-        {
-            ChapterReading.Waiting => "Not read yet.",
-            ChapterReading.Failed => "The AI couldn't read this chapter.",
-            _ when lines.Count == 0 => "Nothing found.",
-            _ => null,
-        };
-        return new InspectorChapter(chapter.Title, chapter.Pages.Describe(_labels), lines, note);
+        return new InspectorChapter(chapter.Title, chapter.Pages.Describe(_labels), lines, DetailsText.ChapterNote(chapter, lines.Count));
     }
 
     /// <summary>
@@ -78,9 +71,7 @@ public sealed partial class InspectorViewModel
         {
             await Task.Run(() => chapters.RescanAsync(Item.DocumentId));
             Chapters = [];
-            ChaptersMessage = chapters.IsOn
-                ? "The AI reads this book again, chapter by chapter, when it has nothing else to do."
-                : "Turn on Scan whole books in Settings > AI for the AI to read this book again.";
+            ChaptersMessage = DetailsText.ScanAgain(chapters.IsOn);
         }
         catch (Exception ex)
         {

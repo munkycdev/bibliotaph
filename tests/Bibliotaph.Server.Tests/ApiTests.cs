@@ -2,8 +2,10 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Text.RegularExpressions;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
+using Bibliotaph.Classification;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Server.Accounts;
@@ -37,7 +39,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
             host.UseEnvironment("Testing");
             host.UseSetting("Server:DataRoot", _folder.Path);
             host.ConfigureServices(services => services.AddSingleton<IHttpClientFactory>(new FakeHttp(_graph)));
-            host.ConfigureServices(services => services.AddSingleton(new ModelClientFactory(_models.ClientFor)));
+            host.ConfigureServices(services => services.AddSingleton(new ModelClientFactory(_models.ClientFor, TimeSpan.FromMilliseconds(50))));
             host.ConfigureServices(services => services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestSession>(AuthSetup.SessionScheme + "-test", _ => { }));
             host.ConfigureServices(services => services.PostConfigure<AuthenticationOptions>(o =>
@@ -1189,6 +1191,59 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal("There's no book with text to try yet. Add a folder, or wait for its books to be read.", report.Problem);
         Assert.Equal(AiText.SwitchedOff, off.Note);
         Assert.Null(forgotten.KeyEnding);
+    }
+
+    [Fact]
+    public async Task Scanning_whole_books_waits_to_be_switched_on_then_shows_what_the_ai_found_inside_the_book()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/crown.pdf", await File.ReadAllBytesAsync(_pdfs.ChapterBook, ct));
+        // The first chapter's marsh, quoted from its own page; nothing for the others.
+        _models.Answer = request =>
+        {
+            if (request.SchemaName != ChapterPrompt.SchemaName) return "{}";
+            var chapters = Regex.Matches(request.User, @"^Chapter (\d+): (.+) \(pages", RegexOptions.Multiline).Select(m =>
+                m.Groups[2].Value.Contains("Drowned Road", StringComparison.Ordinal)
+                    ? $$"""{"chapter": {{m.Groups[1].Value}}, "environment": [{"value": "Swamp", "page": 2, "quote": "The road sinks into the marsh"}]}"""
+                    : $$"""{"chapter": {{m.Groups[1].Value}}}""");
+            return $$"""{"chapters": [{{string.Join(",", chapters)}}]}""";
+        };
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        const string Service = "https://api.example.com/v1";
+        using (await client.PutAsJsonAsync("/api/ai", new AiSave(Service, "fake-mini", FakeModelService.Key, RemoteAllowed: true), ct)) { }
+        await WaitAsync(async () => (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.Progress is var p
+            && p.StartsWith("1 book classified", StringComparison.Ordinal) ? p : null, ct);
+        var book = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.Single();
+        var path = $"/api/library/books/{book.EntryId}";
+        var before = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
+        var unscanned = (await client.GetFromJsonAsync<BookDetails>(path, ct))!;
+        var askedBefore = _models.Requests.Count(r => r.Request.SchemaName == ChapterPrompt.SchemaName);
+
+        using (await client.PutAsJsonAsync("/api/ai/scan", new AiSwitch(true), ct)) { }
+        var found = await WaitAsync(async () => (await client.GetFromJsonAsync<BookDetails>(path, ct))!.Chapters is { Count: > 0 } c
+            && c.All(x => x.Note != "Not read yet.") ? c : null, ct);
+        var scanned = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
+        using (await client.PutAsJsonAsync("/api/ai/scan", new AiSwitch(false), ct)) { }
+        using var again = await client.PostAsync($"{path}/scan-again", null, ct);
+        var rescan = (await again.Content.ReadFromJsonAsync<EditResult>(ct))!;
+
+        // Off until switched on: every chapter is a request on the user's key.
+        Assert.False(before.ScanWholeBooks);
+        Assert.Empty(unscanned.Chapters);
+        Assert.Equal(0, askedBefore);
+        var road = Assert.Single(found, c => c.Title == "Chapter 1: The Drowned Road");
+        Assert.Equal(["Environments: Swamp"], road.Lines);
+        Assert.Null(road.Note);
+        Assert.Contains(found, c => c.Note == "Nothing found.");
+        Assert.True(scanned.ScanWholeBooks);
+        Assert.Equal("1 whole book scanned.", scanned.ScanProgress);
+        Assert.Equal(DetailsText.ScanAgain(false), rescan.Message);
+        Assert.Empty(rescan.Details!.Chapters);
     }
 
     static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class

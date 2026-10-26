@@ -1,4 +1,4 @@
-@* Settings › AI, as the Windows app's with a model server: Use AI on and off with how far it has got, the server's
+@* Settings › AI, as the Windows app's with a model server: Use AI on and off with how far it has got, Scan whole books, the server's
    address, Connect and its models, the key (never shown again), Save, Test with a book, Reclassify, and the folders
    sent to AI. The server only reaches a model service on the internet, over https. *@
 @implements IDisposable
@@ -37,6 +37,19 @@
                 <button class="@(_page.Enabled ? "" : "on")" aria-pressed="@(!_page.Enabled)" @onclick="() => SwitchAsync(false)">Off</button>
                 <button class="@(_page.Enabled ? "on" : "")" aria-pressed="@_page.Enabled" @onclick="() => SwitchAsync(true)">On</button>
             </div>
+        </div>
+
+        <div class="bt-scanwhole">
+            <label class="bt-check"><input type="checkbox" checked="@_page.ScanWholeBooks" aria-label="Scan whole books"
+                       @onchange="e => ScanWholeBooksAsync(e.Value is true)" />Scan whole books</label>
+            <p class="bt-sample">Once a book is catalogued, the AI reads all of it, chapter by chapter, and notes each chapter's setting,
+                environments, themes and creatures, with the page that shows them. It goes slowly, after everything else, and stops
+                whenever you ask the AI something. The book's own details are never changed. Every chapter is a request on your key,
+                so it costs far more than cataloguing.</p>
+            @if (_page.ScanProgress.Length > 0)
+            {
+                <p class="bt-sample">@_page.ScanProgress</p>
+            }
         </div>
 
         <h3 class="bt-subheading">Model server</h3>
@@ -311,6 +324,12 @@
     async Task ReclassifyAsync()
     {
         _saveNote = (await Api.ReclassifyAsync()).Note;
+        await RefreshAsync();
+    }
+
+    async Task ScanWholeBooksAsync(bool on)
+    {
+        await Api.ScanWholeBooksAsync(on);
         await RefreshAsync();
     }
 
