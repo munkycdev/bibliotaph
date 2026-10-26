@@ -4,7 +4,7 @@
 
 Bibliotaph is coming to the browser at [bibliotaph.online](https://bibliotaph.online), for game masters whose books
 live in cloud storage. It looks and works like the Windows app. It's being built in steps and is invite-only: today you
-can accept an invitation, sign in, invite others, connect your OneDrive, Dropbox, Google Drive or a WebDAV server such as Nextcloud and add library folders from it. Seeing and
+can accept an invitation, sign in, invite others, connect your OneDrive, Dropbox, Google Drive, Box or a WebDAV server such as Nextcloud and add library folders from it. Seeing and
 reading your books in the browser comes next.
 
 ## Join with an invitation
@@ -58,8 +58,8 @@ storage is touched. It can't be undone. Your own account isn't deleted here: use
 ## Connecting your storage
 
 Bibliotaph reads your books where they are, so first it needs your storage. In **Settings** › **Storage**, choose
-**Connect OneDrive**, **Connect Dropbox** or **Connect Google Drive** and sign in with the account that holds your books
-(it doesn't have to be the one you sign in to Bibliotaph with). Microsoft, Dropbox or Google asks you to let Bibliotaph
+**Connect OneDrive**, **Connect Dropbox**, **Connect Google Drive** or **Connect Box** and sign in with the account that holds your books
+(it doesn't have to be the one you sign in to Bibliotaph with). Microsoft, Dropbox, Google or Box asks you to let Bibliotaph
 read your files and keep access while you're away; Bibliotaph asks for nothing that writes, so it can't change, move or
 delete any of them. Each account in the list says what it was allowed, such as "Allowed to read your files and keep
 access while you're signed out"; point at that line to see the same in the provider's own words. A Dropbox that's part of a team shows
@@ -97,7 +97,7 @@ Bibliotaph looks through a new folder straight away, then reads each new file to
 copied: each is downloaded only while it's being read and deleted straight after. The line at the bottom of the sidebar
 says what it's doing, such as **Reading 120 new files** or **Up to date**.
 
-Changes in your storage (books added, moved or deleted) are picked up within a few minutes (Google Drive's and WebDAV's within five), whether or not you have
+Changes in your storage (books added, moved or deleted) are picked up within a few minutes (Google Drive's, Box's and WebDAV's within five), whether or not you have
 Bibliotaph open, and twice a day it looks through every folder anyway. Nextcloud and ownCloud mark a folder changed when
 anything inside it changes; other WebDAV servers may not, and then their changes wait for that twice-daily look or **Look
 for changes**, which looks straight away.
@@ -378,7 +378,7 @@ open, the screen stays on, so a tablet at the table doesn't dim between glances;
 book or switch away.
 
 The pages are read from your storage a piece at a time, so a big book shows its first page in a moment: straight from
-OneDrive, and through the server from Dropbox, Google Drive and WebDAV, which passes each piece on without keeping it. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
+OneDrive, and through the server from Dropbox, Google Drive, Box and WebDAV, which passes each piece on without keeping it. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
 
 - **Page box**: type a printed page number or a PDF page number, and press **Enter**. **Previous** and **Next** turn a
   page; the line under the pages says which printed and PDF page you're on.

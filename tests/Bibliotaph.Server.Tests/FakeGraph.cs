@@ -144,11 +144,12 @@ sealed class LibraryFixture : IAsyncDisposable
         Dropbox = new FakeDropbox();
         Google = new FakeGoogleDrive();
         WebDav = new FakeWebDav();
+        Box = new FakeBox();
         Paths = new ServerPaths(root);
         Accounts = new AccountsDatabase(Paths.Accounts);
         Accounts.MigrateAsync().GetAwaiter().GetResult();
         Connections = new StorageConnections(Accounts, Protection, clock);
-        Http = new FakeHttp(new FakeHosts(Graph, Dropbox, Google, WebDav));
+        Http = new FakeHttp(new FakeHosts(Graph, Dropbox, Google, WebDav, Box));
         var http = Http;
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -158,6 +159,8 @@ sealed class LibraryFixture : IAsyncDisposable
             ["Storage:Dropbox:ClientSecret"] = "dropbox-secret",
             ["Storage:GoogleDrive:ClientId"] = "google-client",
             ["Storage:GoogleDrive:ClientSecret"] = "google-secret",
+            ["Storage:Box:ClientId"] = "box-client",
+            ["Storage:Box:ClientSecret"] = "box-secret",
         }).Build();
         Tokens = new DriveTokens(http, configuration, Connections, clock, NullLogger<DriveTokens>.Instance);
         Drives = new UserDriveFactory(Connections, Tokens, http, clock);
@@ -176,6 +179,7 @@ sealed class LibraryFixture : IAsyncDisposable
     public FakeDropbox Dropbox { get; }
     public FakeGoogleDrive Google { get; }
     public FakeWebDav WebDav { get; }
+    public FakeBox Box { get; }
     public FakeHttp Http { get; }
     public ReadLinks ReadLinks => new(Protection, TimeProvider.System);
 
@@ -199,6 +203,10 @@ sealed class LibraryFixture : IAsyncDisposable
     /// <summary>Makes a user and connects the fake Google Drive to them.</summary>
     public async Task<(string UserId, ConnectedAccount Drive)> UserWithGoogleDriveAsync() =>
         await UserWithAsync(GoogleDriveProvider.Key, FakeGoogleDrive.PermissionId, "Google Drive · Dana", null, "Dana");
+
+    /// <summary>Makes a user and connects the fake Box account to them.</summary>
+    public async Task<(string UserId, ConnectedAccount Drive)> UserWithBoxAsync() =>
+        await UserWithAsync(BoxProvider.Key, FakeBox.UserId, "Box · Dana", null, "Dana");
 
     /// <summary>Makes a user and connects the fake WebDAV server to them, with the password <paramref name="password"/>.</summary>
     public async Task<(string UserId, ConnectedAccount Drive)> UserWithWebDavAsync(string password = FakeWebDav.Password) =>

@@ -59,6 +59,10 @@ param(
     # in Key Vault. Once set, a later run without it keeps it.
     [string] $GoogleClientId,
 
+    # The Box app's Client ID, from its Configuration in Box's Developer Console. Its client secret is asked for once
+    # and kept in Key Vault. Once set, a later run without it keeps it.
+    [string] $BoxClientId,
+
     # Adds the domain and www to the app and issues managed certificates. Needs the DNS records in place first.
     [switch] $BindDomain
 )
@@ -231,6 +235,13 @@ if (-not (StorageApp 'GoogleDrive' 'GoogleDrive' $GoogleClientId "Client secret 
 }
 Write-Host "  In Google Cloud: enable the Google Drive API; OAuth consent screen with the scope .../auth/drive.readonly, published"
 Write-Host "  (In production), since a Testing app's sign-ins lapse after 7 days. Web client redirect URI https://$Domain/storage/callback/googledrive"
+
+Step 'Box'
+if (-not (StorageApp 'Box' 'Box' $BoxClientId "Client secret for Box app $BoxClientId")) {
+    Write-Host '  Box can be connected once this runs with -BoxClientId.' -ForegroundColor Yellow
+}
+Write-Host "  In Box's Developer Console: a Platform App with User Authentication (OAuth 2.0); application scope"
+Write-Host "  'Read all files and folders stored in Box' only; Redirect URI https://$Domain/storage/callback/box"
 
 $settings = @(
     "REPLICA_URL=abs://$StorageAccount@replica"

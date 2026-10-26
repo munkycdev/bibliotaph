@@ -98,7 +98,7 @@ public abstract class OAuthStorageProvider : StorageProvider
 /// <summary>Every storage provider the server knows, whether or not it can be connected here.</summary>
 public static class StorageProviders
 {
-    public static readonly IReadOnlyList<StorageProvider> All = [new OneDriveProvider(), new DropboxProvider(), new GoogleDriveProvider(), new WebDavProvider()];
+    public static readonly IReadOnlyList<StorageProvider> All = [new OneDriveProvider(), new DropboxProvider(), new GoogleDriveProvider(), new BoxProvider(), new WebDavProvider()];
 
     public static StorageProvider? Find(string id) => All.FirstOrDefault(p => p.Id == id);
 
