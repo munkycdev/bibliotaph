@@ -81,10 +81,6 @@ function Invoke-Smoke {
     # The fixtures are copied out of the checkout so the app's folder holds nothing else.
     New-Item -ItemType Directory -Force $files | Out-Null
     Copy-Item (Join-Path $root 'tests/fixtures/smoke/smoke-book.pdf'), (Join-Path $root 'tests/fixtures/smoke/smoke-map.png') $files
-    # A made-up second PC's library sync file, in the folder the smoke test syncs with (beside the data root, never in it).
-    $sync = Join-Path $run 'sync/Bibliotaph sync'
-    New-Item -ItemType Directory -Force $sync | Out-Null
-    Copy-Item (Join-Path $root 'tests/fixtures/smoke/smoke-sync.json') (Join-Path $sync 'SMOKE-PC-2.json')
     # A made-up online library page with its images, which the smoke test reads in Bibliotaph's browser (beside the data root, never in it).
     Copy-Item (Join-Path $root 'tests/fixtures/online') (Join-Path $run 'online') -Recurse
     # A made-up Kindle book, which the smoke test adds as a library folder of its own (beside the data root, never in it).

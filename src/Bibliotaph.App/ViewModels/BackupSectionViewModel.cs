@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using Bibliotaph.App.Services;
-using Bibliotaph.Core.Sync;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -46,16 +45,14 @@ public sealed partial class RestoreFolderItem(RestoreFolder folder) : Observable
 }
 
 /// <summary>
-/// Settings > Backup: Back up now, the weekly backups and their folder, syncing with another PC, restoring a backup
-/// with its library folders found or pointed to their new places, and exporting the library as CSV or JSON. The work
-/// is <see cref="BackupService"/>'s, <see cref="LibrarySync"/>'s and <see cref="ExportService"/>'s; this asks
-/// where, and says what happened.
+/// Settings > Backup: Back up now, the weekly backups and their folder, restoring a backup with its library folders
+/// found or pointed to their new places, and exporting the library as CSV or JSON. The work is
+/// <see cref="BackupService"/>'s and <see cref="ExportService"/>'s; this asks where, and says what happened.
 /// </summary>
-public sealed partial class BackupSectionViewModel(BackupService backups, ExportService export, LibrarySync sync, AppRestart restart, TimeProvider clock,
+public sealed partial class BackupSectionViewModel(BackupService backups, ExportService export, AppRestart restart, TimeProvider clock,
     IFilePicker files, IUserPrompts prompts, IDesktopShell shell, ILogger<BackupSectionViewModel> log) : SettingsSectionViewModel
 {
     bool _loading;
-    System.Windows.Threading.Dispatcher? _dispatcher;
 
     public override SettingsSection Section => SettingsSection.Backup;
     public override string Label => "Backup";
@@ -98,36 +95,8 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
     [ObservableProperty]
     public partial string? ExportNote { get; private set; }
 
-    /// <summary>The folder this PC's sync file goes to, or null while sync is off.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsSyncing))]
-    [NotifyCanExecuteChangedFor(nameof(SyncNowCommand), nameof(StopSyncingCommand))]
-    public partial string? SyncFolder { get; private set; }
-
-    public bool IsSyncing => SyncFolder is not null;
-
-    /// <summary>"Last merged from DESKTOP-2 at 09:14", or what is happening instead.</summary>
-    [ObservableProperty]
-    public partial string SyncStatusLine { get; private set; } = "";
-
-    /// <summary>Why the folder picked was refused; null otherwise.</summary>
-    [ObservableProperty]
-    public partial string? SyncProblem { get; private set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ChooseSyncFolderCommand), nameof(SyncNowCommand), nameof(StopSyncingCommand))]
-    public partial bool IsSyncBusy { get; private set; }
-
-    /// <summary>"DESKTOP-1.json": what this PC's file is called, so the user knows which one is whose.</summary>
-    public string SyncFileName => SyncFile.FileName(sync.MachineName);
-
     public override async Task LoadAsync()
     {
-        _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
-        sync.StatusChanged -= OnSyncStatusChanged;
-        sync.StatusChanged += OnSyncStatusChanged;
-        SyncFolder = await sync.GetFolderAsync();
-        ShowSyncStatus();
         _loading = true;
         try
         {
@@ -140,90 +109,6 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
         LastBackup = backups.ListAutomatic() is not [var last, ..]
             ? "No automatic backup yet. Bibliotaph makes one each week, the first time it starts that week, once your library has books in it."
             : $"Last automatic backup: {last.CreatedUtc.ToLocalTime().ToString("dddd d MMMM yyyy 'at' HH:mm", CultureInfo.CurrentCulture)}. The last {BackupService.KeptAutomatic} are kept.";
-    }
-
-    public override void Unload() => sync.StatusChanged -= OnSyncStatusChanged;
-
-    void OnSyncStatusChanged(object? sender, EventArgs e) => _dispatcher?.InvokeAsync(ShowSyncStatus);
-
-    void ShowSyncStatus() => SyncStatusLine = LibrarySync.Describe(sync.Status with { Folder = SyncFolder }, clock.GetUtcNow(), clock.LocalTimeZone);
-
-    bool IsSyncIdle() => !IsSyncBusy;
-
-    bool CanSync() => IsSyncing && !IsSyncBusy;
-
-    /// <summary>Choose a folder: where this PC's sync file goes, and the other PCs' files are read from.</summary>
-    [RelayCommand(CanExecute = nameof(IsSyncIdle))]
-    async Task ChooseSyncFolder()
-    {
-        if (files.PickFolder("Choose a folder to sync with your other PC") is { } path) await UseSyncFolderAsync(path);
-    }
-
-    /// <summary>Syncs with <paramref name="path"/>, or says why it can't: what choosing a folder does. Returns whether it was taken.</summary>
-    public async Task<bool> UseSyncFolderAsync(string path)
-    {
-        IsSyncBusy = true;
-        SyncProblem = null;
-        try
-        {
-            if (await sync.SetFolderAsync(path) is { } problem)
-            {
-                SyncProblem = problem;
-                return false;
-            }
-            SyncFolder = await sync.GetFolderAsync();
-            return true;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
-        {
-            log.LogError(ex, "Syncing with {Folder} failed", path);
-            SyncProblem = $"Syncing with that folder didn't work: {ex.Message}";
-            return false;
-        }
-        finally
-        {
-            IsSyncBusy = false;
-            ShowSyncStatus();
-        }
-    }
-
-    /// <summary>Sync now: merges the other PCs' files and writes this PC's, without waiting.</summary>
-    [RelayCommand(CanExecute = nameof(CanSync))]
-    async Task SyncNow()
-    {
-        IsSyncBusy = true;
-        try
-        {
-            await sync.SyncNowAsync();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
-        {
-            log.LogError(ex, "Syncing now failed");
-            SyncProblem = $"Syncing didn't work: {ex.Message}";
-        }
-        finally
-        {
-            IsSyncBusy = false;
-            ShowSyncStatus();
-        }
-    }
-
-    /// <summary>Stop syncing: nothing more is written or read. The files already in the folder stay, for the user to delete.</summary>
-    [RelayCommand(CanExecute = nameof(CanSync))]
-    async Task StopSyncing()
-    {
-        IsSyncBusy = true;
-        try
-        {
-            await sync.SetFolderAsync(null);
-            SyncFolder = null;
-            SyncProblem = null;
-        }
-        finally
-        {
-            IsSyncBusy = false;
-            ShowSyncStatus();
-        }
     }
 
     async partial void OnIncludeIndexChanged(bool value)

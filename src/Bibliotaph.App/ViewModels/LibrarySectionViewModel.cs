@@ -93,7 +93,7 @@ public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, 
 /// </summary>
 public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
-    LibraryFolders folders, MetadataHints hints, SettingsStore settings, FolderRules rules, VocabularyStore vocabularies, IFilePicker files,
+    LibraryFolders folders, MetadataHints hints, FolderRules rules, VocabularyStore vocabularies, IFilePicker files,
     ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Library;
@@ -131,31 +131,7 @@ public sealed partial class LibrarySectionViewModel(
         await RefreshFoldersAsync();
         await LoadFolderLabelsAsync();
         await LoadFolderRulesAsync();
-        StartOnLibrary = await settings.GetAsync(SettingKeys.StartPage) == nameof(Route.Library);
         if (folders.TakePickRequest()) await AddFolder();
-    }
-
-    /// <summary>Start on: the Library rather than Home when Bibliotaph opens.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StartOnHome))]
-    public partial bool StartOnLibrary { get; set; }
-
-    public bool StartOnHome
-    {
-        get => !StartOnLibrary;
-        set { if (value) StartOnLibrary = false; }
-    }
-
-    async partial void OnStartOnLibraryChanged(bool value)
-    {
-        try
-        {
-            await settings.SetAsync(SettingKeys.StartPage, value ? nameof(Route.Library) : nameof(Route.Home));
-        }
-        catch (Exception ex)
-        {
-            log.LogError(ex, "Saving the start page failed");
-        }
     }
 
     async Task LoadFolderLabelsAsync()

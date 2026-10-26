@@ -6,9 +6,9 @@ namespace Bibliotaph.Processing;
 public sealed record SyncChannelRead(IReadOnlyList<SyncFileContent> Peers, string? Problem);
 
 /// <summary>
-/// A way, besides a folder, for library sync to swap sync files with other devices: the web library, for a PC
-/// connected to it, or the server's own store of its devices' files, for the web library itself. The files and the
-/// merge are the same as through a folder; only where they are kept differs.
+/// A way for library sync to swap sync files with other devices: the web library, for a PC connected to it, or the
+/// server's own store of its devices' files, for the web library itself. The files and the merge are the same either
+/// way; only where they are kept differs.
 /// </summary>
 public interface ISyncChannel
 {

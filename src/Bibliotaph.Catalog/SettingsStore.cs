@@ -127,10 +127,7 @@ public static class SettingKeys
     /// <summary>"1" while the sidebar is folded to its icons; otherwise it shows in full.</summary>
     public const string SidebarCollapsed = "sidebar-collapsed";
 
-    /// <summary>The folder library sync writes this PC's sync file to and reads the other PCs' from; empty or missing while sync is off.</summary>
-    public const string SyncFolder = "sync.folder";
-
-    /// <summary>This PC's id in its sync file, so a second PC with the same name writing to the same folder is noticed.</summary>
+    /// <summary>This device's id in its sync file, so its own file is told from another device's of the same name.</summary>
     public const string SyncMachineId = "sync.machine-id";
 
     /// <summary>Which PC's work was last merged, and when, as JSON, for Settings to show after a restart.</summary>

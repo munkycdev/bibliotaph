@@ -5,9 +5,12 @@
 - **A new home page for bibliotaph.online.** It shows what Bibliotaph does, with examples of search, the catalog,
   binders and online libraries, the Windows app and the web side by side, and answers to common questions. See
   [The site](docs/guide/web.md#the-site).
-
-## Unreleased
-
+- **Fewer, clearer Settings in the Windows app, in the web's order.** **Preferences** holds light or dark, **Start
+  on** (moved from Library) and what waits for review; **Web library** is now **Devices**; and Library comes first.
+  See [Getting started](docs/guide/getting-started.md).
+- **Sync with another PC is retired.** Connect each PC to your web library in **Settings > Devices** instead: it keeps
+  your work the same on every PC and on the web. The files the old sync left in its folder aren't read any more and can
+  be deleted. See [More than one PC](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
 - **Saved pages are no longer imported.** **Import a saved page…** and **Save page…** are gone from the Windows app,
   and **Import a saved page…** and **Choose pictures…** from the web: Bibliotaph's browser reads the page on Windows,
   and **Send to Bibliotaph** brings it, covers included, on the web. See

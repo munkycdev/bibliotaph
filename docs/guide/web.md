@@ -581,18 +581,18 @@ far it has got.
 
 The Windows app can connect to your web library, the way a TV signs in to a streaming service:
 
-1. In the Windows app, open **Settings > Web library** and click **Connect…**. Your browser opens bibliotaph.online's
+1. In the Windows app, open **Settings > Devices** and click **Connect…**. Your browser opens bibliotaph.online's
    **Connect a PC** page, and the app shows a code such as K7XQ-M2PD.
 2. Sign in if asked, check the page shows the same code, and click **Connect**. Only connect a PC you just asked to
    connect. **Don't connect** turns it away.
 3. The app says whose library it's connected to. It has a key of its own, kept in Windows Credential Manager on that PC.
 
-Once connected, your work is merged both ways, as between [two PCs](onedrive-and-other-pcs.md#a-second-pc): your
+Once connected, your work is merged both ways, with the web and [your other PCs](onedrive-and-other-pcs.md#more-than-one-pc): your
 corrections, hearts, notes, collections, saved searches, binders, pins, vocabulary, books you own elsewhere and your
 answers in Needs review. A change in the app reaches the web a few seconds after you make it, and one on the web
 reaches the app within a minute or so; where both changed the same thing, the newer change wins. Your books, library
 folders and settings stay on each side. The app keeps working offline and catches up when it's back, and its
-**Settings > Web library** says when it last merged. A PC can sync with a folder too: everything meets in the middle.
+**Settings > Devices** says when it last merged.
 
 What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
 with the built-in AI on its graphics card. The same file in your OneDrive and on the PC is the same book, matched by
