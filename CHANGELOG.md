@@ -165,6 +165,9 @@
   NAS on the internet, with its folder's address, your user name and an app password, kept encrypted and used only to
   read. Its books open in the reader through the server, and Nextcloud's changes are noticed within five minutes. See
   [Connecting your storage](docs/guide/web.md#connecting-your-storage).
+- **Box on the web.** Settings › Storage connects a Box account, read-only, once the server's Box app is set up. Its
+  books open in the reader through the server, and changes are noticed within five minutes. See
+  [Connecting your storage](docs/guide/web.md#connecting-your-storage).
 
 ## 1.3 · 19 October 2026
 
