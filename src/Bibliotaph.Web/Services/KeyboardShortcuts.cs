@@ -8,8 +8,8 @@ public sealed record KeyboardShortcutArea(string Name, IReadOnlyList<KeyboardSho
 
 /// <summary>
 /// The Windows app's Keyboard shortcuts list (Ctrl+/), with only what works in the browser: written by hand from the
-/// pages' key handlers and the scripts', so a new shortcut belongs here too. The Windows app's Ctrl+B and Alt+Space have
-/// no web page to act on, and the browser keeps Ctrl+mouse wheel for its own zoom.
+/// pages' key handlers and the scripts', so a new shortcut belongs here too. The Windows app's Alt+Space has no web page
+/// to act on, and the browser keeps Ctrl+mouse wheel for its own zoom.
 /// </summary>
 public static class KeyboardShortcuts
 {
@@ -18,13 +18,17 @@ public static class KeyboardShortcuts
         new("Everywhere",
         [
             new("Ctrl+K, or /", "Search the library"),
+            new("Ctrl+B", "Collapse or expand the sidebar"),
             new("Ctrl+/", "Show these keyboard shortcuts"),
             new("Alt+Left, or the mouse's back button", "Go back"),
         ]),
         new("Search box",
         [
             new("Enter", "Search now"),
-            new("Esc", "Clear the search"),
+            new("Esc", "Close the search guide, then clear the search"),
+            new("Ctrl+Space", "Show the search guide"),
+            new("Down, Up", "Open the search guide and move through it"),
+            new("Enter or Tab", "Use the highlighted suggestion"),
             new("Enter, in Ask", "Read what you typed as a search"),
             new("Ctrl+Enter, in Ask", "Answer it from your library's pages"),
             new("Esc, in Ask", "Leave Ask, keeping what you typed"),

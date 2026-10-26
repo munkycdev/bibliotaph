@@ -26,7 +26,9 @@ invite. The address names the section, such as bibliotaph.online/settings#storag
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
 the privacy policy. **Keyboard shortcuts**, under it, lists every key that works on the web, by where it works; Ctrl+/
 shows the same list from anywhere. Ctrl+K, or / when you're not typing, puts the keyboard in the search box, and in a
-reader popped out into a window of its own, Ctrl+K searches in the main window.
+reader popped out into a window of its own, Ctrl+K searches in the main window. The button beside **Settings**, or
+Ctrl+B, folds the sidebar to its icons, each named when you point at it, as in the Windows app; the button that takes the
+place of the name unfolds it, and the browser remembers which you chose.
 
 ## Signing in and out
 
@@ -154,8 +156,11 @@ with an **×**.
 Type in the search box at the top to search your library; a pause in typing searches, **Enter** searches at once and
 **Esc** clears it. Results come in two tabs, as in the Windows app: **Documents**, the books that match, and **Inside
 documents**, the pages that match with the words marked. The same search words work: quotes for a phrase, `-` to leave a
-word out, and fields such as `system:` and `type:`. A search and its filters are in the page's address, so you can
-bookmark them.
+word out, and fields such as `system:` and `type:`. The **search guide** under the box lists them as in the Windows app:
+it opens on an empty box (or with Ctrl+Space or the Down arrow anywhere), narrows to the fields that start with what you
+type, and after a field's colon lists its values in your library with how many books have each. The arrow keys move
+through it, **Enter** or **Tab** puts the highlighted one in the box, and **Esc** closes it. A search and its filters
+are in the page's address, so you can bookmark them.
 
 Click a card, a list row or a matching book's title to open its details over the page, as in the Windows app: its cover
 and what it is, then **Details**, each field with where its value came from (**Sources**, **Suggested** or **Sources
