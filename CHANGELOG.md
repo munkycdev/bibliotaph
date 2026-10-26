@@ -42,6 +42,8 @@
   Show these books in the Library and pinned binders work too. See [Binders](docs/guide/web.md#binders).
 - **Add to binder on the web.** A book's details, the Select bar and a matching page's + add to a binder, the one you
   worked on last, another or a new one, as in the Windows app, with Undo. See [Binders](docs/guide/web.md#binders).
+- **Scanned pages on the web.** The server reads scanned pages by OCR, in English, so search finds them as on Windows,
+  and the sidebar counts the pages left. See [Bibliotaph on the web](docs/guide/web.md).
 - **Sign in to the web through Auth0.** bibliotaph.online's sign-in page has one Continue button, which offers Google,
   Microsoft or your email address, with Apple to come. Link another sign-in in Settings adds another way into the same
   account, and Sign out signs you out of the sign-in page too. The privacy policy names Auth0.
