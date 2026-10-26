@@ -2106,7 +2106,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         (await web.PostAsync($"/api/devices/connect/{started.Code}", null, ct)).EnsureSuccessStatusCode();
         Assert.Equal(WebConnectOutcome.Connected, await waiting);
         using var pc = new LibrarySync(new LibrarySyncStore(contexts, new MetadataStore(contexts), new VocabularyStore(contexts)), settings,
-            new AppPaths(Path.Combine(_folder.Path, "pc")), machineName: "DESKTOP-1", channels: [pcWeb]);
+            machineName: "DESKTOP-1", channels: [pcWeb]);
 
         // Work done on the PC reaches the web library when the PC's file is sent.
         await new CollectionStore(contexts).CreateAsync("Saltmarsh campaign", ct: ct);
