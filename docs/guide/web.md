@@ -114,6 +114,10 @@ a book owned elsewhere, a locked or protected file, a file that's missing, a fav
 menu beside **Filters**: **Recently added**, **Recently opened**, **Title A–Z** or **Publisher A–Z**. The browser
 remembers the layout, the order and the pack view.
 
+Right-click a book (or press and hold it on a touch screen) for the Windows app's menu: **Open**, **Open in new
+window**, **Details**, **Add to favorites**, **Pin**, **Cataloged wrong…**, **Add to collection** and **Add to binder**,
+each with the list to choose from, and **Remove from library** for a book owned elsewhere.
+
 **Filters** opens the Windows app's filter panel: game system, type, character level (with **Include unknown levels**)
 and players, then under **More filters** the style and length of an adventure, the book's setting, themes,
 environments, publisher and edition, the source folder, where else you own a book, where to get it, and housekeeping

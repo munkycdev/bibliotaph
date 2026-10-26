@@ -206,7 +206,15 @@ mark{background:var(--bt-soft);color:var(--bt-text);padding:1px 2px}
 @media(max-width:620px){.bt-shell{grid-template-columns:1fr;min-height:0}
 .bt-sidebar{padding:15px 16px 9px;border-right:0;border-bottom:1px solid var(--bt-line)}
 .bt-brand{font-size:26px;padding:0 3px 14px}
-.bt-workspace,.bt-sidegroup,.bt-sidebottom{display:none}
+.bt-workspace,.bt-sidegroup{display:none}
+/* A page's actions go under its title, so the title keeps the width it needs. */
+.bt-heading{flex-wrap:wrap}
+.bt-heading>div:first-child{flex:1 1 100%}
+.bt-heading .bt-headbuttons{justify-content:flex-start}
+/* Settings and what the library is doing stay within reach on a phone, on a row under the navigation. */
+.bt-sidebottom{display:flex;align-items:center;gap:3px;padding-top:3px;margin-top:0}
+.bt-sidebottom .bt-sync{flex:1;min-width:0;padding:7px;font-size:10px;align-items:center}
+.bt-sidebottom .bt-sync>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-navigation{display:flex;flex-wrap:wrap;gap:3px}
 .bt-nav{width:auto;font-size:11px;min-height:34px;padding:7px}
 .bt-nav svg{width:14px;height:14px}
@@ -383,6 +391,8 @@ a{color:var(--bt-accent)}
 .bt-listrow .bt-listfield.wide{display:none}}
 @media(max-width:620px){.bt-books{grid-template-columns:repeat(2,minmax(0,1fr));justify-content:stretch}
 .bt-sidebar{position:static;height:auto}
+/* The sidebar is a band above the page on a phone: it takes its own height, and the page the rest. */
+.bt-shell{grid-template-rows:auto 1fr}
 .bt-listrow{grid-template-columns:35px minmax(0,1fr) 34px 23px}
 .bt-listrow .bt-thumb{width:35px}
 .bt-field.narrow{min-width:0;flex:1 1 140px}
@@ -1013,3 +1023,9 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-now{margin-top:12px}
 .bt-now small{margin-top:3px}
 @media(max-width:620px){.bt-phase{grid-template-columns:1fr}.bt-phasestatus{text-align:left}}
+/* A book's right-click menu, over its cover or row. */
+.bt-book,.bt-listitem{position:relative}
+.bt-menu.bt-cardmenu{top:34px;left:8px;right:auto}
+.bt-listitem .bt-menu.bt-cardmenu{top:70%;left:48px}
+.bt-cardmenu .bt-menuitem svg{flex-shrink:0;color:var(--bt-muted)}
+.bt-menuback-item{justify-content:flex-start;gap:6px;color:var(--bt-muted);border-bottom:1px solid var(--bt-line);border-radius:4px 4px 0 0;margin-bottom:3px}

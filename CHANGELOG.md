@@ -30,6 +30,10 @@
 - **Start on, folder names and folder rules on the web.** Settings › Library has the Windows app's Start on (Home or
   Library), the folder names read as suggestions, each of which can be switched off, and the folder rules answered in
   Needs review, each with its switch. See [Library folders](docs/guide/web.md#library-folders).
+- **Easier to find your way on the web.** A book in the Library has the Windows app's right-click menu. On a phone,
+  Settings and what the library is doing sit under the navigation instead of being hidden. Home welcomes you back
+  once your library has books, even ones that came from a connected PC before any folder was added here. The Library's
+  Add folder sits beside Add, and on a phone a page's buttons go under its title.
 - **Processing on the web.** Settings › Processing shows each step of reading your library with its bar and the time
   left, and what is being read now, as in the Windows app, with Pause indexing, Pause reading scans and Pause AI, each
   kept until you resume it. Settings' sections now follow the Windows app's order. See
