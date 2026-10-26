@@ -212,9 +212,29 @@ binders** for those whose date has passed. Home's **Continue preparing** shows t
 **New binder** asks for a title and, if you like, the date it's played, or **Keep at hand during games** for rules and
 references, for one game system or any. The binder opens at once.
 
-A binder's page has its date above its title, and the pencil (**Edit title and date**), **Duplicate** and the bin,
-which deletes the binder but never its books, with **Undo**. **Binder sequence** lists its items in order, numbered,
-each with its cover, its label, which book and pages it is, and your note:
+Opening a binder shows its reader, as in the Windows app. Its items are listed down the left, numbered under their
+sections, with the one in hand highlighted; the reader in the middle shows that item's pages, with every other page
+of the book still reachable; and **Binder notes** on the right are saved as you type, with **On these pages** under
+them listing the page notes on the item's pages (all of the book's for a whole book) to go to.
+
+- **Next** and **Previous**, or **Ctrl+Right** and **Ctrl+Left**, step through the items; clicking one in the list
+  opens it. The line under the title says which pages and where you are ("p. 42–44 · 1 of 3"), and **Back to this
+  item's pages** shows once you've gone elsewhere in the book.
+- **Add this page** adds the page in view (or the whole picture) right after the item in hand, in its section, and
+  opens it with its name ready to type over.
+- To rename an item, press **F2**, double-click it or use its pencil. Enter or leaving the box saves; a blank name
+  shows the book's title, and Esc keeps it as it was.
+- An item whose pages changed since it was added opens at the same printed page with a line over the pages saying
+  so. If it's the wrong page, go to the right one and choose **Use this page**: the item opens there from now on.
+  The thumbnails mark the item's pages with a bar.
+- An item whose file can't be reached says why, with **Try again**; a page owned online has **Open it**, in a tab of
+  its own.
+- **Pin** puts the binder in the sidebar's Pinned group and on Home, the panel button folds the notes away, and the
+  pencil (**Edit binder**) opens the binder's list for sections, order and the rest.
+
+The binder's list has **Done**, back to its reader, beside the pencil (**Edit title and date**), **Duplicate** and the
+bin, which deletes the binder but never its books, with **Undo**. **Binder sequence** lists its items in order,
+numbered, each with its cover, its label, which book and pages it is, and your note:
 
 - Click the label or **Add a note** to type; Enter or leaving the box saves it. A blank label shows the book's title.
 - Drag an item by its grip, use its arrows or press **Alt+Up** and **Alt+Down** to move it. Dropped on another item it
@@ -223,7 +243,9 @@ each with its cover, its label, which book and pages it is, and your note:
   or the **Delete** key removes it too, with **Undo**.
 - **Add section** offers Adventure, Maps, Encounters and Rules, or **Another name…**. A section's pencil renames it and
   its bin deletes the heading, moving its items up to the section above.
-- An item whose file can't be reached is dimmed and says why.
+- An item's arrow (**Open**, or **Enter**) opens it in the reader at its pages, with **Use this page** when they
+  changed; **Shift+Enter** or Ctrl+click opens it in a new tab. An item whose file can't be reached is dimmed and says
+  why.
 
 **Binder notes**, on the right, are saved as you type. **Show these books in the Library** shows the binder's books
 there, with **In** and the binder's name on a chip; **Find resources** opens the Library. Binders are the same ones
@@ -233,8 +255,7 @@ the Windows app shows.
 in a pack shown on its own card goes in on its own), and **Add to binder** in the Select bar adds every ticked book.
 Its menu leads with the binder you worked on last, then **Add to another binder…**, which lists them all and narrows as
 you type, and **Add to a new binder…**, which makes one first. While searching, the **+** beside a matching page on the
-**Pages** tab adds that page to the binder you worked on last. Each says what it added, with **Undo**. Opening a
-binder's items in a reader comes next.
+**Pages** tab adds that page to the binder you worked on last. Each says what it added, with **Undo**.
 
 ### Needs review
 

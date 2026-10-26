@@ -183,9 +183,10 @@ public sealed class ApiClient(HttpClient http)
     // The reader.
 
     /// <summary>A book to read: the card's own file, or <paramref name="documentId"/> in a pack; at a page, or with a search's words.</summary>
-    public Task<ReaderBook> ReaderAsync(long entryId, long? documentId, int? page, string? q, bool keep, CancellationToken ct = default)
+    public Task<ReaderBook> ReaderAsync(long entryId, long? documentId, int? page, string? q, bool keep, long? item = null, CancellationToken ct = default)
     {
         var query = new List<string>();
+        if (item is { } binderItem) query.Add($"item={binderItem.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         if (documentId is { } doc) query.Add($"doc={doc.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         if (page is { } at) query.Add($"page={at.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
         if (!string.IsNullOrWhiteSpace(q)) query.Add($"q={Uri.EscapeDataString(q)}");
@@ -426,6 +427,14 @@ public sealed class ApiClient(HttpClient http)
 
     public Task SetBinderItemAsync(long item, string label, string note, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Put, BinderItem(item), new BinderItemEdit(label, note), ct);
+
+    /// <summary>Add this page, in a binder's reader: right after the item in hand.</summary>
+    public Task<BinderItemAdded> AddBinderPageAsync(long id, BinderPageAdd add, CancellationToken ct = default) =>
+        SendAsync<BinderItemAdded>(HttpMethod.Post, $"{Binder(id)}/items", add, ct);
+
+    /// <summary>Use this page: the item opens at the page in view from now on.</summary>
+    public Task<ReaderItemUsed> UseBinderPageAsync(long item, ReaderUsePage use, CancellationToken ct = default) =>
+        SendAsync<ReaderItemUsed>(HttpMethod.Post, $"{BinderItem(item)}/use-page", use, ct);
 
     public Task<bool> MoveBinderItemAsync(long item, BinderItemMove move, CancellationToken ct = default) =>
         SendAsync<bool>(HttpMethod.Post, $"{BinderItem(item)}/move", move, ct);

@@ -27,13 +27,13 @@ public static partial class ReaderApi
 
     public static void MapReaderApi(this RouteGroupBuilder api)
     {
-        // An ordinary open goes back to the page the book was left at; a search hit, a page asked for or an adventure
-        // opens where it says and keeps nothing. A reader popped out goes on keeping its place (keep).
-        api.MapGet("/library/books/{entryId:long}/reader", async (long entryId, long? doc, int? page, string? q, bool? keep,
+        // An ordinary open goes back to the page the book was left at; a search hit, a page asked for, an adventure or
+        // a binder's item opens where it says and keeps nothing. A reader popped out goes on keeping its place (keep).
+        api.MapGet("/library/books/{entryId:long}/reader", async (long entryId, long? doc, int? page, string? q, bool? keep, long? item,
             ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
-            return await OpenAsync(lease.Library, new EntryId(entryId), doc, page, q, keep == true, ct) is { } book ? Results.Ok(book) : Results.NotFound();
+            return await OpenAsync(lease.Library, new EntryId(entryId), doc, page, q, keep == true, ct, item) is { } book ? Results.Ok(book) : Results.NotFound();
         });
 
         var document = api.MapGroup("/library/documents/{documentId:long}");
@@ -90,10 +90,18 @@ public static partial class ReaderApi
     }
 
     internal static async Task<ReaderBook?> OpenAsync(UserLibrary library, EntryId entryId, long? asked, int? page, string? q, bool keep,
-        CancellationToken ct)
+        CancellationToken ct, long? itemId = null)
     {
         var queries = library.Get<LibraryQueries>();
         if (await queries.GetDetailsAsync(entryId, ct) is not { } details) return null;
+        // A binder's item opens in the file and at the pages it resolves to now, called by its own name.
+        var opened = itemId is { } wanted ? await ItemAsync(library, entryId, wanted, ct) : null;
+        if (itemId is not null && opened is null) return null;
+        if (opened is { Target.DocumentId: { } itemDocument })
+        {
+            asked ??= itemDocument;
+            page ??= opened.Value.Target.FirstPage;
+        }
         var entry = details.Entry;
         var favorite = await library.Get<FavoritesService>().IsFavoriteAsync(entryId, ct);
         var marks = q is { Length: > 0 } ? SearchQuery.Parse(q).HighlightTerms() : [];
@@ -113,8 +121,8 @@ public static partial class ReaderApi
         var index = library.Get<IndexQueries>();
         var labels = await index.GetPageLabelsAsync(documentId, ct);
         var pageCount = await index.GetPageCountAsync(documentId, ct) ?? 0;
-        var part = entry is { IsPart: true, Pages: { } pages } && entry.DocumentId == documentId ? new ReaderPart(pages.First, pages.Last) : null;
-        var title = part is not null ? $"{entry.Title} · in {entry.ParentTitle ?? "its file"}" : entry.Title;
+        var part = opened is null && entry is { IsPart: true, Pages: { } pages } && entry.DocumentId == documentId ? new ReaderPart(pages.First, pages.Last) : null;
+        var title = opened is { } named ? named.Heading : part is not null ? $"{entry.Title} · in {entry.ParentTitle ?? "its file"}" : entry.Title;
         var format = source.Format;
         var readerKind = SourceFormats.IsImage(format) ? ReaderKinds.Image : SourceFormats.IsEbook(format) ? ReaderKinds.Ebook : ReaderKinds.Pdf;
         // As the Windows reader's line: "PDF · 320 pages", "EPUB · 87 pages", "JPG image", and the pack it's in.
@@ -125,7 +133,7 @@ public static partial class ReaderApi
         var subtitle = string.Join(" · ", new[] { kind, source.FolderHint }.Where(s => !string.IsNullOrEmpty(s)));
 
         var reading = library.Get<ReadingService>();
-        var ordinary = page is null && string.IsNullOrWhiteSpace(q) && part is null;
+        var ordinary = page is null && string.IsNullOrWhiteSpace(q) && part is null && opened is null;
         var kept = ordinary ? await reading.GetPositionAsync(documentId, ct) : 0;
         var start = Math.Clamp(page ?? part?.FirstPage ?? kept, 0, Math.Max(0, pageCount - 1));
         var notice = kept > 0 && start == kept ? $"Back at page {ReaderPageNumbers.Display(start, labels)}, where you left off." : null;
@@ -143,7 +151,37 @@ public static partial class ReaderApi
             Kind = readerKind,
             Pack = [.. pack.Select(p => new ReaderPackFile(p.DocumentId, p.Name, SourceFormats.IsImage(p.Format), p.MemberEntryId.Value))],
             CoverPage = readerKind == ReaderKinds.Pdf ? await library.Get<CoverPages>().GetAsync(documentId, ct) : 0,
+            Item = opened is { } open && open.Target.DocumentId == documentId ? ToItem(open, readerKind != ReaderKinds.Image) : null,
         };
+    }
+
+    /// <summary>A binder's item, its binder's title, its name and where it opens now; null when it isn't this book's.</summary>
+    static async Task<(SessionItemInfo Item, string Binder, string Heading, SessionItemTarget Target)?> ItemAsync(UserLibrary library, EntryId entryId,
+        long itemId, CancellationToken ct)
+    {
+        var sessions = library.Get<SessionsService>();
+        if (await library.Get<SessionStore>().GetItemAsync(itemId, ct) is not { } item || item.EntryId != entryId
+            || await sessions.GetAsync(item.PackId, ct) is not { } contents || await sessions.ResolveItemAsync(itemId, ct) is not { } target)
+            return null;
+        var rows = await BinderRows.BuildAsync(sessions, library.Get<LibraryQueries>(), contents, ct);
+        var heading = rows.Select(r => r.Item).FirstOrDefault(r => r?.Item.Id == itemId)?.Heading ?? BinderText.NoBook;
+        return (item, contents.Pack.Title, heading, target);
+    }
+
+    /// <summary>
+    /// As the Windows reader's banner over a binder item's pages: a page that changed since it was added, with Use
+    /// this page; or why it opens where it does, as in the file it was added from.
+    /// </summary>
+    static ReaderItem ToItem((SessionItemInfo Item, string Binder, string Heading, SessionItemTarget Target) open, bool hasPages)
+    {
+        var (item, binder, _, target) = open;
+        var banner = target.State switch
+        {
+            SessionItemState.Changed => $"This page changed since it was added to {binder}. If this isn't the right page, go to it, then choose Use this page.",
+            SessionItemState.Original or SessionItemState.Pending => target.Reason,
+            _ => null,
+        };
+        return new ReaderItem(item.Id, binder, target.FirstPage, target.LastPage, item.Range is null, banner, target.State == SessionItemState.Changed && hasPages);
     }
 
     internal static async Task<ReaderCoverUsed?> UseCoverAsync(UserLibrary library, long documentId, int page, CancellationToken ct)

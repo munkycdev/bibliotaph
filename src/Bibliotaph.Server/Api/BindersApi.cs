@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Reading;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
@@ -103,6 +104,20 @@ public static class BindersApi
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             return await AddAsync(lease.Library, id, add, ct) is { } done ? Results.Ok(done) : Results.NotFound();
+        });
+
+        // The binder reader's Add this page: right after the item in hand, in its section, as on Windows.
+        binders.MapPost("/{id:long}/items", async (long id, BinderPageAdd add, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await AddAfterAsync(lease.Library, id, add, ct) is { } added ? Results.Ok(new BinderItemAdded(added)) : Results.NotFound();
+        });
+
+        // Use this page: the item points at the page in view from now on, keeping how many pages it spans.
+        binders.MapPost("/items/{id:long}/use-page", async (long id, ReaderUsePage use, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await UsePageAsync(lease.Library, id, use, ct) is { } used ? Results.Ok(used) : Results.NotFound();
         });
 
         // A copy without its date, which then opens.
@@ -235,6 +250,41 @@ public static class BindersApi
                 EditApi.Hold(library, async () => await sessions.RemoveItemsAsync(added, CancellationToken.None), BinderText.Failed));
     }
 
+    /// <summary>The item Add this page made; null when there's no such binder or page.</summary>
+    internal static async Task<long?> AddAfterAsync(UserLibrary library, long id, BinderPageAdd add, CancellationToken ct)
+    {
+        var sessions = library.Get<SessionsService>();
+        if (await sessions.GetAsync(id, ct) is not { } contents) return null;
+        var after = add.After is { } afterId ? contents.Items.FirstOrDefault(i => i.Id == afterId) : null;
+        var section = after?.SectionId ?? SessionStore.NoSection;
+        long? added;
+        if (add.WholeFile) added = await sessions.AddDocumentAsync(id, add.DocumentId, section, ct);
+        else
+        {
+            if (add.Page < 0 || await library.Get<IndexQueries>().GetPageCountAsync(add.DocumentId, ct) is { } count && add.Page >= count) return null;
+            added = await sessions.AddPagesAsync(id, add.DocumentId, add.Page, add.Page, sectionId: section, ct: ct);
+        }
+        if (added is { } item && after is not null) await sessions.MoveItemToAsync(item, section, after.Position + 1, ct);
+        return added;
+    }
+
+    /// <summary>Use this page on a binder item whose pages changed; null when the item is gone.</summary>
+    internal static async Task<ReaderItemUsed?> UsePageAsync(UserLibrary library, long id, ReaderUsePage use, CancellationToken ct)
+    {
+        var sessions = library.Get<SessionsService>();
+        if (await library.Get<SessionStore>().GetItemAsync(id, ct) is not { } item || await sessions.ResolveItemAsync(id, ct) is not { } target
+            || await sessions.GetAsync(item.PackId, ct) is not { } contents)
+            return null;
+        var index = library.Get<IndexQueries>();
+        var count = await index.GetPageCountAsync(use.DocumentId, ct) ?? 0;
+        if (use.Page < 0 || use.Page >= count) return null;
+        var first = use.Page;
+        var last = Math.Min(first + (target.LastPage - target.FirstPage), Math.Max(0, count - 1));
+        await sessions.RepointAsync(id, use.DocumentId, first, last, ct);
+        var labels = await index.GetPageLabelsAsync(use.DocumentId, ct);
+        return new ReaderItemUsed(first, last, $"Saved. In {contents.Pack.Title}, this item now opens at page {PageNumbers.Display(first, labels)}.");
+    }
+
     static async Task<IReadOnlyList<FilterChoice>> SystemsAsync(UserLibrary library, CancellationToken ct) =>
     [
         new FilterChoice("", BinderText.AnySystem),
@@ -271,7 +321,14 @@ public static class BindersApi
             : new BinderLine(null, Item(row.Item!));
         BinderItem Item(BinderItemRow row) => new(row.Item.Id, BinderText.Number(row.Number), row.BookTitle, row.Item.Label ?? "", row.Heading, row.Where,
             row.Item.Note ?? "", row.Card is { } card ? LibraryApi.ToCard(card, away.GetValueOrDefault(card.EntryId)) : null, row.Reason, row.IsDimmed, row.IsChanged,
-            [.. BinderRows.MoveTargets(contents, row.Item).Select(m => new BinderMove(m.SectionId, m.Label))]);
+            [.. BinderRows.MoveTargets(contents, row.Item).Select(m => new BinderMove(m.SectionId, m.Label))])
+        {
+            EntryId = row.Item.EntryId.Value,
+            CanOpen = row.Target.CanOpen,
+            Pages = DetailsText.Pages(row.Item.Range),
+            OnlineLink = row.OnlineLink,
+            OnlinePlace = row.OnlinePlace,
+        };
         return new BinderPage(pack.Id, pack.Title, BinderText.Eyebrow(pack.Date), BinderText.ListCount(pack.ItemCount), pack.Date, pack.KeepAtHand, pack.GameSystem,
             pack.Notes ?? "", [.. rows.Select(Line)], await SystemsAsync(library, ct), BinderText.SuggestedSections);
     }
