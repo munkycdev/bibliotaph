@@ -73,7 +73,9 @@ Changes in your OneDrive (books added, moved or deleted) are picked up within a 
 Bibliotaph open, and twice a day it looks through every folder anyway. **Look for changes** looks straight away.
 
 Each book is then read as the Windows app reads it: its pages, outline and text for search, its cover, and hints from
-its file and folder names. Bibliotaph downloads a book once for this and deletes its copy as soon as it's done; the
+its file and folder names. Two files of the same book, such as copies bought by different people, become one card with
+two copies, and a file that shares most of its pages with a book you have is offered in Needs review as a new version
+of it, as on Windows. Bibliotaph downloads a book once for this and deletes its copy as soon as it's done; the
 sidebar shows **Reading 120 new files** and then **Up to date**. Scanned pages with no text of their own are read by
 OCR, in English, as on Windows: the sidebar shows **Reading scanned pages · 40 left** while it works, and they're then
 found by search like any other page. AI suggestions aren't made on the web yet.

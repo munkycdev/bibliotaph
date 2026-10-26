@@ -85,6 +85,22 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
     }
 
     [Fact]
+    public async Task Two_files_of_one_book_on_a_drive_become_one_card_with_two_copies()
+    {
+        Fixture.Graph.Add("RPG/Purchases/abbey.pdf", await File.ReadAllBytesAsync(pdfs.WatermarkedForAna, Ct));
+        Fixture.Graph.Add("RPG/Backup/abbey (1).pdf", await File.ReadAllBytesAsync(pdfs.WatermarkedForDale, Ct));
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
+        var library = lease.Library;
+        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        library.Indexing.RequestScan(root.Id);
+
+        var search = library.Get<LibraryQueries>();
+        var card = await WaitAsync(async () => (await search.ListAsync(new LibraryFilter(), ct: Ct)) is [{ Copies: 2 } joined] ? joined : null);
+        Assert.Equal(2, (await library.Get<CopiesService>().GetAsync(card.EntryId, Ct)).Count);
+    }
+
+    [Fact]
     public async Task The_library_page_shows_the_books_read_and_finds_their_pages()
     {
         Fixture.Graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(pdfs.KnownText, Ct));
