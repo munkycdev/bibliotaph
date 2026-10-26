@@ -14,7 +14,7 @@
     }
     @if (_storage is null)
     {
-        <p class="bt-note">Looking…</p>
+        <p class="bt-fine">Looking…</p>
     }
     else
     {
@@ -39,11 +39,11 @@
         }
         @if (_storage.Count == 0)
         {
-            <p class="bt-note">No storage connected yet.</p>
+            <p class="bt-fine">No storage connected yet.</p>
         }
         @if (_providers.Count == 0)
         {
-            <p class="bt-note">This server can't connect storage yet.</p>
+            <p class="bt-fine">This server can't connect storage yet.</p>
         }
         else
         {
@@ -54,7 +54,7 @@
                 }
             </div>
         }
-        <p class="bt-note">Disconnecting keeps your notes, collections and corrections. Its books come back when you connect it again.</p>
+        <p class="bt-fine">Disconnecting keeps your notes, collections and corrections. Its books come back when you connect it again.</p>
     }
 </section>
 

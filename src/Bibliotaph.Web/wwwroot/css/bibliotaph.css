@@ -950,10 +950,25 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-settingsbody>.bt-section:first-child{margin-top:0}
 .bt-settingsbody .bt-section>h2{font-size:30px}
 .bt-settingsbody .bt-copy{margin-top:12px;margin-bottom:8px}
-.bt-note{font-size:11px;line-height:1.6;color:var(--bt-muted);margin-top:10px}
+.bt-fine{font-size:11px;line-height:1.6;color:var(--bt-muted);margin-top:10px}
 .bt-linkbox>span{flex:1;min-width:0}
 @media(max-width:850px){.bt-settings{grid-template-columns:140px minmax(0,1fr);gap:22px}}
 @media(max-width:620px){.bt-settings{grid-template-columns:1fr;gap:18px}
 .bt-settingslist{position:static;flex-direction:row;flex-wrap:wrap;gap:3px}
 .bt-settingsentry{width:auto;padding:7px 9px;font-size:11px}
 .bt-settingsrule{display:none}}
+/* A part of a section, as the Windows app's: a rule above, then its name in row text and what it does in small text. */
+.bt-settingshead{font-size:12px;font-weight:400;color:var(--bt-text);border-top:1px solid var(--bt-line);margin-top:30px;padding-top:20px}
+.bt-settingshead+.bt-fine{margin-top:5px}
+.bt-fine .bt-link{padding:0;font-size:inherit}
+.bt-settingsrule-above{border-top:1px solid var(--bt-line);border-bottom:0;margin-top:30px;padding:20px 0 0}
+.bt-settingsheadrow{display:flex;justify-content:space-between;align-items:center}
+.bt-settingsheadrow .bt-link{padding:0}
+.bt-switchrow{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--bt-line);font-size:12px;cursor:pointer}
+.bt-switchrow input{margin-top:2px;flex:0 0 auto}
+.bt-switchrow strong{font-weight:600}
+.bt-switchrow small{margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-switchrow>span{min-width:0}
+.bt-arrow{color:var(--bt-muted)}
+/* As the Windows app dims a button it can't use yet, such as Add a folder before any storage is connected. */
+.bt-button:disabled,.bt-icon:disabled,.bt-segments button:disabled,.bt-link:disabled{opacity:.5;cursor:default}

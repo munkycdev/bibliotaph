@@ -20,7 +20,7 @@ Without an invitation, signing in with an account Bibliotaph doesn't know shows 
 ## Settings
 
 **Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of
-sections beside the one you're in. **Storage**, **Library**, **Windows PCs**, **AI**, **Appearance**, **Needs review**,
+sections beside the one you're in. **Storage**, **Library**, **Windows PCs**, **AI**, **Backup**, **Appearance**, **Needs review**,
 **Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
 invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
@@ -75,7 +75,7 @@ collections and corrections stay for when you connect it again.
 
 ## Library folders
 
-**Settings** › **Library folders** works as in the Windows app. Choose **Add a folder** (or **Add a folder** on Home),
+**Settings** › **Library** works as in the Windows app. Choose **Add a folder** (or **Add a folder** on Home),
 walk down to the folder you want, and choose **Use this folder**. Folders already in your library are marked. The new
 folder shows what's directly in it; choose **Add to library** to keep it or **Cancel**. Each folder then says when it was
 added and what it holds, such as "488 PDFs, 12 e-books, 120 images · 15 other files ignored". The **×** removes a folder
@@ -87,6 +87,15 @@ says what it's doing, such as **Reading 120 new files** or **Up to date**.
 
 Changes in your storage (books added, moved or deleted) are picked up within a few minutes (Google Drive's within five), whether or not you have
 Bibliotaph open, and twice a day it looks through every folder anyway. **Look for changes** looks straight away.
+
+Below the folders, as in the Windows app:
+
+- **Start on** chooses whether bibliotaph.online opens on **Home** or the **Library**.
+- **Folder names** lists the folder names read as suggestions for the books inside, such as "Adventures" → "Type:
+  Adventure", with how many documents are under each. Untick one if that name means something else in your library;
+  its books' suggestions are read again straight away. **Refresh** lists them again.
+- **Folder rules** lists the rules you answered in Needs review, such as "Fey Court" → "system Pathfinder 2e", with where
+  the folder is. Untick one to stop it suggesting its value; ticking it again brings the suggestions back.
 
 Each book is then read as the Windows app reads it: its pages, outline and text for search, its cover, and hints from
 its file and folder names. Two files of the same book, such as copies bought by different people, become one card with
@@ -506,6 +515,17 @@ folders and settings stay on each side. The app keeps working offline and catche
 The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Windows PCs** on the web lists each
 connected PC with when it was connected and last used, and **×** disconnects one: its key stops working straight
 away, and the PC keeps its own books and work. What it already shared stays in your web library. **Disconnect** in the app does the same from the PC.
+
+## Backup and export
+
+**Settings** › **Backup** › **Download a backup** saves a backup of your catalog (folders, corrections, collections,
+binders and notes, but not your books) as the Windows app's **Back up now…** does, named for the day, such as
+"Bibliotaph backup 2026-10-26.zip". The Windows app restores it from its own **Settings** › **Backup**, asking where
+each folder is on that PC. AI keys are never in a backup. The web can't restore a backup itself: to bring the Windows
+app's work here, connect the PC under **Windows PCs**.
+
+**Export CSV** saves a row per book (title, system, type, levels, publisher, tags, collections and where its file is)
+for a spreadsheet, and **Export JSON** everything in your catalog, for other programs, as in the Windows app.
 
 ## Your theme
 

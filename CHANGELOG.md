@@ -23,6 +23,13 @@
   Invitations and Accounts for admins. Appearance and Needs review are new on the web, with the Windows app's choices,
   and About Bibliotaph shows the version, the licence and links to the source. A new invitation's link has a Copy link
   button. See [Settings](docs/guide/web.md#settings).
+- **Backup and export on the web.** Settings › Backup downloads a backup the Windows app can restore, and exports the
+  whole library as CSV or JSON, as the Windows app's Back up now…, Export CSV and Export JSON do. The web server's
+  sealed AI keys are left out of both, as the Windows app's keys always are. See
+  [Backup and export](docs/guide/web.md#backup-and-export).
+- **Start on, folder names and folder rules on the web.** Settings › Library has the Windows app's Start on (Home or
+  Library), the folder names read as suggestions, each of which can be switched off, and the folder rules answered in
+  Needs review, each with its switch. See [Library folders](docs/guide/web.md#library-folders).
 - **Your books read on the web.** bibliotaph.online reads each book in your library folders as the Windows app does:
   pages, outline, text for search, covers, and hints from file and folder names. A book is downloaded once to be read
   and its copy deleted when it's done. OCR and AI on the web come later.

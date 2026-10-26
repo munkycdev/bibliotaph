@@ -1083,6 +1083,65 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task A_backup_and_both_exports_download_named_for_the_users_day_without_the_servers_sealed_keys()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+            await lease.Library.Get<SettingsStore>().SetAsync(SettingKeys.ServerAiKeys, "{\"https://api.example.com/v1\":\"CfDJ8-sealed-key\"}", ct);
+        var client = Client(user);
+
+        using var backup = await client.GetAsync("/api/library/backup?today=2026-10-26", ct);
+        using var csv = await client.GetAsync("/api/library/export/csv?today=2026-10-26", ct);
+        using var json = await client.GetAsync("/api/library/export/json", ct);
+
+        Assert.Equal("Bibliotaph backup 2026-10-26.zip", backup.Content.Headers.ContentDisposition!.FileNameStar);
+        using var folder = new TempFolder();
+        await using (var zipped = await backup.Content.ReadAsStreamAsync(ct))
+            System.IO.Compression.ZipFile.ExtractToDirectory(zipped, folder.Path);
+        Assert.True(File.Exists(Path.Combine(folder.Path, "manifest.json")));
+        await using (var catalog = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(folder.Path, "catalog.db")};Pooling=False"))
+        {
+            await catalog.OpenAsync(ct);
+            await using var count = catalog.CreateCommand();
+            count.CommandText = "SELECT COUNT(*) FROM setting WHERE key = 'server.ai-keys'";
+            Assert.Equal(0L, (long)(await count.ExecuteScalarAsync(ct))!);
+        }
+        Assert.Equal("Bibliotaph library 2026-10-26.csv", csv.Content.Headers.ContentDisposition!.FileNameStar);
+        Assert.StartsWith("Title,", (await csv.Content.ReadAsStringAsync(ct)).TrimStart('\uFEFF'), StringComparison.Ordinal);
+        var exported = await json.Content.ReadAsStringAsync(ct);
+        Assert.Contains("\"format\": \"bibliotaph-catalog\"", exported, StringComparison.Ordinal);
+        Assert.DoesNotContain("CfDJ8-sealed-key", exported, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Settings_library_chooses_the_start_page_and_switches_a_folder_name_off()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Adventures/IMG_0042.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 1 } one ? one : null, ct);
+
+        var before = (await client.GetFromJsonAsync<LibraryPreferences>("/api/settings/library", ct))!;
+        using (await client.PutAsJsonAsync("/api/settings/start", new StartPageChoice(true), ct)) { }
+        var label = before.FolderNames.Single(l => l.Folder == "Adventures");
+        using var switched = await client.PutAsJsonAsync("/api/settings/folder-names", new FolderNameSwitch(label.Folder, label.Vocabulary, label.Term, false), ct);
+        var after = (await switched.Content.ReadFromJsonAsync<LibraryPreferences>(ct))!;
+
+        Assert.False(before.StartOnLibrary);
+        Assert.Equal(("Type: Adventure", "1 document under a folder with this name", true), (label.Meaning, label.Detail, label.Enabled));
+        Assert.True((await client.GetFromJsonAsync<StartPageChoice>("/api/settings/start", ct))!.Library);
+        Assert.True(after.StartOnLibrary);
+        Assert.False(after.FolderNames.Single(l => l.Folder == "Adventures").Enabled);
+        Assert.Empty(after.FolderRules);
+    }
+
+    [Fact]
     public async Task Settings_lists_what_each_connection_was_granted_in_plain_words()
     {
         var ct = TestContext.Current.CancellationToken;

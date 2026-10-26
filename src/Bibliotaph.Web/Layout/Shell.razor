@@ -2,6 +2,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject Session Session
+@inject ApiClient Api
 @inject Theme Theme
 @inject NavigationManager Navigation
 @inject LibraryActivity Activity
@@ -182,6 +183,7 @@ else
             Pins.Changed += OnPinsChanged;
             Breadcrumb.Changed += OnPinsChanged;
             await Pins.LoadAsync();
+            await StartWhereChosenAsync();
         }
         _theme = await Theme.CurrentAsync();
         Theme.Changed += OnThemeChanged;
@@ -189,6 +191,23 @@ else
     }
 
     async Task CycleTheme() => _theme = await Theme.CycleAsync();
+
+    /// <summary>
+    /// The Library rather than Home when Settings › Library says so, as the Windows app opens on one or the other. Only
+    /// when Bibliotaph itself opens at Home: choosing Home later stays on Home.
+    /// </summary>
+    async Task StartWhereChosenAsync()
+    {
+        if (Navigation.ToBaseRelativePath(Navigation.Uri).Length != 0) return;
+        try
+        {
+            if ((await Api.StartPageAsync()).Library) Navigation.NavigateTo("library", replace: true);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            // Home it is.
+        }
+    }
 
     void OnThemeChanged(string mode)
     {

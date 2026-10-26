@@ -416,6 +416,20 @@ public sealed class ApiClient(HttpClient http)
 
     // Needs review.
 
+    public Task<StartPageChoice> StartPageAsync(CancellationToken ct = default) => SendAsync<StartPageChoice>(HttpMethod.Get, "api/settings/start", null, ct);
+
+    public Task SetStartPageAsync(bool library, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Put, "api/settings/start", new StartPageChoice(library), ct);
+
+    public Task<LibraryPreferences> LibraryPreferencesAsync(CancellationToken ct = default) =>
+        SendAsync<LibraryPreferences>(HttpMethod.Get, "api/settings/library", null, ct);
+
+    public Task<LibraryPreferences> SwitchFolderNameAsync(FolderNameSwitch change, CancellationToken ct = default) =>
+        SendAsync<LibraryPreferences>(HttpMethod.Put, "api/settings/folder-names", change, ct);
+
+    public Task<LibraryPreferences> SwitchFolderRuleAsync(long id, bool enabled, CancellationToken ct = default) =>
+        SendAsync<LibraryPreferences>(HttpMethod.Put, $"api/settings/folder-rules/{id}", new RuleSwitch(enabled), ct);
+
     public Task<ReviewMode> ReviewModeAsync(CancellationToken ct = default) => SendAsync<ReviewMode>(HttpMethod.Get, "api/review/mode", null, ct);
 
     public Task<ReviewMode> SetReviewModeAsync(bool all, CancellationToken ct = default) =>

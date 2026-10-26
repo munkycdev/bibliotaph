@@ -16,11 +16,11 @@
     }
     @if (_folders.Count == 0 && _pending is null && _storage is not null)
     {
-        <p class="bt-note">
+        <p class="bt-fine">
             No folders yet.
             @if (_storage.Count == 0)
             {
-                <a class="bt-link" href="settings#storage">Connect your storage first.</a>
+                <SettingsLink To="storage">Connect your storage first.</SettingsLink>
             }
         </p>
     }
@@ -49,7 +49,56 @@
             <button class="bt-button" @onclick="Rescan"><Icon Name="RotateCcw" />Look for changes</button>
         }
     </div>
-    <p class="bt-note">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
+    <p class="bt-fine">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
+
+    <div class="bt-settingrow bt-settingsrule-above">
+        <div>Start on<small>What Bibliotaph shows when it opens.</small></div>
+        @if (_preferences is { } start)
+        {
+            <div class="bt-segments" role="group" aria-label="Start on">
+                <button class="@(start.StartOnLibrary ? "" : "on")" aria-pressed="@(!start.StartOnLibrary)" @onclick="() => StartOnAsync(false)">Home</button>
+                <button class="@(start.StartOnLibrary ? "on" : "")" aria-pressed="@start.StartOnLibrary" @onclick="() => StartOnAsync(true)">Library</button>
+            </div>
+        }
+    </div>
+
+    <div class="bt-settingshead bt-settingsheadrow">
+        <span>Folder names</span>
+        <button class="bt-link" aria-label="Refresh folder names" disabled="@_switching" @onclick="LoadPreferencesAsync">Refresh</button>
+    </div>
+    <p class="bt-fine">Folder names like “D&amp;D 5e” or “Adventures” are read as suggestions for the books inside. Switch one off if a
+        name means something else in your library. Your own corrections always win.</p>
+    @if (_preferences is { FolderNames.Count: 0 })
+    {
+        <p class="bt-fine">No folder names in your library match a game system, type or other label yet.</p>
+    }
+    @foreach (var label in _preferences?.FolderNames ?? [])
+    {
+        <label class="bt-switchrow">
+            <input type="checkbox" checked="@label.Enabled" disabled="@_switching" aria-label="@($"Read the folder name {label.Folder} as a label")"
+                   @onchange="e => SwitchNameAsync(label, e.Value is true)" />
+            <span><strong>@label.Folder</strong><span class="bt-arrow"> → </span>@label.Meaning<small>@label.Detail</small></span>
+        </label>
+    }
+
+    @if (_preferences is { FolderRules.Count: > 0 } preferences)
+    {
+        <div class="bt-settingshead">Folder rules</div>
+        <p class="bt-fine">Rules you answered in Needs review. A rule that's on suggests its value for every file in the folder and its
+            subfolders, new ones too. Your own corrections always win.</p>
+        @foreach (var rule in preferences.FolderRules)
+        {
+            <label class="bt-switchrow">
+                <input type="checkbox" checked="@rule.Enabled" disabled="@_switching" aria-label="@($"Use the rule for the folder {rule.Folder}")"
+                       @onchange="e => SwitchRuleAsync(rule, e.Value is true)" />
+                <span><strong>@rule.Folder</strong><span class="bt-arrow"> → </span>@rule.Meaning<small title="@rule.Detail">@rule.Detail</small></span>
+            </label>
+        }
+    }
+    @if (_preferencesProblem is not null)
+    {
+        <div class="bt-message" role="alert">@_preferencesProblem</div>
+    }
 </section>
 
 @if (_picking && _storage is not null)
@@ -64,10 +113,50 @@
     string? _problem;
     bool _picking;
 
+    LibraryPreferences? _preferences;
+    string? _preferencesProblem;
+    bool _switching;
+
     protected override async Task OnInitializedAsync()
     {
         _folders = await Api.LibraryFoldersAsync();
         _storage = await Api.StorageAsync();
+        await LoadPreferencesAsync();
+    }
+
+    async Task LoadPreferencesAsync() => await ChangeAsync(() => Api.LibraryPreferencesAsync());
+
+    async Task StartOnAsync(bool library)
+    {
+        if (_preferences is null || _preferences.StartOnLibrary == library) return;
+        _preferences = _preferences with { StartOnLibrary = library };
+        await ChangeAsync(async () =>
+        {
+            await Api.SetStartPageAsync(library);
+            return _preferences;
+        });
+    }
+
+    // Each switch reads the hints of the books it touches again before answering, so the others wait for it.
+    Task SwitchNameAsync(FolderNameLabel label, bool enabled) =>
+        ChangeAsync(() => Api.SwitchFolderNameAsync(new FolderNameSwitch(label.Folder, label.Vocabulary, label.Term, enabled)));
+
+    Task SwitchRuleAsync(FolderRuleSwitch rule, bool enabled) => ChangeAsync(() => Api.SwitchFolderRuleAsync(rule.Id, enabled));
+
+    async Task ChangeAsync(Func<Task<LibraryPreferences>> change)
+    {
+        _switching = true;
+        _preferencesProblem = null;
+        try
+        {
+            _preferences = await change();
+            Activity.Refresh();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _preferencesProblem = "That couldn't be changed just now. Try again in a moment.";
+        }
+        _switching = false;
     }
 
     void Picked(PickedFolder folder)
