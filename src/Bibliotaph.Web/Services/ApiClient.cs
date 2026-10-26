@@ -416,6 +416,11 @@ public sealed class ApiClient(HttpClient http)
 
     // Needs review.
 
+    public Task<ReviewMode> ReviewModeAsync(CancellationToken ct = default) => SendAsync<ReviewMode>(HttpMethod.Get, "api/review/mode", null, ct);
+
+    public Task<ReviewMode> SetReviewModeAsync(bool all, CancellationToken ct = default) =>
+        SendAsync<ReviewMode>(HttpMethod.Put, "api/review/mode", new ReviewMode(all), ct);
+
     public Task<ReviewSuggestions> ReviewAsync(CancellationToken ct = default) => SendAsync<ReviewSuggestions>(HttpMethod.Get, "api/review", null, ct);
 
     public Task<ActionResult> AcceptSuggestionAsync(ReviewFieldDecision decision, CancellationToken ct = default) =>

@@ -1,0 +1,106 @@
+@* Settings › Library, as the Windows app's: the library folders, each with what it holds, adding one picked from
+   connected storage, removing one, and Look for changes. *@
+@inject ApiClient Api
+@inject LibraryActivity Activity
+
+<section class="bt-section" aria-labelledby="library-heading">
+    <h2 id="library-heading">Library folders</h2>
+    <p class="bt-copy">Bibliotaph reads your folders. Your books stay exactly where you put them.</p>
+    @foreach (var folder in _folders)
+    {
+        <div class="bt-source bt-sourcerow">
+            <Icon Name="Folder" />
+            <div>@folder.Location<small>@folder.Detail</small></div>
+            <button class="bt-icon" title="Remove from library" aria-label="@($"Remove {folder.Location} from the library")" @onclick="() => Remove(folder)"><Icon Name="X" /></button>
+        </div>
+    }
+    @if (_folders.Count == 0 && _pending is null && _storage is not null)
+    {
+        <p class="bt-note">
+            No folders yet.
+            @if (_storage.Count == 0)
+            {
+                <a class="bt-link" href="settings#storage">Connect your storage first.</a>
+            }
+        </p>
+    }
+    @if (_pending is not null)
+    {
+        <div class="bt-source bt-pending">
+            <div class="bt-sourcerow">
+                <Icon Name="FolderPlus" />
+                <div>@_pending.Location<small>@_pending.Detail</small></div>
+            </div>
+            <div class="bt-actions">
+                <button class="bt-button primary" @onclick="ConfirmAdd"><Icon Name="Check" />Add to library</button>
+                <button class="bt-button" @onclick="() => _pending = null">Cancel</button>
+            </div>
+        </div>
+    }
+    @if (_problem is not null)
+    {
+        <div class="bt-message" role="alert">@_problem</div>
+    }
+    <div class="bt-actions">
+        <button class="bt-button primary" disabled="@(_storage is not { Count: > 0 })" title="@(_storage is { Count: 0 } ? "Connect your storage first." : null)"
+                @onclick="() => _picking = true"><Icon Name="FolderPlus" />Add a folder</button>
+        @if (_folders.Count > 0)
+        {
+            <button class="bt-button" @onclick="Rescan"><Icon Name="RotateCcw" />Look for changes</button>
+        }
+    </div>
+    <p class="bt-note">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
+</section>
+
+@if (_picking && _storage is not null)
+{
+    <FolderPicker Storage="_storage" Picked="Picked" Cancelled="() => _picking = false" />
+}
+
+@code {
+    IReadOnlyList<StorageAccount>? _storage;
+    IReadOnlyList<LibraryFolder> _folders = [];
+    PickedFolder? _pending;
+    string? _problem;
+    bool _picking;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _folders = await Api.LibraryFoldersAsync();
+        _storage = await Api.StorageAsync();
+    }
+
+    void Picked(PickedFolder folder)
+    {
+        _picking = false;
+        _problem = null;
+        _pending = folder;
+    }
+
+    async Task ConfirmAdd()
+    {
+        if (_pending is null) return;
+        try
+        {
+            _folders = await Api.AddLibraryFolderAsync(new AddLibraryFolder(_pending.Storage.Id, _pending.Path));
+            Activity.Refresh();
+        }
+        catch (ApiProblemException problem)
+        {
+            _problem = problem.Message;
+        }
+        _pending = null;
+    }
+
+    async Task Remove(LibraryFolder folder)
+    {
+        _folders = await Api.RemoveLibraryFolderAsync(folder.Id);
+        Activity.Refresh();
+    }
+
+    async Task Rescan()
+    {
+        await Api.RescanAsync();
+        Activity.Refresh();
+    }
+}

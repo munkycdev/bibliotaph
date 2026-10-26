@@ -180,3 +180,6 @@ public static class ReviewWords
 
     static string N(int count) => count.ToString("N0", CultureInfo.CurrentCulture);
 }
+
+/// <summary>Settings › Needs review: whether every suggestion waits for a second look, or only those Bibliotaph is unsure of.</summary>
+public sealed record ReviewMode(bool All);

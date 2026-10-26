@@ -1,0 +1,94 @@
+@* Settings › Storage: the drives connected, what each was allowed, connecting another of any kind this server offers,
+   connecting one again when its provider stopped letting Bibliotaph in, and disconnecting. *@
+@inject ApiClient Api
+@inject LibraryActivity Activity
+
+<section class="bt-section" aria-labelledby="storage-heading">
+    <h2 id="storage-heading">Storage</h2>
+    <p class="bt-copy">Connect the storage where your books are, then add folders from it to your library. Bibliotaph only reads
+        them there: it never changes, moves or deletes anything in your storage.</p>
+    @if (Problem == "storage")
+    {
+        <div class="bt-message" role="status">Connecting @(FailedProvider?.Name ?? "your storage") didn't finish. Try again, and allow Bibliotaph to read
+            your files when @(FailedProvider?.Owner ?? "your storage provider") asks.</div>
+    }
+    @if (_storage is null)
+    {
+        <p class="bt-note">Looking…</p>
+    }
+    else
+    {
+        @foreach (var account in _storage)
+        {
+            <div class="bt-source bt-sourcerow">
+                <Icon Name="Cloud" />
+                <div>@account.Name<small>@(account.NeedsReconnect
+                    ? $"Needs connecting again: {StorageOwner(account)} no longer lets Bibliotaph read it. Its books stay in your library."
+                    : $"Connected {account.Added:d MMMM yyyy}")</small>
+                    @if (account.Access is { Count: > 0 } access)
+                    {
+                        <small title="@($"As {StorageOwner(account)} names it: {account.Scopes}")">Allowed to @Sentence(access).</small>
+                    }
+                </div>
+                @if (account.NeedsReconnect)
+                {
+                    <ServerLink Href="@ConnectLink(account.Provider)"><Icon Name="RotateCcw" />Connect again</ServerLink>
+                }
+                <button class="bt-icon" title="Disconnect" aria-label="@($"Disconnect {account.Name}")" @onclick="() => Disconnect(account)"><Icon Name="X" /></button>
+            </div>
+        }
+        @if (_storage.Count == 0)
+        {
+            <p class="bt-note">No storage connected yet.</p>
+        }
+        @if (_providers.Count == 0)
+        {
+            <p class="bt-note">This server can't connect storage yet.</p>
+        }
+        else
+        {
+            <div class="bt-actions">
+                @foreach (var kind in _providers)
+                {
+                    <ServerLink Href="@ConnectLink(kind.Id)" Class="@(_storage.Count == 0 && kind == _providers[0] ? "bt-button primary" : "bt-button")"><Icon Name="Plus" />Connect @kind.Name</ServerLink>
+                }
+            </div>
+        }
+        <p class="bt-note">Disconnecting keeps your notes, collections and corrections. Its books come back when you connect it again.</p>
+    }
+</section>
+
+@code {
+    IReadOnlyList<StorageAccount>? _storage;
+    IReadOnlyList<StorageProviderInfo> _providers = [];
+
+    /// <summary>"storage" when connecting didn't finish, as the provider's callback reports it.</summary>
+    [Parameter] public string? Problem { get; set; }
+
+    /// <summary>The provider whose connecting didn't finish.</summary>
+    [Parameter] public string? ProblemProvider { get; set; }
+
+    StorageProviderInfo? FailedProvider => _providers.FirstOrDefault(p => p.Id == ProblemProvider);
+
+    // Once connected, the next thing to do is add a folder from it.
+    static string ConnectLink(string provider) => $"storage/connect/{Uri.EscapeDataString(provider)}?returnUrl=%2Fsettings%23library";
+
+    string StorageOwner(StorageAccount account) => _providers.FirstOrDefault(p => p.Id == account.Provider)?.Owner ?? "your storage provider";
+
+    /// <summary>"read your files, see your name and keep access".</summary>
+    static string Sentence(IReadOnlyList<string> parts) =>
+        parts.Count > 1 ? $"{string.Join(", ", parts.Take(parts.Count - 1))} and {parts[^1]}" : string.Join("", parts);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _providers = await Api.StorageProvidersAsync();
+        _storage = await Api.StorageAsync();
+    }
+
+    async Task Disconnect(StorageAccount account)
+    {
+        await Api.DisconnectStorageAsync(account.Id);
+        _storage = await Api.StorageAsync();
+        Activity.Refresh();
+    }
+}

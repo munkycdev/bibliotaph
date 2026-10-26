@@ -184,10 +184,17 @@ else
             await Pins.LoadAsync();
         }
         _theme = await Theme.CurrentAsync();
+        Theme.Changed += OnThemeChanged;
         _loading = false;
     }
 
     async Task CycleTheme() => _theme = await Theme.CycleAsync();
+
+    void OnThemeChanged(string mode)
+    {
+        _theme = mode;
+        StateHasChanged();
+    }
 
     void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
@@ -339,5 +346,6 @@ else
         Activity.Changed -= OnActivityChanged;
         Pins.Changed -= OnPinsChanged;
         Breadcrumb.Changed -= OnPinsChanged;
+        Theme.Changed -= OnThemeChanged;
     }
 }

@@ -18,6 +18,11 @@
 - **What your storage allowed, in Settings.** Each storage account in Settings › Storage now says what Bibliotaph was
   allowed to do, such as read your files and keep access while you're signed out. OneDrive no longer asks to write to a
   folder of Bibliotaph's own, as nothing on the web uses it yet.
+- **Settings on the web laid out like the Windows app's.** *Make yourself at home.*, with a list of sections beside the
+  one chosen: Storage, Library, Windows PCs, AI, Appearance, Needs review, Books in this browser and Account, plus
+  Invitations and Accounts for admins. Appearance and Needs review are new on the web, with the Windows app's choices,
+  and About Bibliotaph shows the version, the licence and links to the source. A new invitation's link has a Copy link
+  button. See [Settings](docs/guide/web.md#settings).
 - **Your books read on the web.** bibliotaph.online reads each book in your library folders as the Windows app does:
   pages, outline, text for search, covers, and hints from file and folder names. A book is downloaded once to be read
   and its copy deleted when it's done. OCR and AI on the web come later.

@@ -6,7 +6,7 @@
 @inject ApiClient Api
 @inject LibraryActivity Activity
 
-<section class="bt-section" id="ai" aria-labelledby="ai-heading">
+<section class="bt-section" aria-labelledby="ai-heading">
     <h2 id="ai-heading">AI</h2>
     <p class="bt-copy">A model reads a few pages of each book (its opening pages, contents, introduction and a sample of the rest)
         and suggests its title, game system, type, levels and more. Each suggestion has to quote the page it came from, or it's
@@ -14,7 +14,7 @@
         service such as OpenAI or OpenRouter, or your own model server on the internet.</p>
     @if (_page is null)
     {
-        <p class="bt-sample">Looking…</p>
+        <p class="bt-note">Looking…</p>
     }
     else
     {
@@ -43,18 +43,18 @@
         <div class="bt-scanwhole">
             <label class="bt-check"><input type="checkbox" checked="@_page.ScanWholeBooks" aria-label="Scan whole books"
                        @onchange="e => ScanWholeBooksAsync(e.Value is true)" />Scan whole books</label>
-            <p class="bt-sample">Once a book is catalogued, the AI reads all of it, chapter by chapter, and notes each chapter's setting,
+            <p class="bt-note">Once a book is catalogued, the AI reads all of it, chapter by chapter, and notes each chapter's setting,
                 environments, themes and creatures, with the page that shows them. It goes slowly, after everything else, and stops
                 whenever you ask the AI something. The book's own details are never changed. Every chapter is a request on your key,
                 so it costs far more than cataloguing.</p>
             @if (_page.ScanProgress.Length > 0)
             {
-                <p class="bt-sample">@_page.ScanProgress</p>
+                <p class="bt-note">@_page.ScanProgress</p>
             }
         </div>
 
         <h3 class="bt-subheading">Model server</h3>
-        <p class="bt-sample">Any server that speaks the OpenAI chat API works, such as OpenAI at https://api.openai.com/v1,
+        <p class="bt-note">Any server that speaks the OpenAI chat API works, such as OpenAI at https://api.openai.com/v1,
             OpenRouter at https://openrouter.ai/api/v1, or your own Ollama or LM Studio behind https.</p>
         <label class="bt-field" for="ai-address">Address</label>
         <div class="bt-inputrow">
@@ -64,7 +64,7 @@
         </div>
         @if (_connection is { Text: { } found })
         {
-            <p class="bt-sample">@found</p>
+            <p class="bt-note">@found</p>
         }
         @if (_connection is { Problem: { } connectProblem })
         {
@@ -90,7 +90,7 @@
                 <input aria-label="Model name" @bind="_model" @bind:event="oninput" @bind:after="Edited" />
             }
         </label>
-        <p class="bt-sample">A small, fast model is enough to catalogue: it reads a few thousand words a book.</p>
+        <p class="bt-note">A small, fast model is enough to catalogue: it reads a few thousand words a book.</p>
 
         <label class="bt-field">Embedding model, for Ask this book
             @if (_connection is { Models.Count: > 0 })
@@ -112,7 +112,7 @@
                 <input aria-label="Embedding model name" @bind="_embedding" @bind:event="oninput" @bind:after="Edited" />
             }
         </label>
-        <p class="bt-sample">Lets Ask this book find passages by what they mean, not only by their words, such as OpenAI's
+        <p class="bt-note">Lets Ask this book find passages by what they mean, not only by their words, such as OpenAI's
             text-embedding-3-small. Leave it empty to find passages by their words.</p>
 
         <label class="bt-field" for="ai-key">Key, only if the server needs one</label>
@@ -123,10 +123,10 @@
                 <button class="bt-button" @onclick="ForgetKeyAsync">Forget key</button>
             }
         </div>
-        <p class="bt-sample">Kept encrypted on Bibliotaph's server, used only to ask this server, and never shown again.</p>
+        <p class="bt-note">Kept encrypted on Bibliotaph's server, used only to ask this server, and never shown again.</p>
         @if (_page.KeyEnding is { } ending && SameAddress)
         {
-            <p class="bt-sample">A key ending in @ending is saved for this server.</p>
+            <p class="bt-note">A key ending in @ending is saved for this server.</p>
         }
 
         <div class="bt-actions">
@@ -135,7 +135,7 @@
         </div>
         @if (_saveNote is { } saved)
         {
-            <p class="bt-sample" role="status">@saved</p>
+            <p class="bt-note" role="status">@saved</p>
         }
         @if (_saveProblem is { } saveProblem)
         {
@@ -162,18 +162,18 @@
             @* Reading the whole library for meaning, for questions to the library. *@
             <div class="bt-topline bt-readlibrary">
                 <h3 class="bt-subheading">Read the whole library for meaning</h3>
-                <p class="bt-sample">So a question to your whole library finds pages by what they mean, not only by their words. It runs
+                <p class="bt-note">So a question to your whole library finds pages by what they mean, not only by their words. It runs
                     slowly in the background, can take hours for a large library, pauses while you're using the AI, and carries on where
                     it was after a restart. Each batch of pages is a request on your key.</p>
                 <label class="bt-check"><input type="checkbox" checked="@_page.ReadLibrary" aria-label="Read the library for meaning in the background"
                            @onchange="e => ReadLibraryAsync(e.Value is true)" />Read the library for meaning in the background</label>
-                <p class="bt-sample">@libraryProgress</p>
+                <p class="bt-note">@libraryProgress</p>
             </div>
         }
 
         <div class="bt-topline">
             <h3 class="bt-subheading">Library folders sent to AI</h3>
-            <p class="bt-sample">Untick a folder to keep its books away from the model. They keep their hints from names, and you can
+            <p class="bt-note">Untick a folder to keep its books away from the model. They keep their hints from names, and you can
                 still fill them in yourself.</p>
             @foreach (var folder in _page.Folders)
             {
@@ -184,7 +184,7 @@
             }
             @if (_page.Folders.Count == 0)
             {
-                <p class="bt-sample">No library folders yet.</p>
+                <p class="bt-note">No library folders yet.</p>
             }
         </div>
     }

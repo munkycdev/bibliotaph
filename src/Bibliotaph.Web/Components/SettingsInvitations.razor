@@ -1,0 +1,75 @@
+@* Settings › Invitations, for admins: making a one-time link, copying it while it's shown, and every link made with
+   whether it was used. *@
+@inject ApiClient Api
+@inject IJSRuntime JS
+
+<section class="bt-section" aria-labelledby="invites-heading">
+    <h2 id="invites-heading">Invitations</h2>
+    <p class="bt-copy">Bibliotaph is invite-only. Each link makes one account and expires after 14 days.</p>
+    <div class="bt-filterbar">
+        <label class="bt-field">Who it's for (only you see this)<input @bind="_note" maxlength="100" /></label>
+        <label class="bt-check"><input type="checkbox" @bind="_admin" />Can invite others</label>
+        <button class="bt-button primary bt-end" @onclick="CreateInvite"><Icon Name="Plus" />New invitation</button>
+    </div>
+    @if (_created is not null)
+    {
+        <div class="bt-linkbox" role="status">
+            <span>@_created.Link</span>
+            <button class="bt-button" @onclick="CopyAsync"><Icon Name="@(_copied ? "Check" : "Copy")" />@(_copied ? "Copied" : "Copy link")</button>
+        </div>
+        <p class="bt-note">Copy it now: it's shown only once.</p>
+    }
+    @if (_invites is { Count: > 0 })
+    {
+        <table class="bt-table">
+            <thead><tr><th>FOR</th><th>MADE</th><th>STATE</th></tr></thead>
+            <tbody>
+                @foreach (var invite in _invites)
+                {
+                    <tr>
+                        <td>@(invite.Note ?? "—")@(invite.Admin ? " (can invite)" : "")</td>
+                        <td>@invite.Created.ToString("d MMM yyyy")</td>
+                        <td>@State(invite)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    IReadOnlyList<InviteInfo>? _invites;
+    CreatedInvite? _created;
+    string? _note;
+    bool _admin, _copied;
+
+    protected override async Task OnInitializedAsync() => _invites = await Api.InvitesAsync();
+
+    async Task CreateInvite()
+    {
+        _created = await Api.CreateInviteAsync(new CreateInvite(_note, _admin));
+        _copied = false;
+        _note = null;
+        _admin = false;
+        _invites = await Api.InvitesAsync();
+    }
+
+    async Task CopyAsync()
+    {
+        if (_created is null) return;
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _created.Link);
+            _copied = true;
+        }
+        catch (JSException)
+        {
+            // The browser refused the clipboard; the link is still there to select and copy.
+        }
+    }
+
+    static string State(InviteInfo invite) =>
+        invite.Redeemed is { } used ? $"Used {used:d MMM yyyy}"
+        : invite.Expires <= DateTimeOffset.UtcNow ? "Expired"
+        : $"Open until {invite.Expires:d MMM yyyy}";
+}

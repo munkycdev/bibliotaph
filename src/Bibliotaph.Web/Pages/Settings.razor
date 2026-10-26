@@ -1,430 +1,125 @@
 @page "/settings"
-@inject ApiClient Api
+@implements IDisposable
 @inject Session Session
 @inject NavigationManager Navigation
-@inject LibraryActivity Activity
 @inject IJSRuntime JS
 
-<PageHeading Title="Settings" />
-
-@if (Problem == "taken")
-{
-    <div class="bt-message" role="status">That sign-in already belongs to another Bibliotaph account, so it wasn't linked to this one.</div>
-}
-else if (Problem == "storage")
-{
-    <div class="bt-message" role="status">Connecting @(FailedProvider?.Name ?? "your storage") didn't finish. Try again, and allow Bibliotaph to read
-        your files when @(FailedProvider?.Owner ?? "your storage provider") asks.</div>
-}
+@* As the Windows app's Settings: a list of sections beside the one chosen. The address's #storage names the section,
+   so links can open one and Back returns to the last. *@
+<PageHeading Title="Make yourself at home." TabTitle="Settings" />
 
 @if (_me is not null)
 {
-    <section class="bt-section" aria-labelledby="account">
-        <h2 id="account">Account</h2>
-        <div class="bt-settingrow">
-            <div>@_me.Name<small>@(_me.Email ?? "No email address from your sign-in")</small></div>
-            <button class="bt-button" @onclick="SignOut"><Icon Name="ArrowUpRight" />Sign out</button>
-        </div>
-        <table class="bt-table">
-            <thead><tr><th>SIGN-IN</th><th>ACCOUNT</th><th>ADDED</th></tr></thead>
-            <tbody>
-                @foreach (var signIn in _me.SignIns)
-                {
-                    <tr><td>@signIn.Provider</td><td>@(signIn.Email ?? "")</td><td>@signIn.Added.ToString("d MMM yyyy")</td></tr>
-                }
-            </tbody>
-        </table>
-        @if (_providers.FirstOrDefault(p => p.Id != "developer") is { } provider)
-        {
-            <div class="bt-actions">
-                <ServerLink Href="@($"auth/signin/{provider.Id}?returnUrl=%2Fsettings")" Title="Sign in another way, such as with Google or Microsoft, to use either for this account">
-                    <Icon Name="Plus" />Link another sign-in
-                </ServerLink>
-            </div>
-        }
-        @if (_closing)
-        {
-            <div class="bt-source bt-pending" role="alertdialog" aria-labelledby="close-heading" aria-describedby="close-detail">
-                <div class="bt-sourcerow">
-                    <Icon Name="Trash2" />
-                    <div id="close-heading">Close your account?<small id="close-detail">Bibliotaph deletes your account, your library
-                        (its catalog, index and covers), everything you've done in it, such as notes, collections, binders and
-                        corrections, your storage connections and the books kept in this browser, straight away, and from backups
-                        within 30 days. Nothing in your storage is touched. This can't be undone.</small></div>
-                </div>
-                @if (_closeProblem is not null)
-                {
-                    <div class="bt-message" role="alert">@_closeProblem</div>
-                }
-                <div class="bt-actions">
-                    <button class="bt-button primary" disabled="@_closingNow" @onclick="CloseAccount"><Icon Name="Trash2" />Close account</button>
-                    <button class="bt-button" disabled="@_closingNow" @onclick="() => _closing = false">Cancel</button>
-                </div>
-            </div>
-        }
-        else
-        {
-            <div class="bt-actions">
-                <button class="bt-button" @onclick="() => { _closing = true; _closeProblem = null; }"><Icon Name="Trash2" />Close account…</button>
-            </div>
-        }
-    </section>
-
-    <section class="bt-section" id="storage" aria-labelledby="storage-heading">
-        <h2 id="storage-heading">Storage</h2>
-        <p class="bt-copy">Connect the storage where your books are, then add folders from it to your library. Bibliotaph only reads
-            them there: it never changes, moves or deletes anything in your storage.</p>
-        @foreach (var account in _storage)
-        {
-            <div class="bt-source bt-sourcerow">
-                <Icon Name="Cloud" />
-                <div>@account.Name<small>@(account.NeedsReconnect
-                    ? $"Needs connecting again: {StorageOwner(account)} no longer lets Bibliotaph read it. Its books stay in your library."
-                    : $"Connected {account.Added:d MMMM yyyy}")</small>
-                    @if (account.Access is { Count: > 0 } access)
-                    {
-                        <small title="@($"As {StorageOwner(account)} names it: {account.Scopes}")">Allowed to @Sentence(access).</small>
-                    }
-                </div>
-                @if (account.NeedsReconnect)
-                {
-                    <ServerLink Href="@ConnectLink(account.Provider)"><Icon Name="RotateCcw" />Connect again</ServerLink>
-                }
-                <button class="bt-icon" title="Disconnect" aria-label="@($"Disconnect {account.Name}")" @onclick="() => Disconnect(account)"><Icon Name="X" /></button>
-            </div>
-        }
-        @if (_storage.Count == 0)
-        {
-            <p class="bt-sample">No storage connected yet.</p>
-        }
-        <div class="bt-actions">
-            @foreach (var kind in _storageProviders)
+    <div class="bt-settings">
+        <nav class="bt-settingslist" aria-label="Settings sections">
+            @foreach (var (id, label) in Sections)
             {
-                <ServerLink Href="@ConnectLink(kind.Id)" Class="@(_storage.Count == 0 && kind == _storageProviders[0] ? "bt-button primary" : "bt-button")"><Icon Name="Plus" />Connect @kind.Name</ServerLink>
+                <a class="bt-settingsentry @(id == _selected ? "active" : "")" href="@($"settings#{id}")"
+                   aria-current="@(id == _selected ? "page" : null)" @onclick="() => ChooseAsync(id)" @onclick:preventDefault="true">@label</a>
+            }
+            <div class="bt-settingsrule"></div>
+            <button class="bt-settingsentry" @onclick="() => _about = true">About Bibliotaph</button>
+        </nav>
+        <div class="bt-settingsbody">
+            @switch (_selected)
+            {
+                case "storage": <SettingsStorage Problem="@Problem" ProblemProvider="@ProblemProvider" /> break;
+                case "library": <SettingsLibrary /> break;
+                case "devices": <SettingsDevices /> break;
+                case "ai": <AiSection /> break;
+                case "browser": <BrowserBooks /> break;
+                case "appearance": <SettingsAppearance /> break;
+                case "review": <SettingsReview /> break;
+                case "account": <SettingsAccount Me="_me" Problem="@Problem" /> break;
+                case "invitations": <SettingsInvitations /> break;
+                case "accounts": <SettingsAccounts /> break;
             }
         </div>
-        @if (_storageProviders.Count == 0)
-        {
-            <p class="bt-sample">This server can't connect storage yet.</p>
-        }
-        <p class="bt-sample">Disconnecting keeps your notes, collections and corrections. Its books come back when you connect it again.</p>
-    </section>
+    </div>
+}
 
-    <section class="bt-section" id="library" aria-labelledby="library-heading">
-        <h2 id="library-heading">Library folders</h2>
-        <p class="bt-copy">Bibliotaph reads your folders. Your books stay exactly where you put them.</p>
-        @foreach (var folder in _folders)
-        {
-            <div class="bt-source bt-sourcerow">
-                <Icon Name="Folder" />
-                <div>@folder.Location<small>@folder.Detail</small></div>
-                <button class="bt-icon" title="Remove from library" aria-label="@($"Remove {folder.Location} from the library")" @onclick="() => Remove(folder)"><Icon Name="X" /></button>
-            </div>
-        }
-        @if (_folders.Count == 0 && _pending is null)
-        {
-            <p class="bt-sample">No folders yet.</p>
-        }
-        @if (_pending is not null)
-        {
-            <div class="bt-source bt-pending">
-                <div class="bt-sourcerow">
-                    <Icon Name="FolderPlus" />
-                    <div>@_pending.Location<small>@_pending.Detail</small></div>
-                </div>
-                <div class="bt-actions">
-                    <button class="bt-button primary" @onclick="ConfirmAdd"><Icon Name="Check" />Add to library</button>
-                    <button class="bt-button" @onclick="() => _pending = null">Cancel</button>
-                </div>
-            </div>
-        }
-        @if (_folderProblem is not null)
-        {
-            <div class="bt-message" role="alert">@_folderProblem</div>
-        }
-        <div class="bt-actions">
-            <button class="bt-button primary" disabled="@(_storage.Count == 0)" title="@(_storage.Count == 0 ? "Connect your storage first." : null)"
-                    @onclick="() => _picking = true"><Icon Name="FolderPlus" />Add a folder</button>
-            @if (_folders.Count > 0)
-            {
-                <button class="bt-button" @onclick="Rescan"><Icon Name="RotateCcw" />Look for changes</button>
-            }
-        </div>
-        <p class="bt-sample">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
-    </section>
-
-    <BrowserBooks />
-
-    <AiSection />
-
-    <section class="bt-section" id="devices" aria-labelledby="devices-heading">
-        <h2 id="devices-heading">Windows PCs</h2>
-        <p class="bt-copy">The Windows app can use this library too: in its Settings, choose Connect under Web library, then approve
-            the PC in your browser. Your corrections, hearts, notes, collections, binders, saved searches and pins are then merged
-            both ways, as between two PCs.</p>
-        @foreach (var device in _devices)
-        {
-            <div class="bt-source bt-sourcerow">
-                <Icon Name="Monitor" />
-                <div>@device.Name<small>Connected @device.Connected.ToString("d MMMM yyyy")@(device.LastUsed is { } used ? $" · last used {used:d MMMM yyyy}" : "")</small></div>
-                <button class="bt-icon" title="Disconnect" aria-label="@($"Disconnect {device.Name}")" @onclick="() => DisconnectDevice(device)"><Icon Name="X" /></button>
-            </div>
-        }
-        @if (_devices.Count == 0)
-        {
-            <p class="bt-sample">No PCs connected yet.</p>
-        }
-        <p class="bt-sample">Disconnecting a PC stops it reaching this library. What it shared stays here, and the PC keeps its own books and work.</p>
-    </section>
-
-    @if (_picking)
-    {
-        <FolderPicker Storage="_storage" Picked="Picked" Cancelled="() => _picking = false" />
-    }
-
-    @if (_me.IsAdmin)
-    {
-        <section class="bt-section" aria-labelledby="invites">
-            <h2 id="invites">Invitations</h2>
-            <p class="bt-copy">Bibliotaph is invite-only. Each link makes one account and expires after 14 days.</p>
-            <div class="bt-filterbar">
-                <label class="bt-field">Who it's for (only you see this)<input @bind="_note" maxlength="100" /></label>
-                <label class="bt-check"><input type="checkbox" @bind="_admin" />Can invite others</label>
-                <button class="bt-button primary bt-end" @onclick="CreateInvite"><Icon Name="Plus" />New invitation</button>
-            </div>
-            @if (_created is not null)
-            {
-                <div class="bt-linkbox" role="status"><Icon Name="Copy" Size="15" /><span>@_created.Link</span></div>
-                <p class="bt-sample bt-shown-once">Copy it now: it's shown only once.</p>
-            }
-            @if (_invites is { Count: > 0 })
-            {
-                <table class="bt-table">
-                    <thead><tr><th>FOR</th><th>MADE</th><th>STATE</th></tr></thead>
-                    <tbody>
-                        @foreach (var invite in _invites)
-                        {
-                            <tr>
-                                <td>@(invite.Note ?? "—")@(invite.Admin ? " (can invite)" : "")</td>
-                                <td>@invite.Created.ToString("d MMM yyyy")</td>
-                                <td>@State(invite)</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-        </section>
-
-        <section class="bt-section" aria-labelledby="accounts">
-            <h2 id="accounts">Accounts</h2>
-            <p class="bt-copy">Everyone who has joined. Deleting an account is the same as its owner closing it: their library and
-                everything they've done in it go, and nothing in their storage is touched.</p>
-            @if (_accountNote is { } accountNote)
-            {
-                <div class="bt-message" role="status">@accountNote</div>
-            }
-            @if (_accounts is { Count: > 0 })
-            {
-                <table class="bt-table">
-                    <thead><tr><th>NAME</th><th>EMAIL</th><th>JOINED</th><th>LAST SIGNED IN</th><th></th></tr></thead>
-                    <tbody>
-                        @foreach (var account in _accounts)
-                        {
-                            <tr>
-                                <td>@account.Name@(account.IsAdmin ? " (can invite)" : "")@(account.IsYou ? " · you" : "")</td>
-                                <td>@(account.Email ?? "—")</td>
-                                <td>@account.Created.ToString("d MMM yyyy")</td>
-                                <td>@account.LastSignIn.ToString("d MMM yyyy")</td>
-                                <td>
-                                    @if (!account.IsYou)
-                                    {
-                                        <button class="bt-icon" title="Delete this account" aria-label="Delete @(account.Name)'s account"
-                                                @onclick="() => { _deleting = account; _accountNote = null; }"><Icon Name="Trash2" Size="14" /></button>
-                                    }
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
-            @if (_deleting is { } deleting)
-            {
-                <div class="bt-source bt-pending" role="alertdialog" aria-labelledby="delete-heading" aria-describedby="delete-detail">
-                    <div class="bt-sourcerow">
-                        <Icon Name="Trash2" />
-                        <div id="delete-heading">Delete @(deleting.Name)'s account?<small id="delete-detail">Bibliotaph deletes the account, its
-                            library and everything done in it, and its storage connections, straight away, and from backups within 30 days.
-                            They're signed out everywhere. Nothing in their storage is touched. This can't be undone.</small></div>
-                    </div>
-                    <div class="bt-actions">
-                        <button class="bt-button primary" disabled="@_deletingNow" @onclick="DeleteAccount"><Icon Name="Trash2" />Delete account</button>
-                        <button class="bt-button" disabled="@_deletingNow" @onclick="() => _deleting = null">Cancel</button>
-                    </div>
-                </div>
-            }
-        </section>
-    }
+@if (_about)
+{
+    <AboutDialog Closed="() => _about = false" />
 }
 
 @code {
     CurrentUser? _me;
-    IReadOnlyList<SignInProvider> _providers = [];
-    IReadOnlyList<InviteInfo>? _invites;
-    CreatedInvite? _created;
-    string? _note;
-    bool _admin;
-    IReadOnlyList<StorageAccount> _storage = [];
-    IReadOnlyList<StorageProviderInfo> _storageProviders = [];
-    IReadOnlyList<LibraryFolder> _folders = [];
-    IReadOnlyList<ConnectedDevice> _devices = [];
-    PickedFolder? _pending;
-    string? _folderProblem;
-    bool _picking;
-    bool _closing, _closingNow;
-    string? _closeProblem;
-    IReadOnlyList<AccountInfo>? _accounts;
-    AccountInfo? _deleting;
-    bool _deletingNow;
-    string? _accountNote;
-
-    static string ConnectLink(string provider) => $"storage/connect/{Uri.EscapeDataString(provider)}?returnUrl=%2Fsettings%23library";
+    string _selected = "storage";
+    bool _about;
 
     [SupplyParameterFromQuery(Name = "problem")] public string? Problem { get; set; }
 
     /// <summary>The storage whose connecting didn't finish, as its callback reports it.</summary>
     [SupplyParameterFromQuery(Name = "provider")] public string? ProblemProvider { get; set; }
 
-    StorageProviderInfo? FailedProvider => _storageProviders.FirstOrDefault(p => p.Id == ProblemProvider);
-
-    string StorageOwner(StorageAccount account) => _storageProviders.FirstOrDefault(p => p.Id == account.Provider)?.Owner ?? "Your storage provider";
-
-    /// <summary>"read your files, see your name and keep access".</summary>
-    static string Sentence(IReadOnlyList<string> parts) =>
-        parts.Count > 1 ? $"{string.Join(", ", parts.Take(parts.Count - 1))} and {parts[^1]}" : string.Join("", parts);
-
-
+    /// <summary>
+    /// In the Windows app's order where the two have the same section: storage before the library folders it holds,
+    /// what's kept on this device after the library's own, and the account last, with what only admins see after it.
+    /// </summary>
+    IEnumerable<(string Id, string Label)> Sections
+    {
+        get
+        {
+            yield return ("storage", "Storage");
+            yield return ("library", "Library");
+            yield return ("devices", "Windows PCs");
+            yield return ("ai", "AI");
+            yield return ("appearance", "Appearance");
+            yield return ("review", "Needs review");
+            yield return ("browser", "Books in this browser");
+            yield return ("account", "Account");
+            if (_me?.IsAdmin != true) yield break;
+            yield return ("invitations", "Invitations");
+            yield return ("accounts", "Accounts");
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
+        Navigation.LocationChanged += OnLocationChanged;
         _me = await Session.MeAsync();
-        _providers = await Api.ProvidersAsync();
-        _storage = await Api.StorageAsync();
-        _storageProviders = await Api.StorageProvidersAsync();
-        _folders = await Api.LibraryFoldersAsync();
-        _devices = await Api.DevicesAsync();
-        if (_me?.IsAdmin == true)
-        {
-            _invites = await Api.InvitesAsync();
-            _accounts = await Api.AccountsAsync();
-        }
+        _selected = Chosen(Navigation.Uri);
     }
 
-    async Task DeleteAccount()
+    /// <summary>The section the address names, or the one a problem belongs to, or Storage, where a library starts.</summary>
+    string Chosen(string uri)
     {
-        if (_deleting is not { } account) return;
-        _deletingNow = true;
+        var named = new Uri(uri).Fragment.TrimStart('#');
+        if (Sections.Any(s => s.Id == named)) return named;
+        return Problem == "taken" ? "account" : "storage";
+    }
+
+    /// <summary>
+    /// A section chosen in the list. The browser alone wouldn't tell the page about a change of #, so the list chooses
+    /// the section itself and adds the address to the history, which Back then returns along.
+    /// </summary>
+    async Task ChooseAsync(string id)
+    {
+        if (id == _selected) return;
+        Navigation.NavigateTo($"settings#{id}");
+        await ShowAsync(id);
+    }
+
+    async void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (Chosen(e.Location) is var chosen && chosen != _selected) await ShowAsync(chosen);
+    }
+
+    async Task ShowAsync(string id)
+    {
+        _selected = id;
+        StateHasChanged();
         try
         {
-            _accountNote = (await Api.DeleteAccountAsync(account.Id)).Message;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
-        {
-            _accountNote = ex is ApiProblemException problem ? problem.Message : $"{account.Name}'s account couldn't be deleted just now. Try again in a moment.";
-        }
-        _deleting = null;
-        _deletingNow = false;
-        _accounts = await Api.AccountsAsync();
-    }
-
-    async Task CreateInvite()
-    {
-        _created = await Api.CreateInviteAsync(new CreateInvite(_note, _admin));
-        _note = null;
-        _admin = false;
-        _invites = await Api.InvitesAsync();
-    }
-
-    void Picked(PickedFolder folder)
-    {
-        _picking = false;
-        _folderProblem = null;
-        _pending = folder;
-    }
-
-    async Task ConfirmAdd()
-    {
-        if (_pending is null) return;
-        try
-        {
-            _folders = await Api.AddLibraryFolderAsync(new AddLibraryFolder(_pending.Storage.Id, _pending.Path));
-            Activity.Refresh();
-        }
-        catch (ApiProblemException problem)
-        {
-            _folderProblem = problem.Message;
-        }
-        _pending = null;
-    }
-
-    async Task Remove(LibraryFolder folder)
-    {
-        _folders = await Api.RemoveLibraryFolderAsync(folder.Id);
-        Activity.Refresh();
-    }
-
-    async Task Rescan()
-    {
-        await Api.RescanAsync();
-        Activity.Refresh();
-    }
-
-    async Task Disconnect(StorageAccount account)
-    {
-        await Api.DisconnectStorageAsync(account.Id);
-        _storage = await Api.StorageAsync();
-        _folders = await Api.LibraryFoldersAsync();
-        Activity.Refresh();
-    }
-
-    async Task DisconnectDevice(ConnectedDevice device)
-    {
-        await Api.DisconnectDeviceAsync(device.Id);
-        _devices = await Api.DevicesAsync();
-    }
-
-    async Task CloseAccount()
-    {
-        _closingNow = true;
-        string next;
-        try
-        {
-            next = await Session.CloseAccountAsync();
-        }
-        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
-        {
-            _closeProblem = "Your account couldn't be closed just now. Try again in a moment.";
-            _closingNow = false;
-            return;
-        }
-        try
-        {
-            await using var cache = await JS.InvokeAsync<IJSObjectReference>("import", "./js/bookcache.js");
-            await cache.InvokeVoidAsync("forgetAll");
+            // As the Windows app's section scrolls back to its top when another is chosen.
+            await JS.InvokeVoidAsync("scrollTo", 0, 0);
         }
         catch (JSException)
         {
-            // This browser kept no books.
+            // The page stays where it was.
         }
-        Navigation.NavigateTo(next, forceLoad: true);
     }
 
-    async Task SignOut()
-    {
-        Navigation.NavigateTo(await Session.SignOutAsync(), forceLoad: true);
-    }
-
-    static string State(InviteInfo invite) =>
-        invite.Redeemed is { } used ? $"Used {used:d MMM yyyy}"
-        : invite.Expires <= DateTimeOffset.UtcNow ? "Expired"
-        : $"Open until {invite.Expires:d MMM yyyy}";
+    public void Dispose() => Navigation.LocationChanged -= OnLocationChanged;
 }

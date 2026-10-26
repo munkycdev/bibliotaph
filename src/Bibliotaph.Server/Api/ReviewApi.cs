@@ -34,6 +34,21 @@ public static class ReviewApi
 
         review.MapReviewOffers();
 
+        review.MapGet("/mode", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return new ReviewMode(await lease.Library.Get<ReviewService>().GetReviewAllAsync(ct));
+        });
+
+        // Every book's cards are counted again, so the answer waits until Needs review's count is right.
+        review.MapPut("/mode", async (ReviewMode mode, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var reviews = lease.Library.Get<ReviewService>();
+            await reviews.SetReviewAllAsync(mode.All, ct);
+            return new ReviewMode(await reviews.GetReviewAllAsync(ct));
+        });
+
         review.MapPost("/fields/accept", (ReviewFieldDecision decision, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
             DecideAsync(libraries, principal, decision.Id, decision.GroupKey, async (library, item, text) =>
             {
