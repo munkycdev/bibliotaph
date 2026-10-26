@@ -50,9 +50,12 @@ public static partial class EbookReaderDocument
 
     /// <summary>
     /// The reader's page for <paramref name="book"/> cut into <paramref name="layout"/>'s pages. <paramref name="head"/>
-    /// goes in the page's head (the reader's stylesheet) and <paramref name="script"/> at the end of its body.
+    /// goes in the page's head (the reader's stylesheet) and <paramref name="script"/> at the end of its body. The
+    /// book's files are asked for under <paramref name="resources"/>, which a browser holding several books at once
+    /// makes the book's own.
     /// </summary>
-    public static string Build(IEbook book, EbookLayout layout, string head, string script, CancellationToken ct = default)
+    public static string Build(IEbook book, EbookLayout layout, string head, string script, string resources = ResourcePrefix,
+        CancellationToken ct = default)
     {
         var fixedLayout = book.Spine.Count > 0 && book.Spine.All(s => s.FixedLayout);
         var chapterOf = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -79,12 +82,12 @@ public static partial class EbookReaderDocument
                 foreach (var page in pages) html.Append(Marker(page.Index));
                 html.Append("<iframe class=\"bt-sheet\" sandbox=\"allow-same-origin\" loading=\"lazy\" title=\"Page ")
                     .Append((pages.FirstOrDefault()?.Index + 1 ?? c + 1).ToString(CultureInfo.InvariantCulture))
-                    .Append("\" src=\"").Append(WebUtility.HtmlEncode(ResourceUrl(item.Path))).Append("\"></iframe>");
+                    .Append("\" src=\"").Append(WebUtility.HtmlEncode(ResourceUrl(item.Path, resources))).Append("\"></iframe>");
             }
             else
             {
                 html.Append('>');
-                html.Append(Chapter(book, c, pages, chapterOf));
+                html.Append(Chapter(book, c, pages, chapterOf, resources));
             }
             html.Append("</section>");
         }
@@ -92,9 +95,9 @@ public static partial class EbookReaderDocument
         return html.ToString();
     }
 
-    /// <summary>A file's address on the reader's page: <see cref="ResourcePrefix"/> and its path, each part escaped.</summary>
-    public static string ResourceUrl(string path) =>
-        ResourcePrefix + string.Join('/', path.Split('/').Select(Uri.EscapeDataString));
+    /// <summary>A file's address on the reader's page: <see cref="ResourcePrefix"/> (or another) and its path, each part escaped.</summary>
+    public static string ResourceUrl(string path, string resources = ResourcePrefix) =>
+        resources + string.Join('/', path.Split('/').Select(Uri.EscapeDataString));
 
     /// <summary>The archive path a reader's address asks for, or null when it isn't one of <see cref="ResourceUrl"/>'s.</summary>
     public static string? ResourcePath(string absolutePath) =>
@@ -106,12 +109,12 @@ public static partial class EbookReaderDocument
         $"<{MarkerName} id=\"bt-p{page.ToString(CultureInfo.InvariantCulture)}\" data-page=\"{page.ToString(CultureInfo.InvariantCulture)}\"></{MarkerName}>";
 
     /// <summary>One chapter's body, cleaned, its ids and links made to work on the one page, with its pages' markers.</summary>
-    static string Chapter(IEbook book, int chapter, List<EbookPage> pages, Dictionary<string, int> chapterOf)
+    static string Chapter(IEbook book, int chapter, List<EbookPage> pages, Dictionary<string, int> chapterOf, string resources)
     {
         var item = book.Spine[chapter];
         if (book.IsEncrypted(item.Path)) return string.Concat(pages.Select(p => Marker(p.Index)));
         if (item.MediaType == "image/svg+xml")
-            return string.Concat(pages.Select(p => Marker(p.Index))) + $"<img src=\"{WebUtility.HtmlEncode(ResourceUrl(item.Path))}\" alt=\"\">";
+            return string.Concat(pages.Select(p => Marker(p.Index))) + $"<img src=\"{WebUtility.HtmlEncode(ResourceUrl(item.Path, resources))}\" alt=\"\">";
 
         var document = HtmlText.Parse(book.ReadText(item.Path));
         var body = (IElement?)document.Body ?? document.DocumentElement;
@@ -119,7 +122,7 @@ public static partial class EbookReaderDocument
         foreach (var planted in body.QuerySelectorAll(MarkerName).ToList()) planted.Remove();
         var markers = new HashSet<IElement>();
         Mark(document, body, pages, markers);
-        new Cleaner(book, item.Path, chapter, chapterOf, markers).Clean(body, 0);
+        new Cleaner(book, item.Path, chapter, chapterOf, markers, resources).Clean(body, 0);
         return body.InnerHtml;
     }
 
@@ -271,6 +274,44 @@ public static partial class EbookReaderDocument
         return "<!DOCTYPE html>" + document.DocumentElement.OuterHtml;
     }
 
+    /// <summary>
+    /// A file of the book the reader's page asks for: a picture, a stylesheet or a font, or a fixed-layout page cleaned
+    /// for its frame. Null for anything else (a chapter as written, which could run scripts), or what isn't there.
+    /// </summary>
+    public static (byte[] Bytes, string MediaType)? ReadFile(IEbook book, string path)
+    {
+        if (!book.Contains(path) || book.IsEncrypted(path)) return null;
+        try
+        {
+            var type = book.MediaTypeOf(path) is { Length: > 0 } declared ? declared : TypeOf(path);
+            if (book.Spine.Any(s => s.Path == path) && type != "image/svg+xml")
+                return book.Spine.Count > 0 && book.Spine.All(s => s.FixedLayout) ? (Encoding.UTF8.GetBytes(FixedPage(book, path)), "text/html") : null;
+            return type is { } served && Served(served) ? (book.ReadBytes(path), served) : null;
+        }
+        catch (Exception ex) when (ex is EbookException or InvalidDataException or IOException)
+        {
+            return null;
+        }
+    }
+
+    static bool Served(string type) => type.StartsWith("image/", StringComparison.Ordinal) || type.StartsWith("font/", StringComparison.Ordinal)
+        || type is "text/css" or "application/font-woff" or "application/font-sfnt" or "application/vnd.ms-opentype" or "application/x-font-ttf";
+
+    static string? TypeOf(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".jpg" or ".jpeg" => "image/jpeg",
+        ".png" => "image/png",
+        ".gif" => "image/gif",
+        ".webp" => "image/webp",
+        ".svg" => "image/svg+xml",
+        ".css" => "text/css",
+        ".woff" => "font/woff",
+        ".woff2" => "font/woff2",
+        ".ttf" => "font/ttf",
+        ".otf" => "font/otf",
+        _ => null,
+    };
+
     static bool IsAddress(string attribute) => attribute.EndsWith("href", StringComparison.OrdinalIgnoreCase)
         || attribute.Equals("src", StringComparison.OrdinalIgnoreCase) || attribute.Equals("poster", StringComparison.OrdinalIgnoreCase)
         || attribute.Equals("background", StringComparison.OrdinalIgnoreCase) || attribute.Equals("action", StringComparison.OrdinalIgnoreCase)
@@ -288,7 +329,7 @@ public static partial class EbookReaderDocument
     /// list; ids are made unique to the chapter; pictures point at the book's files; links within the book go to
     /// the chapter and place they name, and web links keep their address.
     /// </summary>
-    sealed class Cleaner(IEbook book, string path, int chapter, Dictionary<string, int> chapterOf, HashSet<IElement> markers)
+    sealed class Cleaner(IEbook book, string path, int chapter, Dictionary<string, int> chapterOf, HashSet<IElement> markers, string resources)
     {
         readonly string _prefix = "bt-c" + chapter.ToString(CultureInfo.InvariantCulture) + "-";
 
@@ -397,7 +438,7 @@ public static partial class EbookReaderDocument
             if (value.Length == 0 || HasScheme(value)) return null;
             var (target, fragment) = EpubBook.Resolve(path, value);
             if (!book.Contains(target) || book.IsEncrypted(target)) return null;
-            return ResourceUrl(target) + (fragment is null ? "" : "#" + Uri.EscapeDataString(fragment));
+            return ResourceUrl(target, resources) + (fragment is null ? "" : "#" + Uri.EscapeDataString(fragment));
         }
     }
 

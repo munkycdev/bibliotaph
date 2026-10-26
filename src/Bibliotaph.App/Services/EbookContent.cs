@@ -19,7 +19,6 @@ public sealed class EbookContent : IDisposable
     readonly LocalFile _file;
     readonly Stream _stream;
     readonly IEbook _book;
-    readonly HashSet<string> _pageFiles;
     readonly string _page;
     bool _disposed;
 
@@ -32,7 +31,6 @@ public sealed class EbookContent : IDisposable
         _page = page;
         Nonce = nonce;
         FixedLayout = book.Spine.Count > 0 && book.Spine.All(s => s.FixedLayout);
-        _pageFiles = [.. book.Spine.Select(s => s.Path)];
     }
 
     /// <summary>The book's pages and contents, as indexing cut them.</summary>
@@ -66,7 +64,7 @@ public sealed class EbookContent : IDisposable
             var layout = EbookPaging.Cut(book, ct);
             var head = $"<meta name=\"viewport\" content=\"width=device-width\">{ThemeSlot}<style nonce=\"{nonce}\">{EbookBrowser.Stylesheet}</style>";
             var script = $"<script nonce=\"{nonce}\">{EbookBrowser.Script}</script>";
-            return new EbookContent(file, stream, book, layout, EbookReaderDocument.Build(book, layout, head, script, ct), nonce);
+            return new EbookContent(file, stream, book, layout, EbookReaderDocument.Build(book, layout, head, script, ct: ct), nonce);
         }
         catch
         {
@@ -87,38 +85,9 @@ public sealed class EbookContent : IDisposable
     {
         lock (_gate)
         {
-            if (_disposed || !_book.Contains(path) || _book.IsEncrypted(path)) return null;
-            try
-            {
-                var type = _book.MediaTypeOf(path) is { Length: > 0 } declared ? declared : TypeOf(path);
-                if (_pageFiles.Contains(path) && type != "image/svg+xml")
-                    return FixedLayout ? (Encoding.UTF8.GetBytes(EbookReaderDocument.FixedPage(_book, path)), "text/html") : null;
-                return type is { } served && Served(served) ? (_book.ReadBytes(path), served) : null;
-            }
-            catch (Exception ex) when (ex is EbookException or InvalidDataException or IOException)
-            {
-                return null;
-            }
+            return _disposed ? null : EbookReaderDocument.ReadFile(_book, path);
         }
     }
-
-    static bool Served(string type) => type.StartsWith("image/", StringComparison.Ordinal) || type.StartsWith("font/", StringComparison.Ordinal)
-        || type is "text/css" or "application/font-woff" or "application/font-sfnt" or "application/vnd.ms-opentype" or "application/x-font-ttf";
-
-    static string? TypeOf(string path) => Path.GetExtension(path).ToLowerInvariant() switch
-    {
-        ".jpg" or ".jpeg" => "image/jpeg",
-        ".png" => "image/png",
-        ".gif" => "image/gif",
-        ".webp" => "image/webp",
-        ".svg" => "image/svg+xml",
-        ".css" => "text/css",
-        ".woff" => "font/woff",
-        ".woff2" => "font/woff2",
-        ".ttf" => "font/ttf",
-        ".otf" => "font/otf",
-        _ => null,
-    };
 
     public void Dispose()
     {

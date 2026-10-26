@@ -118,6 +118,38 @@ public sealed class EbookReaderDocumentTests
     }
 
     [Fact]
+    public void A_browser_holding_several_books_asks_for_each_ones_files_under_its_own_address()
+    {
+        using var book = new SyntheticEpub()
+            .File("img/map.png", [1, 2, 3], "image/png")
+            .Chapter("one.xhtml", """<p>Map.</p><img src="img/map.png" alt="Map"/>""")
+            .Open();
+        var html = EbookReaderDocument.Build(book, EbookPaging.Cut(book), "", "", "/ebook-res/abc/res/");
+        Assert.Equal("/ebook-res/abc/res/OEBPS/img/map.png", Parse(html).QuerySelector("#bt-book img")!.GetAttribute("src"));
+    }
+
+    [Fact]
+    public void The_page_is_given_pictures_and_stylesheets_but_never_a_chapter_as_written()
+    {
+        using var flowing = new SyntheticEpub()
+            .File("img/map.png", [1, 2, 3], "image/png")
+            .File("style.css", "p{}"u8.ToArray(), "text/css")
+            .Chapter("one.xhtml", "<p>One.</p>")
+            .Open();
+        var map = EbookReaderDocument.ReadFile(flowing, "OEBPS/img/map.png");
+        Assert.Equal([1, 2, 3], map?.Bytes);
+        Assert.Equal("image/png", map?.MediaType);
+        Assert.Equal("text/css", EbookReaderDocument.ReadFile(flowing, "OEBPS/style.css")?.MediaType);
+        Assert.Null(EbookReaderDocument.ReadFile(flowing, "OEBPS/one.xhtml"));
+        Assert.Null(EbookReaderDocument.ReadFile(flowing, "OEBPS/missing.png"));
+
+        using var fixedLayout = new SyntheticEpub { FixedLayout = true }.Chapter("p1.xhtml", "<p>Panel.</p>").Open();
+        var page = EbookReaderDocument.ReadFile(fixedLayout, "OEBPS/p1.xhtml");
+        Assert.Equal("text/html", page?.MediaType);
+        Assert.Contains("Panel.", System.Text.Encoding.UTF8.GetString(page!.Value.Bytes), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_fixed_layout_book_shows_each_page_file_in_a_frame_at_its_size()
     {
         var (html, layout) = Build(new SyntheticEpub { FixedLayout = true, Head = """<meta name="viewport" content="width=1200, height=1800"/>""" }
