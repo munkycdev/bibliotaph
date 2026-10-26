@@ -39,6 +39,11 @@ If your account can invite, **Settings** has **Invitations**. Type who it's for 
 others** if they should be able to invite too, and choose **New invitation**. Copy the link straight away and send it
 yourself: it's shown only once. The list below shows each invitation and whether it has been used.
 
+Under it, **Accounts** lists everyone who has joined, with their email address, when they joined and when they last
+signed in. The bin beside an account deletes it once you confirm: it's the same as its owner choosing **Close
+account…**, so their library and everything done in it go, they're signed out in every browser, and nothing in their
+storage is touched. It can't be undone. Your own account isn't deleted here: use **Close account…**.
+
 ## Connecting your OneDrive
 
 Bibliotaph reads your books where they are, so first it needs your storage. In **Settings** › **Storage**, choose

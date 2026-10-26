@@ -26,28 +26,11 @@ public static class ApiEndpoints
         });
 
         // Closing an account deletes it and everything Bibliotaph keeps for it; nothing in the user's storage is touched.
-        api.MapDelete("/me", async (ClaimsPrincipal principal, HttpContext context, AccountService accounts, StorageConnections connections,
-            DriveNotifications notifications, DriveTokens tokens, AccountPurge purge, IConfiguration configuration,
-            IOptions<ServerOptions> options, TimeProvider clock, ILogger<AccountPurge> log, CancellationToken ct) =>
+        api.MapDelete("/me", async (ClaimsPrincipal principal, HttpContext context, AccountClosing closing, IConfiguration configuration,
+            IOptions<ServerOptions> options, CancellationToken ct) =>
         {
-            var userId = principal.UserId()!;
-            // Notifications are cancelled while the tokens still work, as when a drive is disconnected.
-            foreach (var account in await connections.ListAsync(userId, ct))
-            {
-                if (await connections.FindAsync(account.Id, ct) is { } connection) await notifications.UnsubscribeAsync(connection, ct);
-                tokens.Forget(account.Id);
-            }
-            if (!await accounts.CloseAsync(userId, ct)) return Results.NotFound();
+            if (!await closing.CloseAsync(principal.UserId()!, ct)) return Results.NotFound();
             await context.SignOutAsync(AuthSetup.SessionScheme);
-            try
-            {
-                await purge.PurgeAsync(new ClosedAccount { UserId = userId, Closed = clock.GetUtcNow().UtcDateTime }, CancellationToken.None);
-            }
-            catch (Exception ex)
-            {
-                // The account is closed; what's left of it goes at the next hourly purge.
-                log.LogWarning(ex, "Couldn't delete everything kept for closed account {User} yet", userId);
-            }
             return Results.Ok(AuthEndpoints.AfterSignOut(AuthSetup.Auth0(configuration), options.Value, context.Request));
         });
 
@@ -82,6 +65,21 @@ public static class ApiEndpoints
         {
             var (code, invite) = await accounts.CreateInviteAsync(principal.UserId(), request.Note, request.Admin, ct);
             return new CreatedInvite(InviteLink(options.Value, context.Request, code), Utc(invite.Expires));
+        });
+
+        // An admin's list of accounts, and deleting one as Close account would: the account's own sessions end at
+        // their next request. An admin closes their own account with Close account instead.
+        var people = api.MapGroup("/accounts").RequireAuthorization(AuthSetup.AdminPolicy);
+
+        people.MapGet("/", async (ClaimsPrincipal principal, AccountService accounts, CancellationToken ct) =>
+            (await accounts.UsersAsync(ct)).Select(u => new AccountInfo(u.Id, u.Name, u.Email, u.IsAdmin, Utc(u.Created), Utc(u.LastSignIn), u.Id == principal.UserId())));
+
+        people.MapDelete("/{id}", async (string id, ClaimsPrincipal principal, AccountService accounts, AccountClosing closing, CancellationToken ct) =>
+        {
+            if (id == principal.UserId())
+                return Results.Problem("Close your own account with Close account, at the top of Settings.", statusCode: StatusCodes.Status400BadRequest);
+            if (await accounts.FindUserAsync(id, ct) is not { } user || !await closing.CloseAsync(id, ct)) return Results.NotFound();
+            return Results.Ok(new ActionResult($"Deleted {user.Name}'s account and everything Bibliotaph kept for it."));
         });
 
         // An unknown API path is a 404, never the web client's page.
