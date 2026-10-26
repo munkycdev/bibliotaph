@@ -5,7 +5,7 @@ using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Ai;
 using Bibliotaph.Server.Storage;
-using Bibliotaph.Storage.OneDrive;
+using Bibliotaph.Storage;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Server.Libraries;
@@ -146,14 +146,14 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
     }
 
     /// <summary>
-    /// Something changed in one of a user's drives. An open library scans the folders on that drive; a closed one is
+    /// Something changed in one of a user's storage accounts. An open library scans the folders there; a closed one is
     /// opened, which scans every folder, and stays open while it reads what's new.
     /// </summary>
-    public async Task DriveChangedAsync(string userId, string driveId, CancellationToken ct = default)
+    public async Task DriveChangedAsync(string userId, string provider, string account, CancellationToken ct = default)
     {
         var wasOpen = _slots.ContainsKey(userId);
         await using var lease = await OpenAsync(userId, ct);
-        if (wasOpen) lease.Library.Get<DriveChangeFeed>().Notify(driveId);
+        if (wasOpen) lease.Library.Get<StorageChangeFeed>().Notify(provider, account);
     }
 
     void Release(Slot slot)

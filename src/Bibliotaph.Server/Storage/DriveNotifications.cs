@@ -19,7 +19,7 @@ public sealed class DriveNotifications(StorageConnections connections, UserDrive
     readonly Channel<Work> _work = Channel.CreateUnbounded<Work>(new UnboundedChannelOptions { SingleReader = true });
 
     abstract record Work;
-    sealed record Changed(string UserId, string DriveId) : Work;
+    sealed record Changed(string UserId, string Provider, string Account) : Work;
     sealed record SubscribeTo(string ConnectionId) : Work;
 
     /// <summary>Asks for change notifications on a newly connected drive, in the background.</summary>
@@ -40,7 +40,7 @@ public sealed class DriveNotifications(StorageConnections connections, UserDrive
                 log.LogWarning("Ignored a change notification that didn't match its connection");
                 continue;
             }
-            _work.Writer.TryWrite(new Changed(connection.UserId, connection.AccountId));
+            _work.Writer.TryWrite(new Changed(connection.UserId, connection.Provider, connection.AccountId));
         }
     }
 
@@ -54,7 +54,7 @@ public sealed class DriveNotifications(StorageConnections connections, UserDrive
                 switch (work)
                 {
                     case Changed changed:
-                        await libraries.DriveChangedAsync(changed.UserId, changed.DriveId, stoppingToken);
+                        await libraries.DriveChangedAsync(changed.UserId, changed.Provider, changed.Account, stoppingToken);
                         break;
                     case SubscribeTo subscribe when await connections.FindAsync(subscribe.ConnectionId, stoppingToken) is { } connection:
                         await EnsureSubscribedAsync(connection, stoppingToken);
@@ -75,8 +75,8 @@ public sealed class DriveNotifications(StorageConnections connections, UserDrive
     /// </summary>
     public async Task EnsureSubscribedAsync(StorageConnection connection, CancellationToken ct, TimeSpan? renewWithin = null)
     {
-        if (StorageSetup.NotificationUrl(options) is not { } url || connection.NeedsReconnect || connection.Provider != OneDriveProvider.Id) return;
-        var client = drives.ForConnection(connection.Id);
+        if (StorageSetup.NotificationUrl(options) is not { } url || connection.NeedsReconnect || connection.Provider != OneDriveProvider.Key) return;
+        var client = drives.OneDrive(connection.Id);
         var now = DateTime.UtcNow;
         if (connection.SubscriptionId is { } id && connection.SubscriptionExpires is { } expires)
         {
@@ -99,7 +99,7 @@ public sealed class DriveNotifications(StorageConnections connections, UserDrive
         if (connection.SubscriptionId is not { } id) return;
         try
         {
-            await drives.ForConnection(connection.Id).UnsubscribeAsync(id, ct);
+            await drives.OneDrive(connection.Id).UnsubscribeAsync(id, ct);
         }
         catch (Exception ex) when (ex is IOException or HttpRequestException)
         {

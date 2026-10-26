@@ -3,6 +3,9 @@ namespace Bibliotaph.Api.Contracts;
 /// <summary>A storage account the user connected, such as their OneDrive.</summary>
 public sealed record StorageAccount(string Id, string Provider, string Name, bool NeedsReconnect, DateTimeOffset Added);
 
+/// <summary>A kind of storage this server can connect: "OneDrive", whose consent screen is "Microsoft"'s.</summary>
+public sealed record StorageProviderInfo(string Id, string Name, string Owner);
+
 /// <summary>A folder in connected storage, for picking library folders. <see cref="Path"/> is inside the storage.</summary>
 public sealed record StorageFolder(string Name, string Path, bool InLibrary);
 

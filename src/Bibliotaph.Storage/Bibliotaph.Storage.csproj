@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    OneDrive through Microsoft Graph: listing library folders, reading books, and watching for changes. Plain .NET, so
-    the server uses it now and the Windows app can later.
+    The storage the web server reads library folders from, one folder per provider: listing library folders, reading
+    books, and watching for changes. Plain .NET, so the server uses it now and the Windows app can later.
   -->
   <PropertyGroup>
     <TargetFramework>$(BibTfm)</TargetFramework>

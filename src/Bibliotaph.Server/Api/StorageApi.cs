@@ -9,7 +9,7 @@ using Bibliotaph.Processing;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
-using Bibliotaph.Storage.OneDrive;
+using Bibliotaph.Storage;
 
 namespace Bibliotaph.Server.Api;
 
@@ -20,6 +20,10 @@ public static class StorageApi
     {
         api.MapGet("/storage", async (ClaimsPrincipal principal, StorageConnections connections, CancellationToken ct) =>
             (await connections.ListAsync(principal.UserId()!, ct)).Select(Account));
+
+        // Only providers whose OAuth app this server has can be connected, so Settings offers only those.
+        api.MapGet("/storage/providers", (IConfiguration configuration) =>
+            StorageProviders.Configured(configuration).Select(p => new StorageProviderInfo(p.Id, p.Name, p.Owner)));
 
         api.MapDelete("/storage/{id}", async (string id, ClaimsPrincipal principal, StorageConnections connections, DriveTokens tokens,
             DriveNotifications notifications, UserLibraries libraries, CancellationToken ct) =>
@@ -40,12 +44,13 @@ public static class StorageApi
             var account = (await connections.ListAsync(userId, ct)).FirstOrDefault(a => a.Id == id);
             if (account is null) return Results.NotFound();
             var folder = (path ?? "").Trim('/');
-            IReadOnlyList<DriveEntry>? entries;
+            if (drives.Drive(account) is not { } drive) return Results.NotFound();
+            IReadOnlyList<StorageEntry>? entries;
             try
             {
-                entries = await drives.ForConnection(id).ChildrenAsync(account.AccountId, folder, ct);
+                entries = await drive.ChildrenAsync(folder, ct);
             }
-            catch (OneDriveException ex)
+            catch (StorageException ex)
             {
                 return Results.Problem(ex.Message, statusCode: StatusCodes.Status502BadGateway);
             }
@@ -57,7 +62,7 @@ public static class StorageApi
                 .Select(e =>
                 {
                     var inner = folder.Length == 0 ? e.Name : $"{folder}/{e.Name}";
-                    return new StorageFolder(e.Name, inner, roots.Contains(DrivePath.Of(account.AccountId, inner)));
+                    return new StorageFolder(e.Name, inner, roots.Contains(StoragePath.Of(account.Provider, account.AccountId, inner)));
                 })
                 .ToList();
             return Results.Ok(new StorageFolderList(id, folder, folders, entries.Count(e => !e.IsFolder)));
@@ -77,7 +82,7 @@ public static class StorageApi
             if (account is null) return Results.NotFound();
             await using var lease = await libraries.OpenAsync(userId, ct);
             var roots = lease.Library.Get<SourceRootStore>();
-            var path = DrivePath.Of(account.AccountId, request.Path);
+            var path = StoragePath.Of(account.Provider, account.AccountId, request.Path);
             var existing = await roots.ListAsync(ct);
             // As in the Windows app, a folder inside or around another library folder would read its files twice.
             if (existing.Any(r => r.Path.Equals(path, StringComparison.OrdinalIgnoreCase)))
@@ -109,7 +114,7 @@ public static class StorageApi
     }
 
     static StorageAccount Account(ConnectedAccount a) =>
-        new(a.Id, a.Provider, a.DisplayName ?? OneDriveProvider.Name, a.NeedsReconnect, new DateTimeOffset(a.Created, TimeSpan.Zero));
+        new(a.Id, a.Provider, a.DisplayName ?? StorageProviders.Find(a.Provider)?.Name ?? a.Provider, a.NeedsReconnect, new DateTimeOffset(a.Created, TimeSpan.Zero));
 
     static async Task<IReadOnlyList<LibraryFolder>> FoldersAsync(UserLibrary library, CancellationToken ct)
     {
@@ -161,15 +166,17 @@ public static class StorageApi
 static class FolderText
 {
     public static string Name(string path) =>
-        DrivePath.TryParse(path, out _, out var inner) ? inner.Length == 0 ? "OneDrive" : inner[(inner.LastIndexOf('/') + 1)..] : Path.GetFileName(path);
+        StoragePath.TryParse(path, out var at) ? at.Path.Length == 0 ? ProviderName(at.Provider) : at.Path[(at.Path.LastIndexOf('/') + 1)..] : Path.GetFileName(path);
 
-    /// <summary>"OneDrive · Dana › RPG › Adventures": the drive, then the folders down to this one.</summary>
+    /// <summary>"OneDrive · Dana › RPG › Adventures": the account, then the folders down to this one.</summary>
     public static string Location(string path, UserDrives drives)
     {
-        if (!DrivePath.TryParse(path, out var driveId, out var inner)) return path;
-        var drive = drives.Account(driveId)?.DisplayName ?? "OneDrive (not connected)";
-        return inner.Length == 0 ? drive : $"{drive} › {inner.Replace("/", " › ", StringComparison.Ordinal)}";
+        if (!StoragePath.TryParse(path, out var at)) return path;
+        var account = drives.Account(at.Provider, at.Account)?.DisplayName ?? $"{ProviderName(at.Provider)} (not connected)";
+        return at.Path.Length == 0 ? account : $"{account} › {at.Path.Replace("/", " › ", StringComparison.Ordinal)}";
     }
+
+    static string ProviderName(string provider) => StorageProviders.Find(provider)?.Name ?? provider;
 
     public static string Describe(DateTime addedUtc, bool offline, RootScan? scan, long searchable, int documents)
     {

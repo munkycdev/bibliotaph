@@ -9,7 +9,7 @@ using Bibliotaph.Processing;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
-using Bibliotaph.Storage.OneDrive;
+using Bibliotaph.Storage;
 
 namespace Bibliotaph.Server.Api;
 
@@ -258,7 +258,7 @@ public static class SelectionApi
         return [.. ids.Where(found.ContainsKey).Select(id => found[id])];
     }
 
-    static string FileName(string path) => DrivePath.TryParse(path, out _, out var inner) ? inner[(inner.LastIndexOf('/') + 1)..] : Path.GetFileName(path);
+    static string FileName(string path) => StoragePath.TryParse(path, out var at) ? at.Path[(at.Path.LastIndexOf('/') + 1)..] : Path.GetFileName(path);
 
     static IResult Gone(string message) => Results.Problem(message, statusCode: StatusCodes.Status409Conflict);
 }
