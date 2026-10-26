@@ -1,0 +1,221 @@
+@* Settings › Online libraries, as the Windows app's: the services, a library page's preview grouped by what importing
+   does, the import with Undo, and the books the page no longer lists. A browser can't hold the service's site as the
+   Windows app's own browser does, so the page arrives saved from the service with Save as; the pictures saved beside
+   it give the new books their covers. *@
+@inject ApiClient Api
+@inject LibraryActivity Activity
+
+<section class="bt-section" aria-labelledby="online-heading">
+    <h2 id="online-heading">Online libraries</h2>
+    <p class="bt-copy">Bring in the books you own on online services: those you read there as books owned elsewhere, each opening on its
+        service, and those you bought from stores as books to get there. Bibliotaph never holds your passwords and never visits the services
+        itself.</p>
+    @foreach (var service in _services)
+    {
+        <div class="bt-settingrow bt-onlineservice">
+            <div>@service.Name<small>@service.Explanation</small></div>
+            <div class="bt-onlineactions">
+                <a class="bt-button primary" href="@service.LibraryPage" target="_blank" rel="noopener noreferrer"
+                   aria-label="@($"Open your {service.Name} library in a new tab")"><Icon Name="SquareArrowOutUpRight" />Open @service.Name</a>
+                <label class="bt-link bt-filebutton @(_busy ? "disabled" : "")">Import a saved page…
+                    <InputFile accept=".html,.htm,text/html" OnChange="PagePickedAsync" aria-label="@($"Import a saved {service.Name} library page")" disabled="@_busy" />
+                </label>
+            </div>
+        </div>
+    }
+    @if (_problem is { } problem)
+    {
+        <div class="bt-problem" role="alert">@problem</div>
+    }
+    <DoneNote Result="_done" UndoName="Undo the import" Undone="RefreshAsync" Dismissed="() => _done = null" />
+
+    @if (_preview is { } preview)
+    {
+        <div class="bt-onlinesummary">
+            <h3 class="bt-settingshead">@preview.Summary</h3>
+            <button class="bt-button primary" disabled="@(_busy || _chosen.Count == 0)" @onclick="ImportAsync">@ImportLabel</button>
+        </div>
+        @if (preview.Covers > 0)
+        {
+            <div class="bt-onlinecovers">
+                <span class="bt-fine">@CoversLine(preview)</span>
+                <label class="bt-button bt-filebutton @(_busy ? "disabled" : "")"><Icon Name="Image" />Choose pictures…
+                    <InputFile accept="image/*" multiple OnChange="ImagesPickedAsync" aria-label="Choose the pictures saved with the page" disabled="@_busy" />
+                </label>
+            </div>
+        }
+        @foreach (var group in preview.Groups)
+        {
+            <h3 class="bt-settingshead">@group.Heading</h3>
+            <p class="bt-fine">@group.Explanation</p>
+            <ul class="bt-onlinerows" aria-label="@group.Heading">
+                @foreach (var row in group.Rows)
+                {
+                    <li>
+                        @if (row.CanChoose)
+                        {
+                            <label class="bt-check"><input type="checkbox" checked="@_chosen.Contains(row.Index)" aria-label="@($"Import {row.Title}")"
+                                                           @onchange="e => Choose(row.Index, e.Value is true)" /><span><b>@row.Title</b><small>@row.Detail</small></span></label>
+                        }
+                        else
+                        {
+                            <span><b>@row.Title</b><small>@row.Detail</small></span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (preview.Missing.Count > 0)
+        {
+            <h3 class="bt-settingshead">No longer in this library</h3>
+            <p class="bt-fine">Books imported before that this page doesn't list. Nothing is removed unless you remove it.</p>
+            <ul class="bt-onlinerows" aria-label="No longer in this library">
+                @foreach (var book in preview.Missing)
+                {
+                    <li class="bt-onlinemissing">
+                        <span>@book.Title</span>
+                        <button class="bt-link" disabled="@_busy" aria-label="@($"Remove {book.Title} from your library")"
+                                @onclick="() => RemoveAsync(book)">Remove from library</button>
+                    </li>
+                }
+            </ul>
+        }
+    }
+</section>
+
+@code {
+    /// <summary>A saved page bigger than this isn't a library page; the server says the same.</summary>
+    const long MostPageBytes = 40L * 1024 * 1024;
+
+    const long MostImageBytes = 8L * 1024 * 1024;
+
+    List<OnlineService> _services = [];
+    OnlinePreview? _preview;
+    readonly HashSet<int> _chosen = [];
+    ActionResult? _done;
+    string? _problem;
+    bool _busy;
+
+    string ImportLabel => _chosen.Count switch
+    {
+        0 => "Import",
+        1 => "Import 1 book",
+        var n => $"Import {n.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)} books",
+    };
+
+    protected override async Task OnInitializedAsync() => _services = await Api.OnlineServicesAsync();
+
+    static string CoversLine(OnlinePreview preview) => preview.CoversFound == 0
+        ? $"For the new books' covers, choose the pictures saved with the page, in the folder ending in “_files” beside it."
+        : $"Found {preview.CoversFound:N0} of {preview.Covers:N0} covers among the pictures chosen.";
+
+    async Task PagePickedAsync(InputFileChangeEventArgs e)
+    {
+        await RunAsync(async () =>
+        {
+            _done = null;
+            if (e.File.Size > MostPageBytes)
+            {
+                _problem = "That file is too big to be a library page.";
+                return;
+            }
+            await using var page = e.File.OpenReadStream(MostPageBytes);
+            var read = await Api.ReadOnlinePageAsync(page);
+            _problem = read.Problem;
+            if (read.Preview is { } preview) Show(preview);
+        });
+    }
+
+    async Task ImagesPickedAsync(InputFileChangeEventArgs e)
+    {
+        if (_preview is not { } preview) return;
+        await RunAsync(async () =>
+        {
+            var shown = preview;
+            // Only the pictures the page names are sent; the rest of the folder stays on this computer.
+            foreach (var file in e.GetMultipleFiles(2000).Where(f => f.Size <= MostImageBytes))
+            {
+                await using var image = file.OpenReadStream(MostImageBytes);
+                shown = await Api.AddOnlineImageAsync(preview.Token, file.Name, image, file.ContentType);
+            }
+            _preview = shown;
+        });
+    }
+
+    void Choose(int row, bool chosen)
+    {
+        if (chosen) _chosen.Add(row);
+        else _chosen.Remove(row);
+    }
+
+    async Task ImportAsync()
+    {
+        if (_preview is not { } preview) return;
+        await RunAsync(async () =>
+        {
+            var imported = await Api.ImportOnlineAsync(preview.Token, new OnlineImportChoice([.. _chosen]));
+            _done = imported.Result;
+            Show(imported.Preview);
+            Activity.Refresh();
+        });
+    }
+
+    async Task RemoveAsync(OnlineMissing book)
+    {
+        await RunAsync(async () =>
+        {
+            _done = await Api.RemoveElsewhereAsync(book.EntryId);
+            await RefreshAsync();
+        });
+    }
+
+    /// <summary>The preview again, as after an Undo.</summary>
+    async Task RefreshAsync()
+    {
+        if (_preview is not { } preview) return;
+        try
+        {
+            Show(await Api.OnlinePreviewAsync(preview.Token), keepChoice: true);
+        }
+        catch (ApiProblemException ex)
+        {
+            _preview = null;
+            _problem = ex.Message;
+        }
+    }
+
+    /// <summary>Shows a preview with every book that has something to do ticked, as on Windows.</summary>
+    void Show(OnlinePreview preview, bool keepChoice = false)
+    {
+        _preview = preview;
+        var choosable = preview.Groups.SelectMany(g => g.Rows).Where(r => r.CanChoose).Select(r => r.Index).ToHashSet();
+        if (keepChoice) _chosen.IntersectWith(choosable);
+        else
+        {
+            _chosen.Clear();
+            _chosen.UnionWith(choosable);
+        }
+    }
+
+    async Task RunAsync(Func<Task> work)
+    {
+        _busy = true;
+        _problem = null;
+        try
+        {
+            await work();
+        }
+        catch (IOException)
+        {
+            _problem = "That file is too big to read here.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _problem = ex is ApiProblemException ? ex.Message : "Bibliotaph couldn't do that just now. Try again in a moment.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

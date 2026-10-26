@@ -70,12 +70,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     public bool IsIdle => !IsBusy;
 
     /// <summary>"Import 12 books", for the books ticked.</summary>
-    public string ImportLabel => Chosen.Count switch
-    {
-        0 => "Import",
-        1 => "Import 1 book",
-        var n => $"Import {n.ToString("N0", CultureInfo.CurrentCulture)} books",
-    };
+    public string ImportLabel => OnlineImportText.ImportLabel(Chosen.Count);
 
     IReadOnlyList<OnlineImportRow> Chosen => [.. Groups.SelectMany(g => g.Items).Where(i => i.CanChoose && i.IsChosen).Select(i => i.Row)];
 
@@ -97,8 +92,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
             var saved = await Task.Run(() => imports.ReadSavedPageAsync(path));
             if (saved is null)
             {
-                Problem = "That page isn't a library page Bibliotaph can read. Open your library on the service, sign in if asked, "
-                    + "and save the page with Save as, choosing Webpage, complete.";
+                Problem = OnlineImportText.Unreadable;
                 return;
             }
             _page = saved.Page;
@@ -302,14 +296,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         foreach (var book in plan.Missing) Missing.Add(new MissingBookViewModel(book, this));
         OnPropertyChanged(nameof(HasMissing));
 
-        static string Books(int n) => $"{n.ToString("N0", CultureInfo.CurrentCulture)} {(n == 1 ? "book" : "books")}";
-        var shared = page.Shared switch
-        {
-            0 => "",
-            1 => " 1 book shared with you was left out.",
-            var n => $" {Books(n)} shared with you were left out.",
-        };
-        Summary = $"Your {reader.Name} library: {Books(plan.Rows.Count)}.{shared}";
+        Summary = OnlineImportText.Summary(reader, plan.Rows.Count, page.Shared);
         Plan = plan;
         ChoiceChanged();
     }
@@ -332,13 +319,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         {
             var chosen = Chosen;
             var result = await Task.Run(() => imports.ImportAsync(plan, chosen, _covers));
-            Undo.Offer((result.Added, result.Changed) switch
-            {
-                (0, 0) => "Nothing needed changing.",
-                (var added, 0) => $"Added {Count(added, "book")} owned on {plan.Reader.Name}.",
-                (0, var changed) => $"Updated {Count(changed, "card")} already in your library.",
-                var (added, changed) => $"Added {Count(added, "book")} owned on {plan.Reader.Name} and updated {Count(changed, "card")} already in your library.",
-            }, () => WhileBusyAsync(async () =>
+            Undo.Offer(OnlineImportText.Imported(plan.Reader, result.Added, result.Changed), () => WhileBusyAsync(async () =>
             {
                 await Task.Run(() => imports.UndoAsync(result.Undo));
                 await ShowPlanAsync(plan.Reader, page);
@@ -350,8 +331,6 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
             IsBusy = false;
         }
     }
-
-    static string Count(int n, string noun) => $"{n.ToString("N0", CultureInfo.CurrentCulture)} {noun}{(n == 1 ? "" : "s")}";
 
     /// <summary>Runs an Undo as busy, so Import waits for it.</summary>
     async Task WhileBusyAsync(Func<Task> undo)
@@ -373,15 +352,13 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         if (await elsewhere.RemoveAsync(book.Book.EntryId) is not { } removed) return;
         Missing.Remove(book);
         OnPropertyChanged(nameof(HasMissing));
-        Undo.Offer($"Removed {book.Title} from your library.", () => WhileBusyAsync(async () =>
+        Undo.Offer(OnlineImportText.Removed(book.Title), () => WhileBusyAsync(async () =>
         {
             await elsewhere.UndoRemoveAsync(removed);
             if (Plan is { } plan && _page is { } page) await ShowPlanAsync(plan.Reader, page);
         }));
     }
 
-    /// <summary>A field's name as the preview says it: "Edition".</summary>
-    internal static string Describe(IReadOnlyList<MetadataField> fields) => string.Join(", ", fields.Select(f => f.Label));
 }
 
 /// <summary>A service in Settings &gt; Online libraries: its name, and opening it in the browser.</summary>
@@ -410,27 +387,13 @@ public sealed class OnlineGroupViewModel(OnlineOutcome outcome, IOnlineLibraryRe
 {
     public OnlineOutcome Outcome { get; } = outcome;
 
-    public string Label { get; } = outcome switch
-    {
-        OnlineOutcome.New => "New",
-        OnlineOutcome.AddToCard => "Already in your library",
-        OnlineOutcome.Update => "Imported before, with more to fill in",
-        _ => "Imported before",
-    };
+    public string Label { get; } = OnlineImportText.GroupLabel(outcome);
 
-    public string Explanation { get; } = outcome switch
-    {
-        OnlineOutcome.New => reader.LinkField == MetadataFields.AlsoOwn
-            ? $"Each becomes a book owned elsewhere, opening on {reader.Name}."
-            : $"Each becomes a book to get from {reader.Name}, until you download its file.",
-        OnlineOutcome.AddToCard => $"A card with its title is here already: it gets {reader.Name} and the link, rather than a second card.",
-        OnlineOutcome.Update => "Only fields that are empty are filled. Nothing you have set changes.",
-        _ => "Nothing to change.",
-    };
+    public string Explanation { get; } = OnlineImportText.GroupExplanation(outcome, reader);
 
     public ObservableCollection<OnlineRowViewModel> Items { get; } = [];
 
-    public string Heading => $"{Label} · {Items.Count.ToString("N0", CultureInfo.CurrentCulture)}";
+    public string Heading => OnlineImportText.GroupHeading(Outcome, Items.Count);
 }
 
 /// <summary>A book in the preview, ticked to import unless there is nothing to do.</summary>
@@ -448,13 +411,7 @@ public sealed partial class OnlineRowViewModel(OnlineImportRow row, OnlineLibrar
     partial void OnIsChosenChanged(bool value) => page.ChoiceChanged();
 
     /// <summary>"Gilded Press · adventure · 5e · 2019", "Goes on your card The Ember Vault", "Fills Edition, Type".</summary>
-    public string Detail => Row.Outcome switch
-    {
-        OnlineOutcome.AddToCard when Row.CardTitle != Title => $"Goes on your card {Row.CardTitle}.",
-        OnlineOutcome.AddToCard => "Goes on its card.",
-        OnlineOutcome.Update => $"Fills {OnlineLibrariesViewModel.Describe(Row.Fills)}.",
-        _ => string.Join(" · ", new object?[] { Row.Book.Publisher, Row.Book.Type, Row.Book.Edition, Row.Book.Year }.OfType<object>()),
-    };
+    public string Detail => OnlineImportText.Detail(Row);
 }
 
 /// <summary>A book from an earlier import the page doesn't list any more.</summary>

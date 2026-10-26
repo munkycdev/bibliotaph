@@ -102,7 +102,7 @@ public sealed class IndexStoreTests : IndexFixture
         await _queue.BlockAsync((await _queue.LeaseAsync(lane, "t", TimeSpan.FromMinutes(1), Ct))!, "Needs a password", Ct);
 
         var progress = await _queries.GetProgressAsync(Ct);
-        var attention = Assert.Single(await _queries.GetAttentionAsync(Ct));
+        var attention = Assert.Single(await _queries.GetAttentionAsync(ct: Ct));
 
         Assert.Equal(new IndexProgress(2, 1, 0, 1, 0, 0, Queued: 2), progress);
         Assert.Equal(2, progress.Indexed);
@@ -125,7 +125,7 @@ public sealed class IndexStoreTests : IndexFixture
         await _queue.FailAsync((await _queue.LeaseAsync(lane, "t", TimeSpan.FromMinutes(1), Ct))!, "Unexpected error: boom", retry: false, Ct);
 
         var progress = await _queries.GetProgressAsync(Ct);
-        var attention = Assert.Single(await _queries.GetAttentionAsync(Ct));
+        var attention = Assert.Single(await _queries.GetAttentionAsync(ct: Ct));
 
         Assert.Equal((1, 1, 1), (progress.NeedAttention, progress.ClassifyFailed, progress.ToClassify));
         Assert.Equal((1L, "Failed book", Stage.Classify, StageStatus.Failed, "Unexpected error: boom"),
@@ -157,7 +157,7 @@ public sealed class IndexStoreTests : IndexFixture
         var entry = Assert.Single(await new LibraryQueries(Database).ListAsync(new LibraryFilter(), ct: Ct));
         Assert.Equal(("Gazetteer of the Marches", TextAccess.Forgotten, false), (entry.Title, entry.TextAccess, entry.Searchable));
         Assert.Equal(1, (await _queries.GetProgressAsync(Ct)).Withheld);
-        Assert.Empty(await _queries.GetAttentionAsync(Ct));
+        Assert.Empty(await _queries.GetAttentionAsync(ct: Ct));
     }
 
     [Fact]

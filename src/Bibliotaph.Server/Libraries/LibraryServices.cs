@@ -197,6 +197,8 @@ public static class LibraryServices
 
         // Needs review: its cards come from these, and each decision goes through them, as in the Windows app.
         services.AddSingleton<ElsewhereService>();
+        services.AddSingleton<OnlineImports>();
+        services.AddSingleton(new HeldOnlinePages(host.Clock));
         services.AddSingleton<CollectionSuggestions>();
         services.AddSingleton<VocabularyService>();
         services.AddSingleton<ReviewCards>();

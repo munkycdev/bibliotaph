@@ -176,7 +176,10 @@ public static class StorageApi
             : counts.Documents == 0 ? "Nothing to process"
             : $"Up to date · {counts.Documents:N0} {FolderText.Plural(counts.Documents, "item", "items")}";
         var suggestions = await library.Get<ReviewService>().CountAsync(ct);
-        var attention = progress.NeedAttention + indexing.Unreadable.Count + counts.Problems;
+        // Counted among the library's folders, so a removed folder's failures don't linger in the sidebar.
+        var failing = (await library.Get<IndexQueries>().GetAttentionAsync(await library.Get<LibraryStore>().GetVisibleDocumentIdsAsync(ct), ct))
+            .Select(a => a.DocumentId).Distinct().Count();
+        var attention = failing + indexing.Unreadable.Count + counts.Problems;
         return new LibraryStatus(text, await library.IsBusyAsync(ct), counts.Documents, folders, (int)suggestions, (int)attention);
     }
 }

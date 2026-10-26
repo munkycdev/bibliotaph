@@ -256,8 +256,11 @@ public sealed partial class LibraryActivity : ObservableObject
             AiOn = _indexing.IsOpen(Lane.Classify);
             AiWaiting = AiOn ? _indexing.Unavailable(Lane.Classify) ?? "" : "";
             WaitingForDiskSpace = _indexing.WaitingForDiskSpace;
-            NeedsAttention = Progress.NeedAttention > 0 || _indexing.Unreadable.Count > 0 || Counts.Problems > 0;
-            AttentionCount = Progress.NeedAttention + _indexing.Unreadable.Count + Counts.Problems;
+            // Counted among the library's folders, so a removed folder's failures don't linger.
+            var failing = Progress.NeedAttention == 0 ? 0
+                : (await _queries.GetAttentionAsync(await _library.GetVisibleDocumentIdsAsync())).Select(a => a.DocumentId).Distinct().Count();
+            NeedsAttention = failing > 0 || _indexing.Unreadable.Count > 0 || Counts.Problems > 0;
+            AttentionCount = failing + _indexing.Unreadable.Count + Counts.Problems;
             SuggestionCount = await _review.CountAsync();
             HasIndexWork = _indexing.IsScanning || Counts.Unhashed - _indexing.Unreadable.Count > 0 || Progress.Indexing > 0;
             HasOcrWork = Progress.PagesAwaitingOcr > 0;
@@ -327,8 +330,9 @@ public sealed partial class LibraryActivity : ObservableObject
         else TimeLeftText = $"About {TimeLeft.Describe(running.Max(p => p.Left!.Value))} left";
 
         var notes = new List<string>();
-        if (Progress.NeedAttention + unreadable > 0)
-            notes.Add($"{Progress.NeedAttention + unreadable:N0} {Plural(Progress.NeedAttention + unreadable, "file needs", "files need")} attention");
+        var attention = AttentionCount - Counts.Problems;
+        if (attention > 0)
+            notes.Add($"{attention:N0} {Plural(attention, "file needs", "files need")} attention");
         if (Counts.UnhashedOnlineOnly > 0)
             notes.Add($"{Counts.UnhashedOnlineOnly:N0} online-only {Plural(Counts.UnhashedOnlineOnly, "file", "files")} to download ({Size(Counts.UnhashedOnlineOnlyBytes)})");
         Notes = string.Join(" · ", notes);
