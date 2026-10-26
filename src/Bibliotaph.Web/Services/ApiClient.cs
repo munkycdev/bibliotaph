@@ -43,6 +43,13 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<InviteInfo>> InvitesAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<InviteInfo>>("api/invites", ct) ?? [];
 
+    /// <summary>Every account, for an admin.</summary>
+    public Task<List<AccountInfo>> AccountsAsync(CancellationToken ct = default) => SendAsync<List<AccountInfo>>(HttpMethod.Get, "api/accounts", null, ct);
+
+    /// <summary>An admin deletes someone's account, as Close account would.</summary>
+    public Task<ActionResult> DeleteAccountAsync(string id, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Delete, $"api/accounts/{Uri.EscapeDataString(id)}", null, ct);
+
     public async Task<CreatedInvite> CreateInviteAsync(CreateInvite request, CancellationToken ct = default)
     {
         using var response = await http.PostAsJsonAsync("api/invites", request, ct);

@@ -103,6 +103,13 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
         return await db.Users.FindAsync([userId], ct);
     }
 
+    /// <summary>Every account, the most recently signed in first.</summary>
+    public async Task<IReadOnlyList<User>> UsersAsync(CancellationToken ct = default)
+    {
+        await using var db = database.CreateContext();
+        return await db.Users.AsNoTracking().OrderByDescending(u => u.LastSignIn).ToListAsync(ct);
+    }
+
     public async Task<IReadOnlyList<Login>> LoginsAsync(string userId, CancellationToken ct = default)
     {
         await using var db = database.CreateContext();

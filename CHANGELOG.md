@@ -74,6 +74,8 @@
 - **Notes in the web reader.** Note adds a note on the page in view or the selected text's page, and the Notes panel
   lists the book's page notes to go to, change or delete with Undo, as in the Windows reader; thumbnails badge pages
   with notes. See [Reading a book](docs/guide/web.md#reading-a-book).
+- **Admins can delete accounts on the web.** Settings › Accounts lists everyone who has joined; deleting one is the
+  same as its owner closing it, and signs them out everywhere. See [Inviting others](docs/guide/web.md#inviting-others).
 - **Close your account on the web.** Settings › Account › Close account… deletes your account, library, covers, storage
   connections and the books kept in that browser, and its backups within 30 days. Nothing in your storage is touched.
   See [Signing in and out](docs/guide/web.md#signing-in-and-out).
