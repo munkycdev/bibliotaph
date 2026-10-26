@@ -88,6 +88,22 @@ public sealed record ReaderFindPage(int Page, int Count);
 /// <summary>The page a book was left at, kept so it opens there next time.</summary>
 public sealed record ReaderPosition(int Page);
 
+/// <summary>The notes on the open book's pages, from all its copies, in page order, as the reader's Notes panel lists them.</summary>
+public sealed record ReaderNotes(IReadOnlyList<ReaderNote> Notes, string Label);
+
+/// <summary>
+/// A note in the Notes panel: its pages as the open copy numbers them ("p. 42–44") and where they are in it (from 0),
+/// and why it may not be at them. <see cref="OtherCopy"/> is a note made in another copy whose pages weren't found
+/// here: it goes to the same page, which may be a little different.
+/// </summary>
+public sealed record ReaderNote(long Id, string Pages, string Text, int First, int Last, string? Reason, bool Changed, bool OtherCopy);
+
+/// <summary>A note's pages in the open copy (from 0) and its text.</summary>
+public sealed record PageNoteEdit(int First, int Last, string Text);
+
+/// <summary>The notes after a change, and what the change did, with its Undo.</summary>
+public sealed record ReaderNotesChanged(ReaderNotes Notes, ActionResult Done);
+
 /// <summary>
 /// Page numbers as a reader types and reads them: the printed label where the file has one, else the PDF page. The
 /// web reader's copy of <c>PageNumbers</c> in Core, which a test keeps the same.

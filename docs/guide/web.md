@@ -305,6 +305,12 @@ server never has a copy. What you've read is kept in your browser, so turning ba
 - **Find**: **Ctrl+F**, then **Enter** or **F3** for the next match and **Shift+F3** for the one before. In an
   adventure, Find looks in its pages unless you tick **Whole file**.
 - **Copy**: select text and press **Ctrl+C**. If a PDF doesn't allow copying, Bibliotaph says so.
+- **Note** at the top adds a note on the page in view, or on the page with the text you've selected: type the note,
+  widen it to a range with **To page** if you like, and **Save note** (or **Ctrl+Enter**). **Notes** in the toolbar
+  shows the notes on the book's pages, from all its copies, beside the pages: click a note's pages to go there, the
+  pencil to change it and the bin to delete it, with **Undo**. Pages with notes have a badge in the thumbnails. A note
+  whose page changed in a new version says so when you go to it, and one made in another copy says its page may be a
+  little different here. A book's notes are the same ones the Windows app shows.
 - The **heart** and the **pin** make the book a favorite and pin it to the sidebar. **Pop out** moves the book to a
   window of its own, and **Return to main window** brings it back. **Open in new window** beside **Open** in a book's
   details, and beside a matching page, opens it in one straight away.

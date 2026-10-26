@@ -71,6 +71,9 @@
 - **E-books in the web reader.** EPUB and Kindle books open in the browser as in the Windows reader, in the same pages
   search found, with Find, zoom, links and fixed-layout books; the server never sees the book. See
   [Reading a book](docs/guide/web.md#reading-a-book).
+- **Notes in the web reader.** Note adds a note on the page in view or the selected text's page, and the Notes panel
+  lists the book's page notes to go to, change or delete with Undo, as in the Windows reader; thumbnails badge pages
+  with notes. See [Reading a book](docs/guide/web.md#reading-a-book).
 
 ## 1.3 · 19 October 2026
 

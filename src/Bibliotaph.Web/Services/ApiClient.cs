@@ -201,6 +201,20 @@ public sealed class ApiClient(HttpClient http)
     public Task SavePositionAsync(long documentId, int page, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Put, $"{Document(documentId)}/position", new ReaderPosition(page), ct);
 
+    // The reader's Notes panel: the notes on the open book's pages, as the copy open there numbers them.
+
+    public Task<ReaderNotes> ReaderNotesAsync(long documentId, CancellationToken ct = default) =>
+        SendAsync<ReaderNotes>(HttpMethod.Get, $"{Document(documentId)}/notes", null, ct);
+
+    public Task<ReaderNotesChanged> AddPageNoteAsync(long documentId, PageNoteEdit note, CancellationToken ct = default) =>
+        SendAsync<ReaderNotesChanged>(HttpMethod.Post, $"{Document(documentId)}/notes", note, ct);
+
+    public Task<ReaderNotesChanged> UpdatePageNoteAsync(long documentId, long noteId, PageNoteEdit note, CancellationToken ct = default) =>
+        SendAsync<ReaderNotesChanged>(HttpMethod.Put, $"{Document(documentId)}/notes/{noteId.ToString(System.Globalization.CultureInfo.InvariantCulture)}", note, ct);
+
+    public Task<ReaderNotesChanged> DeletePageNoteAsync(long documentId, long noteId, CancellationToken ct = default) =>
+        SendAsync<ReaderNotesChanged>(HttpMethod.Delete, $"{Document(documentId)}/notes/{noteId.ToString(System.Globalization.CultureInfo.InvariantCulture)}", null, ct);
+
     // The sidebar's pins, and saved searches.
 
     public Task<PinList> PinsAsync(CancellationToken ct = default) => SendAsync<PinList>(HttpMethod.Get, "api/pins", null, ct);
