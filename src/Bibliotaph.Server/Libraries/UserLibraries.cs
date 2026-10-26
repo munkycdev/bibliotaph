@@ -3,6 +3,7 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
+using Bibliotaph.Server.Ai;
 using Bibliotaph.Server.Storage;
 using Bibliotaph.Storage.OneDrive;
 using Microsoft.EntityFrameworkCore;
@@ -39,8 +40,9 @@ public sealed class UserLibrary
     public IDbContextFactory<CatalogDbContext> Contexts => Get<IDbContextFactory<CatalogDbContext>>();
 
     /// <summary>
-    /// Whether indexing has work in hand: a scan, files still to read, or scanned pages. A busy library stays open after its last
-    /// request, so indexing finishes even when nobody is looking.
+    /// Whether indexing has work in hand: a scan, files still to read, scanned pages, or books for the AI to catalogue
+    /// while it's answering. A busy library stays open after its last request, so indexing finishes even when nobody is
+    /// looking.
     /// </summary>
     public async Task<bool> IsBusyAsync(CancellationToken ct = default)
     {
@@ -50,8 +52,11 @@ public sealed class UserLibrary
         var counts = await Get<LibraryStore>().GetCountsAsync(ct);
         // Files that couldn't be read are tried again after the next scan, not now.
         if (counts.Unhashed > indexing.Unreadable.Count) return true;
-        // Scanned pages are read to the end even with nobody signed in, so search finds them next time.
-        return !indexing.IsPaused(Lane.Ocr) && (await Get<IndexQueries>().GetProgressAsync(ct)).PagesAwaitingOcr > 0;
+        // Scanned pages are read, and books catalogued, to the end even with nobody signed in.
+        var progress = await Get<IndexQueries>().GetProgressAsync(ct);
+        if (!indexing.IsPaused(Lane.Ocr) && progress.PagesAwaitingOcr > 0) return true;
+        return Get<AiSettings>().Setup.IsReady && !indexing.IsPaused(Lane.Classify) && indexing.Unavailable(Lane.Classify) is null
+            && progress.ToClassify > 0;
     }
 }
 
@@ -249,6 +254,10 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             if (opened != IndexOpenResult.Opened) _log.LogInformation("index.db for {User}: {Result}", userId, opened);
             await library.Writer.StartAsync(CancellationToken.None);
             await library.Get<CoverMirror>().StartAsync(CancellationToken.None);
+
+            // Before the Classify lane looks at whether it may send anything.
+            await library.Get<ServerApiKeys>().LoadAsync();
+            await library.Get<AiSettings>().LoadAsync();
 
             await library.Drives.ReloadAsync();
             // Scans every library folder as it starts, which picks up whatever changed while the library was closed.

@@ -20,6 +20,13 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IStageCat
     readonly Dictionary<Lane, Signal> _signals = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new Signal());
     readonly Dictionary<Lane, LaneControl> _lanes = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new LaneControl());
 
+    /// <summary>
+    /// The lanes holding each document's jobs that wait for another of its stages. The job board makes those jobs
+    /// ready when one of the document's stages finishes; their lanes are woken here, or they would sleep until their
+    /// next look, minutes away.
+    /// </summary>
+    readonly Dictionary<long, HashSet<Lane>> _waiting = [];
+
     /// <summary>The stages the lanes run.</summary>
     public IStageCatalog Stages => stages;
 
@@ -257,6 +264,17 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IStageCat
         }, stopping);
         if (outcome is StageOutcome.Done { Next: var next })
             foreach (var other in next.Select(stages.Find).OfType<IStage>().Select(s => s.Lane).Distinct()) _signals[other].Set();
+        HashSet<Lane>? waiting = null;
+        lock (_lock)
+        {
+            if (outcome is StageOutcome.Later)
+            {
+                if (!_waiting.TryGetValue(job.DocumentId, out var lanes)) _waiting[job.DocumentId] = lanes = [];
+                lanes.Add(lane);
+            }
+            else if (outcome is not StageOutcome.Unavailable) _waiting.Remove(job.DocumentId, out waiting);
+        }
+        foreach (var other in waiting ?? []) _signals[other].Set();
         if (Pipeline.FileStages.Contains(job.Stage)) fileStageDone();
     }
 

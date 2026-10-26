@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Bibliotaph.Pdf.Host;
 using Bibliotaph.Server.Accounts;
+using Bibliotaph.Server.Ai;
 using Bibliotaph.Server.Indexing;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
@@ -143,7 +144,7 @@ sealed class LibraryFixture : IAsyncDisposable
         Paths = new ServerPaths(root);
         Accounts = new AccountsDatabase(Paths.Accounts);
         Accounts.MigrateAsync().GetAwaiter().GetResult();
-        Connections = new StorageConnections(Accounts, new EphemeralDataProtectionProvider(), clock);
+        Connections = new StorageConnections(Accounts, Protection, clock);
         var http = new FakeHttp(Graph);
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -154,8 +155,14 @@ sealed class LibraryFixture : IAsyncDisposable
         Drives = new UserDriveFactory(Connections, Tokens, http, clock);
         Pdf = new PdfWorkerPool(new PdfWorkerPoolOptions());
         Libraries = new UserLibraries(Paths, new NoRestore(), new LibraryHost(NullLoggerFactory.Instance, clock, Drives, Paths.Downloads,
-            new WorkerPdfEngine(Pdf), new SkiaImageCodec(), Covers));
+            new WorkerPdfEngine(Pdf), new SkiaImageCodec(), Covers, Protection, new ModelClientFactory(Models.ClientFor)));
     }
+
+    /// <summary>One for the fixture's life, so a library opened again can read the keys it sealed.</summary>
+    public IDataProtectionProvider Protection { get; } = new EphemeralDataProtectionProvider();
+
+    /// <summary>Stands in for every model service the libraries reach.</summary>
+    public FakeModelService Models { get; } = new();
 
     public FakeGraph Graph { get; }
 

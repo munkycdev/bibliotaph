@@ -866,3 +866,23 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-athandgroup{display:block;padding:8px 10px 2px;font-size:10px}
 .bt-athandbinder{padding:6px 10px 2px;font-size:12px;font-weight:600;color:var(--bt-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bt-menuitem.bt-athandpage{display:block;padding-left:22px}
+.bt-segments{display:flex;flex:0 0 auto;background:var(--bt-side);padding:2px;border-radius:5px}
+.bt-segments button{padding:5px 14px;border-radius:4px;font-size:12px;color:var(--bt-muted);cursor:pointer}
+.bt-segments button.on{background:var(--bt-panel);color:var(--bt-text);box-shadow:0 1px 3px #00000012}
+.bt-subheading{font-size:13px;font-weight:600;color:var(--bt-text);margin:22px 0 2px}
+.bt-section .bt-field{max-width:620px;margin-top:14px}
+.bt-inputrow{display:flex;gap:8px;align-items:center;max-width:620px;margin-top:6px}
+.bt-inputrow .bt-input{flex:1;min-width:0}
+.bt-section>.bt-problem{max-width:620px;line-height:1.6}
+.bt-aisend{margin-top:8px}
+.bt-topline{border-top:1px solid var(--bt-line);margin-top:24px}
+.bt-settingrow.bt-topline{border-bottom:0}
+.bt-aifolder{padding:9px 0;border-bottom:1px solid var(--bt-line);max-width:620px}
+.bt-aiteststep{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;margin:16px 0 10px;font-size:13px}
+.bt-aiteststep small{display:block;margin-top:6px;font-size:11px;line-height:1.6;color:var(--bt-muted)}
+.bt-aitestresult{overflow:auto;margin-top:12px;min-height:0}
+.bt-aitestsummary{font-size:13px;margin:0 0 6px}
+.bt-aitestline{padding:8px 0;border-bottom:1px solid var(--bt-line);font-size:12px}
+.bt-aitestline small{display:block;margin-top:3px;font-size:11px;color:var(--bt-muted)}
+.bt-aitestdropped{margin-top:16px}
+.bt-aitestactions{justify-content:space-between;margin-top:20px}

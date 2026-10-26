@@ -78,7 +78,7 @@ two copies, and a file that shares most of its pages with a book you have is off
 of it, as on Windows. Bibliotaph downloads a book once for this and deletes its copy as soon as it's done; the
 sidebar shows **Reading 120 new files** and then **Up to date**. Scanned pages with no text of their own are read by
 OCR, in English, as on Windows: the sidebar shows **Reading scanned pages · 40 left** while it works, and they're then
-found by search like any other page. AI suggestions aren't made on the web yet.
+found by search like any other page. With [AI](#ai) set up, each book is then catalogued by it too.
 
 ## Your library and search
 
@@ -402,6 +402,30 @@ you've written about it.
   of space. Some browsers agree only for a site you visit often or have bookmarked; until then, Settings says the
   browser may clear them.
 - A private window can't keep books: each page downloads as you read it.
+
+## AI
+
+AI is optional on the web too. Without it, Bibliotaph still finds, searches and opens everything, and fills in what it
+can from folder names and the files themselves. With it, a model reads a few pages of each book and suggests the rest of
+its details, each with the page and quote it came from, as in the Windows app (see [AI](ai.md)). Bibliotaph doesn't run
+a model on the web or pay for one: you use your own key with a service that speaks the OpenAI chat API, such as OpenAI
+or OpenRouter, or your own model server on the internet.
+
+1. Open **Settings** › **AI** and type the server's **Address**, such as `https://api.openai.com/v1` or
+   `https://openrouter.ai/api/v1`, and its **Key**, then choose **Connect**. Only an https address on the internet
+   works: the web can't reach a server on your own computer or network.
+2. Tick **Send excerpts to this server**. Each book's excerpt, a few thousand words of its text, is sent there.
+3. Choose a **Model** and **Save**. AI switches on and books are catalogued in the background, one at a time, even
+   when Bibliotaph isn't open; the sidebar shows **Cataloguing with AI · 120 left**.
+
+The key is kept encrypted on Bibliotaph's server, used only to ask that server, and never shown again: Settings says
+which key is saved by its last four characters, and **Forget key** removes it. **Test with a book** tries the model on
+one of your books and shows what it kept, with each page and quote, and what it threw away and why. **Use AI** turns it
+**Off** or **On** without losing your setup, **Reclassify** reads again the books an earlier model read or couldn't
+read, and **Library folders sent to AI** keeps a folder's books away from the model.
+
+The service bills you for what it reads: cataloguing reads a few thousand words of each book once. Scanning whole
+books, Ask, Ask this book and questions to your library aren't on the web yet.
 
 ## Your theme
 

@@ -197,8 +197,12 @@ else
 
     int Hidden => Math.Max(0, Matching.Count() - _shown);
 
+    /// <summary>"files" opens Files needing attention, as Settings › AI's "See which books, and why" does on Windows.</summary>
+    [SupplyParameterFromQuery(Name = "tab")] public string? Tab { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
+        _filesTab = Tab == "files";
         Activity.Changed += OnActivity;
         await Task.WhenAll(LoadAsync(), LoadFilesAsync());
     }

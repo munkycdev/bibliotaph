@@ -50,6 +50,26 @@ public sealed class ApiClient(HttpClient http)
     public Task<ActionResult> DeleteAccountAsync(string id, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Delete, $"api/accounts/{Uri.EscapeDataString(id)}", null, ct);
 
+    public Task<AiPage> AiAsync(CancellationToken ct = default) => SendAsync<AiPage>(HttpMethod.Get, "api/ai", null, ct);
+
+    public Task<AiConnection> ConnectAiAsync(AiConnect connect, CancellationToken ct = default) =>
+        SendAsync<AiConnection>(HttpMethod.Post, "api/ai/connect", connect, ct);
+
+    public Task<AiNote> SaveAiAsync(AiSave save, CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Put, "api/ai", save, ct);
+
+    public Task<AiNote> SwitchAiAsync(bool on, CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Put, "api/ai/enabled", new AiSwitch(on), ct);
+
+    public Task ForgetAiKeyAsync(string endpoint, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Delete, $"api/ai/key?endpoint={Uri.EscapeDataString(endpoint)}", null, ct);
+
+    public Task SendFolderToAiAsync(long id, bool send, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Put, $"api/ai/folders/{id}", new AiFolderSend(send), ct);
+
+    public Task<AiNote> ReclassifyAsync(CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Post, "api/ai/reclassify", null, ct);
+
+    /// <summary>Test with a book: held open while the model reads, and cancelled with <paramref name="ct"/>.</summary>
+    public Task<AiTestReport> TestAiAsync(AiTest test, CancellationToken ct = default) => SendAsync<AiTestReport>(HttpMethod.Post, "api/ai/test", test, ct);
+
     public async Task<CreatedInvite> CreateInviteAsync(CreateInvite request, CancellationToken ct = default)
     {
         using var response = await http.PostAsJsonAsync("api/invites", request, ct);
