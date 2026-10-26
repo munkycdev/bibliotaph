@@ -17,7 +17,7 @@ namespace Bibliotaph.Server.Libraries;
 /// that seal a user's AI keys and PDF passwords, and how a model service is reached.
 /// </summary>
 public sealed record LibraryHost(ILoggerFactory Logs, TimeProvider Clock, UserDriveFactory Drives, string TemporaryFolder, IPdfEngine Pdf,
-    IImageCodec Images, ICoverStore Covers, IDataProtectionProvider Protection, ModelClientFactory Models);
+    IImageCodec Images, ICoverStore Covers, IDataProtectionProvider Protection, ModelClientFactory Models, ForegroundActivity? Foreground = null);
 
 /// <summary>
 /// One library's services: the same stores, queries and indexing the Windows app composes in its own host, built once
@@ -197,7 +197,7 @@ public static class LibraryServices
         services.AddSingleton<LibraryAskService>();
         services.AddSingleton<LibraryVectors>();
         services.AddSingleton<IStageCatalog, StageCatalog>();
-        services.AddSingleton(new IndexingOptions { OnlineOnlyReserveBytes = 0 });
+        services.AddSingleton(new IndexingOptions { OnlineOnlyReserveBytes = 0, Foreground = host.Foreground });
         services.AddSingleton<IndexingFiles>();
         services.AddSingleton(sp => new IndexingService(
             sp.GetRequiredService<SourceRootStore>(), sp.GetRequiredService<LibraryStore>(), sp.GetRequiredService<JobBoard>(),

@@ -23,7 +23,7 @@ public static class ProcessingApi
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             return await StateAsync(lease.Library, ct);
-        });
+        }).WatchesBackgroundWork();
 
         processing.MapPut("/paused", async (ProcessingPauses paused, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {

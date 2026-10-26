@@ -42,6 +42,9 @@ public sealed record IndexingOptions
     /// free space again: the sync app frees it shortly after it is asked, not at once.
     /// </summary>
     public TimeSpan SpaceSettle { get; init; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>Requests someone is waiting on, which hashing and the lanes let go first; none in the Windows app.</summary>
+    public ForegroundActivity? Foreground { get; init; }
 }
 
 /// <summary>Why a library folder reads as offline. Its files are never marked missing for it.</summary>

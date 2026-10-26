@@ -124,6 +124,7 @@ internal sealed class HashingLoop(LibraryStore library, JobBoard queue, Indexing
                         waitingForSpace = true;
                         continue;
                     }
+                    if (options.Foreground is { } foreground) await foreground.WaitForQuietAsync(ct);
                     await HashFileAsync(file, ct);
                 }
                 // A changed file hashed back to its old content is that document's file again.

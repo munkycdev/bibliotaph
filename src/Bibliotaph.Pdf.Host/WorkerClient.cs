@@ -22,6 +22,12 @@ public sealed record WorkerOptions
     /// <summary>A name for logs, such as the pool slot.</summary>
     public string Name { get; init; } = "worker";
 
+    /// <summary>
+    /// Reads books in the background, below normal priority, so the CPU goes to what someone is waiting on first: the
+    /// window in the Windows app, the answers on a server with one CPU.
+    /// </summary>
+    public bool Background { get; init; }
+
     public static string DefaultWorkerPath =>
         Path.Combine(AppContext.BaseDirectory, "pdfworker", OperatingSystem.IsWindows() ? "Bibliotaph.PdfWorker.exe" : "Bibliotaph.PdfWorker");
 }
@@ -246,6 +252,18 @@ public sealed class WorkerClient : IAsyncDisposable
             while (_stderr.Count > 6) _stderr.TryDequeue(out string? _);
         };
         _process.BeginErrorReadLine();
+        if (Options.Background)
+        {
+            try
+            {
+                _process.PriorityClass = ProcessPriorityClass.BelowNormal;
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                // It still reads, only at the same priority as everything else.
+                _log.LogWarning(ex, "PDF {Worker} runs at normal priority", Options.Name);
+            }
+        }
         if (OperatingSystem.IsWindows())
         {
             // One job per worker, so the peak-memory reading covers this worker only. The worker is
