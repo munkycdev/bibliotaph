@@ -6,7 +6,6 @@ using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Reading;
-using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -391,13 +390,11 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     /// </summary>
     public async Task<IReadOnlyList<AtHandGroup>> AtHandAsync()
     {
-        var packs = _directory.All.Where(p => p.KeepAtHand && p.Id != PackId).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase).ToList();
+        var packs = AtHandGroups.Besides(_directory.All, PackId);
         if (packs.Count == 0) return [];
         try
         {
-            List<EntryId> entries = [.. Items.Select(i => i.Item.EntryId).Distinct()];
-            var systems = entries.Count == 0 ? [] : (await Task.Run(() => _queries.GetFacetCountsAsync("system", new LibraryFilter(entries))))
-                .Select(f => f.Value).Where(v => v != SearchQuery.Unknown).ToHashSet();
+            var systems = await Task.Run(() => AtHandGroups.SystemsOfAsync(_queries, [.. Items.Select(i => i.Item.EntryId).Distinct()]));
             var binders = new List<AtHandBinder>();
             foreach (var pack in packs)
             {
@@ -405,15 +402,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
                 var rows = await SessionPackRows.BuildAsync(_sessions, _queries, _covers, contents);
                 binders.Add(new AtHandBinder(contents.Pack, [.. rows.OfType<SessionItemRow>()]));
             }
-            var matching = binders.Where(b => b.Pack.GameSystem is { } system && systems.Contains(system)).ToList();
-            var any = binders.Where(b => b.Pack.GameSystem is null).ToList();
-            AtHandGroup[] groups =
-            [
-                new("For this binder's game systems", matching),
-                new("For any game system", any),
-                new("Other game systems", [.. binders.Except(matching).Except(any)]),
-            ];
-            return [.. groups.Where(g => g.Binders.Count > 0)];
+            return [.. AtHandGroups.Of(binders, b => b.Pack.GameSystem, systems).Select(g => new AtHandGroup(g.Heading, g.Binders))];
         }
         catch (Exception ex)
         {

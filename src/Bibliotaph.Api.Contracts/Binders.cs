@@ -18,7 +18,19 @@ public sealed record BinderEdit(string Title, DateOnly? Date, bool KeepAtHand, s
 /// starts with, and the headings Add section suggests.
 /// </summary>
 public sealed record BinderPage(long Id, string Title, string Eyebrow, string Count, DateOnly? Date, bool KeepAtHand, string? GameSystem, string Notes,
-    IReadOnlyList<BinderLine> Rows, IReadOnlyList<FilterChoice> Systems, IReadOnlyList<string> SuggestedSections);
+    IReadOnlyList<BinderLine> Rows, IReadOnlyList<FilterChoice> Systems, IReadOnlyList<string> SuggestedSections)
+{
+    /// <summary>Some other binder is kept at hand during games, so its reader shows At hand.</summary>
+    public bool HasAtHand { get; init; }
+}
+
+/// <summary>At hand, in a binder's reader: the other binders kept at hand, grouped by game system, each with its pages.</summary>
+public sealed record AtHandList(IReadOnlyList<AtHandGroup> Groups, string NothingInIt, string NoneAtHand);
+
+/// <summary>"For this binder's game systems", "For any game system" or "Other game systems", and its binders by title.</summary>
+public sealed record AtHandGroup(string Heading, IReadOnlyList<AtHandBinder> Binders);
+
+public sealed record AtHandBinder(long Id, string Title, IReadOnlyList<BinderItem> Pages);
 
 /// <summary>A row of a binder: a section's heading, or an item.</summary>
 public sealed record BinderLine(BinderSection? Section, BinderItem? Item);

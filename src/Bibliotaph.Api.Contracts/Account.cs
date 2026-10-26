@@ -35,3 +35,6 @@ public static class ApiHeaders
     /// </summary>
     public const string Client = "X-Bibliotaph";
 }
+
+/// <summary>An account, as an admin's list in Settings shows it; <see cref="IsYou"/> is the admin's own.</summary>
+public sealed record AccountInfo(string Id, string Name, string? Email, bool IsAdmin, DateTimeOffset Created, DateTimeOffset LastSignIn, bool IsYou);

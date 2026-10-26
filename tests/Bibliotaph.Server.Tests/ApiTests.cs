@@ -93,6 +93,49 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task An_admin_deletes_someone_elses_account_but_not_their_own()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var admin = await AddUserAsync(admin: true);
+        var user = await AddUserAsync(admin: false);
+        var theirs = Client(user);
+        (await theirs.GetAsync("/api/library/summary", ct)).EnsureSuccessStatusCode();
+        var folder = _factory.Services.GetRequiredService<ServerPaths>().UserRoot(user.Id);
+        var client = Client(admin);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+
+        var listed = await client.GetFromJsonAsync<List<AccountInfo>>("/api/accounts", ct);
+        using var own = await client.DeleteAsync($"/api/accounts/{admin.Id}", ct);
+        using var deleted = await client.DeleteAsync($"/api/accounts/{user.Id}", ct);
+
+        Assert.Contains(listed!, a => a.Id == admin.Id && a.IsYou);
+        Assert.Contains(listed!, a => a.Id == user.Id && !a.IsYou);
+        Assert.Equal(HttpStatusCode.BadRequest, own.StatusCode);
+        deleted.EnsureSuccessStatusCode();
+        Assert.StartsWith("Deleted Dana's account", (await deleted.Content.ReadFromJsonAsync<ActionResult>(ct))!.Message, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(folder));
+        using var after = await theirs.GetAsync("/api/library/summary", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, after.StatusCode);
+        Assert.DoesNotContain(await client.GetFromJsonAsync<List<AccountInfo>>("/api/accounts", ct) ?? [], a => a.Id == user.Id);
+    }
+
+    [Fact]
+    public async Task Only_an_admin_may_list_or_delete_accounts()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var other = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+
+        using var listed = await client.GetAsync("/api/accounts", ct);
+        using var deleted = await client.DeleteAsync($"/api/accounts/{other.Id}", ct);
+
+        Assert.Equal(HttpStatusCode.Forbidden, listed.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, deleted.StatusCode);
+    }
+
+    [Fact]
     public async Task Me_describes_the_signed_in_user()
     {
         var user = await AddUserAsync(admin: false);

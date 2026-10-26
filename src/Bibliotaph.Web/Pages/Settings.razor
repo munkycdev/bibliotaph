@@ -179,6 +179,55 @@ else if (Problem == "storage")
                 </table>
             }
         </section>
+
+        <section class="bt-section" aria-labelledby="accounts">
+            <h2 id="accounts">Accounts</h2>
+            <p class="bt-copy">Everyone who has joined. Deleting an account is the same as its owner closing it: their library and
+                everything they've done in it go, and nothing in their storage is touched.</p>
+            @if (_accountNote is { } accountNote)
+            {
+                <div class="bt-message" role="status">@accountNote</div>
+            }
+            @if (_accounts is { Count: > 0 })
+            {
+                <table class="bt-table">
+                    <thead><tr><th>NAME</th><th>EMAIL</th><th>JOINED</th><th>LAST SIGNED IN</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (var account in _accounts)
+                        {
+                            <tr>
+                                <td>@account.Name@(account.IsAdmin ? " (can invite)" : "")@(account.IsYou ? " · you" : "")</td>
+                                <td>@(account.Email ?? "—")</td>
+                                <td>@account.Created.ToString("d MMM yyyy")</td>
+                                <td>@account.LastSignIn.ToString("d MMM yyyy")</td>
+                                <td>
+                                    @if (!account.IsYou)
+                                    {
+                                        <button class="bt-icon" title="Delete this account" aria-label="Delete @(account.Name)'s account"
+                                                @onclick="() => { _deleting = account; _accountNote = null; }"><Icon Name="Trash2" Size="14" /></button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            @if (_deleting is { } deleting)
+            {
+                <div class="bt-source bt-pending" role="alertdialog" aria-labelledby="delete-heading" aria-describedby="delete-detail">
+                    <div class="bt-sourcerow">
+                        <Icon Name="Trash2" />
+                        <div id="delete-heading">Delete @(deleting.Name)'s account?<small id="delete-detail">Bibliotaph deletes the account, its
+                            library and everything done in it, and its storage connections, straight away, and from backups within 30 days.
+                            They're signed out everywhere. Nothing in their storage is touched. This can't be undone.</small></div>
+                    </div>
+                    <div class="bt-actions">
+                        <button class="bt-button primary" disabled="@_deletingNow" @onclick="DeleteAccount"><Icon Name="Trash2" />Delete account</button>
+                        <button class="bt-button" disabled="@_deletingNow" @onclick="() => _deleting = null">Cancel</button>
+                    </div>
+                </div>
+            }
+        </section>
     }
 }
 
@@ -196,6 +245,10 @@ else if (Problem == "storage")
     bool _picking;
     bool _closing, _closingNow;
     string? _closeProblem;
+    IReadOnlyList<AccountInfo>? _accounts;
+    AccountInfo? _deleting;
+    bool _deletingNow;
+    string? _accountNote;
 
     const string ConnectLink = "storage/connect/onedrive?returnUrl=%2Fsettings%23library";
 
@@ -209,7 +262,28 @@ else if (Problem == "storage")
         _providers = await Api.ProvidersAsync();
         _storage = await Api.StorageAsync();
         _folders = await Api.LibraryFoldersAsync();
-        if (_me?.IsAdmin == true) _invites = await Api.InvitesAsync();
+        if (_me?.IsAdmin == true)
+        {
+            _invites = await Api.InvitesAsync();
+            _accounts = await Api.AccountsAsync();
+        }
+    }
+
+    async Task DeleteAccount()
+    {
+        if (_deleting is not { } account) return;
+        _deletingNow = true;
+        try
+        {
+            _accountNote = (await Api.DeleteAccountAsync(account.Id)).Message;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _accountNote = ex is ApiProblemException problem ? problem.Message : $"{account.Name}'s account couldn't be deleted just now. Try again in a moment.";
+        }
+        _deleting = null;
+        _deletingNow = false;
+        _accounts = await Api.AccountsAsync();
     }
 
     async Task CreateInvite()

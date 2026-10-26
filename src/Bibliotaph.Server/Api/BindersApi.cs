@@ -106,6 +106,13 @@ public static class BindersApi
             return await AddAsync(lease.Library, id, add, ct) is { } done ? Results.Ok(done) : Results.NotFound();
         });
 
+        // At hand, in a binder's reader: the pages of the other binders kept at hand.
+        binders.MapGet("/{id:long}/at-hand", async (long id, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await AtHandAsync(lease.Library, id, ct) is { } list ? Results.Ok(list) : Results.NotFound();
+        });
+
         // The binder reader's Add this page: right after the item in hand, in its section, as on Windows.
         binders.MapPost("/{id:long}/items", async (long id, BinderPageAdd add, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
@@ -313,13 +320,22 @@ public static class BindersApi
 
     static async Task<BinderPage> PageAsync(UserLibrary library, SessionPackContents contents, CancellationToken ct)
     {
-        var rows = await BinderRows.BuildAsync(library.Get<SessionsService>(), library.Get<LibraryQueries>(), contents, ct);
+        var sessions = library.Get<SessionsService>();
+        var rows = await BinderRows.BuildAsync(sessions, library.Get<LibraryQueries>(), contents, ct);
         var away = await library.Get<LibraryStore>().GetUnavailableAsync(ct);
         var pack = contents.Pack;
         BinderLine Line(BinderRow row) => row.Section is { } section
             ? new BinderLine(new BinderSection(section.Id, section.Name), null)
-            : new BinderLine(null, Item(row.Item!));
-        BinderItem Item(BinderItemRow row) => new(row.Item.Id, BinderText.Number(row.Number), row.BookTitle, row.Item.Label ?? "", row.Heading, row.Where,
+            : new BinderLine(null, Item(contents, row.Item!, away));
+        return new BinderPage(pack.Id, pack.Title, BinderText.Eyebrow(pack.Date), BinderText.ListCount(pack.ItemCount), pack.Date, pack.KeepAtHand, pack.GameSystem,
+            pack.Notes ?? "", [.. rows.Select(Line)], await SystemsAsync(library, ct), BinderText.SuggestedSections)
+        {
+            HasAtHand = AtHandGroups.Besides(await sessions.ListAsync(ct), pack.Id).Count > 0,
+        };
+    }
+
+    static BinderItem Item(SessionPackContents contents, BinderItemRow row, IReadOnlyDictionary<EntryId, EntryAvailability> away) =>
+        new(row.Item.Id, BinderText.Number(row.Number), row.BookTitle, row.Item.Label ?? "", row.Heading, row.Where,
             row.Item.Note ?? "", row.Card is { } card ? LibraryApi.ToCard(card, away.GetValueOrDefault(card.EntryId)) : null, row.Reason, row.IsDimmed, row.IsChanged,
             [.. BinderRows.MoveTargets(contents, row.Item).Select(m => new BinderMove(m.SectionId, m.Label))])
         {
@@ -329,7 +345,25 @@ public static class BindersApi
             OnlineLink = row.OnlineLink,
             OnlinePlace = row.OnlinePlace,
         };
-        return new BinderPage(pack.Id, pack.Title, BinderText.Eyebrow(pack.Date), BinderText.ListCount(pack.ItemCount), pack.Date, pack.KeepAtHand, pack.GameSystem,
-            pack.Notes ?? "", [.. rows.Select(Line)], await SystemsAsync(library, ct), BinderText.SuggestedSections);
+
+    /// <summary>At hand's list for a binder's reader, as the Windows reader builds it; null when there's no such binder.</summary>
+    internal static async Task<AtHandList?> AtHandAsync(UserLibrary library, long id, CancellationToken ct)
+    {
+        var sessions = library.Get<SessionsService>();
+        var queries = library.Get<LibraryQueries>();
+        if (await sessions.GetAsync(id, ct) is not { } contents) return null;
+        var away = await library.Get<LibraryStore>().GetUnavailableAsync(ct);
+        var binders = new List<AtHandBinder>();
+        var systemOf = new Dictionary<long, string?>();
+        foreach (var pack in AtHandGroups.Besides(await sessions.ListAsync(ct), id))
+        {
+            if (await sessions.GetAsync(pack.Id, ct) is not { } other) continue;
+            var rows = await BinderRows.BuildAsync(sessions, queries, other, ct);
+            binders.Add(new AtHandBinder(pack.Id, pack.Title, [.. rows.Select(r => r.Item).OfType<BinderItemRow>().Select(r => Item(other, r, away))]));
+            systemOf[pack.Id] = pack.GameSystem;
+        }
+        var systems = await AtHandGroups.SystemsOfAsync(queries, [.. contents.Items.Select(i => i.EntryId).Distinct()], ct);
+        return new AtHandList([.. AtHandGroups.Of(binders, b => systemOf[b.Id], systems).Select(g => new AtHandGroup(g.Heading, g.Binders))],
+            AtHandGroups.NothingInIt, AtHandGroups.NoneAtHand);
     }
 }
