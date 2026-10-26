@@ -855,7 +855,14 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-bindernoteshead{font-size:13px;font-weight:600;color:var(--bt-text)}
 .bt-bindernotespanel .bt-notebox{flex:1;min-height:120px;resize:none}
 .bt-itemnotes{max-height:260px;overflow-y:auto}
+@media(max-width:1180px){.bt-binderreaderbody{grid-template-columns:minmax(140px,190px) minmax(0,1fr) 220px}
+.bt-binderreader.nonotes .bt-binderreaderbody{grid-template-columns:minmax(140px,190px) minmax(0,1fr)}}
 @media(max-width:850px){.bt-binderreader{height:auto}
 .bt-binderreaderbody,.bt-binderreader.nonotes .bt-binderreaderbody{grid-template-columns:minmax(0,1fr)}
 .bt-binderlist{max-height:200px}
 .bt-binderreaderview{height:calc(100vh - 140px);min-height:460px}}
+.bt-binderreader.popout{height:calc(100vh - 60px)}
+.bt-athandmenu{max-width:384px;max-height:460px;overflow-y:auto}
+.bt-athandgroup{display:block;padding:8px 10px 2px;font-size:10px}
+.bt-athandbinder{padding:6px 10px 2px;font-size:12px;font-weight:600;color:var(--bt-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-menuitem.bt-athandpage{display:block;padding-left:22px}

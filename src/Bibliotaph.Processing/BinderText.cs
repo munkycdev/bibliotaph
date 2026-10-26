@@ -1,5 +1,7 @@
 using System.Globalization;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 
 namespace Bibliotaph.Processing;
@@ -116,6 +118,45 @@ public static class BinderText
     public const string ScopeEmptyTitle = "Nothing in this binder yet.";
 
     public const string ScopeEmptyMessage = "Add books from the Library, or pages from the reader.";
+}
+
+/// <summary>
+/// At hand's list in a binder's reader: the other binders kept at hand, those for a game system of this binder's books
+/// first, then those for any system, then the rest, each by title; a group with nothing in it is left out.
+/// </summary>
+public static class AtHandGroups
+{
+    public const string ForTheseSystems = "For this binder's game systems";
+
+    public const string ForAnySystem = "For any game system";
+
+    public const string ForOtherSystems = "Other game systems";
+
+    public const string NothingInIt = "Nothing in this binder yet";
+
+    public const string NoneAtHand = "No other binder is kept at hand";
+
+    /// <summary>The binders kept at hand besides <paramref name="packId"/>, by title.</summary>
+    public static IReadOnlyList<SessionPackInfo> Besides(IReadOnlyList<SessionPackInfo> all, long packId) =>
+        [.. all.Where(p => p.KeepAtHand && p.Id != packId).OrderBy(p => p.Title, StringComparer.CurrentCultureIgnoreCase)];
+
+    /// <summary>The game systems of these books, as the Library's filter names them.</summary>
+    public static async Task<IReadOnlySet<string>> SystemsOfAsync(LibraryQueries queries, IReadOnlyList<EntryId> entries, CancellationToken ct = default) =>
+        entries.Count == 0 ? new HashSet<string>()
+            : (await queries.GetFacetCountsAsync("system", new LibraryFilter(entries), ct: ct)).Select(f => f.Value).Where(v => v != SearchQuery.Unknown).ToHashSet();
+
+    public static IReadOnlyList<(string Heading, IReadOnlyList<T> Binders)> Of<T>(IReadOnlyList<T> binders, Func<T, string?> gameSystem, IReadOnlySet<string> systems)
+    {
+        var matching = binders.Where(b => gameSystem(b) is { } system && systems.Contains(system)).ToList();
+        var any = binders.Where(b => gameSystem(b) is null).ToList();
+        (string, IReadOnlyList<T>)[] groups =
+        [
+            (ForTheseSystems, matching),
+            (ForAnySystem, any),
+            (ForOtherSystems, [.. binders.Except(matching).Except(any)]),
+        ];
+        return [.. groups.Where(g => g.Item2.Count > 0)];
+    }
 }
 
 /// <summary>The Binders page's groups, each by title: upcoming, kept at hand, without a date, and earlier ones (date passed).</summary>

@@ -142,7 +142,7 @@ else
             : null;
 
     bool PoppedOut =>
-        Navigation.ToBaseRelativePath(Navigation.Uri) is var path && path.StartsWith("read/", StringComparison.Ordinal)
+        Navigation.ToBaseRelativePath(Navigation.Uri) is var path && (path.StartsWith("read/", StringComparison.Ordinal) || path.StartsWith("binders/", StringComparison.Ordinal))
         && path.Contains("popout=true", StringComparison.Ordinal);
 
     string Section =>

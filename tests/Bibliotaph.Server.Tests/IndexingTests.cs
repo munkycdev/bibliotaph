@@ -308,6 +308,17 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         Assert.Equal((0, 1), (await ReaderApi.OpenAsync(library, new EntryId(card.EntryId), null, null, null, false, Ct, pages.Id))!.Item is { } moved
             ? (moved.FirstPage, moved.LastPage) : default);
         Assert.Null(await BindersApi.UsePageAsync(library, pages.Id, new ReaderUsePage(document, 999), Ct));
+
+        Assert.Empty((await BindersApi.AtHandAsync(library, binder.Id, Ct))!.Groups);
+        var rules = await sessions.CreateAsync("Rules", null, keepAtHand: true, gameSystem: null, Ct);
+        await BindersApi.AddAsync(library, rules.Id, new BinderAdd([], DocumentId: document, Page: 0, LastPage: 0, Label: "Grapple"), Ct);
+        await sessions.CreateAsync("Other rules", null, keepAtHand: true, gameSystem: "no-such-system", Ct);
+        var atHand = (await BindersApi.AtHandAsync(library, binder.Id, Ct))!;
+        Assert.Equal([AtHandGroups.ForAnySystem, AtHandGroups.ForOtherSystems], atHand.Groups.Select(g => g.Heading));
+        Assert.Equal(("Rules", "Grapple", true), (atHand.Groups[0].Binders[0].Title, atHand.Groups[0].Binders[0].Pages[0].Heading, atHand.Groups[0].Binders[0].Pages[0].CanOpen));
+        Assert.Empty(atHand.Groups[1].Binders[0].Pages);
+        Assert.DoesNotContain(atHand.Groups.SelectMany(g => g.Binders), b => b.Id == binder.Id);
+        Assert.Null(await BindersApi.AtHandAsync(library, long.MaxValue, Ct));
     }
 
     [Fact]

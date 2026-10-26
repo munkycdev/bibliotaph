@@ -236,6 +236,11 @@ them listing the page notes on the item's pages (all of the book's for a whole b
   its own.
 - **Pin** puts the binder in the sidebar's Pinned group and on Home, the panel button folds the notes away, and the
   pencil (**Edit binder**) opens the binder's list for sections, order and the rest.
+- **At hand** lists the binders kept at hand during games with their pages, those for this binder's game systems
+  first. Pick a page and it opens in a window of its own, so the binder and page you're on stay put; a page on an
+  online library opens in a tab. Your browser may ask once to allow pop-ups for bibliotaph.online.
+- **Pop out** moves the binder into its own window, for a second screen. **Return to main window** brings it back at
+  the same item and page.
 
 The binder's list has **Done**, back to its reader, beside the pencil (**Edit title and date**), **Duplicate** and the
 bin, which deletes the binder but never its books, with **Undo**. **Binder sequence** lists its items in order,

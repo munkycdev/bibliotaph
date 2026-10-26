@@ -435,6 +435,9 @@ public sealed class ApiClient(HttpClient http)
     public Task SetBinderItemAsync(long item, string label, string note, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Put, BinderItem(item), new BinderItemEdit(label, note), ct);
 
+    /// <summary>At hand: the pages of the other binders kept at hand, for a binder's reader.</summary>
+    public Task<AtHandList> AtHandAsync(long id, CancellationToken ct = default) => SendAsync<AtHandList>(HttpMethod.Get, $"{Binder(id)}/at-hand", null, ct);
+
     /// <summary>Add this page, in a binder's reader: right after the item in hand.</summary>
     public Task<BinderItemAdded> AddBinderPageAsync(long id, BinderPageAdd add, CancellationToken ct = default) =>
         SendAsync<BinderItemAdded>(HttpMethod.Post, $"{Binder(id)}/items", add, ct);
