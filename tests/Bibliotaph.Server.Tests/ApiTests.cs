@@ -105,7 +105,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.All(pages.Values, html => Assert.Contains(Footer.Taglines, t => html.Contains($"""<p class="bt-tagline">{WebUtility.HtmlEncode(t)}</p>""", StringComparison.Ordinal)));
         Assert.All(pages.Values, html => Assert.Contains($"Version {Footer.Version} ·", html, StringComparison.Ordinal));
         // The change log and licences come from the repository's own files.
-        Assert.Contains("""<h2 id="unreleased">Unreleased</h2>""", pages["/changelog"], StringComparison.Ordinal);
+        Assert.Contains("New in 1.3.590 (19 October 2026):", pages["/changelog"], StringComparison.Ordinal);
         Assert.Contains("Windows SDK projection", pages["/licences"], StringComparison.Ordinal);
         Assert.Contains("Litestream", pages["/licences"], StringComparison.Ordinal);
         Assert.Contains("Privacy policy", pages["/privacy"], StringComparison.Ordinal);

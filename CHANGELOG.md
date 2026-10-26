@@ -1,6 +1,32 @@
 # Changes
 
-## Unreleased
+## 1.3 · 19 October 2026
+
+New in 1.3.815 (26 October 2026):
+
+- **Connect a Windows PC to your web library.** Settings > Web library in the Windows app opens bibliotaph.online in
+  your browser, where you check the code the app shows and approve the PC; it gets a key of its own, kept in Windows
+  Credential Manager. Settings › Windows PCs on the web lists connected PCs and disconnects them. See
+  [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
+- **Your work syncs between the Windows app and the web.** A connected PC and bibliotaph.online merge your corrections,
+  hearts, notes, collections, binders, saved searches, pins and Needs review answers both ways, as two PCs do through
+  a sync folder: a change goes up a few seconds after you make it and comes down within a minute or so. Settings > Web
+  library says when it last merged. The app still works offline and catches up when it's back.
+- **The AI reads each book once, for all your devices.** With a PC connected to your web library, what the AI found
+  in a book is shared by the file's contents: the web library gets the PC's suggestions for the same file, ready in
+  Needs review without an AI key of its own, and a book the AI has already read on one device isn't sent to the AI on
+  another. Whole-book scans are shared the same way. See [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
+- **Scanned pages are read once, for all your devices.** The text OCR read on a scanned book is shared by the file's
+  contents too, so a book the PC read is searchable in your web library straight away, and the other way round, without
+  reading its pages again. See [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
+- **Cataloguing with AI starts sooner after OCR.** A book waiting for its scanned pages is catalogued as soon as they're
+  read, instead of up to two minutes later.
+- **Needs review forgets a removed folder's books.** Removing a library folder, on the web or in the Windows app, left
+  its books' suggestions, new terms and failed files in Needs review and the sidebar's count; now only the books in the
+  library's folders count.
+
+And Bibliotaph on the web, at [bibliotaph.online](https://bibliotaph.online), which the app above connects to. It is
+open by invitation while it settles:
 
 - **A footer on the web.** Every page of the web app, except the readers, ends with links to the site's pages
   (Features, About, the Change log, Contact us, Terms, Privacy, Licences and the source code), the version that's
@@ -11,13 +37,6 @@
   (Bibliotaph's licence and every component's). Signed in, it opens your library as before. See
   [The site](docs/guide/web.md#the-site).
 - **A clearer tab icon on the web.** The "b." in the browser tab is bolder and bigger, and light on a dark tab bar.
-- **The AI reads each book once, for all your devices.** With a PC connected to your web library, what the AI found
-  in a book is shared by the file's contents: the web library gets the PC's suggestions for the same file, ready in
-  Needs review without an AI key of its own, and a book the AI has already read on one device isn't sent to the AI on
-  another. Whole-book scans are shared the same way. See [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
-- **Scanned pages are read once, for all your devices.** The text OCR read on a scanned book is shared by the file's
-  contents too, so a book the PC read is searchable in your web library straight away, and the other way round, without
-  reading its pages again. See [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
 - **Weekly backups and Restore, on the web.** Bibliotaph on the web makes a backup each week and keeps the last four,
   and Settings › Backup lists them to download or restore. Restore also reads a backup you choose, made on the web or
   by the Windows app, shows what it holds before anything changes, and keeps your current catalog first. See
@@ -115,14 +134,6 @@
   shown as chips to change before searching, or answers a question from the books the Library shows, each citation
   opening its book at its page. Reading the whole library for meaning is a setting in Settings › AI, off until ticked.
   Search words now reach the reader on the web, so a matching page opens with them marked.
-- **Connect a Windows PC to your web library.** Settings > Web library in the Windows app opens bibliotaph.online in
-  your browser, where you check the code the app shows and approve the PC; it gets a key of its own, kept in Windows
-  Credential Manager. Settings › Windows PCs on the web lists connected PCs and disconnects them. See
-  [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
-- **Your work syncs between the Windows app and the web.** A connected PC and bibliotaph.online merge your corrections,
-  hearts, notes, collections, binders, saved searches, pins and Needs review answers both ways, as two PCs do through
-  a sync folder: a change goes up a few seconds after you make it and comes down within a minute or so. Settings > Web
-  library says when it last merged. The app still works offline and catches up when it's back.
 - **Scan whole books on the web.** Settings › AI's Scan whole books reads each book chapter by chapter, as in the
   Windows app, and a book's details show what it found under Found inside the book, with Scan again. It's off on the
   web until you tick it, since every chapter is a request on your key. See
@@ -131,8 +142,6 @@
   service you choose on the internet, such as OpenAI or OpenRouter, and your own key, kept encrypted and never shown
   again. Use AI, Test with a book, Reclassify and the folders sent to AI work as on Windows. See
   [AI](docs/guide/web.md#ai).
-- **Cataloguing with AI starts sooner after OCR.** A book waiting for its scanned pages is catalogued as soon as they're
-  read, instead of up to two minutes later.
 - **Scanned pages on the web.** The server reads scanned pages by OCR, in English, so search finds them as on Windows,
   and the sidebar counts the pages left. See [Bibliotaph on the web](docs/guide/web.md).
 - **Sign in to the web through Auth0.** bibliotaph.online's sign-in page has one Continue button, which offers Google,
@@ -203,9 +212,6 @@
   Humble Bundle and DriveThruRPG from a library page saved with Save as, with the Windows app's preview, Import with
   Undo, covers from the pictures saved beside the page, and the books no longer listed. See
   [Online libraries](docs/guide/web.md#online-libraries).
-- **Needs review forgets a removed folder's books.** Removing a library folder, on the web or in the Windows app, left
-  its books' suggestions, new terms and failed files in Needs review and the sidebar's count; now only the books in the
-  library's folders count.
 - **More of the Windows app's book actions on the web.** A book's menu and details have Open on the online library you
   own it on, Ask this book, Forget its text and Read it again, and Download the file for one whose protection Bibliotaph
   can't open. Reprocess has Reprocess with OCR on every page…, a book owned only online opens its page there, and Home
@@ -220,8 +226,6 @@
 - **Check a download on the web.** The Library's Add button has Check a download…, which checks a folder or ZIP on your
   computer against your library as the Windows app does. Your browser reads the files and sends only their fingerprints,
   never the files. See [Check a download](docs/guide/web.md#check-a-download).
-
-## 1.3 · 19 October 2026
 
 New in 1.3.590 (19 October 2026):
 
