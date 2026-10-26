@@ -1,15 +1,26 @@
 @* Settings › Online libraries, as the Windows app's: the services, a library page's preview grouped by what importing
    does, the import with Undo, and the books the page no longer lists. A browser can't hold the service's site as the
-   Windows app's own browser does, so the page arrives saved from the service with Save as; the pictures saved beside
-   it give the new books their covers. *@
+   Windows app's own browser does, so the page arrives from the user's browser: sent with its covers by the Send to
+   Bibliotaph bookmark (Pages/OnlineReceive.razor opens its preview here, as ?page=), or saved with Save as, when the
+   pictures saved beside it give the new books their covers. *@
 @inject ApiClient Api
 @inject LibraryActivity Activity
+@inject NavigationManager Navigation
 
 <section class="bt-section" aria-labelledby="online-heading">
     <h2 id="online-heading">Online libraries</h2>
     <p class="bt-copy">Bring in the books you own on online services: those you read there as books owned elsewhere, each opening on its
         service, and those you bought from stores as books to get there. Bibliotaph never holds your passwords and never visits the services
         itself.</p>
+    <div class="bt-settingrow bt-onlineservice">
+        <div>Send to Bibliotaph<small>Drag this to your browser's bookmarks bar. Then open your library on a service below, signed in, and click
+            the bookmark there: the page comes here with its covers, ready to import. Nothing is imported until you choose.</small></div>
+        <div class="bt-onlineactions">
+            @* Clicked here it would only send this page, so it is only for dragging. *@
+            <a class="bt-button bt-bookmarklet" href="@_bookmarklet" draggable="true" title="Drag to your bookmarks bar"
+               @onclick:preventDefault="true"><Icon Name="Inbox" />Send to Bibliotaph</a>
+        </div>
+    </div>
     @foreach (var service in _services)
     {
         <div class="bt-settingrow bt-onlineservice">
@@ -103,7 +114,17 @@
         var n => $"Import {n.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)} books",
     };
 
-    protected override async Task OnInitializedAsync() => _services = await Api.OnlineServicesAsync();
+    string _bookmarklet = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _bookmarklet = SendToBibliotaph.Bookmarklet(new Uri(Navigation.BaseUri).GetLeftPart(UriPartial.Authority));
+        _services = await Api.OnlineServicesAsync();
+        // A page Send to Bibliotaph brought: its preview, as if it had just been imported here.
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
+        if (query["page"] is { Length: > 0 } token)
+            await RunAsync(async () => Show(await Api.OnlinePreviewAsync(token)));
+    }
 
     static string CoversLine(OnlinePreview preview) => preview.CoversFound == 0
         ? $"For the new books' covers, choose the pictures saved with the page, in the folder ending in “_files” beside it."
