@@ -76,14 +76,14 @@ public static class OnlineApi
     }
 
     /// <summary>
-    /// What Settings says of a service on the web: where to save the page from, and what its books become. The Windows
+    /// What Settings says of a service on the web: where to send the page from, and what its books become. The Windows
     /// app's says the same of its own browser.
     /// </summary>
     static string Explanation(IOnlineLibraryReader reader) => reader.LinkField == MetadataFields.AlsoOwn
-        ? $"Open your library on {reader.Name}, signing in if it asks, and click Send to Bibliotaph, or save the page with Save as (Webpage, "
-            + $"complete) and import it here. Only books you own are imported, each opening on {reader.Name}, and Bibliotaph never sees your password."
-        : $"Open your library on {reader.Name}, signing in if it asks, and click Send to Bibliotaph, or save the page with Save as (Webpage, "
-            + $"complete) and import it here. Books you haven't downloaded become books to get from {reader.Name}."
+        ? $"Open your library on {reader.Name}, signing in if it asks, and click Send to Bibliotaph. "
+            + $"Only books you own are imported, each opening on {reader.Name}, and Bibliotaph never sees your password."
+        : $"Open your library on {reader.Name}, signing in if it asks, and click Send to Bibliotaph. "
+            + $"Books you haven't downloaded become books to get from {reader.Name}."
             + (reader is DriveThruRpgReader ? " Your DMs Guild books are in the same library." : "")
             + (reader.Hint("") is { } hint ? $" {hint}" : "");
 

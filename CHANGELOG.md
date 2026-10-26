@@ -1,5 +1,12 @@
 # Changes
 
+## Unreleased
+
+- **Saved pages are no longer imported.** **Import a saved page…** and **Save page…** are gone from the Windows app,
+  and **Import a saved page…** and **Choose pictures…** from the web: Bibliotaph's browser reads the page on Windows,
+  and **Send to Bibliotaph** brings it, covers included, on the web. See
+  [Online libraries](docs/guide/online-libraries.md#without-bibliotaphs-browser).
+
 ## 1.3 · 19 October 2026
 
 New in 1.3.815 (26 October 2026):

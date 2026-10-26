@@ -1,8 +1,7 @@
 @* Settings › Online libraries, as the Windows app's: the services, a library page's preview grouped by what importing
    does, the import with Undo, and the books the page no longer lists. A browser can't hold the service's site as the
-   Windows app's own browser does, so the page arrives from the user's browser: sent with its covers by the Send to
-   Bibliotaph bookmark (Pages/OnlineReceive.razor opens its preview here, as ?page=), or saved with Save as, when the
-   pictures saved beside it give the new books their covers. *@
+   Windows app's own browser does, so the page arrives from the user's browser, sent with its covers by the Send to
+   Bibliotaph bookmark or extension (Pages/OnlineReceive.razor opens its preview here, as ?page=). *@
 @inject ApiClient Api
 @inject LibraryActivity Activity
 @inject NavigationManager Navigation
@@ -39,9 +38,6 @@
             <div class="bt-onlineactions">
                 <a class="bt-button primary" href="@service.LibraryPage" target="_blank" rel="noopener noreferrer"
                    aria-label="@($"Open your {service.Name} library in a new tab")"><Icon Name="SquareArrowOutUpRight" />Open @service.Name</a>
-                <label class="bt-link bt-filebutton @(_busy ? "disabled" : "")">Import a saved page…
-                    <InputFile accept=".html,.htm,text/html" OnChange="PagePickedAsync" aria-label="@($"Import a saved {service.Name} library page")" disabled="@_busy" />
-                </label>
             </div>
         </div>
     }
@@ -57,14 +53,9 @@
             <h3 class="bt-settingshead">@preview.Summary</h3>
             <button class="bt-button primary" disabled="@(_busy || _chosen.Count == 0)" @onclick="ImportAsync">@ImportLabel</button>
         </div>
-        @if (preview.Covers > 0)
+        @if (preview.CoversFound < preview.Covers)
         {
-            <div class="bt-onlinecovers">
-                <span class="bt-fine">@CoversLine(preview)</span>
-                <label class="bt-button bt-filebutton @(_busy ? "disabled" : "")"><Icon Name="Image" />Choose pictures…
-                    <InputFile accept="image/*" multiple OnChange="ImagesPickedAsync" aria-label="Choose the pictures saved with the page" disabled="@_busy" />
-                </label>
-            </div>
+            <p class="bt-fine bt-onlinecovers">@($"{preview.CoversFound:N0} of {preview.Covers:N0} covers came with the page. The Send to Bibliotaph extension brings covers some sites keep from the bookmark.")</p>
         }
         @foreach (var group in preview.Groups)
         {
@@ -106,11 +97,6 @@
 </section>
 
 @code {
-    /// <summary>A saved page bigger than this isn't a library page; the server says the same.</summary>
-    const long MostPageBytes = 40L * 1024 * 1024;
-
-    const long MostImageBytes = 8L * 1024 * 1024;
-
     List<OnlineService> _services = [];
     OnlinePreview? _preview;
     readonly HashSet<int> _chosen = [];
@@ -144,43 +130,6 @@
         var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
         if (query["page"] is { Length: > 0 } token)
             await RunAsync(async () => Show(await Api.OnlinePreviewAsync(token)));
-    }
-
-    static string CoversLine(OnlinePreview preview) => preview.CoversFound == 0
-        ? $"For the new books' covers, choose the pictures saved with the page, in the folder ending in “_files” beside it."
-        : $"Found {preview.CoversFound:N0} of {preview.Covers:N0} covers among the pictures chosen.";
-
-    async Task PagePickedAsync(InputFileChangeEventArgs e)
-    {
-        await RunAsync(async () =>
-        {
-            _done = null;
-            if (e.File.Size > MostPageBytes)
-            {
-                _problem = "That file is too big to be a library page.";
-                return;
-            }
-            await using var page = e.File.OpenReadStream(MostPageBytes);
-            var read = await Api.ReadOnlinePageAsync(page);
-            _problem = read.Problem;
-            if (read.Preview is { } preview) Show(preview);
-        });
-    }
-
-    async Task ImagesPickedAsync(InputFileChangeEventArgs e)
-    {
-        if (_preview is not { } preview) return;
-        await RunAsync(async () =>
-        {
-            var shown = preview;
-            // Only the pictures the page names are sent; the rest of the folder stays on this computer.
-            foreach (var file in e.GetMultipleFiles(2000).Where(f => f.Size <= MostImageBytes))
-            {
-                await using var image = file.OpenReadStream(MostImageBytes);
-                shown = await Api.AddOnlineImageAsync(preview.Token, file.Name, image, file.ContentType);
-            }
-            _preview = shown;
-        });
     }
 
     void Choose(int row, bool chosen)
@@ -245,10 +194,6 @@
         try
         {
             await work();
-        }
-        catch (IOException)
-        {
-            _problem = "That file is too big to read here.";
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
