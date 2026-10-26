@@ -196,11 +196,12 @@ public sealed record FieldCardText(ReviewItem Item, Vocabulary Vocabulary)
     /// <summary>Reject keeps what the field shows; a missing title has nothing to turn down, so it just keeps it.</summary>
     public bool CanReject => Issue.Kind != ReviewKind.MissingTitle || Issue.Current.Count > 0;
 
+    // It sits under what the book has now, so it says what it keeps rather than what it turns down.
     public string RejectLabel => Issue.Kind switch
     {
         ReviewKind.MissingTitle => "Keep as is",
         ReviewKind.CopiesDisagree => "Keep this card's",
-        _ => "Reject",
+        _ => Issue.Current.Count > 0 ? "Keep current" : "Leave empty",
     };
 
     public string RejectHint => Issue.Kind switch

@@ -1,5 +1,7 @@
 @* .bt-reviewitem: one field of one book, as the Windows app's field card: what it shows now, what it suggests and the
-   evidence, with Accept, Accept all, Edit and Reject. Decided, it folds to one line with Undo. *@
+   evidence, with Accept, Accept all, Edit and Reject. Each answer sits under the value it keeps, so which side a button
+   picks is plain: Reject under what the book has, Accept and Edit under the suggestion. Decided, it folds to one line
+   with Undo. *@
 @implements IDisposable
 @inject ApiClient Api
 
@@ -24,7 +26,7 @@
         </div>
         <div class="bt-small bt-reviewreason">@Card.Reason</div>
         <div class="bt-reviewcompare">
-            <div>
+            <div class="bt-reviewvalue">
                 <small>@Card.CurrentLabel</small>
                 <span>@Card.CurrentText</span>
                 @if (Card.CurrentSource.Length > 0)
@@ -32,16 +34,44 @@
                     <small class="bt-reviewsource">@Card.CurrentSource</small>
                 }
             </div>
+            @if (!_editing)
+            {
+                <div class="bt-inline bt-reviewsideactions">
+                    @if (Card.CanReject)
+                    {
+                        <button class="bt-button" disabled="@State.Busy" title="@Card.RejectHint" @onclick="RejectAsync">@Card.RejectLabel</button>
+                    }
+                    @if (!Card.CanAccept)
+                    {
+                        <button class="bt-button" @onclick="Edit"><Icon Name="Pencil" />@Card.EditLabel</button>
+                    }
+                </div>
+            }
             @if (Card.CanAccept)
             {
                 <span class="bt-reviewarrow"><Icon Name="ArrowRight" Size="15" /></span>
-                <div class="bt-suggested">
+                <div class="bt-reviewvalue bt-suggested">
                     <small>@Card.SuggestedLabel</small>
                     <span>@Card.SuggestedText</span>
+                    @if (Card.Evidence.Length > 0)
+                    {
+                        <div class="bt-reviewevidence"><Icon Name="TextSearch" Size="13" /><span>@Card.Evidence <strong>@Card.PageText</strong></span></div>
+                    }
                 </div>
+                @if (!_editing)
+                {
+                    <div class="bt-inline bt-reviewsideactions bt-suggestedactions">
+                        <button class="bt-button primary" disabled="@State.Busy" aria-label="@($"Accept {Card.SuggestedText}")" @onclick="AcceptAsync"><Icon Name="Check" />Accept</button>
+                        @if (Card.CanAcceptAll)
+                        {
+                            <button class="bt-button" disabled="@State.Busy" title="@Card.AcceptAllHint" @onclick="() => AcceptAll.InvokeAsync(Card)">@Card.AcceptAllLabel</button>
+                        }
+                        <button class="bt-button" @onclick="Edit"><Icon Name="Pencil" />@Card.EditLabel</button>
+                    </div>
+                }
             }
         </div>
-        @if (Card.Evidence.Length > 0)
+        @if (!Card.CanAccept && Card.Evidence.Length > 0)
         {
             <div class="bt-reviewevidence"><Icon Name="TextSearch" Size="13" /><span>@Card.Evidence <strong>@Card.PageText</strong></span></div>
         }
@@ -78,27 +108,9 @@
                 </div>
             </div>
         }
-        else
+        else if (State.Problem is { } problem)
         {
-            @if (State.Problem is { } problem)
-            {
-                <div class="bt-problem" role="alert">@problem</div>
-            }
-            <div class="bt-inline">
-                @if (Card.CanAccept)
-                {
-                    <button class="bt-button primary" disabled="@State.Busy" aria-label="@($"Accept {Card.SuggestedText}")" @onclick="AcceptAsync"><Icon Name="Check" />Accept</button>
-                }
-                @if (Card.CanAcceptAll)
-                {
-                    <button class="bt-button" disabled="@State.Busy" title="@Card.AcceptAllHint" @onclick="() => AcceptAll.InvokeAsync(Card)">@Card.AcceptAllLabel</button>
-                }
-                <button class="bt-button" @onclick="Edit"><Icon Name="Pencil" />@Card.EditLabel</button>
-                @if (Card.CanReject)
-                {
-                    <button class="bt-button" disabled="@State.Busy" title="@Card.RejectHint" @onclick="RejectAsync">@Card.RejectLabel</button>
-                }
-            </div>
+            <div class="bt-problem" role="alert">@problem</div>
         }
     }
 </article>

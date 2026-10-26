@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Review buttons under the value they keep.** On a suggestion card, **Accept**, **Accept all** and **Edit** sit
+  under the suggestion, and the button that keeps the book's value, now **Keep current** in place of **Reject**, sits
+  under what the book has, with the evidence inside the suggestion's box, in the Windows app and on the web. See
+  [Cataloging](docs/guide/cataloging.md).
 - **Clearer New version? cards.** None of the choices looks already chosen: the card's three buttons look alike, in
   the Windows app and on the web, and nothing is picked until you click one. Page headings on the web
   no longer show an outline when a page opens. See [Cataloging](docs/guide/cataloging.md).

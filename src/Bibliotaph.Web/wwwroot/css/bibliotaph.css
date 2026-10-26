@@ -172,7 +172,7 @@ mark{background:var(--bt-soft);color:var(--bt-text);padding:1px 2px}
 .bt-reviewtitle{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .bt-reviewtitle h3{font-size:14px;font-weight:550}
 .bt-reviewcompare{display:grid;grid-template-columns:1fr 20px 1fr;gap:12px;align-items:center;margin:20px 0 15px}
-.bt-reviewcompare>div{padding:12px;background:var(--bt-side);border-radius:5px;font-size:12px}
+.bt-reviewcompare>.bt-reviewvalue{padding:12px;background:var(--bt-side);border-radius:5px;font-size:12px}
 .bt-reviewcompare small{margin-bottom:5px}
 .bt-reviewcompare .bt-suggested{background:var(--bt-soft)}
 .bt-reviewitem p{font-size:11px;color:var(--bt-muted);margin:10px 0 17px;line-height:1.7}
@@ -731,11 +731,16 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-reviewtitle{align-items:flex-start}
 .bt-reviewtitle .bt-chip{flex-shrink:0;margin:0}
 .bt-reviewreason{margin-top:4px}
-.bt-reviewcompare{grid-template-columns:1fr 32px 1fr;margin:16px 0 12px;align-items:stretch}
-.bt-reviewcompare>div{color:var(--bt-text);overflow-wrap:anywhere}
+.bt-reviewcompare{grid-template-columns:1fr 32px 1fr;margin:16px 0 12px;align-items:stretch;row-gap:10px}
+.bt-reviewcompare>.bt-reviewvalue{color:var(--bt-text);overflow-wrap:anywhere;grid-column:1;grid-row:1}
 .bt-reviewcompare .bt-reviewsource{font-size:10px;margin:5px 0 0}
-.bt-reviewarrow{display:flex;justify-content:center;align-items:center;color:var(--bt-muted)}
+/* Each side's answers go under it, in the row below the values, so they line up however tall either value is. */
+.bt-reviewsideactions{grid-column:1;grid-row:2;flex-wrap:wrap;align-items:flex-start;align-self:start}
+.bt-reviewcompare>.bt-suggested{grid-column:3}
+.bt-reviewcompare>.bt-suggestedactions{grid-column:3}
+.bt-reviewarrow{display:flex;justify-content:center;align-items:center;color:var(--bt-muted);grid-column:2;grid-row:1}
 .bt-reviewevidence{display:flex;gap:8px;align-items:flex-start;font-size:11px;line-height:18px;color:var(--bt-muted);margin:0 0 16px}
+.bt-suggested .bt-reviewevidence{margin:8px 0 0;font-size:10px;line-height:16px}
 .bt-reviewevidence svg{flex-shrink:0;margin-top:2px}
 .bt-reviewevidence strong{font-weight:600;color:var(--bt-text)}
 .bt-reviewedit{margin-bottom:4px}
@@ -800,6 +805,7 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-reassure{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:24px;font-size:10px;color:var(--bt-muted)}
 @media(max-width:620px){
 .bt-reviewcompare{grid-template-columns:1fr}
+.bt-reviewcompare>.bt-reviewvalue,.bt-reviewcompare>.bt-reviewsideactions,.bt-reviewcompare>.bt-reviewarrow{grid-column:auto;grid-row:auto}
 .bt-reviewarrow{transform:rotate(90deg)}
 .bt-retryall{flex-direction:column;align-items:flex-start}
 .bt-attention{flex-wrap:wrap}

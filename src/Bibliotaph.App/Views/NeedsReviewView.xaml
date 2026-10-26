@@ -99,13 +99,17 @@
             </DockPanel>
             <TextBlock Text="{Binding Reason}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
 
-            <!-- .bt-reviewcompare -->
+            <!-- .bt-reviewcompare: each answer sits under the value it keeps, so which side a button picks is plain. -->
             <Grid Margin="0,16,0,12">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="32" />
                 <ColumnDefinition Width="*" />
               </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+              </Grid.RowDefinitions>
               <Border Background="{DynamicResource Bt.Side}" CornerRadius="5" Padding="12">
                 <StackPanel>
                   <TextBlock Text="{Binding CurrentLabel}" Style="{StaticResource FieldLabel}" />
@@ -122,11 +126,33 @@
                 <StackPanel>
                   <TextBlock Text="{Binding SuggestedLabel}" Style="{StaticResource FieldLabel}" />
                   <TextBlock Text="{Binding SuggestedText}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                  <DockPanel Margin="0,8,0,0" Visibility="{Binding HasEvidence, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                    <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TextSearch}" Size="12" Foreground="{DynamicResource Bt.Muted}"
+                                  VerticalAlignment="Top" Margin="0,1,6,0" />
+                    <TextBlock FontSize="10" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" LineHeight="16">
+                      <Run Text="{Binding Evidence, Mode=OneWay}" />
+                      <Run Text="{Binding PageText, Mode=OneWay}" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                    </TextBlock>
+                  </DockPanel>
                 </StackPanel>
               </Border>
+
+              <WrapPanel Grid.Row="1" Margin="0,10,0,0" Visibility="{Binding IsEditing, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+                <Button Content="{Binding RejectLabel}" Command="{Binding RejectCommand}" ToolTip="{Binding RejectHint}" Margin="0,0,8,8"
+                        Visibility="{Binding CanReject, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <Button Content="{Binding EditLabel}" c:Ui.Icon="{StaticResource Icon.Pencil}" Command="{Binding EditCommand}" Margin="0,0,8,8"
+                        Visibility="{Binding HasSuggestion, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+              </WrapPanel>
+              <WrapPanel Grid.Row="1" Grid.Column="2" Margin="0,10,0,0" Visibility="{Binding ShowsSuggestionActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <Button Style="{StaticResource Bt.Button.Primary}" Content="Accept" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding AcceptCommand}"
+                        Margin="0,0,8,8" AutomationProperties.Name="{Binding SuggestedText, StringFormat='Accept {0}'}" />
+                <Button Content="{Binding AcceptAllLabel}" Command="{Binding AcceptAllCommand}" Margin="0,0,8,8" ToolTip="{Binding AcceptAllHint}"
+                        Visibility="{Binding CanAcceptAll, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <Button Content="{Binding EditLabel}" c:Ui.Icon="{StaticResource Icon.Pencil}" Command="{Binding EditCommand}" Margin="0,0,8,8" />
+              </WrapPanel>
             </Grid>
 
-            <DockPanel Margin="0,0,0,16" Visibility="{Binding HasEvidence, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <DockPanel Margin="0,0,0,16" Visibility="{Binding ShowsEvidenceBelow, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TextSearch}" Size="13" Foreground="{DynamicResource Bt.Muted}"
                             VerticalAlignment="Top" Margin="0,1,8,0" />
               <TextBlock FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" LineHeight="18">
@@ -161,17 +187,6 @@
               </StackPanel>
             </StackPanel>
 
-            <!-- .bt-inline -->
-            <WrapPanel Visibility="{Binding IsEditing, Converter={StaticResource Bt.CollapsedWhenTrue}}">
-              <Button Style="{StaticResource Bt.Button.Primary}" Content="Accept" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding AcceptCommand}"
-                      Margin="0,0,8,0" Visibility="{Binding CanAccept, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                      AutomationProperties.Name="{Binding SuggestedText, StringFormat='Accept {0}'}" />
-              <Button Content="{Binding AcceptAllLabel}" Command="{Binding AcceptAllCommand}" Margin="0,0,8,0" ToolTip="{Binding AcceptAllHint}"
-                      Visibility="{Binding CanAcceptAll, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              <Button Content="{Binding EditLabel}" c:Ui.Icon="{StaticResource Icon.Pencil}" Command="{Binding EditCommand}" Margin="0,0,8,0" />
-              <Button Content="{Binding RejectLabel}" Command="{Binding RejectCommand}" ToolTip="{Binding RejectHint}"
-                      Visibility="{Binding CanReject, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-            </WrapPanel>
           </StackPanel>
         </Grid>
       </Border>

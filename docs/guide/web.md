@@ -376,13 +376,14 @@ clarification.*, has the same two tabs.
 sources that disagree, a title that looks like a file's name, or, with **All suggestions** chosen for **What waits for review** in
 **Settings** › **Preferences**, every value nobody has confirmed. **When unsure**, the default, keeps to the first two; changing it
 counts every book's cards again, and the sidebar's count follows. A card shows what the book has now, the suggestion and where it came
-from, with:
+from. Each button sits under the value it keeps:
 
-- **Accept**, which makes the suggestion the book's value, and **Accept all**, which accepts every card that suggests
+- **Accept**, under the suggestion, which makes the suggestion the book's value, and **Accept all**, which accepts every card that suggests
   the same for the same field, shown or not. A line above the cards says how many, with **Undo all**.
 - **Edit** (or **Type a title**), to type the value yourself, with the field's list to pick from and a line saying
   how what you type will be filed. Enter saves; Esc cancels.
-- **Reject** (or **Keep as is**), which keeps what the book has. A rejected value is never suggested again.
+- **Keep current** (or **Leave empty**, **Keep this card's**, **Keep as is**), under what the book has now, which
+  keeps it. A value turned down this way is never suggested again.
 
 A new term card offers **Add as a new** term, **Reject**, or a term the vocabulary has to **File under it**. Each
 decided card folds to a line saying what happened, with **Undo**, until the page is opened again. **Show** narrows
