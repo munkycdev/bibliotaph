@@ -310,12 +310,22 @@ server never has a copy. What you've read is kept in your browser, so turning ba
   details, and beside a matching page, opens it in one straight away.
 
 A PDF with a password asks for it each time it opens; the password isn't kept. A book owned elsewhere has nothing to
-open, and a file inside a ZIP opens in the Windows app for now. E-books come to the reader next.
+open, and a file inside a ZIP opens in the Windows app for now.
 
 A picture opens on its own, fitted to the window; the zoom menu, **Ctrl+Plus**, **Ctrl+Minus** and **Ctrl** with the
 mouse wheel show it larger, and **Ctrl+0** fits it again. A pack opens at its first file (or the file you opened), and
 the arrows beside **1 of 6** step through its files: pictures, and PDFs at their first page. In a pack of pictures the
 **Left** and **Right** arrow keys do the same, and each picture shows at the zoom of the one before.
+
+An e-book (EPUB, MOBI, AZW or AZW3) opens as in the Windows reader: one long page of text in Bibliotaph's colours, light
+or dark, with the book's own pictures, cut into the same pages search found, so **Open page** and the place you left
+it open where they should. The page box, the contents, **Find** (Ctrl+F, F3 for the next match) and the search's
+marked words work as they do in a PDF. **Zoom in** and **Zoom out** (or Ctrl+Plus, Ctrl+Minus and Ctrl with the mouse
+wheel) make the text bigger or smaller, and **Usual size** sets it back. A link to another place in the book goes
+there, with **Back to page …**; a web link opens in a new tab. A fixed-layout book, such as a comic, shows each page as
+it was drawn, with **Fit page** and **Fit width**. As in the Windows app, anything in the book that would run a
+program, fill in a form or reach the internet is left out, and the book is read in your browser: the server never
+sees it. A book with DRM, or one in Amazon's KFX format, can't be opened.
 
 ### Books in this browser
 

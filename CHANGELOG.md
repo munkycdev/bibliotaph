@@ -68,6 +68,9 @@
 - **Pictures and packs in the web reader.** A picture opens fitted to the window, with the Windows reader's zoom, and a
   pack steps through its pictures and PDFs from the toolbar or with the arrow keys. See
   [Reading a book](docs/guide/web.md#reading-a-book).
+- **E-books in the web reader.** EPUB and Kindle books open in the browser as in the Windows reader, in the same pages
+  search found, with Find, zoom, links and fixed-layout books; the server never sees the book. See
+  [Reading a book](docs/guide/web.md#reading-a-book).
 
 ## 1.3 · 19 October 2026
 
