@@ -1386,6 +1386,65 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.True(reads.ReadLibrary);
     }
 
+    [Fact]
+    public async Task A_Windows_PC_connects_once_the_user_approves_it_and_stops_when_disconnected_on_the_web_or_in_the_app()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var web = Client(user);
+        web.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var catalog = new CatalogDatabase(Path.Combine(_folder.Path, "pc-catalog.db"), Path.Combine(_folder.Path, "pc-backups"));
+        await using (var db = catalog.CreateContext()) await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database, ct);
+        var settings = new SettingsStore(new CatalogFile(catalog.FilePath));
+        await settings.SetAsync(SettingKeys.WebAddress, "http://localhost", ct);
+        WebLibrary Pc(IWebLibraryKey? key = null) => new(new HttpClient(_factory.Server.CreateHandler()), key ?? new MemoryWebLibraryKey(), settings,
+            TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<WebLibrary>.Instance);
+
+        var pcKey = new MemoryWebLibraryKey();
+        var pc = Pc(pcKey);
+        var started = (await pc.StartAsync("Dana's  PC", ct))!;
+        Assert.Matches("^[A-Z2-9]{4}-[A-Z2-9]{4}$", started.Code);
+        Assert.EndsWith($"/connect?code={started.Code}", started.ApproveUrl, StringComparison.Ordinal);
+        var shown = await web.GetFromJsonAsync<DeviceConnectRequest>($"/api/devices/connect/{started.Code.Replace("-", "").ToLowerInvariant()}", ct);
+        Assert.Equal("Dana's PC", shown!.Name);
+        var waiting = pc.WaitAsync(started, ct);
+        (await web.PostAsync($"/api/devices/connect/{started.Code}", null, ct)).EnsureSuccessStatusCode();
+
+        Assert.Equal(WebConnectOutcome.Connected, await waiting);
+        Assert.Equal(new WebLibraryStatus(WebLibraryState.Connected, "Dana", "Dana's PC"), await pc.CheckAsync(ct));
+        var device = Assert.Single((await web.GetFromJsonAsync<List<ConnectedDevice>>("/api/devices", ct))!);
+        Assert.Equal("Dana's PC", device.Name);
+        using (var asked = await web.PostAsync($"/api/devices/connect/{started.Code}", null, ct))
+            Assert.Equal(HttpStatusCode.NotFound, asked.StatusCode);
+        // A PC's key reaches only what a PC needs, not the rest of the library's API.
+        var keyed = Client();
+        keyed.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", pcKey.Find());
+        Assert.StartsWith("btd_", pcKey.Find(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await keyed.GetAsync("/api/library/summary", ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await keyed.GetAsync("/api/devices", ct)).StatusCode);
+        (await keyed.GetAsync("/api/devices/me", ct)).EnsureSuccessStatusCode();
+
+        var declined = Pc();
+        var again = (await declined.StartAsync("Another PC", ct))!;
+        var answer = declined.WaitAsync(again, ct);
+        (await web.DeleteAsync($"/api/devices/connect/{again.Code}", ct)).EnsureSuccessStatusCode();
+        Assert.Equal(WebConnectOutcome.Declined, await answer);
+        Assert.False(declined.HasKey);
+
+        (await web.DeleteAsync($"/api/devices/{device.Id}", ct)).EnsureSuccessStatusCode();
+        Assert.Equal(WebLibraryState.Disconnected, (await pc.CheckAsync(ct)).State);
+        Assert.False(pc.HasKey);
+
+        var third = Pc();
+        var asking = (await third.StartAsync("Dana's PC", ct))!;
+        var approved = third.WaitAsync(asking, ct);
+        (await web.PostAsync($"/api/devices/connect/{asking.Code}", null, ct)).EnsureSuccessStatusCode();
+        Assert.Equal(WebConnectOutcome.Connected, await approved);
+        await third.DisconnectAsync(ct);
+        Assert.Empty((await web.GetFromJsonAsync<List<ConnectedDevice>>("/api/devices", ct))!);
+        Assert.Equal(WebLibraryState.NotConnected, (await third.CheckAsync(ct)).State);
+    }
+
     static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);

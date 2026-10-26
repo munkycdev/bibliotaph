@@ -20,7 +20,7 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     public SettingsViewModel(
         SettingsLinks links, AboutBox about, ShortcutsBox shortcuts, LibrarySectionViewModel library, OnlineLibrariesViewModel online,
-        ProcessingSectionViewModel processing, AppearanceSectionViewModel appearance, ReviewSectionViewModel review, VocabularyViewModel vocabulary,
+        WebLibrarySectionViewModel webLibrary, ProcessingSectionViewModel processing, AppearanceSectionViewModel appearance, ReviewSectionViewModel review, VocabularyViewModel vocabulary,
         AiSettingsViewModel ai, PasswordsSectionViewModel passwords, BackupSectionViewModel backup, StartOverSectionViewModel startOver, DevMode dev,
         ILogger<SettingsViewModel> log)
     {
@@ -28,7 +28,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         _about = about;
         _shortcuts = shortcuts;
         _log = log;
-        SettingsSectionViewModel[] sections = [processing, library, online, appearance, review, vocabulary, ai, passwords, backup];
+        SettingsSectionViewModel[] sections = [processing, library, online, webLibrary, appearance, review, vocabulary, ai, passwords, backup];
         // Start over only with --dev.
         Sections = dev.IsOn ? [.. sections, startOver] : sections;
         Selected = processing;
@@ -42,7 +42,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     public override bool ScrollsItself => true;
 
     /// <summary>
-    /// The section list, in order: Processing first, Online libraries after Library; Start over, when the app started
+    /// The section list, in order: Processing first, Online libraries after Library, then Web library; Start over, when the app started
     /// with --dev, last.
     /// </summary>
     public IReadOnlyList<SettingsSectionViewModel> Sections { get; }

@@ -51,6 +51,10 @@
   shown as chips to change before searching, or answers a question from the books the Library shows, each citation
   opening its book at its page. Reading the whole library for meaning is a setting in Settings › AI, off until ticked.
   Search words now reach the reader on the web, so a matching page opens with them marked.
+- **Connect a Windows PC to your web library.** Settings > Web library in the Windows app opens bibliotaph.online in
+  your browser, where you check the code the app shows and approve the PC; it gets a key of its own, kept in Windows
+  Credential Manager. Settings › Windows PCs on the web lists connected PCs and disconnects them. Sharing your work
+  between them comes next. See [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
 - **Scan whole books on the web.** Settings › AI's Scan whole books reads each book chapter by chapter, as in the
   Windows app, and a book's details show what it found under Found inside the book, with Scan again. It's off on the
   web until you tick it, since every chapter is a request on your key. See

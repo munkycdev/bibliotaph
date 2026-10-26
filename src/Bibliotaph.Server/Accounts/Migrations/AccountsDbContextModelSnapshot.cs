@@ -15,7 +15,7 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261026003442_ClosedAccounts";
+    public override string LastMigrationId => "20261026033628_Devices";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -40,6 +40,45 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("UserId");
 
                 b.ToTable("closed_accounts");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Server.Accounts.Device", b =>
+            {
+                b.Property<string>("Id")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("id");
+
+                b.Property<DateTime>("Created")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created");
+
+                b.Property<string>("KeyHash")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("key_hash");
+
+                b.Property<DateTime?>("LastUsed")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("last_used");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("name");
+
+                b.Property<string>("UserId")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("user_id");
+
+                b.HasKey("Id");
+
+                b.HasIndex("KeyHash")
+                    .IsUnique();
+
+                b.HasIndex("UserId");
+
+                b.ToTable("devices");
             });
 
         modelBuilder.Entity("Bibliotaph.Server.Accounts.Invite", b =>
@@ -221,6 +260,15 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("Id");
 
                 b.ToTable("users");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Server.Accounts.Device", b =>
+            {
+                b.HasOne("Bibliotaph.Server.Accounts.User", null)
+                    .WithMany()
+                    .HasForeignKey("UserId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("Bibliotaph.Server.Accounts.Login", b =>

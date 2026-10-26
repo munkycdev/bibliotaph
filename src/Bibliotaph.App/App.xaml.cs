@@ -219,6 +219,12 @@ public partial class App : Application
         builder.Services.AddSingleton<IPasswordStore, IndexPasswords>();
         builder.Services.AddSingleton<ApiKeyVault>();
         builder.Services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ApiKeyVault>());
+        // This PC's connection to bibliotaph.online; the smoke test's key stays in memory.
+        if (smokeTest) builder.Services.AddSingleton<IWebLibraryKey, MemoryWebLibraryKey>();
+        else builder.Services.AddSingleton<IWebLibraryKey, WebLibraryKeyVault>();
+        builder.Services.AddSingleton(sp => new WebLibrary(new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(20) },
+            sp.GetRequiredService<IWebLibraryKey>(), sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<WebLibrary>>()));
         // The built-in AI's engine (llama.cpp's server, in aiworker\); nothing starts until there is a book to read.
         builder.Services.AddSingleton(new BuiltInEngineOptions { ModelsFolder = paths.Models, DownloadFolder = paths.Engine });
         builder.Services.AddSingleton(sp => new BuiltInEngine(sp.GetRequiredService<BuiltInEngineOptions>(),
@@ -389,6 +395,7 @@ public partial class App : Application
         builder.Services.AddTransient<ReviewSectionViewModel>();
         builder.Services.AddTransient<VocabularyViewModel>();
         builder.Services.AddTransient<PasswordsSectionViewModel>();
+        builder.Services.AddTransient<WebLibrarySectionViewModel>();
         builder.Services.AddTransient<StartOverSectionViewModel>();
         builder.Services.AddTransient<BackupSectionViewModel>();
         builder.Services.AddTransient<AiSettingsViewModel>();

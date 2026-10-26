@@ -94,6 +94,24 @@ public sealed class ApiClient(HttpClient http)
         await EnsureAsync(response, ct);
     }
 
+    /// <summary>The Windows PCs connected to the library.</summary>
+    public Task<List<ConnectedDevice>> DevicesAsync(CancellationToken ct = default) => SendAsync<List<ConnectedDevice>>(HttpMethod.Get, "api/devices", null, ct);
+
+    public Task DisconnectDeviceAsync(string id, CancellationToken ct = default) => SendAsync(HttpMethod.Delete, $"api/devices/{Uri.EscapeDataString(id)}", null, ct);
+
+    /// <summary>A PC's request to connect, or null when it has expired or was already answered.</summary>
+    public async Task<DeviceConnectRequest?> DeviceRequestAsync(string code, CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync($"api/devices/connect/{Uri.EscapeDataString(code)}", ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
+        await EnsureAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<DeviceConnectRequest>(ct);
+    }
+
+    public Task ApproveDeviceAsync(string code, CancellationToken ct = default) => SendAsync(HttpMethod.Post, $"api/devices/connect/{Uri.EscapeDataString(code)}", null, ct);
+
+    public Task DeclineDeviceAsync(string code, CancellationToken ct = default) => SendAsync(HttpMethod.Delete, $"api/devices/connect/{Uri.EscapeDataString(code)}", null, ct);
+
     public async Task<StorageFolderList> StorageFoldersAsync(string id, string path, CancellationToken ct = default)
     {
         using var response = await http.GetAsync($"api/storage/{Uri.EscapeDataString(id)}/folders?path={Uri.EscapeDataString(path)}", ct);

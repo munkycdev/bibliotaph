@@ -939,3 +939,4 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-aitestline small{display:block;margin-top:3px;font-size:11px;color:var(--bt-muted)}
 .bt-aitestdropped{margin-top:16px}
 .bt-aitestactions{justify-content:space-between;margin-top:20px}
+.bt-devicecode{font-family:ui-monospace,Consolas,monospace;letter-spacing:1px;color:var(--bt-text)}

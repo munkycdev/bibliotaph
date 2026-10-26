@@ -155,7 +155,7 @@ else
         && path.Contains("popout=true", StringComparison.Ordinal);
 
     string Section =>
-        Navigation.ToBaseRelativePath(Navigation.Uri).StartsWith("settings", StringComparison.Ordinal) ? "Settings"
+        Navigation.ToBaseRelativePath(Navigation.Uri) is var at && (at.StartsWith("settings", StringComparison.Ordinal) || at.StartsWith("connect", StringComparison.Ordinal)) ? "Settings"
             : Items.FirstOrDefault(i => i.Href == ActiveHref).Label ?? "Home";
 
     /// <summary>The section the page is in. A collection shows in the Library, but belongs to Collections, as on Windows.</summary>

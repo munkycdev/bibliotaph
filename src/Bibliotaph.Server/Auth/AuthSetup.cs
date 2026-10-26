@@ -1,8 +1,10 @@
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Server.Accounts;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Bibliotaph.Server.Auth;
 
@@ -19,6 +21,14 @@ public static class AuthSetup
     public const string ExternalScheme = "external";
 
     public const string AdminPolicy = "admin";
+
+    /// <summary>A connected Windows PC, by its own key; see <see cref="DeviceAuthentication"/>.</summary>
+    public const string DeviceScheme = "device";
+    public const string DevicePolicy = "device";
+    public const string DeviceClaim = "bib_device";
+
+    /// <summary>Limits how often one address may ask to connect a PC, since anyone may ask.</summary>
+    public const string ConnectLimit = "connect";
 
     public const string UserIdClaim = "bib_uid";
     public const string AdminClaim = "bib_admin";
@@ -45,12 +55,22 @@ public static class AuthSetup
                 options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                 options.Cookie.SameSite = SameSiteMode.Lax;
                 options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
-            });
+            })
+            .AddScheme<AuthenticationSchemeOptions, DeviceAuthentication>(DeviceScheme, null);
 
         if (Auth0(configuration) is { } client) auth.AddOpenIdConnect(Auth0SignIn.Id, "Auth0", options => Auth0SignIn.Configure(options, client));
 
         services.AddAuthorizationBuilder()
-            .AddPolicy(AdminPolicy, policy => policy.RequireAuthenticatedUser().RequireClaim(AdminClaim, "true"));
+            .AddPolicy(AdminPolicy, policy => policy.RequireAuthenticatedUser().RequireClaim(AdminClaim, "true"))
+            .AddPolicy(DevicePolicy, policy => policy.AddAuthenticationSchemes(DeviceScheme).RequireAuthenticatedUser().RequireClaim(DeviceClaim));
+
+        services.AddRateLimiter(limits =>
+        {
+            limits.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            limits.AddPolicy(ConnectLimit, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+        });
         return services;
     }
 
@@ -63,6 +83,9 @@ public static class AuthSetup
         context.Response.StatusCode = status;
         return Task.CompletedTask;
     }
+
+    /// <summary>The connected PC making the call, when a PC's key made it.</summary>
+    public static string? DeviceId(this ClaimsPrincipal principal) => principal.FindFirst(DeviceClaim)?.Value;
 
     public static string? UserId(this ClaimsPrincipal principal) =>
         principal.FindFirst(UserIdClaim)?.Value is { } id && UserIds.IsValid(id) ? id : null;
