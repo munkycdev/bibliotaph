@@ -196,8 +196,9 @@ class Reader {
     viewer.setDocument(doc);
     linkService.setDocument(doc);
 
+    // A Set of the flags the file allows, or null when it isn't encrypted and so restricts nothing.
     const permissions = await doc.getPermissions();
-    this.canCopy = !permissions || permissions.includes(pdfjs.PermissionFlag.COPY);
+    this.canCopy = !permissions || permissions.has(pdfjs.PermissionFlag.COPY);
     this.#listen(this.stage, 'copy', e => {
       if (this.canCopy) return;
       e.preventDefault();

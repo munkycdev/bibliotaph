@@ -1,5 +1,10 @@
 # Changes
 
+## Unreleased
+
+- **PDFs with copy or print restrictions open on the web again.** The reader failed on them. When a book can't be
+  opened for a reason Bibliotaph doesn't recognise, it now says so plainly instead of showing the technical error.
+
 ## 1.3 · 19 October 2026
 
 New in 1.3.815 (26 October 2026):
