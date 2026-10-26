@@ -51,6 +51,10 @@ param(
     [string] $Auth0Domain,
     [string] $Auth0ClientId,
 
+    # The Dropbox app's App key, from its Settings in Dropbox's App Console. Its App secret is asked for once and kept
+    # in Key Vault. Once set, a later run without it keeps it.
+    [string] $DropboxAppKey,
+
     # Adds the domain and www to the app and issues managed certificates. Needs the DNS records in place first.
     [switch] $BindDomain
 )
@@ -194,6 +198,28 @@ Write-Host "  Allowed Logout URLs: https://$Domain/, https://localhost:5179/"
 if (-not $Auth0Domain -and -not (SecretExists 'auth0')) {
     Write-Host '  Nobody can sign in until this runs with -Auth0Domain and -Auth0ClientId.' -ForegroundColor Yellow
 }
+
+Step 'Dropbox'
+# A storage app's settings and secret, kept as Auth0's are: the ID is given once, the secret asked for once.
+function StorageApp([string] $name, [string] $section, [string] $clientId, [string] $prompt) {
+    $secretName = "storage-$($name.ToLowerInvariant())"
+    $known = @(Find containerapp show -n $App -g $ResourceGroup --query 'properties.template.containers[0].env' -o json |
+        Where-Object name -eq "Storage__${section}__ClientId").value
+    if (-not $clientId) { $clientId = $known }
+    if (-not $clientId) { return $false }
+    if (-not (SecretExists $secretName)) {
+        $secret = Read-Host "  $prompt" -AsSecureString
+        az keyvault secret set --vault-name $KeyVault -n $secretName --value ([System.Net.NetworkCredential]::new('', $secret).Password) -o none
+    }
+    $script:providers += "Storage__${section}__ClientId=$clientId", "Storage__${section}__ClientSecret=secretref:$secretName"
+    $script:secrets += "$secretName=keyvaultref:https://$KeyVault.vault.azure.net/secrets/$secretName,identityref:$($id.id)"
+    return $true
+}
+if (-not (StorageApp 'Dropbox' 'Dropbox' $DropboxAppKey "App secret for Dropbox app $DropboxAppKey")) {
+    Write-Host '  Dropbox can be connected once this runs with -DropboxAppKey.' -ForegroundColor Yellow
+}
+Write-Host "  In Dropbox's App Console: Scoped access, Full Dropbox; permissions account_info.read, files.metadata.read, files.content.read"
+Write-Host "  Redirect URI https://$Domain/storage/callback/dropbox, Webhook URI https://$Domain/storage/notifications/dropbox"
 
 $settings = @(
     "REPLICA_URL=abs://$StorageAccount@replica"

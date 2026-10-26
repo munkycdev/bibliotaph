@@ -30,6 +30,6 @@ public sealed class OneDriveProvider : StorageProvider
         return new StorageIdentity(drive.Id, drive.OwnerName is { Length: > 0 } owner ? $"OneDrive · {owner}" : "OneDrive", drive.DriveType);
     }
 
-    public override IStorageDrive Drive(HttpClient http, string accountId, Func<CancellationToken, Task<string>> accessToken, TimeProvider clock) =>
-        new OneDriveDrive(new OneDriveClient(http, accessToken, clock), accountId);
+    public override IStorageDrive Drive(HttpClient http, ConnectedAccount account, Func<CancellationToken, Task<string>> accessToken, TimeProvider clock) =>
+        new OneDriveDrive(new OneDriveClient(http, accessToken, clock), account.AccountId);
 }

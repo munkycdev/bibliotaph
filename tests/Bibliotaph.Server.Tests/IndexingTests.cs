@@ -199,7 +199,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
 
         // The browser reads the file through a link of the drive's own; the server never passes the bytes on.
         var downloads = Fixture.Graph.Downloads;
-        var link = await ReaderApi.LinkAsync(library, opened.DocumentId, Ct);
+        var link = await ReaderApi.LinkAsync(library, Fixture.ReadLinks, opened.DocumentId, Ct);
         Assert.Equal("https://public.files.1drv.com/download/RPG%2Fknown.pdf", link.Url);
         Assert.Equal(downloads, Fixture.Graph.Downloads);
 
@@ -224,7 +224,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
 
         // A file that has gone from the drive says so, in place of the pages.
         Fixture.Graph.Remove("RPG/known.pdf");
-        var gone = await ReaderApi.LinkAsync(library, opened.DocumentId, Ct);
+        var gone = await ReaderApi.LinkAsync(library, Fixture.ReadLinks, opened.DocumentId, Ct);
         Assert.Null(gone.Url);
         Assert.Equal("The file couldn't be found.", gone.Problem?.Title);
         Assert.Null(await ReaderApi.OpenAsync(library, new EntryId(long.MaxValue), null, null, null, false, Ct));

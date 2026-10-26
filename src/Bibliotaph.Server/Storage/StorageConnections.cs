@@ -62,6 +62,13 @@ public sealed class StorageConnections(AccountsDatabase database, IDataProtectio
         return await db.StorageConnections.AsNoTracking().ToListAsync(ct);
     }
 
+    /// <summary>Every user's connection to one account at a provider, as a provider's change notice names only the account.</summary>
+    public async Task<IReadOnlyList<StorageConnection>> ForAccountAsync(string provider, string accountId, CancellationToken ct = default)
+    {
+        await using var db = database.CreateContext();
+        return await db.StorageConnections.AsNoTracking().Where(c => c.Provider == provider && c.AccountId == accountId).ToListAsync(ct);
+    }
+
     public async Task<StorageConnection?> FindAsync(string id, CancellationToken ct = default)
     {
         await using var db = database.CreateContext();

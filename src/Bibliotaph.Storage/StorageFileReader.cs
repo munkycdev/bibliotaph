@@ -18,7 +18,7 @@ public sealed class StorageFileReader(IStorageDrives drives, string temporaryFol
         var (drive, location) = Locate(path);
         try
         {
-            return await drive.OpenReadAsync(location.Path, ct);
+            return await drive.OpenReadAsync(location.Path, ct: ct);
         }
         catch (StorageException ex) when (ex.Status == HttpStatusCode.NotFound)
         {

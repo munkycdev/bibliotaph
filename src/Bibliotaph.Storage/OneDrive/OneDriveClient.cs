@@ -55,6 +55,13 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
         return entries;
     }
 
+    /// <summary>One file or folder, or null when there's nothing at that path.</summary>
+    public async Task<StorageEntry?> ItemAsync(string driveId, string pathInDrive, CancellationToken ct = default)
+    {
+        using var json = await GetJsonAsync($"{ItemUrl(driveId, pathInDrive)}?$select={EntryFields}", ct, notFoundIsNull: true);
+        return json is null ? null : Entry(json.RootElement);
+    }
+
     /// <summary>
     /// A short-lived link that reads the file without a Graph token, for a browser to fetch byte ranges from directly,
     /// or null when there's nothing at that path. The whole item is asked for, since a business drive leaves the link
@@ -74,11 +81,15 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
     /// A file's bytes, streamed. Graph answers with a redirect to a short-lived download link, which carries its own
     /// authorisation; HttpClient doesn't send the Graph token on to it.
     /// </summary>
-    public async Task<Stream> OpenReadAsync(string driveId, string pathInDrive, CancellationToken ct = default)
+    public async Task<Stream> OpenReadAsync(string driveId, string pathInDrive, ByteRange? range = null, CancellationToken ct = default)
     {
-        var response = await SendAsync(() => new HttpRequestMessage(HttpMethod.Get, $"{ItemUrl(driveId, pathInDrive)}:/content"),
-            HttpCompletionOption.ResponseHeadersRead, ct);
-        return await response.Content.ReadAsStreamAsync(ct);
+        var response = await SendAsync(() =>
+        {
+            var request = new HttpRequestMessage(HttpMethod.Get, $"{ItemUrl(driveId, pathInDrive)}:/content");
+            if (range is { } r) request.Headers.Range = new RangeHeaderValue(r.From, r.To);
+            return request;
+        }, HttpCompletionOption.ResponseHeadersRead, ct);
+        return await StorageDownloads.BodyAsync(response, range, ct);
     }
 
     /// <summary>Asks Graph to call <paramref name="notificationUrl"/> whenever anything in the drive changes.</summary>
@@ -190,9 +201,14 @@ public sealed class OneDriveDrive(OneDriveClient client, string driveId) : IStor
 {
     public string ProviderName => "OneDrive";
 
+    // Graph's download links allow any origin and byte ranges, personal and business alike.
+    public bool HasReadLinks => true;
+
+    public Task<StorageEntry?> ItemAsync(string path, CancellationToken ct = default) => client.ItemAsync(driveId, path, ct);
+
     public Task<IReadOnlyList<StorageEntry>?> ChildrenAsync(string path, CancellationToken ct = default) => client.ChildrenAsync(driveId, path, ct);
 
-    public Task<Stream> OpenReadAsync(string path, CancellationToken ct = default) => client.OpenReadAsync(driveId, path, ct);
+    public Task<Stream> OpenReadAsync(string path, ByteRange? range = null, CancellationToken ct = default) => client.OpenReadAsync(driveId, path, range, ct);
 
     public Task<string?> ReadLinkAsync(string path, CancellationToken ct = default) => client.DownloadLinkAsync(driveId, path, ct);
 }
