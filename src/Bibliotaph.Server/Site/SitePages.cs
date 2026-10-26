@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using System.Net;
+using Bibliotaph.Web.Services;
 
 namespace Bibliotaph.Server.Site;
 
@@ -73,12 +74,16 @@ public static class SitePages
         var (signedOut, signedIn) = Rendered.Value[path];
         context.Response.ContentType = "text/html; charset=utf-8";
         context.Response.Headers.CacheControl = "no-cache";
-        return context.Response.WriteAsync(context.User.Identity?.IsAuthenticated == true ? signedIn : signedOut, context.RequestAborted);
+        var html = context.User.Identity?.IsAuthenticated == true ? signedIn : signedOut;
+        return context.Response.WriteAsync(html.Replace("{{tagline}}", WebUtility.HtmlEncode(Footer.Tagline()), StringComparison.Ordinal), context.RequestAborted);
     }
 
     static FrozenDictionary<string, (string, string)> Render()
     {
-        var layout = Text("Site.layout.html");
+        var links = string.Join('\n', Footer.Links.Select(l => $"      <a href=\"{l.Href}\">{WebUtility.HtmlEncode(l.Label)}</a>"));
+        var layout = Text("Site.layout.html")
+            .Replace("{{links}}", links, StringComparison.Ordinal)
+            .Replace("{{version}}", WebUtility.HtmlEncode(Footer.Version), StringComparison.Ordinal);
         var pages = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
         foreach (var page in Pages)
         {

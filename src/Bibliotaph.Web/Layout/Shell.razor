@@ -171,6 +171,18 @@ else
                 <AskBar @ref="_askBar" Text="@_searchText" Close="CloseAsk" Search="SearchFromAsk" />
             }
             <main id="bt-main">@Body</main>
+            @* The site's footer under every page but the readers, which fill the window. Its pages open in a tab of their
+               own, so whatever is open here stays as it is. *@
+            <footer class="bt-appfoot">
+                <span class="bt-tagline">@_tagline</span>
+                <nav aria-label="More about Bibliotaph">
+                    @foreach (var (href, label) in Footer.Links)
+                    {
+                        <a href="@href" target="_blank" rel="noopener">@label</a>
+                    }
+                </nav>
+                <span>Version @Footer.Version</span>
+            </footer>
         </div>
     </div>
     <CollectionDialog />
@@ -183,6 +195,8 @@ else
 }
 
 @code {
+    readonly string _tagline = Footer.Tagline();
+
     static readonly (string Href, string Label, string Icon)[] Items =
     [
         ("", "Home", "House"),

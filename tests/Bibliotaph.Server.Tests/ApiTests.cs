@@ -16,6 +16,7 @@ using Bibliotaph.Processing;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
+using Bibliotaph.Web.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -100,6 +101,9 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Contains("Open your library", openLibrary, StringComparison.Ordinal);
         Assert.All(pages.Values, html => Assert.Contains("""<a href="/terms""", html, StringComparison.Ordinal));
         Assert.Contains("""<a href="/terms" aria-current="page">""", pages["/terms"], StringComparison.Ordinal);
+        // The footer's tagline is one of the app's, and the version is the one running.
+        Assert.All(pages.Values, html => Assert.Contains(Footer.Taglines, t => html.Contains($"""<p class="bt-tagline">{WebUtility.HtmlEncode(t)}</p>""", StringComparison.Ordinal)));
+        Assert.All(pages.Values, html => Assert.Contains($"Version {Footer.Version} ·", html, StringComparison.Ordinal));
         // The change log and licences come from the repository's own files.
         Assert.Contains("""<h2 id="unreleased">Unreleased</h2>""", pages["/changelog"], StringComparison.Ordinal);
         Assert.Contains("Windows SDK projection", pages["/licences"], StringComparison.Ordinal);

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A footer on the web.** Every page of the web app, except the readers, ends with links to the site's pages
+  (Features, About, the Change log, Contact us, Terms, Privacy, Licences and the source code), the version that's
+  running, and a tagline that changes each time you load the page. The site's own pages have the same. See
+  [The site](docs/guide/web.md#the-site).
 - **The site around the web app.** bibliotaph.online now opens, for anyone signed out, on a page saying what
   Bibliotaph is, and has pages of its own for Features, About, the Change log, Contact us, Terms, Privacy and Licences
   (Bibliotaph's licence and every component's). Signed in, it opens your library as before. See
