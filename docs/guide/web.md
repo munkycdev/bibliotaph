@@ -317,6 +317,16 @@ server never has a copy. What you've read is kept in your browser, so turning ba
   pencil to change it and the bin to delete it, with **Undo**. Pages with notes have a badge in the thumbnails. A note
   whose page changed in a new version says so when you go to it, and one made in another copy says its page may be a
   little different here. A book's notes are the same ones the Windows app shows.
+- **Add page** at the top adds the page in view to the binder you worked on last (a picture is added whole); before
+  you have a binder, it asks you to make one. The arrow beside it has **Add pages…**, where you type a range, a label
+  (it starts with the bookmark the page is under) and which binder and section it goes in, and **Add to** another or
+  a new binder. What was added shows over the pages, with **Undo**.
+- **Mark as adventure** gives pages of the file a card of their own, as an adventure, starting at the page in view.
+  Right-click a line of the contents for **Index as its own adventure…**, which runs to the next line at the same
+  level. The file isn't changed.
+- **Use this page as the cover** (the picture button) makes the page in view the PDF's card cover, for a book whose
+  first page is blank or a plain title sheet; on the first page it puts the first page back. In a pack of pictures,
+  **Use this image as the pack's cover** shows the picture in view on the pack's card in place of its mosaic.
 - The **heart** and the **pin** make the book a favorite and pin it to the sidebar. **Pop out** moves the book to a
   window of its own, and **Return to main window** brings it back. **Open in new window** beside **Open** in a book's
   details, and beside a matching page, opens it in one straight away.

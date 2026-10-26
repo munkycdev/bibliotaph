@@ -77,6 +77,10 @@
 - **Close your account on the web.** Settings › Account › Close account… deletes your account, library, covers, storage
   connections and the books kept in that browser, and its backups within 30 days. Nothing in your storage is touched.
   See [Signing in and out](docs/guide/web.md#signing-in-and-out).
+- **The web reader's own actions.** Add page and Add pages… add pages, or a picture, to a binder with Undo; Mark as
+  adventure and the contents' Index as its own adventure… give pages a card of their own; Use this page as the cover
+  and Use this image as the pack's cover change a card's cover, as in the Windows reader. See
+  [Reading a book](docs/guide/web.md#reading-a-book).
 
 ## 1.3 · 19 October 2026
 

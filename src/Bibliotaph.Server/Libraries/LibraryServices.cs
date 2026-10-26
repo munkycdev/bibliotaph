@@ -86,6 +86,7 @@ public static class LibraryServices
         services.AddSingleton<PackService>();
         services.AddSingleton<ElsewhereStore>();
         services.AddSingleton<ChosenCovers>();
+        services.AddSingleton<CoverPages>();
         services.AddSingleton<FavoriteStore>();
         services.AddSingleton<ReadingStore>();
         services.AddSingleton<CollectionStore>();

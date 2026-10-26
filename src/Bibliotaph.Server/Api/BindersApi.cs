@@ -88,30 +88,21 @@ public static class BindersApi
                 BinderText.NewAction);
         });
 
-        // Whole books, or a page found by search, with Undo taking out just what was added.
+        // Add pages…'s Where: the end, before the first section, or a section.
+        binders.MapGet("/{id:long}/sections", async (long id, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await lease.Library.Get<SessionsService>().GetAsync(id, ct) is { } contents
+                ? Results.Ok(contents.Sections.Select(s => new BinderSection(s.Id, s.Name)).ToList())
+                : Results.NotFound();
+        });
+
+        // Whole books, or pages of a book (a page found by search, the reader's Add page and Add pages…), with Undo
+        // taking out just what was added.
         binders.MapPost("/{id:long}/add", async (long id, BinderAdd add, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
-            var library = lease.Library;
-            var sessions = library.Get<SessionsService>();
-            if (await sessions.GetAsync(id, ct) is not { } contents) return Results.NotFound();
-            IReadOnlyList<long> added;
-            string what;
-            if (add.DocumentId is { } document && add.Page is { } page)
-            {
-                var labels = await library.Get<PartsService>().GetPageLabelsAsync(document, ct);
-                what = BinderText.PageWhat(page < labels.Count ? labels[page] : null, page);
-                added = await sessions.AddPagesAsync(id, document, page, page, ct: ct) is { } item ? [item] : [];
-            }
-            else
-            {
-                what = add.Books.Count == 1 && add.Title is { Length: > 0 } title ? title : SelectionRules.Books(add.Books.Count);
-                added = add.Books.Count == 0 ? [] : await sessions.AddAsync(id, [.. add.Books.Distinct().Select(b => new NewSessionItem(new EntryId(b)))], ct: ct);
-            }
-            return Results.Ok(added.Count == 0
-                ? new ActionResult(BinderText.NotAdded)
-                : new ActionResult(BinderText.Added(what, contents.Pack.Title),
-                    EditApi.Hold(library, async () => await sessions.RemoveItemsAsync(added, CancellationToken.None), BinderText.Failed)));
+            return await AddAsync(lease.Library, id, add, ct) is { } done ? Results.Ok(done) : Results.NotFound();
         });
 
         // A copy without its date, which then opens.
@@ -210,6 +201,40 @@ public static class BindersApi
     static IResult NeedsName() => Results.Problem("Give the section a name.", statusCode: StatusCodes.Status400BadRequest);
 
     /// <summary>Any game system, then those the library's books are for, by name: what a binder kept at hand can be for.</summary>
+    /// <summary>What Add to binder did, with its Undo; null when there's no such binder.</summary>
+    internal static async Task<ActionResult?> AddAsync(UserLibrary library, long id, BinderAdd add, CancellationToken ct)
+    {
+        var sessions = library.Get<SessionsService>();
+        if (await sessions.GetAsync(id, ct) is not { } contents) return null;
+        IReadOnlyList<long> added;
+        string what;
+        if (add is { DocumentId: { } whole, WholeFile: true })
+        {
+            what = add.Title is { Length: > 0 } named ? named : "the picture";
+            added = await sessions.AddDocumentAsync(id, whole, add.SectionId, ct) is { } item ? [item] : [];
+        }
+        else if (add.DocumentId is { } document && add.Page is { } page)
+        {
+            var (first, last) = (Math.Min(page, add.LastPage ?? page), Math.Max(page, add.LastPage ?? page));
+            if (first < 0 || await library.Get<IndexQueries>().GetPageCountAsync(document, ct) is { } count && last >= count)
+                return new ActionResult(BinderText.NotAdded);
+            var labels = await library.Get<PartsService>().GetPageLabelsAsync(document, ct);
+            var label = add.Label?.Trim() is { Length: > 0 } typed ? typed : null;
+            what = add.LastPage is null ? BinderText.PageWhat(page < labels.Count ? labels[page] : null, page)
+                : label ?? (first == last ? "the page" : "the pages");
+            added = await sessions.AddPagesAsync(id, document, first, last, label, add.SectionId, ct) is { } item ? [item] : [];
+        }
+        else
+        {
+            what = add.Books.Count == 1 && add.Title is { Length: > 0 } title ? title : SelectionRules.Books(add.Books.Count);
+            added = add.Books.Count == 0 ? [] : await sessions.AddAsync(id, [.. add.Books.Distinct().Select(b => new NewSessionItem(new EntryId(b)))], ct: ct);
+        }
+        return added.Count == 0
+            ? new ActionResult(BinderText.NotAdded)
+            : new ActionResult(BinderText.Added(what, contents.Pack.Title),
+                EditApi.Hold(library, async () => await sessions.RemoveItemsAsync(added, CancellationToken.None), BinderText.Failed));
+    }
+
     static async Task<IReadOnlyList<FilterChoice>> SystemsAsync(UserLibrary library, CancellationToken ct) =>
     [
         new FilterChoice("", BinderText.AnySystem),

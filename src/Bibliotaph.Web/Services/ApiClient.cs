@@ -209,6 +209,18 @@ public sealed class ApiClient(HttpClient http)
     public Task SavePositionAsync(long documentId, int page, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Put, $"{Document(documentId)}/position", new ReaderPosition(page), ct);
 
+    /// <summary>Use this page as the cover: a page of a whole PDF, or 0 for its first page again.</summary>
+    public Task<ReaderCoverUsed> UseCoverPageAsync(long documentId, int page, CancellationToken ct = default) =>
+        SendAsync<ReaderCoverUsed>(HttpMethod.Put, $"{Document(documentId)}/cover-page", new ReaderCover(page), ct);
+
+    /// <summary>Mark as adventure in the reader: pages of the file open there, typed as the reader names them.</summary>
+    public Task<EditResult> MarkAdventureAsync(long documentId, PartEdit part, CancellationToken ct = default) =>
+        SendAsync<EditResult>(HttpMethod.Post, $"{Document(documentId)}/parts", part, ct);
+
+    /// <summary>The bookmark a page sits under, which Add pages… starts its label with.</summary>
+    public Task<ReaderBookmark> BookmarkAsync(long documentId, int page, CancellationToken ct = default) =>
+        SendAsync<ReaderBookmark>(HttpMethod.Get, $"{Document(documentId)}/bookmark?page={page.ToString(System.Globalization.CultureInfo.InvariantCulture)}", null, ct);
+
     // The reader's Notes panel: the notes on the open book's pages, as the copy open there numbers them.
 
     public Task<ReaderNotes> ReaderNotesAsync(long documentId, CancellationToken ct = default) =>
@@ -373,6 +385,10 @@ public sealed class ApiClient(HttpClient http)
 
     public Task<ActionResult> AddToBinderAsync(long id, BinderAdd add, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Post, $"{Binder(id)}/add", add, ct);
+
+    /// <summary>A binder's sections, for Add pages…'s Where.</summary>
+    public Task<List<BinderSection>> BinderSectionsAsync(long id, CancellationToken ct = default) =>
+        SendAsync<List<BinderSection>>(HttpMethod.Get, $"{Binder(id)}/sections", null, ct);
 
     public Task<BinderCreated> CreateBinderAsync(BinderEdit edit, CancellationToken ct = default) =>
         SendAsync<BinderCreated>(HttpMethod.Post, "api/binders", edit, ct);
