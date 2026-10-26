@@ -9,6 +9,10 @@
   and **Import a saved page…** and **Choose pictures…** from the web: Bibliotaph's browser reads the page on Windows,
   and **Send to Bibliotaph** brings it, covers included, on the web. See
   [Online libraries](docs/guide/online-libraries.md#without-bibliotaphs-browser).
+## Unreleased
+
+- **PDFs with copy or print restrictions open on the web again.** The reader failed on them. When a book can't be
+  opened for a reason Bibliotaph doesn't recognise, it now says so plainly instead of showing the technical error.
 - **Choose which file is the current version.** A New version? card names both files with their pages, and asks
   which one the book opens: **This file is current** or **The book's file is current**. See
   [Needs review](docs/guide/cataloging.md#needs-review).
