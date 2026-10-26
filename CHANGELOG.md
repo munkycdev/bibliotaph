@@ -168,6 +168,10 @@
 - **Box on the web.** Settings › Storage connects a Box account, read-only, once the server's Box app is set up. Its
   books open in the reader through the server, and changes are noticed within five minutes. See
   [Connecting your storage](docs/guide/web.md#connecting-your-storage).
+- **Online libraries on the web.** Settings › Online libraries imports the books you own on D&D Beyond, Demiplane,
+  Humble Bundle and DriveThruRPG from a library page saved with Save as, with the Windows app's preview, Import with
+  Undo, covers from the pictures saved beside the page, and the books no longer listed. See
+  [Online libraries](docs/guide/web.md#online-libraries).
 
 ## 1.3 · 19 October 2026
 

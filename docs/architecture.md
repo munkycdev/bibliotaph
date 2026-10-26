@@ -281,6 +281,7 @@ Bibliotaph reads the libraries of online services (D&D Beyond, Demiplane) and st
 - **Online reader.** A book owned only online opens in a reader built around the service's own page, with the same profile, so it is signed in. It follows links on the book's site and its sign-in sites; anything else goes to the everyday browser. It copies no text from the page, so it has no search, notes on pages or Ask. An optional reading-mode stylesheet per service hides the site's chrome. A page can be added to a binder by its address.
 - **Downloads.** A download the user starts on a store's page is saved into a downloads folder inside a library folder, under a free name, by the browser; the folder is then scanned and the file read like any other, so "Is this its file?" offers it to its book.
 - **Site icons.** Fetched once per site into the cache for the cover badge, unless switched off.
+- **On the web.** A browser page can't host a service's site, so the web imports a library page the user saved with Save as: `POST /api/online/pages` reads it with the same readers, and `HeldOnlinePages` keeps the page and the pictures given for its covers (`PUT …/images/{name}`, matched by file name with `OnlineImports.CoverFileName`) in memory for two hours while `OnlineImports` previews and imports it. The words of the preview and its results are `OnlineImportText`, shared with the Windows app.
 
 There is no automation: Bibliotaph acts on a service's site only through the user's own clicks.
 

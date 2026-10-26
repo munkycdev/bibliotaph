@@ -27,6 +27,7 @@
             {
                 case "storage": <SettingsStorage Problem="@Problem" ProblemProvider="@ProblemProvider" /> break;
                 case "library": <SettingsLibrary /> break;
+                case "online": <SettingsOnline /> break;
                 case "devices": <SettingsDevices /> break;
                 case "processing": <SettingsProcessing /> break;
                 case "vocabulary": <SettingsVocabulary /> break;
@@ -76,6 +77,7 @@
         {
             yield return ("storage", "Storage");
             yield return ("library", "Library");
+            yield return ("online", "Online libraries");
             yield return ("devices", "Windows PCs");
             yield return ("processing", "Processing");
             yield return ("appearance", "Appearance");
