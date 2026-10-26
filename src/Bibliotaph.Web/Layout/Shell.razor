@@ -125,6 +125,11 @@ else
     <BinderDialog />
 }
 
+@if (_shortcuts)
+{
+    <ShortcutsDialog Closed="() => _shortcuts = false" />
+}
+
 @code {
     static readonly (string Href, string Label, string Icon)[] Items =
     [
@@ -191,6 +196,31 @@ else
     }
 
     async Task CycleTheme() => _theme = await Theme.CycleAsync();
+
+    bool _shortcuts;
+    DotNetObjectReference<Shell>? _self;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_self is not null || _me is null) return;
+        _self = DotNetObjectReference.Create(this);
+        try
+        {
+            await JS.InvokeVoidAsync("bibliotaphShell.start", _self);
+        }
+        catch (JSException)
+        {
+            // Ctrl+/ does nothing; Settings still has the list.
+        }
+    }
+
+    /// <summary>Ctrl+/, from the page's script: the Keyboard shortcuts popup, or away again.</summary>
+    [JSInvokable]
+    public void ShowShortcuts()
+    {
+        _shortcuts = !_shortcuts;
+        StateHasChanged();
+    }
 
     /// <summary>
     /// The Library rather than Home when Settings › Library says so, as the Windows app opens on one or the other. Only
@@ -366,5 +396,6 @@ else
         Pins.Changed -= OnPinsChanged;
         Breadcrumb.Changed -= OnPinsChanged;
         Theme.Changed -= OnThemeChanged;
+        _self?.Dispose();
     }
 }

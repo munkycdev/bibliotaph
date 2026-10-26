@@ -24,7 +24,9 @@ sections beside the one you're in, in the Windows app's order. **Storage**, **Li
 **Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
 invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
-the privacy policy.
+the privacy policy. **Keyboard shortcuts**, under it, lists every key that works on the web, by where it works; Ctrl+/
+shows the same list from anywhere. Ctrl+K, or / when you're not typing, puts the keyboard in the search box, and in a
+reader popped out into a window of its own, Ctrl+K searches in the main window.
 
 ## Signing in and out
 
@@ -116,7 +118,8 @@ remembers the layout, the order and the pack view.
 
 Right-click a book (or press and hold it on a touch screen) for the Windows app's menu: **Open**, **Open in new
 window**, **Details**, **Add to favorites**, **Pin**, **Cataloged wrong…**, **Add to collection** and **Add to binder**,
-each with the list to choose from, and **Remove from library** for a book owned elsewhere.
+each with the list to choose from, and **Remove from library** for a book owned elsewhere. **Open in new window**
+opens the book in a reader window of its own, as Shift+Enter on a book or a middle-click does.
 
 **Filters** opens the Windows app's filter panel: game system, type, character level (with **Include unknown levels**)
 and players, then under **More filters** the style and length of an adventure, the book's setting, themes,
@@ -140,7 +143,7 @@ a file or the file an adventure is in, a pack's files, **About the file**, **Whe
 when it has more than one, and how far reading it has got. **Esc**, the **×** or a click outside closes them.
 
 **Home** greets you with the books you opened last and those added last, a cover each; a click opens the book's details
-in the Library.
+in the Library, and a right-click has the same menu as in the Library.
 
 Covers are kept with your account, so they don't need drawing again when the server restarts.
 
@@ -358,7 +361,9 @@ names, to paste into a bug report. Opening a locked file to unlock it comes with
 A book opens in the reader as in the Windows app: double-click it in the Library, or click it once and click **Open**
 in its details. A matching page under **Inside documents** has **Open page**, which opens the book at that page with
 the search's words marked. A book opened from the Library opens where you left it, and says so; an adventure inside a
-file opens at its own first page and shows where you are in it ("page 3 of 19 of this adventure").
+file opens at its own first page and shows where you are in it ("page 3 of 19 of this adventure"). While a book is
+open, the screen stays on, so a tablet at the table doesn't dim between glances; it dims as usual once you leave the
+book or switch away.
 
 The pages are read from your storage a piece at a time, so a big book shows its first page in a moment: straight from
 OneDrive, and through the server from Dropbox and Google Drive, which passes each piece on without keeping it. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
@@ -558,6 +563,13 @@ for a spreadsheet, and **Export JSON** everything in your catalog, for other pro
 **Settings** › **Appearance** chooses **Use system**, which follows your device, **Light** or **Dark**, as in the Windows
 app. The button at the top right cycles through the same three. The browser remembers your choice, so another browser
 or computer keeps its own.
+
+## Installing it as an app
+
+bibliotaph.online can be installed like an app, with its own icon and a window without the browser's address bar,
+which suits a tablet at the table. In Chrome or Edge on a PC, choose **Install** at the right of the address bar; on
+Android, **Add to home screen** in the browser's menu; on an iPad or iPhone, **Share** › **Add to Home Screen** in
+Safari. It is the same site, signed in the same way, so nothing else changes.
 
 ## Privacy
 

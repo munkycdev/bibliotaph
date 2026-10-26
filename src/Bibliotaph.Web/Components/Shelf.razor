@@ -1,9 +1,11 @@
-@* A row of Home's covers, as the Windows app's: cover, title and a line about the book; a click opens its details. *@
+@* A row of Home's covers, as the Windows app's: cover, title and a line about the book; a click opens its details, and
+   a right-click the book's menu, as in the Library. *@
 <div class="bt-books bt-shelf" aria-label="@Label">
     @foreach (var book in Books)
     {
-        <div class="bt-book" @key="book.Id" title="@book.Title">
-            <button class="bt-bookbutton" aria-label="Details for @book.Title" @onclick="() => Open.InvokeAsync(book)">
+        <div class="bt-book" @key="book.Id" title="@book.Title" @oncontextmenu="() => _menu = book" @oncontextmenu:preventDefault="true">
+            <button class="bt-bookbutton" aria-label="Details for @book.Title" data-popout="@(book.Elsewhere ? null : ReaderUrl.For(book, popout: true))"
+                    @onclick="() => Open.InvokeAsync(book)">
                 <div class="bt-coverarea">
                     <BookCover Book="book" />
                     @if (book.Favorite) { <span class="bt-heart cover on" role="img" aria-label="Favorite"><Icon Name="Heart" Size="13" /></span> }
@@ -11,12 +13,27 @@
                 <div class="bt-booktitle">@book.Title</div>
                 <div class="bt-bookmeta">@book.Meta</div>
             </button>
+            @if (_menu == book)
+            {
+                <BookMenu Book="book" Closed="() => _menu = null" Details="() => Open.InvokeAsync(book)" Correct="() => Correct.InvokeAsync(book)"
+                          Changed="Changed" Done="Done" />
+            }
         </div>
     }
 </div>
 
 @code {
+    BookCard? _menu;
+
     [Parameter, EditorRequired] public IReadOnlyList<BookCard> Books { get; set; } = [];
     [Parameter, EditorRequired] public string Label { get; set; } = "";
     [Parameter] public EventCallback<BookCard> Open { get; set; }
+
+    /// <summary>The menu's Cataloged wrong…: the book's details, with every guess marked.</summary>
+    [Parameter] public EventCallback<BookCard> Correct { get; set; }
+
+    /// <summary>A favorite set, or a book taken out of the library, so Home reads its rows again.</summary>
+    [Parameter] public EventCallback Changed { get; set; }
+
+    [Parameter] public EventCallback<ActionResult> Done { get; set; }
 }

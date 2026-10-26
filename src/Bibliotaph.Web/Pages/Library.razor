@@ -403,7 +403,7 @@ else if (_list)
         @foreach (var book in _results.Books.Take(_shown))
         {
             <div class="bt-listitem" @key="book.Id" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_selecting)">
-            <button class="bt-listrow @(_selecting ? "selecting" : "")" title="@book.Title" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)"
+            <button class="bt-listrow @(_selecting ? "selecting" : "")" title="@book.Title" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" data-popout="@PopOutUrl(book)"
                     @onclick="e => CardClickAsync(book, e)" @ondblclick="() => OpenBook(book)">
                 @if (_selecting) { <Tick On="IsTicked(book)" /> }
                 <div class="bt-thumb"><BookCover Book="book" Marks="false" /></div>
@@ -436,7 +436,7 @@ else
         @foreach (var book in _results.Books.Take(_shown))
         {
             <div class="bt-book" @key="book.Id" title="@book.Title" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_selecting)">
-                <button class="bt-bookbutton @(_selecting ? "selecting" : "")" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" @onclick="e => CardClickAsync(book, e)"
+                <button class="bt-bookbutton @(_selecting ? "selecting" : "")" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" data-popout="@PopOutUrl(book)" @onclick="e => CardClickAsync(book, e)"
                         @ondblclick="() => OpenBook(book)">
                 <div class="bt-coverarea">
                     <BookCover Book="book" />
@@ -977,6 +977,12 @@ else
         await UpdateSelectionAsync();
         StateHasChanged();
     }
+
+    /// <summary>
+    /// Where Shift+Enter or a middle-click pops the book out, as the Windows app's Open in new window; none in Select
+    /// mode, where the keys tick books, or for a book with no file here.
+    /// </summary>
+    string? PopOutUrl(BookCard book) => _selecting || book.Elsewhere ? null : ReaderUrl.For(book, popout: true);
 
     /// <summary>In Select mode a click ticks a book, and Shift+click every book from the last one clicked to this one.</summary>
     async Task CardClickAsync(BookCard book, MouseEventArgs e)
