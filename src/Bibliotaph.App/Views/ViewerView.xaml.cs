@@ -5,7 +5,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
+using Bibliotaph.Core.Reading;
 
 namespace Bibliotaph.App.Views;
 
@@ -270,10 +272,17 @@ public partial class ViewerView
     /// <summary>The page with selected text on it as the Add page menu opened, before the click takes focus from the pages.</summary>
     int? _selectionPage;
 
-    void AddPageMenu_Click(object sender, RoutedEventArgs e)
+    /// <summary>Add to binder: its menu names the binders as it opens, so it's never out of date, then Add pages….</summary>
+    void AddToBinder_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { ContextMenu: { } menu } button) return;
+        if (sender is not Button { ContextMenu: { } menu } button || _model is not { } model) return;
         _selectionPage = SelectionPage;
+        menu.Items.Clear();
+        foreach (var choice in model.AddToBinderChoices)
+            menu.Items.Add(new MenuItem { Header = choice.Label, Command = model.AddPageToSessionCommand, CommandParameter = new SessionRequest(null, choice) });
+        var pages = new MenuItem { Header = AddToBinderMenu.Pages };
+        pages.Click += AddPages_Click;
+        menu.Items.Add(pages);
         menu.PlacementTarget = button;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;

@@ -396,8 +396,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsEbook), nameof(HasPages), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices),
-        nameof(OutlineVisible), nameof(StripVisible), nameof(CanUseAsPackCover))]
-    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageCommand), nameof(MarkPagesCommand), nameof(UseAsCoverCommand))]
+        nameof(OutlineVisible), nameof(StripVisible), nameof(CanUseAsPackCover), nameof(CanAddToBinder))]
+    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageToSessionCommand), nameof(MarkPagesCommand), nameof(UseAsCoverCommand))]
     public partial ViewerMode Mode { get; private set; }
 
     public bool IsPdf => Mode == ViewerMode.Pdf;
@@ -856,20 +856,30 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     [RelayCommand]
     void ReturnToMainWindow() => _windows.ReturnToMainWindow(this);
 
-    /// <summary>Add page, Add pages… and Use this page, with their note and Undo, and the dialog over the reader.</summary>
+    /// <summary>Add to binder, Add pages… and Use this page, with their note and Undo, and the dialog over the reader.</summary>
     public SessionActions Sessions { get; }
 
     IReadOnlyList<SessionMenuChoice> ISessionChoices.MenuChoices => Sessions.Directory.MenuChoices;
 
+    /// <summary>Whether Add to binder is offered: a PDF, an image or an e-book is open.</summary>
+    public bool CanAddToBinder => CanAddPage();
+
+    /// <summary>Add to binder's items above Add pages…: the binders by name, most recently worked on first, then the rest and a new one.</summary>
+    public IReadOnlyList<SessionMenuChoice> AddToBinderChoices =>
+    [
+        .. AddToBinderMenu.For([.. Sessions.Directory.All.Select(p => (p.Id, p.Title))]).Select(item => new SessionMenuChoice(item.Kind switch
+        {
+            AddToBinderMenu.Kind.Binder => SessionMenuKind.Session,
+            AddToBinderMenu.Kind.Another => SessionMenuKind.Choose,
+            _ => SessionMenuKind.New,
+        }, item.Id, item.Label)),
+    ];
+
     /// <summary>
-    /// Add page: the page in view, or the whole image, to the current session pack; before there is one, it asks for
-    /// one first.
+    /// One of Add to binder's items: the page in view, or the whole image, to the binder it names, or to one picked or
+    /// made from it.
     /// </summary>
     [RelayCommand(CanExecute = nameof(CanAddPage))]
-    void AddPage() => AddPageTo(null);
-
-    /// <summary>One of the Add page menu's Add to session items: the page in view to that pack.</summary>
-    [RelayCommand]
     void AddPageToSession(SessionRequest request) => AddPageTo(request.Choice);
 
     void AddPageTo(SessionMenuChoice? choice)

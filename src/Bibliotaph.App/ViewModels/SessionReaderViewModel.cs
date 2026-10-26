@@ -247,7 +247,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             else
             {
                 ShowOnline(null);
-                Viewer.ShowUnavailable("This binder has nothing in it yet.", "Add books and pages to it from your library, or use Add page in the reader.");
+                Viewer.ShowUnavailable("This binder has nothing in it yet.", "Add books and pages to it from your library, or use Add to binder in the reader.");
             }
         }
         catch (Exception ex)
@@ -359,7 +359,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             else
             {
                 Current = null;
-                Viewer.ShowUnavailable("This binder has nothing in it yet.", "Add books and pages to it from your library, or use Add page in the reader.");
+                Viewer.ShowUnavailable("This binder has nothing in it yet.", "Add books and pages to it from your library, or use Add to binder in the reader.");
             }
             // A name being typed when the list was rebuilt stays open for typing.
             if (editing is not null && items.FirstOrDefault(i => i.Id == editing.Id) is { } again) Rename(again, editing.Draft);

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Add to binder in the reader.** **Add page** is now **Add to binder**, in the Windows app and on the web. Its menu
+  names your binders, the one you worked on last first, so you choose where the page goes; **New binder…** and
+  **Add pages…** are there too. See [Binders](docs/guide/binders.md#add-books-and-pages).
 - **A new home page for bibliotaph.online.** It shows what Bibliotaph does, with examples of search, the catalog,
   binders and online libraries, the Windows app and the web side by side, and answers to common questions. See
   [The site](docs/guide/web.md#the-site).

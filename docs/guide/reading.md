@@ -79,7 +79,8 @@ can open a card's book in a window too, to check it before deciding (see
 
 ## Adding to a binder
 
-**Add page** puts the page you're on into your current binder, and its menu has **Add pages…** for a range. See
+**Add to binder** lists your binders, the one you worked on last first, and puts the page you're on into the one you
+choose; **New binder…** makes one, and **Add pages…** at the bottom adds a range. See
 [Binders](binders.md#add-books-and-pages).
 
 ## Maps and image packs
