@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Weekly backups and Restore, on the web.** Bibliotaph on the web makes a backup each week and keeps the last four,
+  and Settings › Backup lists them to download or restore. Restore also reads a backup you choose, made on the web or
+  by the Windows app, shows what it holds before anything changes, and keeps your current catalog first. See
+  [Backup and export](docs/guide/web.md#backup-and-export).
 - **Send to Bibliotaph, on the web.** A bookmark in Settings › Online libraries, dragged to the bookmarks bar and clicked
   on your D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG library page, sends the page to Bibliotaph with its
   covers, so there's no saving and picking files. See [Online libraries](docs/guide/web.md#online-libraries).

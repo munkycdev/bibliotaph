@@ -367,6 +367,15 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
         }
     }
 
+    /// <summary>
+    /// The catalog a staged restore readied, for a host that swaps it in itself rather than at the next start: the web
+    /// copies it into catalog.db while the library is closed.
+    /// </summary>
+    public string StagedCatalog => Path.Combine(PendingRestore.StagingFolder(paths), CatalogEntry);
+
+    /// <summary>The index the staged backup brought, when it has one; it describes the restored catalog.</summary>
+    public string? StagedIndex => Path.Combine(PendingRestore.StagingFolder(paths), IndexEntry) is var path && File.Exists(path) ? path : null;
+
     /// <summary>Forgets a previewed backup without restoring it, and a restore staged but not yet swapped in.</summary>
     public void DiscardStaging() => PendingRestore.Cancel(paths);
 }

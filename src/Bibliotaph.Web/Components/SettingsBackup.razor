@@ -1,6 +1,8 @@
-@* Settings › Backup, as the Windows app's where the web can do the same: a backup to download, which the Windows app
-   restores, and the library exported as CSV or JSON. Each is a plain download, so the browser saves it as it saves
-   anything else. *@
+@* Settings › Backup, as the Windows app's: a backup to download, which the Windows app restores too, the weekly backups
+   the server keeps, Restore with its preview before anything changes, and the library exported as CSV or JSON. The
+   downloads are plain links, so the browser saves them as it saves anything else. *@
+@inject ApiClient Api
+@inject LibraryActivity Activity
 
 <section class="bt-section" aria-labelledby="backup-heading">
     <h2 id="backup-heading">Backup</h2>
@@ -9,12 +11,84 @@
     <div class="bt-actions">
         <a class="bt-button primary" href="@Download("api/library/backup")" download><Icon Name="HardDrive" />Download a backup</a>
     </div>
-    <p class="bt-fine">The Windows app restores it from its own Settings › Backup, and asks where each folder is on that PC.
-        AI keys aren't in backups.</p>
+    <p class="bt-fine">@WeeklyLine</p>
+    @if (_kept.Count > 0)
+    {
+        <ul class="bt-keptbackups" aria-label="Kept backups">
+            @foreach (var backup in _kept)
+            {
+                <li class="bt-settingrow">
+                    <div>@Made(backup.Created)<small>@(backup.Weekly ? "Weekly backup" : "Made before a restore") · @Size(backup.Bytes)</small></div>
+                    <div class="bt-actions">
+                        <a class="bt-button" href="@($"api/library/backups/{Uri.EscapeDataString(backup.Name)}")" download
+                           aria-label="@($"Download the backup made {Made(backup.Created)}")"><Icon Name="ArrowDown" />Download</a>
+                        <button class="bt-button" disabled="@_busy" @onclick="() => ReadKeptAsync(backup)"
+                                aria-label="@($"Restore the backup made {Made(backup.Created)}")"><Icon Name="RotateCcw" />Restore…</button>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
 
     <h3 class="bt-settingshead">Restore</h3>
-    <p class="bt-fine">To bring your work from the Windows app here, connect the PC under <SettingsLink To="devices">Windows PCs</SettingsLink>:
-        its corrections, hearts, notes, collections, binders, saved searches and pins are merged with this library's.</p>
+    <p class="bt-fine">Puts your catalog back as it was when a backup was made, here or in the Windows app. Your current catalog
+        is backed up first.</p>
+    <div class="bt-actions">
+        <label class="bt-button bt-filebutton @(_busy ? "disabled" : "")"><Icon Name="FolderInput" />Choose a backup…
+            <InputFile accept=".zip,application/zip" OnChange="BackupPickedAsync" aria-label="Choose a backup to restore" disabled="@_busy" />
+        </label>
+    </div>
+    @if (_reading)
+    {
+        <p class="bt-fine" role="status">Reading the backup…</p>
+    }
+    @if (_problem is { } problem)
+    {
+        <div class="bt-problem" role="alert">@problem</div>
+    }
+    <DoneNote Result="_restored" Dismissed="() => _restored = null" />
+    @if (_preview is { } preview)
+    {
+        <div class="bt-restore" aria-label="The backup to restore">
+            <p class="bt-copy">@Describe(preview)</p>
+            @if (preview.Folders.Count > 0)
+            {
+                <ul class="bt-restorefolders" aria-label="Library folders in the backup">
+                    @foreach (var folder in preview.Folders)
+                    {
+                        <li class="bt-settingrow">
+                            <div>@folder.Location<small>@Files(folder.Files)</small></div>
+                            <small class="@(folder.Found ? "" : "bt-offline")">@(folder.Found
+                                ? "In your storage"
+                                : "Not in your storage, so it stays offline here.")</small>
+                        </li>
+                    }
+                </ul>
+            }
+            <p class="bt-fine">Passwords for protected PDFs and AI keys aren't in backups. Bibliotaph asks for them again when it needs them.</p>
+            @if (_confirming)
+            {
+                <div class="bt-confirmbox" role="alertdialog" aria-label="Restore this backup?">
+                    <div class="bt-row">Restore this backup?</div>
+                    <div class="bt-small">@ConfirmText(preview)</div>
+                    <div class="bt-boxactions">
+                        <button class="bt-button primary" disabled="@_busy" @onclick="RestoreAsync">Restore</button>
+                        <button class="bt-button" disabled="@_busy" @onclick="() => _confirming = false">Cancel</button>
+                    </div>
+                </div>
+            }
+            else
+            {
+                <div class="bt-actions">
+                    <button class="bt-button primary" disabled="@_busy" @onclick="() => _confirming = true"><Icon Name="RotateCcw" />Restore…</button>
+                    <button class="bt-button" disabled="@_busy" @onclick="CancelAsync">Cancel</button>
+                </div>
+            }
+        </div>
+    }
+    <p class="bt-fine">To bring your work from the Windows app here and keep both up to date, connect the PC under
+        <SettingsLink To="devices">Windows PCs</SettingsLink>: its corrections, hearts, notes, collections, binders, saved searches
+        and pins are merged with this library's.</p>
 
     <h3 class="bt-settingshead">Export</h3>
     <p class="bt-fine">CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON
@@ -26,6 +100,139 @@
 </section>
 
 @code {
+    /// <summary>The server takes a backup up to this size; catalog.db, and index.db when it's included, is far smaller.</summary>
+    const long MostBackupBytes = 2L * 1024 * 1024 * 1024;
+
+    List<KeptBackupInfo> _kept = [];
+    RestorePreviewInfo? _preview;
+    string? _problem;
+    ActionResult? _restored;
+    bool _busy;
+    bool _reading;
+    bool _confirming;
+
     // The file is named for the day where the user is, as the Windows app names it.
     static string Download(string path) => $"{path}?today={DateTime.Now:yyyy-MM-dd}";
+
+    protected override async Task OnInitializedAsync() => await LoadKeptAsync();
+
+    async Task LoadKeptAsync()
+    {
+        try
+        {
+            _kept = await Api.KeptBackupsAsync();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            // The list is only for convenience; Restore from a file still works.
+            _kept = [];
+        }
+    }
+
+    string WeeklyLine => _kept.FirstOrDefault(b => b.Weekly) is { } last
+        ? $"Last weekly backup: {Made(last.Created)}. Bibliotaph keeps the last four, in its own storage, to download or restore."
+        : "No weekly backup yet. Bibliotaph makes one each week while you use it, once your library has books in it, and keeps the last four.";
+
+    static string Made(DateTimeOffset when) =>
+        when.ToLocalTime().ToString("dddd d MMMM yyyy 'at' HH:mm", System.Globalization.CultureInfo.CurrentCulture);
+
+    static string Size(long bytes) => bytes switch
+    {
+        < 1024 * 1024 => $"{Math.Max(1, bytes / 1024):N0} KB",
+        _ => $"{bytes / (1024d * 1024):N1} MB",
+    };
+
+    static string Count(int count, string one, string many) =>
+        $"{count.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)} {(count == 1 ? one : many)}";
+
+    static string Files(int files) => Count(files, "file", "files");
+
+    static string Describe(RestorePreviewInfo preview) =>
+        $"Made {preview.Created.ToLocalTime().ToString("d MMMM yyyy 'at' HH:mm", System.Globalization.CultureInfo.CurrentCulture)} by Bibliotaph {preview.App}: "
+        + $"{string.Join(", ", Count(preview.Books, "book", "books"), Count(preview.Collections, "collection", "collections"), Count(preview.Notes, "note", "notes"))}. "
+        + "Your books are read again for search after restoring, in the background.";
+
+    static string ConfirmText(RestorePreviewInfo preview)
+    {
+        var offline = preview.Folders.Count(f => !f.Found);
+        return "Bibliotaph keeps a backup of your current catalog, listed above, then puts this one in its place. "
+            + "Anything you did since the backup was made is replaced."
+            + (offline == 0 ? "" : offline == 1 ? " One library folder stays offline." : $" {offline:N0} library folders stay offline.");
+    }
+
+    async Task ReadKeptAsync(KeptBackupInfo backup) => await ReadAsync(() => Api.ReadKeptBackupAsync(backup.Name));
+
+    async Task BackupPickedAsync(InputFileChangeEventArgs e)
+    {
+        if (e.File.Size > MostBackupBytes)
+        {
+            _problem = "That file is too big to be a Bibliotaph backup.";
+            return;
+        }
+        await ReadAsync(async () =>
+        {
+            await using var zip = e.File.OpenReadStream(MostBackupBytes);
+            return await Api.ReadBackupAsync(zip);
+        });
+    }
+
+    async Task ReadAsync(Func<Task<RestoreRead>> read)
+    {
+        _reading = true;
+        await RunAsync(async () =>
+        {
+            _restored = null;
+            _confirming = false;
+            var result = await read();
+            _preview = result.Preview;
+            _problem = result.Problem;
+        });
+        _reading = false;
+    }
+
+    async Task RestoreAsync()
+    {
+        if (_preview is not { } preview) return;
+        await RunAsync(async () =>
+        {
+            var done = await Api.RestoreAsync(preview.Token);
+            _preview = null;
+            _confirming = false;
+            _restored = done;
+            Activity.Refresh();
+            await LoadKeptAsync();
+        });
+    }
+
+    async Task CancelAsync()
+    {
+        if (_preview is not { } preview) return;
+        await RunAsync(async () =>
+        {
+            await Api.CancelRestoreAsync(preview.Token);
+            _preview = null;
+        });
+    }
+
+    async Task RunAsync(Func<Task> work)
+    {
+        _busy = true;
+        _problem = null;
+        try
+        {
+            await work();
+        }
+        catch (IOException)
+        {
+            _problem = "That file couldn't be read here.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _problem = ex is ApiProblemException ? ex.Message : "Bibliotaph couldn't do that just now. Try again in a moment.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
 }

@@ -55,6 +55,15 @@ public static class ServerSetup
             kept.Add((new BlobContainerClient(replicaContainer, credential.Value), replicaRoot));
         }
         if (options.CoverContainer is { Length: > 0 } coverContainer) kept.Add((new BlobContainerClient(new Uri(coverContainer), credential.Value), ""));
+        if (BackupContainer(options) is { } backupContainer)
+        {
+            var container = new BlobContainerClient(backupContainer, credential.Value);
+            services.AddSingleton<IBackupStore>(new BlobBackupStore(container));
+            kept.Add((container, ""));
+        }
+        else services.AddSingleton<IBackupStore>(new DiskBackupStore(paths));
+        services.AddSingleton<WebBackups>();
+        services.AddHostedService<WebBackups.Weekly>();
         if (kept.Count > 0) services.AddSingleton<IUserBlobs>(new BlobUserBlobs(kept));
         else services.AddSingleton<IUserBlobs, NoUserBlobs>();
         services.AddSingleton<AccountPurge>();
@@ -77,6 +86,15 @@ public static class ServerSetup
         });
         services.AddProblemDetails();
         return services;
+    }
+
+    /// <summary>Where backups are kept in Blob storage: the container set, or the one named backups beside the covers.</summary>
+    static Uri? BackupContainer(ServerOptions options)
+    {
+        if (options.BackupContainer is { Length: > 0 } set) return new Uri(set);
+        if (options.CoverContainer is not { Length: > 0 } covers) return null;
+        var account = new Uri(covers);
+        return new Uri(account, "/backups");
     }
 
     public static WebApplication UseBibliotaphServer(this WebApplication app)

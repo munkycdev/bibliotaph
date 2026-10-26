@@ -133,6 +133,65 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         }
     }
 
+    /// <summary>The users whose libraries are open now.</summary>
+    public IReadOnlyList<string> OpenUsers => [.. _slots.Keys];
+
+    /// <summary>A lease on the user's library if it is open now, else null: never opens one.</summary>
+    public async Task<LibraryLease?> LeaseIfOpenAsync(string userId)
+    {
+        if (!_slots.TryGetValue(userId, out var slot) || !slot.Opening.IsValueCreated || !slot.Opening.Value.IsCompletedSuccessfully) return null;
+        lock (slot)
+        {
+            if (slot.Closed is not null) return null;
+            slot.Leases++;
+        }
+        return new LibraryLease(await slot.Opening.Value, () => Release(slot));
+    }
+
+    /// <summary>
+    /// Closes the user's library, even in use, and runs <paramref name="replace"/> on its files while nothing can open
+    /// it: a request meanwhile waits, then opens the library afresh. For a restore, which changes catalog.db under
+    /// everything that holds it.
+    /// </summary>
+    public async Task ReplaceAsync(string userId, Func<AppPaths, Task> replace)
+    {
+        UserIds.Require(userId);
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        // Holds the user's place, closed until the files are replaced, so OpenAsync waits on it as on a closing library.
+        var holder = new Slot(new Lazy<Task<UserLibrary>>(() => Task.FromException<UserLibrary>(new InvalidOperationException("The library is being replaced."))));
+        holder.Closed = done.Task;
+        while (!_slots.TryAdd(userId, holder))
+        {
+            if (!_slots.TryGetValue(userId, out var slot)) continue;
+            Task? closing;
+            lock (slot) closing = slot.Closed;
+            if (closing is not null)
+            {
+                await closing;
+                continue;
+            }
+            try
+            {
+                await slot.Opening.Value;
+            }
+            catch
+            {
+                _slots.TryRemove(new KeyValuePair<string, Slot>(userId, slot));
+                continue;
+            }
+            if (TryBeginClose(slot, _ => true, out var closed)) await CloseAsync(userId, slot, closed);
+        }
+        try
+        {
+            await replace(new AppPaths(paths.UserRoot(userId)));
+        }
+        finally
+        {
+            _slots.TryRemove(new KeyValuePair<string, Slot>(userId, holder));
+            done.TrySetResult();
+        }
+    }
+
     /// <summary>
     /// The user connected or disconnected a drive: an open library picks up the change and looks at its folders again.
     /// A closed one reads the connections when it next opens.
