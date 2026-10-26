@@ -177,6 +177,12 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadFromJsonAsync<LibraryResults>(ct))!;
     }
 
+    public async Task AiLaterAsync(CancellationToken ct = default)
+    {
+        using var response = await http.PostAsync("api/home/ai-later", null, ct);
+        await EnsureAsync(response, ct);
+    }
+
     public async Task<HomeShelves> HomeAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<HomeShelves>("api/home", ct) ?? new HomeShelves([], [], "");
 
@@ -216,8 +222,16 @@ public sealed class ApiClient(HttpClient http)
     public Task<BookNotes> SetNoteAsync(long entryId, string text, CancellationToken ct = default) =>
         SendAsync<BookNotes>(HttpMethod.Put, $"{Book(entryId)}/notes", new FieldEdit(text), ct);
 
-    public Task<BookDetails> ReprocessAsync(long entryId, CancellationToken ct = default) =>
-        SendAsync<BookDetails>(HttpMethod.Post, $"{Book(entryId)}/reprocess", null, ct);
+    /// <summary>Reads the file again; with <paramref name="ocr"/>, every page by OCR.</summary>
+    public Task<BookDetails> ReprocessAsync(long entryId, bool ocr = false, CancellationToken ct = default) =>
+        SendAsync<BookDetails>(HttpMethod.Post, $"{Book(entryId)}/reprocess{(ocr ? "?ocr=true" : "")}", null, ct);
+
+    /// <summary>Forget its text: what reading the book made goes, and nothing reads it until Read it again.</summary>
+    public Task<ActionResult> ForgetTextAsync(long entryId, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"{Book(entryId)}/forget-text", null, ct);
+
+    public Task<ActionResult> ReadAgainAsync(long entryId, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"{Book(entryId)}/read-again", null, ct);
 
     public Task<EditResult> ScanAgainAsync(long entryId, CancellationToken ct = default) =>
         SendAsync<EditResult>(HttpMethod.Post, $"{Book(entryId)}/scan-again", null, ct);

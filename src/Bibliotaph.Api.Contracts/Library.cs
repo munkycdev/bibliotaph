@@ -74,12 +74,17 @@ public sealed record LibraryQuery
 /// A card in the library's grid or list, with the words the Windows app shows on it. <see cref="Id"/> tells cards
 /// apart (a file in a pack shown on its own card has its own); <see cref="EntryId"/> is the book whose details it
 /// opens. <see cref="Cover"/> and each of <see cref="Mosaic"/> are names for /api/library/covers/.
+/// <see cref="OnlineLink"/> is the book's page where the user owns it online, on <see cref="OnlineLabel"/>
+/// ("D&amp;D Beyond"). <see cref="HasText"/> is a file whose pages can be read, for Ask this book; <see
+/// cref="Protected"/> one whose protection Bibliotaph can't open, for Download the file.
 /// </summary>
 public sealed record BookCard(
     string Id, long EntryId, long DocumentId, string Title, string Meta, string Byline, string Size, string Format,
     string System, string Kind, string Levels, string Players, string Copies, string? Cover, IReadOnlyList<string> Mosaic,
     string Initial, bool Favorite, string? AiTip, string TextMark, string? TextMarkTip, bool Elsewhere, string Badge,
-    bool Part, bool FoundInBook, string Availability, string? AvailabilityTip);
+    bool Part, bool FoundInBook, string Availability, string? AvailabilityTip,
+    string? OnlineLink = null, string? OnlineLabel = null, bool HasText = false, bool CanForgetText = false, bool CanReadAgain = false,
+    bool Protected = false);
 
 /// <summary>
 /// A page that matched. <see cref="Snippet"/> has its hits between <see cref="LibraryChoices.HitStart"/> and <see
@@ -166,6 +171,8 @@ public static class LibraryChoices
 
 /// <summary>
 /// Home's rows, as the Windows app's: the books opened last and added last, a cover each, and what the library is
-/// doing, for the note shown before any book has been read.
+/// doing, for the note shown before any book has been read. <see cref="AskAboutAi"/> is the Windows app's first-run step: folders are in, AI isn't set up, and the user hasn't
+/// said Not now.
 /// </summary>
-public sealed record HomeShelves(IReadOnlyList<BookCard> Opened, IReadOnlyList<BookCard> Added, string Status, BinderCard? Preparing = null);
+public sealed record HomeShelves(IReadOnlyList<BookCard> Opened, IReadOnlyList<BookCard> Added, string Status, BinderCard? Preparing = null,
+    bool AskAboutAi = false);

@@ -85,13 +85,40 @@ public static class EditApi
             return await NotesAsync(lease.Library, new EntryId(entryId), ct);
         });
 
-        book.MapPost("/reprocess", async (long entryId, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        // ocr: every page read by OCR, for a weak text layer that passes the garbage check.
+        book.MapPost("/reprocess", async (long entryId, bool? ocr, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             if (await lease.Library.Get<LibraryQueries>().GetDetailsAsync(new EntryId(entryId), ct) is not { Entry: { IsElsewhere: false } entry })
                 return Results.NotFound();
-            await lease.Library.Indexing.ReprocessAsync(entry.DocumentId, ct: ct);
+            await lease.Library.Indexing.ReprocessAsync(entry.DocumentId, ocr == true, ct);
             return Results.Ok(await DetailsApi.DetailsAsync(lease.Library, new EntryId(entryId), ct));
+        });
+
+        // Forget its text: its pages, search text, cover, AI results and Ask conversation go, and nothing reads it
+        // again until Read it again. The file and the user's work stay.
+        book.MapPost("/forget-text", async (long entryId, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var library = lease.Library;
+            var id = new EntryId(entryId);
+            if (await library.Get<LibraryQueries>().GetDetailsAsync(id, ct) is not { Entry: { IsElsewhere: false, IsPack: false } })
+                return Results.NotFound();
+            var hashes = (await library.Get<EntryStore>().GetCopiesAsync(id, ct)).Select(c => c.ContentHash).Distinct().ToList();
+            var all = await library.Get<ForgetText>().ForgetAsync(id, ct);
+            foreach (var hash in hashes) await library.Get<CoverMirror>().ForgetBookAsync(hash, ct);
+            return Results.Ok(new ActionResult(all ? "Its text is forgotten. Read it again brings it back."
+                : "Bibliotaph was still reading this book, so some of its text is still stored. Choose Forget its text again in a moment."));
+        });
+
+        book.MapPost("/read-again", async (long entryId, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var id = new EntryId(entryId);
+            if (await lease.Library.Get<LibraryQueries>().GetDetailsAsync(id, ct) is not { Entry: { IsElsewhere: false } })
+                return Results.NotFound();
+            await lease.Library.Get<ForgetText>().ReadAgainAsync(id, ct);
+            return Results.Ok(new ActionResult("It's being read again."));
         });
 
         // Adventures inside a file: pages are typed as the file numbers them.

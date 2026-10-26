@@ -124,6 +124,17 @@ public sealed class CoverMirror(string userId, CoverCache covers, ICoverStore st
         return true;
     }
 
+    /// <summary>
+    /// A book whose text was forgotten: its covers go from the store too, since it holds them only so a restart
+    /// needn't draw them again, and a forgotten book's must not come back.
+    /// </summary>
+    public async Task ForgetBookAsync(string contentHash, CancellationToken ct)
+    {
+        if (_kept is null) return;
+        foreach (var name in _kept.Keys.Where(n => n == CoverCache.FileName(contentHash) || n.StartsWith(contentHash + "-p", StringComparison.Ordinal)).ToList())
+            await ForgetAsync(name, ct);
+    }
+
     async Task RunAsync()
     {
         try

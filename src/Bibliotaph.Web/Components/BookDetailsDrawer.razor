@@ -76,12 +76,29 @@
             }
         </div>
 
-        @if (book.CanAsk)
+        @if (book.CanAsk || book.Card.OnlineLink is not null || book.Card.Protected)
         {
             var asks = Card is { } askedCard && askedCard.EntryId == book.Card.EntryId ? askedCard : book.Card;
             <div class="bt-detailbuttons">
-                <a class="bt-button" href="@ReaderUrl.For(asks, ask: true)" title="Open this book with its Ask panel, to ask it a question"><Icon Name="Sparkles" />Ask this book</a>
+                @if (book.Card.OnlineLink is { } online)
+                {
+                    @* As the Windows app's: the book's page where it's owned online, in a tab of its own. *@
+                    <a class="bt-button" href="@online" target="_blank" rel="noopener noreferrer" title="@online"><Icon Name="SquareArrowOutUpRight" />Open on @(book.Card.OnlineLabel ?? "the web")</a>
+                }
+                @if (book.CanAsk)
+                {
+                    <a class="bt-button" href="@ReaderUrl.For(asks, ask: true)" title="Open this book with its Ask panel, to ask it a question"><Icon Name="Sparkles" />Ask this book</a>
+                }
+                @if (book.Card.Protected)
+                {
+                    <button class="bt-button" title="Its protection is one Bibliotaph can't open: the file opens from your storage, for an app that can read it"
+                            @onclick="DownloadAsync"><Icon Name="SquareArrowOutUpRight" />Download the file</button>
+                }
             </div>
+            @if (_downloadProblem is { } downloadProblem)
+            {
+                <div class="bt-problem" role="alert">@downloadProblem</div>
+            }
         }
         @if (book.Card.Elsewhere)
         {
@@ -467,10 +484,34 @@
                         @if (i == 0 && book.PackFiles.Count == 0)
                         {
                             var label = book.Reprocessing ? "Reprocessing…" : "Reprocess";
-                            <div class="bt-boxactions">
+                            <div class="bt-boxactions bt-menuanchor">
                                 <button class="bt-button" title="Read the file again: pages, text, cover and hints from names. What you added stays." aria-label="@label"
-                                        disabled="@book.Reprocessing" @onclick="ReprocessAsync"><Icon Name="RotateCcw" Size="14" />@label</button>
+                                        disabled="@book.Reprocessing" @onclick="() => ReprocessAsync(false)"><Icon Name="RotateCcw" Size="14" />@label</button>
+                                @if (book.OcrEveryPageQuestion is not null)
+                                {
+                                    <button class="bt-button bt-dropbutton" title="More ways to reprocess" aria-label="More ways to reprocess" aria-haspopup="menu"
+                                            aria-expanded="@_reprocessMenu" disabled="@book.Reprocessing" @onclick="() => _reprocessMenu = !_reprocessMenu"><Icon Name="ChevronDown" Size="14" /></button>
+                                    @if (_reprocessMenu)
+                                    {
+                                        <div class="bt-backdrop fixed bt-menuback" @onclick="() => _reprocessMenu = false"></div>
+                                        <div class="bt-menu" role="menu" aria-label="More ways to reprocess">
+                                            <button class="bt-menuitem" role="menuitem" @onclick="AskOcrEveryPage">Reprocess with OCR on every page…</button>
+                                        </div>
+                                    }
+                                }
                             </div>
+                            @if (_askingOcr && book.OcrEveryPageQuestion is { } question)
+                            {
+                                @* The Windows app asks first, since a long book takes a while. *@
+                                <div class="bt-confirmbox" role="alertdialog" aria-label="Reprocess with OCR on every page?">
+                                    <div class="bt-row">Reprocess with OCR on every page?</div>
+                                    <div class="bt-small">@question</div>
+                                    <div class="bt-boxactions">
+                                        <button class="bt-button primary" @onclick="() => ReprocessAsync(true)">Reprocess</button>
+                                        <button class="bt-button" @onclick="() => _askingOcr = false">Cancel</button>
+                                    </div>
+                                </div>
+                            }
                         }
                     </div>
                 }
@@ -966,9 +1007,33 @@
         _chaptersMessage = result.Message;
     }
 
-    async Task ReprocessAsync()
+    bool _reprocessMenu;
+    bool _askingOcr;
+    string? _downloadProblem;
+
+    void AskOcrEveryPage()
     {
-        if (await TryAsync(() => Api.ReprocessAsync(EntryId)) is { } details) _details = details;
+        _reprocessMenu = false;
+        _askingOcr = true;
+    }
+
+    async Task ReprocessAsync(bool ocr)
+    {
+        _askingOcr = false;
+        if (await TryAsync(() => Api.ReprocessAsync(EntryId, ocr)) is { } details) _details = details;
+    }
+
+    async Task DownloadAsync()
+    {
+        _downloadProblem = null;
+        try
+        {
+            await FileDownload.OpenAsync(Api, JS, _details!.Card.DocumentId, EventCallback.Factory.Create<ActionResult>(this, r => _downloadProblem = r.Message));
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _downloadProblem = e is ApiProblemException problem ? problem.Message : "That couldn't be done just now. Try again in a moment.";
+        }
     }
 
     // A book owned elsewhere: a cover of the user's own, and Remove from library.

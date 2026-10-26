@@ -48,6 +48,14 @@ public static class LibraryApi
             return await HomeAsync(lease.Library, ct);
         });
 
+        // Home's Fill in the catalog with AI? answered Not now, as the Windows app remembers it.
+        api.MapPost("/home/ai-later", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            await lease.Library.Get<SettingsStore>().SetAsync(SettingKeys.AiAsked, bool.TrueString, ct);
+            return Results.NoContent();
+        });
+
         api.MapGet("/library/covers/{name}", async (string name, HttpContext context, ClaimsPrincipal principal, UserLibraries libraries,
             CancellationToken ct) =>
         {
@@ -78,8 +86,10 @@ public static class LibraryApi
         var opened = await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyOpened, OnlyOpened: true), limit: HomeRow, ct: ct);
         var added = await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyAdded), limit: HomeRow, ct: ct);
         BookCard Card(LibraryEntry entry) => ToCard(entry, away.GetValueOrDefault(entry.EntryId));
-        return new HomeShelves([.. opened.Select(Card)], [.. added.Select(Card)], (await StorageApi.StatusAsync(library, ct)).Text,
-            await BindersApi.PreparingAsync(library, ct));
+        var status = await StorageApi.StatusAsync(library, ct);
+        var askAboutAi = status.Folders > 0 && library.Get<AiService>().Setup.Endpoint is null
+            && await library.Get<SettingsStore>().GetAsync(SettingKeys.AiAsked, ct) is null;
+        return new HomeShelves([.. opened.Select(Card)], [.. added.Select(Card)], status.Text, await BindersApi.PreparingAsync(library, ct), askAboutAi);
     }
 
     /// <summary>The Library page's query string. Anything missing or unreadable is "any", never a refusal.</summary>
@@ -300,7 +310,12 @@ public static class LibraryApi
             EntryAvailability.Offline => "Its folder can't be reached right now. It comes back with the folder.",
             EntryAvailability.Missing => "Its file isn't where it was. The details show where it was last; the card stays until the file turns up.",
             _ => null,
-        });
+        },
+        e.OnlineLink, e.OnlineLabel,
+        !e.IsElsewhere && !e.IsPack && SourceFormats.HasPages(e.Format) && e.TextAccess == TextAccess.Readable,
+        !e.IsElsewhere && !e.IsPack && !e.IsPackFile && e.TextAccess != TextAccess.Forgotten,
+        e.TextAccess == TextAccess.Forgotten && !e.IsPackFile,
+        !e.IsElsewhere && e.TextAccess == TextAccess.Protected);
 
     static T? Parse<T>(string? value) where T : struct, Enum => Enum.TryParse<T>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
 
