@@ -68,21 +68,21 @@ public static class DetailsApi
             var pdfs = entry.PdfMembers > 0 || packFiles.Any(f => f.IsPdf);
             var place = await packs.GetPlaceAsync(entryId, ct);
             var folders = await packs.GetFoldersAsync(entryId, ct);
-            locations = [.. place is null ? [] : new[] { new DetailLocation(Where(place.FullPath), DetailsText.PackPlaceState(place)) },
+            locations = [.. place is null ? [] : new[] { new DetailLocation(Where(place.FullPath), DetailsText.PackPlaceState(place), FolderText.Service(place.FullPath)) },
                 .. folders.Where(f => place is null || !string.Equals(f.FullPath, place.FullPath, StringComparison.OrdinalIgnoreCase))
-                    .Select(f => new DetailLocation(Where(f.FullPath), DetailsText.PackFolderState(f, pdfs)))];
+                    .Select(f => new DetailLocation(Where(f.FullPath), DetailsText.PackFolderState(f, pdfs), FolderText.Service(f.FullPath)))];
         }
         else if (!entry.IsElsewhere)
         {
             locations = [.. (await library.Get<LibraryStore>().GetLocationsAsync(entry.DocumentId, ct))
-                .Select(l => new DetailLocation(Where(l.FullPath), DetailsText.LocationState(l)))];
+                .Select(l => new DetailLocation(Where(l.FullPath), DetailsText.LocationState(l), FolderText.Service(l.FullPath)))];
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!entry.IsPart && await library.Get<CopiesService>().GetAsync(entryId, ct) is { Count: > 1 } files)
                 copies = [.. files.Select(c =>
                 {
                     var path = c.Locations.FirstOrDefault(l => l.State != FileLocationState.Missing)?.FullPath;
                     return new DetailCopy(c.Copy.DocumentId, DetailsText.CopyHeading(c.Copy, path is not null), DetailsText.CopyDetail(c.Copy),
-                        path is null ? null : Where(path), c.Copy.IsCurrent);
+                        path is null ? null : Where(path), c.Copy.IsCurrent, path is null ? null : FolderText.Service(path));
                 })];
             if (entry.Format == SourceFormats.Pdf)
             {

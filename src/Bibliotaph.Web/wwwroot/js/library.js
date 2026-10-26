@@ -68,7 +68,7 @@ window.bibliotaphCopy = function (text) {
   return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return false; });
 };
 // The keys that work everywhere, as in the Windows app: Ctrl+K (or /, as on the web) puts the keyboard in the search
-// box, and Ctrl+/ shows every shortcut. In a reader popped out of the main window, Ctrl+K searches in that window.
+// box, Ctrl+B folds the sidebar, and Ctrl+/ shows every shortcut. In a reader popped out of the main window, Ctrl+K searches in that window.
 // Shift+Enter or a middle-click on a book's card pops it out into a window of its own.
 window.bibliotaphShell = (function () {
   var shell = null;
@@ -101,6 +101,11 @@ window.bibliotaphShell = (function () {
     var ctrl = (e.ctrlKey || e.metaKey) && !e.altKey;
     if (ctrl && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
       if (focusSearch()) e.preventDefault();
+    } else if (ctrl && !e.shiftKey && (e.key === 'b' || e.key === 'B') && !typing(e.target)) {
+      // Ctrl+B folds the sidebar, as in the Windows app; in a text box it stays the box's (bold, in some).
+      if (!shell || document.querySelector('.bt-dialog') || !document.querySelector('.bt-sidebar')) return;
+      e.preventDefault();
+      shell.invokeMethodAsync('ToggleSidebarFromKeyAsync');
     } else if (ctrl && e.key === '/') {
       if (!shell || document.querySelector('.bt-dialog')) return;
       e.preventDefault();
@@ -119,3 +124,42 @@ window.bibliotaphShell = (function () {
     stop: function () { shell = null; }
   };
 })();
+// The search box's field guide, as in the Windows app: the shell draws it, and this tells it where the cursor is, since
+// a Blazor event doesn't say. The box keeps the keyboard, so while the guide is open (data-guide="open") the arrow keys
+// move its highlight, Enter or Tab picks the highlighted row and Esc closes it, before the box's own keys see them.
+window.bibliotaphGuide = {
+  attach: function (box, shell) {
+    if (!box || box.dataset.guideAttached) return;
+    box.dataset.guideAttached = '1';
+    function at() { return box.selectionStart == null ? box.value.length : box.selectionStart; }
+    function tell(method) { shell.invokeMethodAsync(method, box.value, at()); }
+    box.addEventListener('focus', function () { tell('GuideFocused'); });
+    box.addEventListener('input', function () { tell('GuideTextChanged'); });
+    box.addEventListener('click', function () { tell('GuideCaretMoved'); });
+    box.addEventListener('keyup', function (e) {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'Home' || e.key === 'End') tell('GuideCaretMoved');
+    });
+    box.addEventListener('blur', function () { shell.invokeMethodAsync('GuideClose'); });
+    box.addEventListener('keydown', function (e) {
+      var open = box.dataset.guide === 'open';
+      var plain = !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey;
+      var handled = true;
+      if (e.key === ' ' && e.ctrlKey && !e.altKey && !e.shiftKey) tell('GuideRequest');
+      else if (plain && e.key === 'ArrowDown') {
+        if (open) shell.invokeMethodAsync('GuideMove', 1); else tell('GuideRequest');
+      } else if (plain && open && e.key === 'ArrowUp') shell.invokeMethodAsync('GuideMove', -1);
+      else if (plain && open && (e.key === 'Enter' || e.key === 'Tab') && box.getAttribute('aria-activedescendant')) shell.invokeMethodAsync('GuidePickAsync');
+      else if (plain && open && e.key === 'Escape') shell.invokeMethodAsync('GuideClose');
+      else handled = false;
+      if (handled) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    });
+  },
+  place: function (box, caret) {
+    if (!box) return;
+    box.focus();
+    box.setSelectionRange(caret, caret);
+  }
+};

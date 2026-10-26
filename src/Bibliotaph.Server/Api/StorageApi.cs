@@ -199,6 +199,9 @@ static class FolderText
         return at.Path.Length == 0 ? account : $"{account} › {at.Path.Replace("/", " › ", StringComparison.Ordinal)}";
     }
 
+    /// <summary>The storage service a file or folder is kept in, as the details name it: "OneDrive".</summary>
+    public static string? Service(string path) => StoragePath.TryParse(path, out var at) ? ProviderName(at.Provider) : null;
+
     static string ProviderName(string provider) => StorageProviders.Find(provider)?.Name ?? provider;
 
     public static string Describe(DateTime addedUtc, bool offline, RootScan? scan, long searchable, int documents)

@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components.WebAssembly.Http;
 using Bibliotaph.Api.Contracts;
+using Bibliotaph.Core.Search;
 
 namespace Bibliotaph.Web.Services;
 
@@ -164,6 +165,10 @@ public sealed class ApiClient(HttpClient http)
         var url = $"api/library/values/{Uri.EscapeDataString(field)}{(filters.Length == 0 ? "?" : filters + "&")}text={Uri.EscapeDataString(text)}";
         return SendAsync<List<ValueSuggestion>>(HttpMethod.Get, url, null, ct);
     }
+
+    /// <summary>The search box's field guide: a field's values among the books the Library shows, most common first.</summary>
+    public Task<List<GuideValue>> GuideValuesAsync(string field, CancellationToken ct = default) =>
+        SendAsync<List<GuideValue>>(HttpMethod.Get, $"api/library/guide/{Uri.EscapeDataString(field)}", null, ct);
 
     public async Task<LibraryResults> LibraryAsync(LibraryQuery query, CancellationToken ct = default)
     {

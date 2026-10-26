@@ -38,6 +38,15 @@ small{display:block;color:var(--bt-muted);font-size:11px;font-weight:400}
 .bt-color-dot{width:7px;height:7px;background:#8b8968;border-radius:2px;flex-shrink:0}
 .bt-sidebottom{margin-top:auto;padding-top:48px}
 .bt-sync{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--bt-muted);padding:10px}
+.bt-settingsrow{display:flex;align-items:center;gap:4px}
+.bt-settingsrow .bt-nav{flex:1;min-width:0}
+/* Folded, the sidebar keeps only its icons, each named in its tooltip, as the Windows app's does. */
+.bt-shell.folded{grid-template-columns:62px minmax(0,1fr)}
+.folded .bt-sidebar{padding-left:9px;padding-right:9px}
+.folded .bt-navlabel,.folded .bt-nav .bt-count,.folded .bt-sidegroup>.bt-eyebrow,.folded .bt-nav-hint,.folded .bt-sync>span:last-child{display:none}
+.folded .bt-nav{justify-content:center;padding-left:0;padding-right:0}
+.folded .bt-sync{justify-content:center}
+.bt-unfold{align-self:center;margin-bottom:26px}
 .bt-status-dot{width:6px;height:6px;background:#76916b;border-radius:50%}
 .bt-sample{font-size:10px;letter-spacing:.6px;color:var(--bt-muted);padding:16px 8px 0}
 .bt-workarea{min-width:0}
@@ -204,6 +213,10 @@ mark{background:var(--bt-soft);color:var(--bt-text);padding:1px 2px}
 .bt-packhero{padding:20px}
 .bt-packhero h2{font-size:26px}}
 @media(max-width:620px){.bt-shell{grid-template-columns:1fr;min-height:0}
+.bt-shell.folded{grid-template-columns:1fr}
+.bt-fold,.bt-unfold{display:none}
+.folded .bt-navlabel{display:inline}
+.folded .bt-brand{display:flex}
 .bt-sidebar{padding:15px 16px 9px;border-right:0;border-bottom:1px solid var(--bt-line)}
 .bt-brand{font-size:26px;padding:0 3px 14px}
 .bt-workspace,.bt-sidegroup{display:none}
@@ -435,6 +448,8 @@ a{color:var(--bt-accent)}
 .bt-chapterline{font-size:12px;color:var(--bt-text);margin-top:2px}
 .bt-chapterhead+.bt-chapterline{margin-top:4px}
 .bt-detailbox .bt-path{margin-top:6px}
+.bt-service{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;margin-top:6px}
+.bt-service svg{color:var(--bt-accent)}
 .bt-boxactions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .bt-titlelink{font:inherit;color:var(--bt-text);text-align:left;padding:0;cursor:pointer}
 .bt-titlelink:hover{color:var(--bt-accent)}
@@ -1050,6 +1065,20 @@ a.bt-menuitem{text-decoration:none}
 /* Home's Fill in the catalog with AI?, as the Windows app's first-run step. */
 .bt-aistep{background:var(--bt-side);border-radius:6px;padding:18px;margin-top:22px;max-width:620px}
 .bt-aistep .bt-copy{margin:8px 0 14px}
+/* The search box's field guide, under the box as the Windows app's popup is. */
+.bt-searchwrap{position:relative;display:flex;margin-left:auto;max-width:360px;flex:1;min-width:0}
+.bt-searchwrap .bt-search{margin-left:0;max-width:none}
+.bt-guide{position:absolute;top:100%;left:0;right:0;margin-top:4px;z-index:14;padding:4px;background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:7px;box-shadow:0 8px 30px #00000020;font-size:11px;color:var(--bt-text)}
+.bt-guide>.bt-eyebrow{display:block;margin:4px 8px 3px}
+.bt-guidehint{margin:5px 8px}
+.bt-guiderows{max-height:380px;overflow:auto}
+.bt-guiderow{display:flex;align-items:baseline;gap:10px;padding:5px 8px;border-radius:4px;cursor:pointer}
+.bt-guiderow:hover,.bt-guiderow.highlighted{background:var(--bt-soft)}
+.bt-guiderow strong,.bt-guidehint strong{font-weight:500}
+.bt-guidevalue{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-guidevalue .bt-muted{margin-left:12px}
+.bt-guide .bt-muted{color:var(--bt-muted)}
+.bt-guidesyntax{border-top:1px solid var(--bt-line);margin-top:4px;padding:6px 8px 3px;font-size:10px;color:var(--bt-muted)}
 /* Settings › Online libraries: each service with its two ways in, and the preview's books with their ticks. */
 .bt-onlineservice{align-items:flex-start}
 .bt-onlineservice > div:first-child{max-width:560px}

@@ -478,6 +478,7 @@
                 {
                     var location = book.Locations[i];
                     <div class="bt-detailbox">
+                        @if (location.Service is { } service) { <div class="bt-service"><Icon Name="Cloud" Size="14" />@service</div> }
                         <div class="bt-row bt-path">@location.Path</div>
                         @if (location.State.Length > 0) { <div class="bt-small">@location.State</div> }
                         @if (i == 0 && book.PackFiles.Count == 0)
@@ -525,6 +526,7 @@
                         <div class="bt-detailbox" aria-label="@copy.Heading">
                             <div class="bt-copyheading">@copy.Heading</div>
                             <div class="bt-small">@copy.Detail</div>
+                            @if (copy.Service is { } service) { <div class="bt-service"><Icon Name="Cloud" Size="14" />@service</div> }
                             @if (copy.Path is { } path) { <div class="bt-row bt-path">@path</div> }
                             <div class="bt-boxactions">
                                 @if (!copy.IsCurrent && copy.Path is not null)
