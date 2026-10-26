@@ -2162,17 +2162,19 @@ static partial class SmokeTest
             () => "Create didn't open the new binder, empty.");
         var packId = ((SessionReaderViewModel)shell.CurrentPage!).PackId;
 
-        // The reader: Add pages… from the menu by the Add page button, then Add page on the page in view.
+        // The reader: Add pages… from Add to binder's menu, then the page in view to the binder the menu names.
         shell.NavigateCommand.Execute(Route.Library);
         var library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
         await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == documentId), () => "The smoke PDF isn't in the Library.");
         await library.OpenBookCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == documentId));
         var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
-        await WaitUntilAsync(window, () => viewer.IsPdf && viewer.AddPageCommand.CanExecute(null), () => $"The PDF didn't open for Add page (still {viewer.Mode}).");
-        var menuButton = Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddPageMenu");
-        Click(menuButton, "Add page's menu");
-        await WaitUntilAsync(window, () => menuButton!.ContextMenu is { IsOpen: true, Items.Count: >= 2 }, () => "Add page's menu didn't list Add pages… and the sessions.");
-        menuButton!.ContextMenu!.IsOpen = false;
+        await WaitUntilAsync(window, () => viewer.IsPdf && viewer.CanAddToBinder, () => $"The PDF didn't open for Add to binder (still {viewer.Mode}).");
+        var menuButton = Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddToBinder");
+        Click(menuButton, "Add to binder");
+        await WaitUntilAsync(window, () => menuButton!.ContextMenu is { IsOpen: true, Items.Count: >= 3 }, () => "Add to binder's menu didn't list the binders and Add pages….");
+        var toBinder = menuButton!.ContextMenu!.Items.OfType<MenuItem>().FirstOrDefault(i => Equals(i.Header, "The midnight bell"))
+            ?? throw new InvalidOperationException("Add to binder's menu didn't name the binder.");
+        menuButton.ContextMenu.IsOpen = false;
         await viewer.AddPagesCommand.ExecuteAsync(null);
         await WaitUntilAsync(window, () => viewer.Sessions.Dialog is { IsPages: true, Pack: not null }, () => "Add pages… didn't ask which pages.");
         var dialog = viewer.Sessions.Dialog!;
@@ -2186,9 +2188,9 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => viewer.Sessions is { Dialog: null, Undo: { HasUndo: true, Message: "Added Warehouse ambush to The midnight bell." } },
             () => $"Add pages… said “{viewer.Sessions.Undo.Message}”.");
         var pageInView = viewer.CurrentPageIndex;
-        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "AddPage"), "Add page");
+        toBinder.Command.Execute(toBinder.CommandParameter);
         await WaitUntilAsync(window, () => viewer.Sessions.Undo.Message is { } note && note.StartsWith("Added page ", StringComparison.Ordinal),
-            () => $"Add page said “{viewer.Sessions.Undo.Message}”.");
+            () => $"Add to binder said “{viewer.Sessions.Undo.Message}”.");
         navigation.GoBack();
         await Settle(window);
 

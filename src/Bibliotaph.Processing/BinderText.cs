@@ -19,7 +19,7 @@ public static class BinderText
     public const string EmptyMessage =
         "A binder gathers the books and pages you'll want at the table, in your order, with your notes. Make one here, or add a book or page from your library to a new one.";
 
-    public const string EmptyBinderMessage = "Add a book or page from your library to get started: right-click a book, or use Add page in the reader.";
+    public const string EmptyBinderMessage = "Add a book or page from your library to get started: right-click a book, or use Add to binder in the reader.";
 
     public const string Sequence = "Binder sequence";
 

@@ -455,10 +455,11 @@ OneDrive, and through the server from Dropbox, Google Drive, Box and WebDAV, whi
   pencil to change it and the bin to delete it, with **Undo**. Pages with notes have a badge in the thumbnails. A note
   whose page changed in a new version says so when you go to it, and one made in another copy says its page may be a
   little different here. A book's notes are the same ones the Windows app shows.
-- **Add page** at the top adds the page in view to the binder you worked on last (a picture is added whole); before
-  you have a binder, it asks you to make one. The arrow beside it has **Add pages…**, where you type a range, a label
-  (it starts with the bookmark the page is under) and which binder and section it goes in, and **Add to** another or
-  a new binder. What was added shows over the pages, with **Undo**.
+- **Add to binder** at the top lists your binders by name, the one you worked on last first; choose one and the page
+  in view goes into it (a picture is added whole). Past the eight most recent, **Another binder…** picks from the
+  rest, and **New binder…** makes one. **Add pages…** at the bottom is for a range: type the pages, a label (it starts
+  with the bookmark the page is under) and which binder and section it goes in. What was added shows over the pages,
+  with **Undo**.
 - **Mark as adventure** gives pages of the file a card of their own, as an adventure, starting at the page in view.
   Right-click a line of the contents for **Index as its own adventure…**, which runs to the next line at the same
   level. The file isn't changed.
