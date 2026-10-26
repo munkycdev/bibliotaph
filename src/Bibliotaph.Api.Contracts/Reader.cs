@@ -31,7 +31,27 @@ public sealed record ReaderBook(long EntryId, long DocumentId, string Title, str
 
     /// <summary>An ordinary read, whose page is kept as the reader moves, so the book opens there next time.</summary>
     public bool KeepsPlace { get; init; }
+
+    /// <summary>Which reader shows the file: <see cref="ReaderKinds"/>.</summary>
+    public string Kind { get; init; } = ReaderKinds.Pdf;
+
+    /// <summary>The files of the pack the file is in, in order, to step through; empty for a file on its own.</summary>
+    public IReadOnlyList<ReaderPackFile> Pack { get; init; } = [];
 }
+
+/// <summary>The readers a file can open in, by its format.</summary>
+public static class ReaderKinds
+{
+    public const string Pdf = "pdf";
+    public const string Image = "image";
+    public const string Ebook = "ebook";
+}
+
+/// <summary>One file of a pack, as the reader steps through them.</summary>
+/// <param name="DocumentId">The file.</param>
+/// <param name="Name">Its name in the pack.</param>
+/// <param name="IsImage">Whether it's a picture; a pack with any other file steps by "file" rather than "image".</param>
+public sealed record ReaderPackFile(long DocumentId, string Name, bool IsImage);
 
 /// <summary>One line of a file's contents.</summary>
 /// <param name="Title">The line as the file names it.</param>
