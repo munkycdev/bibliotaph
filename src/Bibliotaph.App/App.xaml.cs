@@ -326,6 +326,7 @@ public partial class App : Application
         // What the AI worked out about this PC's files, shared by content with the user's other devices through the web library.
         builder.Services.AddSingleton<SharedResultCache>();
         builder.Services.AddSingleton<IResultChannel>(sp => sp.GetRequiredService<WebLibrary>());
+        builder.Services.AddSingleton<SharedPageText>();
         builder.Services.AddSingleton<SharedResults>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SharedResults>());
         builder.Services.AddSingleton<ForgetText>();

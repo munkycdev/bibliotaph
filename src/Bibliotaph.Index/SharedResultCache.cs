@@ -60,6 +60,18 @@ public sealed class SharedResultCache(IndexDatabase database, IndexWriter writer
         writer.WriteAsync((c, t) => c.Execute(
             "INSERT INTO shared_state (key, value) VALUES (@key, @value) ON CONFLICT (key) DO UPDATE SET value = excluded.value", new { key, value }, t), ct);
 
+    /// <summary>The values kept under keys starting with <paramref name="prefix"/>, by key.</summary>
+    public async Task<IReadOnlyDictionary<string, string>> GetStatesAsync(string prefix, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return (await connection.QueryAsync<(string Key, string Value)>(new CommandDefinition(
+            "SELECT key, value FROM shared_state WHERE substr(key, 1, length(@prefix)) = @prefix", new { prefix }, cancellationToken: ct)))
+            .ToDictionary(r => r.Key, r => r.Value, StringComparer.Ordinal);
+    }
+
+    public Task DeleteStateAsync(string key, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) => c.Execute("DELETE FROM shared_state WHERE key = @key", new { key }, t), ct);
+
     static string Utc(DateTime when) => DateTime.SpecifyKind(when, DateTimeKind.Utc).ToString("O", CultureInfo.InvariantCulture);
 
     static DateTime Parse(string when) => DateTime.Parse(when, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal);

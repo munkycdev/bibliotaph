@@ -39,6 +39,9 @@ public sealed record AttentionItem(long DocumentId, string Title, Stage Stage, S
 /// <summary>A page the OCR stage still has to read.</summary>
 public sealed record OcrPage(int PdfPage, double WidthPt, double HeightPt);
 
+/// <summary>A page read by OCR here: its text, how good it looks, and its words' boxes.</summary>
+public sealed record RecognizedPage(int PdfPage, string Text, double Quality, IReadOnlyList<OcrWordRow> Words);
+
 /// <summary>A page's indexed text, from the PDF or from OCR.</summary>
 public sealed record PageTextEntry(int PdfPage, string Text);
 
@@ -119,6 +122,35 @@ public sealed class IndexQueries(IndexDatabase database)
             "SELECT pdf_page, width_pt, height_pt FROM page WHERE document_id = @documentId AND needs_ocr = 1 ORDER BY pdf_page",
             new { documentId }, cancellationToken: ct));
         return [.. rows.Select(r => new OcrPage((int)r.PdfPage, r.WidthPt, r.HeightPt))];
+    }
+
+    /// <summary>
+    /// The pages waiting for OCR that it has never read: those another device's OCR of the same file may fill. A page
+    /// OCR'd here before and flagged again (Reprocess with OCR on every page) is read here again.
+    /// </summary>
+    public async Task<IReadOnlyList<int>> GetPagesNeverRecognizedAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. (await connection.QueryAsync<long>(new CommandDefinition(
+            "SELECT pdf_page FROM page WHERE document_id = @documentId AND needs_ocr = 1 AND text_source <> 'ocr' ORDER BY pdf_page",
+            new { documentId }, cancellationToken: ct))).Select(p => (int)p)];
+    }
+
+    /// <summary>The pages OCR read, with their words, in page order.</summary>
+    public async Task<IReadOnlyList<RecognizedPage>> GetRecognizedPagesAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var pages = (await connection.QueryAsync<(long Id, long PdfPage, string Text, double? Quality)>(new CommandDefinition(
+            "SELECT id, pdf_page, text, text_quality FROM page WHERE document_id = @documentId AND text_source = 'ocr' ORDER BY pdf_page",
+            new { documentId }, cancellationToken: ct))).ToList();
+        if (pages.Count == 0) return [];
+        var words = (await connection.QueryAsync<(long PageId, string Text, double Left, double Top, double Right, double Bottom)>(new CommandDefinition(
+            """
+            SELECT w.page_id, w.text, w.left_pt, w.top_pt, w.right_pt, w.bottom_pt FROM ocr_word w JOIN page p ON p.id = w.page_id
+            WHERE p.document_id = @documentId AND p.text_source = 'ocr' ORDER BY w.page_id, w.ord
+            """, new { documentId }, cancellationToken: ct))).ToLookup(w => w.PageId);
+        return [.. pages.Select(p => new RecognizedPage((int)p.PdfPage, p.Text, p.Quality ?? 0,
+            [.. words[p.Id].Select(w => new OcrWordRow(w.Text, w.Left, w.Top, w.Right, w.Bottom))]))];
     }
 
     /// <summary>Every page's text, in page order (empty for a page with none), for fingerprinting.</summary>

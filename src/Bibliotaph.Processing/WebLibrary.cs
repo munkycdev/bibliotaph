@@ -297,6 +297,24 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         return false;
     }
 
+    public async Task<SharedResult?> ReadResultAsync(string kind, string contentHash, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, $"api/results/{Uri.EscapeDataString(kind)}/{Uri.EscapeDataString(contentHash)}", null,
+                withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.StatusCode == HttpStatusCode.NotFound) return null;
+            if (response.IsSuccessStatusCode) return await response.Content.ReadFromJsonAsync<SharedResult>(ct);
+            log.LogWarning("Asking the web library for a shared result got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library for a shared result");
+        }
+        return null;
+    }
+
     /// <summary>No answer, or none in time; the caller cancelling is not one of these.</summary>
     static bool Unreachable(Exception ex, CancellationToken ct) =>
         ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested);

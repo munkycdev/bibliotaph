@@ -2190,6 +2190,44 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal(HttpStatusCode.Unauthorized, session.StatusCode);
     }
 
+    [Fact]
+    public async Task A_files_OCR_is_kept_for_any_device_to_ask_for_and_isnt_in_the_list_of_results()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var path = Path.Combine(_folder.Path, "pc-catalog.db");
+        var catalog = new CatalogDatabase(path, Path.Combine(_folder.Path, "pc-backups"));
+        await using (var db = catalog.CreateContext()) await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database, ct);
+        var settings = new SettingsStore(new CatalogFile(path));
+        await settings.SetAsync(SettingKeys.WebAddress, "http://localhost", ct);
+        var key = new MemoryWebLibraryKey();
+        var pc = new WebLibrary(new HttpClient(_factory.Server.CreateHandler()), key, settings, TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WebLibrary>.Instance);
+        var started = (await pc.StartAsync("DESKTOP-1", ct))!;
+        var waiting = pc.WaitAsync(started, ct);
+        var web = Client(user);
+        web.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        (await web.PostAsync($"/api/devices/connect/{started.Code}", null, ct)).EnsureSuccessStatusCode();
+        Assert.Equal(WebConnectOutcome.Connected, await waiting);
+        var hash = new string('a', 64);
+        var ocr = new SharedResult(hash, SharedResultKinds.PageText, 1, $"{hash}@pc", new DateTime(2026, 10, 20, 9, 0, 0, DateTimeKind.Utc),
+            JsonSerializer.Serialize(new SharedOcr([new SharedOcrPage(0, "The warrens of the goblin king", 0.9, ["warrens"], [72, 700, 140, 688])]), JsonSerializerOptions.Web));
+
+        var sent = await pc.WriteResultsAsync([ocr], ct);
+        var back = await pc.ReadResultAsync(SharedResultKinds.PageText, hash, ct);
+        var missing = await pc.ReadResultAsync(SharedResultKinds.PageText, new string('b', 64), ct);
+        var notAsked = await pc.ReadResultAsync(SharedResultKinds.Classification, hash, ct);
+        var listed = (await pc.ReadResultsAsync(0, ct))!;
+
+        Assert.True(sent);
+        Assert.Equal(ocr.Content, back?.Content);
+        Assert.Null(missing);
+        Assert.Null(notAsked);
+        // Counted, so the list moves past it, but not handed out in it.
+        Assert.Empty(listed.Results);
+        Assert.True(listed.Last > 0);
+    }
+
     static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);

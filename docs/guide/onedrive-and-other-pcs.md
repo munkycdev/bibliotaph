@@ -106,7 +106,7 @@ bibliotaph.online in your browser, where you sign in, check the code the app sho
 travels between this PC and the web as it does between two PCs, with the same list of what travels; the section says
 whose library it's connected to and when it last merged, and **Disconnect** ends it. What the AI found in a book is
 shared with your web library and your other connected PCs as well, so the same book is read by the AI once, wherever
-that happens first. See [Connecting a Windows PC](web.md#connecting-a-windows-pc).
+that happens first, and so is the text read from scanned pages. See [Connecting a Windows PC](web.md#connecting-a-windows-pc).
 
 ---
 

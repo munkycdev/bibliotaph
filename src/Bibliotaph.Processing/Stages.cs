@@ -546,9 +546,11 @@ public sealed class CoversStage(StageServices s) : IStage
 /// <summary>
 /// OCR: each flagged page (those Text scored too poor to trust, or every page when the user asked for that on
 /// Reprocess), rendered at 300 dpi and read by the worker's OCR engine. Progress is saved page by
-/// page, so a paused or interrupted job carries on where it stopped. Page numbering never changes.
+/// page, so a paused or interrupted job carries on where it stopped. Page numbering never changes. A file another of
+/// the user's devices has OCR'd already takes that text for the pages never read here (<see cref="SharedPageText"/>),
+/// and what is read here is offered to the others.
 /// </summary>
-public sealed class OcrStage(StageServices s) : IStage
+public sealed class OcrStage(StageServices s, SharedPageText? pageText = null, SharedResults? shared = null) : IStage
 {
     public const double Dpi = 300;
 
@@ -568,42 +570,61 @@ public sealed class OcrStage(StageServices s) : IStage
     {
         var pages = await s.Queries.GetPagesNeedingOcrAsync(job.DocumentId, ct);
         if (pages.Count == 0) return StageOutcome.Complete();
+        if (pageText is not null && await pageText.TryTakeAsync(job.DocumentId, job.ContentHash, ct) > 0)
+        {
+            pages = await s.Queries.GetPagesNeedingOcrAsync(job.DocumentId, ct);
+            if (pages.Count == 0) return StageOutcome.Complete();
+        }
 
         var (session, failed) = await StageHelpers.OpenPdfAsync(s, job, ct);
         if (session is null) return failed!;
-        await using (session)
+        var read = 0;
+        try
         {
-            var failedPages = 0;
-            foreach (var page in pages)
+            await using (session)
             {
-                ct.ThrowIfCancellationRequested();
-                PdfResult<OcrInfo> response;
-                try
+                var failedPages = 0;
+                foreach (var page in pages)
                 {
-                    response = await session.Document.OcrAsync(page.PdfPage, Dpi / 72, ct);
-                }
-                catch (PdfEngineException)
-                {
-                    await s.Index.SetPageErrorAsync(job.DocumentId, page.PdfPage, "This page crashed the PDF engine during OCR.", ct);
-                    failedPages++;
-                    continue;
-                }
+                    ct.ThrowIfCancellationRequested();
+                    PdfResult<OcrInfo> response;
+                    try
+                    {
+                        response = await session.Document.OcrAsync(page.PdfPage, Dpi / 72, ct);
+                    }
+                    catch (PdfEngineException)
+                    {
+                        await s.Index.SetPageErrorAsync(job.DocumentId, page.PdfPage, "This page crashed the PDF engine during OCR.", ct);
+                        failedPages++;
+                        continue;
+                    }
 
-                if (response.Error == ErrorKind.OcrUnavailable) return new StageOutcome.Blocked(response.Message ?? "OCR is not available on this computer.");
-                if (!response.Ok)
-                {
-                    await s.Index.SetPageErrorAsync(job.DocumentId, page.PdfPage, response.Message ?? "OCR failed on this page.", ct);
-                    failedPages++;
-                    continue;
-                }
+                    if (response.Error == ErrorKind.OcrUnavailable) return new StageOutcome.Blocked(response.Message ?? "OCR is not available on this computer.");
+                    if (!response.Ok)
+                    {
+                        await s.Index.SetPageErrorAsync(job.DocumentId, page.PdfPage, response.Message ?? "OCR failed on this page.", ct);
+                        failedPages++;
+                        continue;
+                    }
 
-                var ocr = response.Value!;
-                await s.Index.SetOcrPageAsync(job.DocumentId, page.PdfPage, ocr.Text, TextQuality.Score(ocr.Text, 0),
-                    [.. ocr.Words.Select(w => new OcrWordRow(w.Text, w.Box.Left, w.Box.Top, w.Box.Right, w.Box.Bottom))], ct);
+                    var ocr = response.Value!;
+                    await s.Index.SetOcrPageAsync(job.DocumentId, page.PdfPage, ocr.Text, TextQuality.Score(ocr.Text, 0),
+                        [.. ocr.Words.Select(w => new OcrWordRow(w.Text, w.Box.Left, w.Box.Top, w.Box.Right, w.Box.Bottom))], ct);
+                    read++;
+                }
+                return failedPages == 0
+                    ? StageOutcome.Complete()
+                    : new StageOutcome.Done(StageStatus.Partial, [], $"OCR failed on {failedPages} of {pages.Count} page(s).");
             }
-            return failedPages == 0
-                ? StageOutcome.Complete()
-                : new StageOutcome.Done(StageStatus.Partial, [], $"OCR failed on {failedPages} of {pages.Count} page(s).");
+        }
+        finally
+        {
+            // What was read is offered even when the stage stops part way, as when the app closes.
+            if (read > 0 && pageText is not null)
+            {
+                await pageText.OfferAsync(job.DocumentId, job.ContentHash, CancellationToken.None);
+                shared?.Nudge();
+            }
         }
     }
 }
