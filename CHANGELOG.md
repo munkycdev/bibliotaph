@@ -44,6 +44,9 @@
   worked on last, another or a new one, as in the Windows app, with Undo. See [Binders](docs/guide/web.md#binders).
 - **Copies and new versions on the web.** Two files of one book on your drive become one card with two copies, and a
   file that shares most of a book's pages is offered as its new version, as in the Windows app.
+- **Ask this book on the web.** The reader's Ask panel answers a question from the book's own pages, as in the Windows
+  app, shown as the model writes it, with each citation opening its page, follow-ups and New conversation; an
+  embedding model in Settings › AI finds pages by meaning too. See [Ask this book](docs/guide/web.md#ask-this-book).
 - **Scan whole books on the web.** Settings › AI's Scan whole books reads each book chapter by chapter, as in the
   Windows app, and a book's details show what it found under Found inside the book, with Scan again. It's off on the
   web until you tick it, since every chapter is a request on your key. See

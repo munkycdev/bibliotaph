@@ -1,6 +1,7 @@
-@* Settings › AI, as the Windows app's with a model server: Use AI on and off with how far it has got, Scan whole books, the server's
-   address, Connect and its models, the key (never shown again), Save, Test with a book, Reclassify, and the folders
-   sent to AI. The server only reaches a model service on the internet, over https. *@
+@* Settings › AI, as the Windows app's with a model server: Use AI on and off with how far it has got, Scan whole
+   books, the server's address, Connect and its models, the embedding model for Ask, the key (never shown again), Save,
+   Test with a book, Reclassify, and the folders sent to AI. The server only reaches a model service on the internet,
+   over https. *@
 @implements IDisposable
 @inject ApiClient Api
 @inject LibraryActivity Activity
@@ -90,6 +91,29 @@
             }
         </label>
         <p class="bt-sample">A small, fast model is enough to catalogue: it reads a few thousand words a book.</p>
+
+        <label class="bt-field">Embedding model, for Ask this book
+            @if (_connection is { Models.Count: > 0 })
+            {
+                <select aria-label="Embedding model" @bind="_embedding" @bind:after="Edited">
+                    <option value="">@NoEmbedding</option>
+                    @if (_embedding.Length > 0 && !_connection.Models.Contains(_embedding))
+                    {
+                        <option value="@_embedding">@_embedding</option>
+                    }
+                    @foreach (var model in _connection.Models)
+                    {
+                        <option value="@model">@model</option>
+                    }
+                </select>
+            }
+            else
+            {
+                <input aria-label="Embedding model name" @bind="_embedding" @bind:event="oninput" @bind:after="Edited" />
+            }
+        </label>
+        <p class="bt-sample">Lets Ask this book find passages by what they mean, not only by their words, such as OpenAI's
+            text-embedding-3-small. Leave it empty to find passages by their words.</p>
 
         <label class="bt-field" for="ai-key">Key, only if the server needs one</label>
         <div class="bt-inputrow">
@@ -207,7 +231,9 @@
 
 @code {
     AiPage? _page;
-    string _endpoint = "", _model = "", _key = "";
+    const string NoEmbedding = "None: find passages by their words";
+
+    string _endpoint = "", _model = "", _key = "", _embedding = "";
     bool _remoteAllowed, _dirty, _connecting, _saving;
     List<string> _models = [];
     AiConnection? _connection;
@@ -240,6 +266,7 @@
         _page = await Api.AiAsync();
         _endpoint = _page.Endpoint is { } endpoint ? endpoint + "/v1" : "";
         _model = _page.Model ?? "";
+        _embedding = _page.EmbeddingModel ?? "";
         _remoteAllowed = _page.RemoteAllowed;
         if (_page.Model is { } model) _models = [model];
         if (_page.Endpoint is not null) await ConnectAsync();
@@ -289,7 +316,7 @@
         _saving = true;
         try
         {
-            var result = await Api.SaveAiAsync(new AiSave(_endpoint, _model, _key.Length > 0 ? _key : null, _remoteAllowed));
+            var result = await Api.SaveAiAsync(new AiSave(_endpoint, _model, _key.Length > 0 ? _key : null, _remoteAllowed, _embedding.Trim()));
             (_saveNote, _saveProblem) = (result.Note, result.Problem);
             if (result.Problem is null)
             {

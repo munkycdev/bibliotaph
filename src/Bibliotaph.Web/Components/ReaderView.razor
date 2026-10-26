@@ -114,8 +114,15 @@ else
                 </div>
                 <div class="bt-toolgroup">
                     <button class="bt-link bt-iconlink bt-notestoggle @(_showNotes ? "on" : "")" title="Show or hide the notes on this book's pages" aria-pressed="@_showNotes"
-                            @onclick="() => _showNotes = !_showNotes"><Icon Name="NotebookPen" Size="14" />@(_notes?.Label ?? "Notes")</button>
+                            @onclick="ToggleNotes"><Icon Name="NotebookPen" Size="14" />@(_notes?.Label ?? "Notes")</button>
                     <span class="bt-tooldivider"></span>
+                    @* Ask this book: only while AI is on. *@
+                    @if (_ask is { On: true })
+                    {
+                        <button class="bt-link bt-iconlink bt-notestoggle @(_showAsk ? "on" : "")" title="Ask this book a question" aria-label="Ask this book"
+                                aria-pressed="@_showAsk" @onclick="ToggleAsk"><Icon Name="Sparkles" Size="14" />Ask</button>
+                        <span class="bt-tooldivider"></span>
+                    }
                 </div>
                 }
                 @if (book.Pack.Count > 0)
@@ -249,6 +256,10 @@ else
                     @if (_notice is { } notice) { <div class="bt-notice" role="status">@notice</div> }
                 </div>
                 <div class="bt-strip" @ref="_strip" aria-label="Page thumbnails"></div>
+                @if (_showAsk && HasPages && _ask is { On: true } ask)
+                {
+                    <AskPanel Book="ask" DocumentId="_book!.DocumentId" Show="ShowPhraseAsync" />
+                }
                 @if (_showNotes && HasPages)
                 {
                     <aside class="bt-notespanel" aria-label="Notes">
@@ -455,6 +466,9 @@ else
     [Parameter] public bool? Keep { get; set; }
     [Parameter] public bool? Popout { get; set; }
 
+    /// <summary>Opens with the Ask panel, as Ask this book in a book's details does.</summary>
+    [Parameter] public bool? Ask { get; set; }
+
     /// <summary>A binder's item, opened at its pages, with its banner when they changed.</summary>
     [Parameter] public long? Item { get; set; }
 
@@ -502,6 +516,9 @@ else
 
     ReaderNotes? _notes;
     bool _showNotes;
+
+    AskBook? _ask;
+    bool _showAsk;
     ActionResult? _noteDone;
     NoteDialog? _noteDialog;
     ElementReference _noteBox;
@@ -620,6 +637,8 @@ else
         _outlineMenu = null;
         if (_book.Notice is { } notice) ShowNotice(notice);
         if (HasPages) _ = LoadNotesAsync(_book);
+        _ask = null;
+        if (HasPages) _ = LoadAskAsync(_book);
         ReportPlace();
     }
 
@@ -801,6 +820,79 @@ else
         }
     }
 
+    // One panel on the right at a time: Notes or Ask.
+
+    void ToggleNotes()
+    {
+        _showNotes = !_showNotes;
+        if (_showNotes) _showAsk = false;
+    }
+
+    void ToggleAsk()
+    {
+        _showAsk = !_showAsk;
+        if (_showAsk) _showNotes = false;
+    }
+
+    // Ask this book, as the Windows reader's Ask panel.
+
+    /// <summary>Whether the book can be asked and its conversation so far; opening it starts its pages being read for meaning.</summary>
+    async Task LoadAskAsync(ReaderBook book)
+    {
+        AskBook ask;
+        try
+        {
+            ask = await Api.AskBookAsync(book.DocumentId);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            return;
+        }
+        if (_book != book) return;
+        _ask = ask;
+        if (Ask == true && ask.On)
+        {
+            _showAsk = true;
+            _showNotes = false;
+        }
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Opens a page the Ask panel found with its words marked by Find: the first match on that page, else the next one
+    /// after it. Without them, or when Find can't see them, the page alone.
+    /// </summary>
+    async Task ShowPhraseAsync((int Page, string? Phrase) at)
+    {
+        if (_book is not { } book) return;
+        var page = Math.Clamp(at.Page, 0, Math.Max(0, book.PageCount - 1));
+        if (at.Phrase is not { Length: > 0 } phrase)
+        {
+            await GoToAsync(page);
+            return;
+        }
+        ReaderFind found;
+        try
+        {
+            found = await Api.FindInBookAsync(book.DocumentId, phrase, null, null);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            await GoToAsync(page);
+            return;
+        }
+        var hits = found.Pages.SelectMany(p => Enumerable.Range(0, p.Count).Select(n => (p.Page, n))).ToList();
+        var next = hits.FindIndex(h => h.Page >= page);
+        if (next < 0)
+        {
+            await GoToAsync(page);
+            return;
+        }
+        _findText = _found = phrase;
+        _hits = hits;
+        await ShowMatchAsync(next);
+    }
+
     // The Notes panel and Note, as the Windows reader's.
 
     async Task LoadNotesAsync(ReaderBook book)
@@ -901,13 +993,13 @@ else
             if (_book != book) return;
             SetNotes(changed.Notes);
             if (changed.Done.Message.Length > 0) _noteDone = changed.Done;
-            if (dialog.Editing is null) _showNotes = true;
+            if (dialog.Editing is null) (_showNotes, _showAsk) = (true, false);
             await MarkNotesAsync();
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
             _noteDone = new ActionResult("The note couldn't be saved. Try again in a moment.");
-            _showNotes = true;
+            (_showNotes, _showAsk) = (true, false);
         }
     }
 

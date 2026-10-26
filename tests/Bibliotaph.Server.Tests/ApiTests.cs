@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
@@ -1244,6 +1245,77 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal("1 whole book scanned.", scanned.ScanProgress);
         Assert.Equal(DetailsText.ScanAgain(false), rescan.Message);
         Assert.Empty(rescan.Details!.Chapters);
+    }
+
+    [Fact]
+    public async Task Ask_this_book_finds_its_pages_streams_an_answer_that_cites_them_and_keeps_the_conversation()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/crown.pdf", await File.ReadAllBytesAsync(_pdfs.ChapterBook, ct));
+        _models.Answer = request =>
+        {
+            if (request.System == AskPrompt.RewriteSystemMessage) return "Follow-up: what do the bog goblins eat?";
+            if (request.System != AskPrompt.SystemMessage) return "{}";
+            // Cites the page the goblins are on, by the marker it was sent with, quoting it.
+            var page = Regex.Match(request.User, @"\[Page ([^\]]+)\]\n(?:Heading: .*\n)?[^\n]*bog goblins wait").Groups[1].Value;
+            var answer = $"They wait \"in the reeds\" by the drowned road [p. {page}].";
+            request.Progress?.Report(new ModelProgress(ModelStep.Writing, answer[..12]));
+            Thread.Sleep(400);
+            return answer;
+        };
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        // The stand-in makes no vectors, so pages are found by their words alone.
+        using (await client.PutAsJsonAsync("/api/ai", new AiSave("https://api.example.com/v1", "fake-mini", FakeModelService.Key, RemoteAllowed: true,
+            EmbeddingModel: "fake-embed"), ct)) { }
+        var settings = await WaitAsync(async () => await client.GetFromJsonAsync<AiPage>("/api/ai", ct) is { } p
+            && p.Progress.StartsWith("1 book classified", StringComparison.Ordinal) ? p : null, ct);
+        var book = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.Single();
+        var details = (await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{book.EntryId}", ct))!;
+        var path = $"/api/ask/{book.DocumentId}";
+        async Task<List<AskUpdate>> AskAsync(string question)
+        {
+            using var response = await client.PostAsJsonAsync(path, new AskQuestion(question), ct);
+            Assert.Equal("application/x-ndjson", response.Content.Headers.ContentType?.MediaType);
+            return [.. (await response.Content.ReadAsStringAsync(ct)).Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => JsonSerializer.Deserialize<AskUpdate>(line, JsonSerializerOptions.Web)!)];
+        }
+
+        var opened = (await client.GetFromJsonAsync<AskBook>(path, ct))!;
+        var first = await AskAsync("Where do the bog goblins wait?");
+        var kept = (await client.GetFromJsonAsync<AskBook>(path, ct))!;
+        var followUp = await AskAsync("And what do they eat?");
+        using (await client.DeleteAsync(path, ct)) { }
+        var cleared = (await client.GetFromJsonAsync<AskBook>(path, ct))!;
+        using (await client.PutAsJsonAsync("/api/ai/enabled", new AiSwitch(false), ct)) { }
+        var off = (await client.GetFromJsonAsync<AskBook>(path, ct))!;
+        var offDetails = (await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{book.EntryId}", ct))!;
+
+        Assert.Equal("fake-embed", settings.EmbeddingModel);
+        Assert.True(details.CanAsk);
+        Assert.Equal((true, null), (opened.On, opened.Unavailable));
+        Assert.Empty(opened.History);
+        Assert.Contains(first, u => u.Step == "Looking through the book…");
+        Assert.Contains(first, u => u.Step == "Writing…" && u.Answering);
+        var passage = Assert.Single(first.SelectMany(u => u.Passages ?? []), p => p.Page == 1);
+        Assert.StartsWith("p. 2", passage.Link, StringComparison.Ordinal);
+        var last = first[^1];
+        Assert.True(last.Done);
+        var citation = Assert.Single(last.Answer!, p => p.Kind == AskPartKind.Citation);
+        Assert.Equal((1, "[p. 2]"), (citation.Page, citation.Text));
+        Assert.Contains(last.Answer!, p => p.Kind == AskPartKind.Quote);
+        Assert.StartsWith("Read from page", last.PassagesHeading, StringComparison.Ordinal);
+        Assert.Equal("Where do the bog goblins wait?", last.Turn!.Question);
+        Assert.Equal("Where do the bog goblins wait?", Assert.Single(kept.History).Question);
+        Assert.Contains(followUp, u => u.Step == "Working out the follow-up…");
+        Assert.Contains(followUp, u => u.LookedFor == "Looked for: what do the bog goblins eat?");
+        Assert.Empty(cleared.History);
+        Assert.Equal((false, "Ask this book uses AI, which is off. Set it up in Settings > AI."), (off.On, off.Unavailable));
+        Assert.False(offDetails.CanAsk);
     }
 
     static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class

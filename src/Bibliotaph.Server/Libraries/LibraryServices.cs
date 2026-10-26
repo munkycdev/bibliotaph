@@ -159,6 +159,11 @@ public static class LibraryServices
         services.AddSingleton<IStage, ClassifyStage>();
         services.AddSingleton<IStage, ChapterScanStage>();
         services.AddSingleton<AiService>();
+        // Ask this book: its pages found by words and, with an embedding model, by meaning, and answered by the model.
+        services.AddSingleton(sp => new AskHistoryStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), host.Clock));
+        services.AddSingleton<AskQueries>();
+        services.AddSingleton(new AiUse(host.Clock));
+        services.AddSingleton<AskService>();
         services.AddSingleton<IStageCatalog, StageCatalog>();
         services.AddSingleton(new IndexingOptions { OnlineOnlyReserveBytes = 0 });
         services.AddSingleton<IndexingFiles>();

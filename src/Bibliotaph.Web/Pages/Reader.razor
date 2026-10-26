@@ -1,7 +1,7 @@
 @page "/read/{EntryId:long}"
 @* A book on a page of its own: the reader, at the file, page, search or binder item the address says. *@
 
-<ReaderView EntryId="EntryId" Doc="Doc" Page="Page" Q="Q" Keep="Keep" Popout="Popout" Item="Item" />
+<ReaderView EntryId="EntryId" Doc="Doc" Page="Page" Q="Q" Keep="Keep" Popout="Popout" Item="Item" Ask="Ask" />
 
 @code {
     [Parameter] public long EntryId { get; set; }
@@ -13,4 +13,7 @@
 
     /// <summary>A binder's item opened from its binder's list, with its banner when its pages changed.</summary>
     [SupplyParameterFromQuery] public long? Item { get; set; }
+
+    /// <summary>Opened from Ask this book, with the Ask panel showing.</summary>
+    [SupplyParameterFromQuery] public bool? Ask { get; set; }
 }
