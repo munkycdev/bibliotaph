@@ -118,7 +118,7 @@ public static class StorageApi
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             return await StatusAsync(lease.Library, ct);
-        });
+        }).WatchesBackgroundWork();
 
         api.MapPost("/library/rescan", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {

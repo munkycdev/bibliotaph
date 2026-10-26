@@ -7,13 +7,16 @@ namespace Bibliotaph.Processing;
 /// </summary>
 public sealed class ForegroundActivity(TimeProvider? clock = null)
 {
-    /// <summary>How long after the last request background work still counts the user as busy: a page load is several.</summary>
-    public static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(300);
+    /// <summary>
+    /// How long after the last request background work still counts the user as busy: a page load is several calls in
+    /// quick succession. Short, so a page that asks for something every second or so doesn't hold the work back.
+    /// </summary>
+    public static readonly TimeSpan Settle = TimeSpan.FromMilliseconds(50);
 
     /// <summary>The longest background work waits for a quiet moment before going ahead anyway.</summary>
-    public static readonly TimeSpan MostWait = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan MostWait = TimeSpan.FromSeconds(2);
 
-    static readonly TimeSpan Look = TimeSpan.FromMilliseconds(100);
+    static readonly TimeSpan Look = TimeSpan.FromMilliseconds(25);
 
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     int _inFlight;

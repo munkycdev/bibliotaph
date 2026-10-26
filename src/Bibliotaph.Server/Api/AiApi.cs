@@ -152,7 +152,7 @@ public static class AiApi
                 : null;
             return new AiReadingPage(now, idle, [.. feed.Recent.Select(done => AiReadingText.Describe(done, vocabulary))
                 .Select(d => new AiReadingBookRead(d.Title, d.Summary, d.Problem, [.. d.Kept.Select(Line)], [.. d.Dropped.Select(Line)]))]);
-        });
+        }).WatchesBackgroundWork();
 
         ai.MapPost("/test", async (AiTest test, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
