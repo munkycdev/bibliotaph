@@ -34,6 +34,7 @@ public sealed class LitestreamRestore(IOptions<ServerOptions> options, ServerPat
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         // Not *.db, so Litestream's watcher ignores it while it's being written.
         var staging = Path.Combine(paths.Staging, $"{Guid.NewGuid():N}.restoring");
+        var started = Stopwatch.GetTimestamp();
 
         var start = new ProcessStartInfo(options.Value.LitestreamPath)
         {
@@ -51,8 +52,10 @@ public sealed class LitestreamRestore(IOptions<ServerOptions> options, ServerPat
         // No replica yet: a new user, or a file never written. Nothing to put in place.
         if (!File.Exists(staging)) return;
 #pragma warning disable RS0030 // The server's own data folder; books are never local files here.
+        var bytes = new FileInfo(staging).Length;
         File.Move(staging, target);
 #pragma warning restore RS0030
-        log.LogInformation("Restored {Database} from its replica", relativePath);
+        log.LogInformation("Restored {Database} ({Megabytes:N1} MB) from its replica in {Milliseconds:N0} ms", relativePath,
+            bytes / 1048576.0, Stopwatch.GetElapsedTime(started).TotalMilliseconds);
     }
 }

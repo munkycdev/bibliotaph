@@ -12,6 +12,11 @@ var app = builder.Build();
 await app.Services.GetRequiredService<AccountsDatabase>().MigrateAsync();
 if (invite is not null) return await invite.RunAsync(app.Services);
 
+// With one CPU the thread pool starts with one thread, and each open library's background loops hold threads while
+// SQLite works, so requests would wait for the pool to grow, half a second a thread.
+ThreadPool.GetMinThreads(out var workers, out var completions);
+ThreadPool.SetMinThreads(Math.Max(workers, 16), completions);
+
 app.UseBibliotaphServer();
 await app.RunAsync();
 return 0;
