@@ -11,6 +11,10 @@
   [Online libraries](docs/guide/online-libraries.md#without-bibliotaphs-browser).
 - **PDFs with copy or print restrictions open on the web again.** The reader failed on them. When a book can't be
   opened for a reason Bibliotaph doesn't recognise, it now says so plainly instead of showing the technical error.
+## Unreleased
+
+- **The web library answers first.** Reading books in the background, scanned pages most of all, now steps aside while
+  you're using the library, and a library opens faster after an update. See [Processing](docs/guide/web.md#processing).
 - **Fewer, clearer Settings on the web.** Storage is now at the top of **Library**, above the folders you add from it;
   **Devices** holds your Windows PCs and the books kept in this browser; **Preferences** holds light or dark, **Start
   on** and what waits for review; and **Members** holds invitations and accounts for those who can invite. Old links,

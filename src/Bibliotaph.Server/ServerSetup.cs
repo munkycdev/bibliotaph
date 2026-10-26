@@ -5,6 +5,7 @@ using Bibliotaph.Server.Ai;
 using Bibliotaph.Server.Api;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Pdf.Host;
+using Bibliotaph.Processing;
 using Bibliotaph.Server.Indexing;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Site;
@@ -36,7 +37,9 @@ public static class ServerSetup
         services.AddSingleton(sp => new LibraryHost(sp.GetRequiredService<ILoggerFactory>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<UserDriveFactory>(), paths.Downloads, new WorkerPdfEngine(sp.GetRequiredService<PdfWorkerPool>()),
             new SkiaImageCodec(), sp.GetRequiredService<ICoverStore>(), sp.GetRequiredService<IDataProtectionProvider>(),
-            sp.GetRequiredService<ModelClientFactory>()));
+            sp.GetRequiredService<ModelClientFactory>(), sp.GetRequiredService<ForegroundActivity>()));
+        // Every library's reading steps aside for anyone's request: they share the one CPU.
+        services.AddSingleton(sp => new ForegroundActivity(sp.GetRequiredService<TimeProvider>()));
         // Model services only on the internet, over https; tests put a stand-in here.
         services.AddSingleton(new ModelClientFactory(ModelServices.ClientFor));
         services.AddSingleton<UserLibraries>();
@@ -123,6 +126,7 @@ public static class ServerSetup
             await next(context);
         });
 
+        app.UseForegroundRequests();
         app.UseAuthentication();
         app.UseClosedAccountGuard();
         app.UseCrossSiteGuard();

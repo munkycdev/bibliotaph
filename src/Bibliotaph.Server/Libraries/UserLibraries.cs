@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
@@ -305,10 +306,16 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         var appPaths = new AppPaths(root);
         // Copies of books left by a server that stopped mid-read.
         DeleteFetched(appPaths);
-        await restore.RestoreAsync($"users/{userId}/catalog.db", appPaths.CatalogDatabase, CancellationToken.None);
-        await restore.RestoreAsync($"users/{userId}/index.db", appPaths.IndexDatabase, CancellationToken.None);
+        // After a deploy every database comes back from Blob storage, and the first page waits on all of them.
+        var started = Stopwatch.GetTimestamp();
+        var syncFiles = SyncFilesAsync(userId);
+        await Task.WhenAll(
+            restore.RestoreAsync($"users/{userId}/catalog.db", appPaths.CatalogDatabase, CancellationToken.None),
+            restore.RestoreAsync($"users/{userId}/index.db", appPaths.IndexDatabase, CancellationToken.None));
+        var sync = await syncFiles;
+        var restored = Stopwatch.GetElapsedTime(started);
 
-        var services = LibraryServices.Build(userId, appPaths, paths.UserBackups(userId), host, await SyncFilesAsync(userId));
+        var services = LibraryServices.Build(userId, appPaths, paths.UserBackups(userId), host, sync);
         try
         {
             var library = new UserLibrary(userId, appPaths, services);
@@ -337,6 +344,8 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             await library.Get<ServerSyncChannel>().LoadAsync();
             await library.Get<LibrarySync>().StartAsync(CancellationToken.None);
             await library.Get<SharedResults>().StartAsync(CancellationToken.None);
+            _log.LogInformation("Opened the library of {User} in {Total:N0} ms, {Restore:N0} ms of it bringing its databases back",
+                userId, Stopwatch.GetElapsedTime(started).TotalMilliseconds, restored.TotalMilliseconds);
             return library;
         }
         catch

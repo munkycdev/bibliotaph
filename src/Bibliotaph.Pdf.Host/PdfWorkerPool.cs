@@ -46,6 +46,7 @@ public sealed class PdfWorkerPool(PdfWorkerPoolOptions options, ILoggerFactory? 
                 return _index ??= new WorkerClient(new WorkerOptions
                 {
                     Name = "index worker",
+                    Background = true,
                     WorkerPath = options.WorkerPath,
                     DefaultTimeout = options.DefaultTimeout,
                     MemoryLimitBytes = options.IndexMemoryLimitBytes,
