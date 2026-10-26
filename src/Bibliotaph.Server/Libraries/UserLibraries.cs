@@ -39,7 +39,7 @@ public sealed class UserLibrary
     public IDbContextFactory<CatalogDbContext> Contexts => Get<IDbContextFactory<CatalogDbContext>>();
 
     /// <summary>
-    /// Whether indexing has work in hand: a scan, or files still to read. A busy library stays open after its last
+    /// Whether indexing has work in hand: a scan, files still to read, or scanned pages. A busy library stays open after its last
     /// request, so indexing finishes even when nobody is looking.
     /// </summary>
     public async Task<bool> IsBusyAsync(CancellationToken ct = default)
@@ -49,7 +49,9 @@ public sealed class UserLibrary
         if (indexing.IsPaused(Lane.Index)) return false;
         var counts = await Get<LibraryStore>().GetCountsAsync(ct);
         // Files that couldn't be read are tried again after the next scan, not now.
-        return counts.Unhashed > indexing.Unreadable.Count;
+        if (counts.Unhashed > indexing.Unreadable.Count) return true;
+        // Scanned pages are read to the end even with nobody signed in, so search finds them next time.
+        return !indexing.IsPaused(Lane.Ocr) && (await Get<IndexQueries>().GetProgressAsync(ct)).PagesAwaitingOcr > 0;
     }
 }
 

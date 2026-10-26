@@ -59,6 +59,32 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
     }
 
     [Fact]
+    public async Task A_scanned_page_is_read_by_ocr_and_found_by_search()
+    {
+        Fixture.Graph.Add("RPG/scanned.pdf", await File.ReadAllBytesAsync(pdfs.Scanned, Ct));
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
+        var library = lease.Library;
+        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        library.Indexing.RequestScan(root.Id);
+
+        var queries = library.Get<IndexQueries>();
+        var (document, status) = await WaitAsync(async () =>
+        {
+            await using var db = library.Catalog.CreateContext();
+            if (await db.Documents.Select(d => (long?)d.Id).SingleOrDefaultAsync(Ct) is not { } id) return null;
+            var ocr = await queries.GetStageStatusAsync(id, Stage.Ocr, Ct);
+            return ocr is StageStatus.Complete or StageStatus.Blocked or StageStatus.Failed ? Tuple.Create(id, ocr) : null;
+        });
+
+        // The Windows test runners may have no OCR language installed; the server's image always has Tesseract.
+        Assert.SkipWhen(status == StageStatus.Blocked, "OCR isn't available on this machine.");
+        Assert.Equal(StageStatus.Complete, status);
+        var texts = await queries.GetAllPageTextsAsync(document, Ct);
+        Assert.Contains("goblin", texts[0], StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task The_library_page_shows_the_books_read_and_finds_their_pages()
     {
         Fixture.Graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(pdfs.KnownText, Ct));

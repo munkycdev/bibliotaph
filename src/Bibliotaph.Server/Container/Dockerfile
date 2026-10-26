@@ -22,6 +22,11 @@ RUN dotnet publish src/Bibliotaph.Server -c Release -r linux-x64 --self-containe
  && install -m 755 src/Bibliotaph.Server/Container/invite.sh /usr/local/bin/bibliotaph-invite
 
 FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.2
+# Tesseract (Apache-2.0) and its English data, which the PDF worker loads to read scanned pages. One thread a page, so
+# OCR never takes the whole container from the people using it.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=build /usr/local/bin/litestream /usr/local/bin/bibliotaph /usr/local/bin/bibliotaph-invite /usr/local/bin/
 COPY --from=build /app /app
 COPY src/Bibliotaph.Server/Container/litestream.yml /etc/litestream.yml
@@ -30,6 +35,7 @@ RUN mkdir /data && chown app:app /data
 USER app
 WORKDIR /app
 ENV ASPNETCORE_HTTP_PORTS=8080 \
+    OMP_THREAD_LIMIT=1 \
     Server__DataRoot=/data \
     Server__LitestreamPath=/usr/local/bin/litestream
 EXPOSE 8080

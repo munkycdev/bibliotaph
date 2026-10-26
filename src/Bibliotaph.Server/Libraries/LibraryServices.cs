@@ -125,11 +125,13 @@ public static class LibraryServices
         services.AddSingleton(new HeldActions(host.Clock));
         services.AddSingleton(new PendingCovers(host.Clock));
 
-        // Indexing: the Windows app's stages that read a book, without OCR and AI, which the server doesn't run yet.
+        // Indexing: the Windows app's stages that read a book, without AI, which the server doesn't run yet. OCR is
+        // Tesseract in the PDF worker, where the Windows app has Windows OCR.
         services.AddSingleton<IStage, ProbeStage>();
         services.AddSingleton<IStage, TextStage>();
         services.AddSingleton<IStage, CoversStage>();
         services.AddSingleton<IStage, RuleHintsStage>();
+        services.AddSingleton<IStage, OcrStage>();
         services.AddSingleton<IStageCatalog, StageCatalog>();
         services.AddSingleton(new IndexingOptions { OnlineOnlyReserveBytes = 0 });
         services.AddSingleton<IndexingFiles>();

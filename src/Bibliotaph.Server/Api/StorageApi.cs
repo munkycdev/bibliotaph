@@ -134,13 +134,15 @@ public static class StorageApi
         var counts = await library.Get<LibraryStore>().GetCountsAsync(ct);
         var folders = (await library.Get<SourceRootStore>().ListAsync(ct)).Count;
         var unhashed = counts.Unhashed - indexing.Unreadable.Count;
+        var progress = await library.Get<IndexQueries>().GetProgressAsync(ct);
         var text = indexing.IsScanning ? "Looking through your folders"
             : unhashed > 0 && indexing.IsPaused(Lane.Index) ? "Indexing paused"
             : unhashed > 0 ? $"Reading {unhashed:N0} new {FolderText.Plural(unhashed, "file", "files")}"
+            : progress.PagesAwaitingOcr > 0 ? indexing.IsPaused(Lane.Ocr) ? "Reading scanned pages paused" : $"Reading scanned pages · {progress.PagesAwaitingOcr:N0} left"
             : counts.Documents == 0 ? "Nothing to process"
             : $"Up to date · {counts.Documents:N0} {FolderText.Plural(counts.Documents, "item", "items")}";
         var suggestions = await library.Get<ReviewService>().CountAsync(ct);
-        var attention = (await library.Get<IndexQueries>().GetProgressAsync(ct)).NeedAttention + indexing.Unreadable.Count + counts.Problems;
+        var attention = progress.NeedAttention + indexing.Unreadable.Count + counts.Problems;
         return new LibraryStatus(text, await library.IsBusyAsync(ct), counts.Documents, folders, (int)suggestions, (int)attention);
     }
 }
