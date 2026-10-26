@@ -160,6 +160,7 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IStageCat
                 continue;
             }
             if (unavailable is not null && !await WaitOutAsync(lane, stoppingToken)) continue;
+            if (options.Foreground is { } foreground) await foreground.WaitForQuietAsync(stoppingToken);
 
             var job = await queue.LeaseAsync(names, owner, options.Lease, stoppingToken);
             if (job is null)

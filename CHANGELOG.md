@@ -1,5 +1,10 @@
 # Changes
 
+## Unreleased
+
+- **The web library answers first.** Reading books in the background, scanned pages most of all, now steps aside while
+  you're using the library, and a library opens faster after an update. See [Processing](docs/guide/web.md#processing).
+
 ## 1.3 · 19 October 2026
 
 New in 1.3.815 (26 October 2026):
