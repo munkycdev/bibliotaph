@@ -179,7 +179,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
     ReviewService Review(CorrectionService? corrections = null, CollectionSuggestions? suggestions = null) =>
         new(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings, new VocabularyService(_vocabulary, _projector, _service, _hints),
             new ReviewCards(_copies, _packs, _elsewhere, _places, corrections ?? Corrections(), _folderRules, _parts, _proposals, _folderCollections,
-                suggestions ?? Suggestions()));
+                suggestions ?? Suggestions(), _libraryStore));
 
     public async ValueTask DisposeAsync()
     {
@@ -331,7 +331,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
             Assert.Equal("Complete", StatusOf(c, "Handout Map", Stage.Covers));
 
             // Files needing attention: the password and the damaged file, each with a reason a person can act on.
-            var attention = await _queries.GetAttentionAsync(Ct);
+            var attention = await _queries.GetAttentionAsync(ct: Ct);
             var locked = attention.Single(a => a.Stage == Stage.Probe && a.Status == StageStatus.Blocked);
             Assert.Contains("Password", locked.Reason, StringComparison.Ordinal);
             Assert.Contains(attention, a => a.Stage == Stage.Probe && a.Status == StageStatus.Failed);

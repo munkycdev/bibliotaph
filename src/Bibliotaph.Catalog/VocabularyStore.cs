@@ -173,8 +173,15 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
     static Term ToTerm(VocabularyTerm t) => new(t.Vocabulary, t.Key, t.Label, t.ShortLabel, t.ParentKey);
 
     /// <summary>Pending terms that some document is waiting on, with how many and a quote from one of them.</summary>
-    public async Task<IReadOnlyList<PendingTerm>> GetPendingAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<PendingTerm>> GetPendingAsync(CancellationToken ct = default) => await GetPendingAsync(null, ct);
+
+    /// <summary>
+    /// The pending terms with values waiting on them among <paramref name="among"/> (every entry when null), each
+    /// counting only those entries: a term proposed only for books in a removed folder isn't waiting on anyone.
+    /// </summary>
+    public async Task<IReadOnlyList<PendingTerm>> GetPendingAsync(IReadOnlyCollection<EntryId>? among, CancellationToken ct = default)
     {
+        var shown = among?.Select(e => e.Value).ToHashSet();
         await using var db = await contexts.CreateDbContextAsync(ct);
         var terms = await db.VocabularyTerms.AsNoTracking().Where(t => t.State == TermState.Pending).OrderBy(t => t.Id).ToListAsync(ct);
         var waiting = await db.Assertions.AsNoTracking().Where(a => a.State == AssertionState.AwaitingTerm)
@@ -183,7 +190,7 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
         foreach (var term in terms)
         {
             if (MetadataFields.ForVocabulary(term.Vocabulary) is not { } field) continue;
-            var uses = waiting.Where(a => a.Field == field.Key && a.NormalizedValue == term.Key).ToList();
+            var uses = waiting.Where(a => a.Field == field.Key && a.NormalizedValue == term.Key && (shown is null || shown.Contains(a.EntryId))).ToList();
             if (uses.Count == 0) continue;
             pending.Add(new PendingTerm(term.Id, ToTerm(term), field, uses.Select(u => u.EntryId).Distinct().Count(),
                 uses.Select(u => u.EvidenceQuote).FirstOrDefault(q => !string.IsNullOrWhiteSpace(q))));

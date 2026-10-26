@@ -172,6 +172,9 @@
   Humble Bundle and DriveThruRPG from a library page saved with Save as, with the Windows app's preview, Import with
   Undo, covers from the pictures saved beside the page, and the books no longer listed. See
   [Online libraries](docs/guide/web.md#online-libraries).
+- **Needs review forgets a removed folder's books.** Removing a library folder, on the web or in the Windows app, left
+  its books' suggestions, new terms and failed files in Needs review and the sidebar's count; now only the books in the
+  library's folders count.
 
 ## 1.3 · 19 October 2026
 

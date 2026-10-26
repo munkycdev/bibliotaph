@@ -359,7 +359,7 @@ public sealed partial class NeedsReviewViewModel(
     {
         try
         {
-            var rows = (await queries.GetAttentionAsync())
+            var rows = (await queries.GetAttentionAsync(await library.GetVisibleDocumentIdsAsync()))
                 .Select(Row)
                 .Concat(indexing.Unreadable.Select(u => ReviewText.Unreadable(Path.GetFileName(u.Path), u.Reason)))
                 .Concat((await library.GetProblemsAsync()).Select(p => ReviewText.Problem(Path.GetFileName(p.FullPath), p.Problem, p.FullPath)))

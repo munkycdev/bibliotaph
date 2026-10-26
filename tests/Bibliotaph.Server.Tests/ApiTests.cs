@@ -727,6 +727,53 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Removing_the_only_library_folder_and_its_storage_leaves_nothing_in_needs_review()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/IMG_0042.png", Png());
+        _graph.Add("RPG/Maps/IMG_0043.png", Png(SkiaSharp.SKColors.Crimson));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            var library = lease.Library;
+            var metadata = library.Get<MetadataStore>();
+            var (heist, _) = await library.Get<VocabularyStore>().ProposeTermAsync("type", "Heist Kit", ct);
+            foreach (var book in books)
+            {
+                var entry = new EntryId(book.EntryId);
+                await metadata.ReplaceHintsAsync(entry, null, [new(MetadataFields.System, "dnd", AssertionOrigin.Embedded)], ct);
+                await metadata.AddSuggestionsAsync(entry, null,
+                [
+                    new(MetadataFields.System, "pathfinder", AssertionOrigin.Ai, "for Pathfinder"),
+                    new(MetadataFields.Types, heist.Key, AssertionOrigin.Ai, "a heist kit"),
+                ], ct);
+            }
+            await library.Get<MetadataProjector>().ProjectAllAsync(ct);
+        }
+        var before = (await client.GetFromJsonAsync<LibraryStatus>("/api/library/status", ct))!;
+        var folder = Assert.Single((await client.GetFromJsonAsync<List<LibraryFolder>>("/api/library/folders", ct))!);
+
+        using (await client.DeleteAsync($"/api/library/folders/{folder.Id}", ct)) { }
+        using (await client.DeleteAsync($"/api/storage/{drive.Id}", ct)) { }
+
+        var status = (await client.GetFromJsonAsync<LibraryStatus>("/api/library/status", ct))!;
+        var list = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        var files = (await client.GetFromJsonAsync<ReviewFiles>("/api/review/files", ct))!;
+        var left = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!;
+        Assert.Empty(left.Books);
+        Assert.True(before.Review > 0);
+        Assert.Equal((0, 0, 0), (status.Suggestions, status.Attention, list.Count));
+        Assert.Empty(list.Terms);
+        Assert.Empty(files.Cards);
+    }
+
+    [Fact]
     public async Task Needs_review_lists_and_decides_field_and_term_cards_with_undo_as_the_windows_app_does()
     {
         var ct = TestContext.Current.CancellationToken;
