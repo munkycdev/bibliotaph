@@ -1,0 +1,125 @@
+@page "/ai-reading"
+@inject ApiClient Api
+@implements IDisposable
+
+@* The Windows app's AI reading: the book the AI is reading now, its step, how much of the excerpt it has read when the
+   model service says, its answer's fields as it writes them, and the last books read with what the evidence check kept
+   and dropped. Asked for once a second while it shows. *@
+<PageHeading Title="AI reading." TabTitle="AI reading" Subtitle="What the AI is reading now, its answer as it writes it, and what the evidence check kept from the last books. Only values that quote their page are kept." />
+
+<div class="bt-aireading">
+    <div class="bt-eyebrow">NOW</div>
+    @if (_page is null)
+    {
+        <div class="bt-loading">Looking…</div>
+    }
+    else if (_page.Now is { } now)
+    {
+        <div class="bt-ainow">
+            <div class="bt-ainowhead">
+                <span class="bt-row" aria-label="Book being read">@now.Title</span>
+                <span class="bt-small">@($"{now.Seconds:0} s")</span>
+            </div>
+            <div class="bt-small" aria-label="What the AI is doing">@now.Step</div>
+            @if (now.ReadPercent is { } percent)
+            {
+                <progress class="bt-bar" max="100" value="@percent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)"
+                          aria-label="How much of the excerpt has been read"></progress>
+            }
+            @if (now.Fields.Count > 0)
+            {
+                <ul class="bt-aifields" aria-label="The answer so far">
+                    @foreach (var field in now.Fields)
+                    {
+                        <li><b>@field.Text</b>: @field.Detail</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+    else
+    {
+        <p class="bt-small" aria-label="Nothing being read">@_page.Idle</p>
+    }
+    <div class="bt-actions">
+        <a class="bt-button" href="settings#ai">AI settings</a>
+    </div>
+
+    <div class="bt-eyebrow bt-aireadlast">LAST READ</div>
+    @if (_page is { Recent.Count: 0 })
+    {
+        <p class="bt-small">Nothing read since the server started.</p>
+    }
+    else if (_page is not null)
+    {
+        <ul class="bt-airead" aria-label="Books read">
+            @foreach (var book in _page.Recent)
+            {
+                <li>
+                    <b>@book.Title</b>
+                    <div class="bt-small">@book.Summary</div>
+                    @if (book.Problem is { } problem)
+                    {
+                        <div class="bt-small">@problem</div>
+                    }
+                    @foreach (var kept in book.Kept)
+                    {
+                        <div class="bt-aikept"><span>@kept.Text</span><span class="bt-small">@kept.Detail</span></div>
+                    }
+                    @foreach (var dropped in book.Dropped)
+                    {
+                        <div class="bt-small">Thrown away: @dropped.Text · @dropped.Detail</div>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    static readonly TimeSpan Poll = TimeSpan.FromSeconds(1);
+
+    readonly CancellationTokenSource _stop = new();
+    AiReadingPage? _page;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        _ = PollAsync();
+    }
+
+    async Task PollAsync()
+    {
+        using var timer = new PeriodicTimer(Poll);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_stop.Token))
+            {
+                await RefreshAsync();
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was left.
+        }
+    }
+
+    async Task RefreshAsync()
+    {
+        try
+        {
+            _page = await Api.AiReadingAsync(_stop.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            // The next second tries again; what shows stays meanwhile.
+        }
+    }
+
+    public void Dispose()
+    {
+        _stop.Cancel();
+        _stop.Dispose();
+    }
+}

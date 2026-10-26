@@ -11,7 +11,7 @@
   <StackPanel MaxWidth="860" HorizontalAlignment="Left" Margin="0,0,42,24">
     <TextBlock Text="AI reading." Style="{StaticResource Text.H1}" />
     <TextBlock Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" TextWrapping="Wrap"
-               Text="What the AI is reading now, its answer as it writes it, and what the evidence check kept from the last books. Only values that quote their page are kept." />
+               Text="{x:Static p:AiReadingText.Subtitle}" />
 
     <!-- Now -->
     <TextBlock Text="Now" Style="{StaticResource Text.Eyebrow}" />
@@ -45,11 +45,11 @@
 
     <!-- The last books read -->
     <TextBlock Text="Last read" Style="{StaticResource Text.Eyebrow}" Margin="0,28,0,0" />
-    <TextBlock Text="Nothing read since Bibliotaph started." Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+    <TextBlock Text="{x:Static p:AiReadingText.NothingRead}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
                Visibility="{Binding HasRecent, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
     <ItemsControl ItemsSource="{Binding Recent}" Focusable="False" AutomationProperties.Name="Books read">
       <ItemsControl.ItemTemplate>
-        <DataTemplate DataType="{x:Type vm:AiReadingDoneItem}">
+        <DataTemplate DataType="{x:Type p:AiReadingDone}">
           <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,10">
             <StackPanel>
               <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis" />

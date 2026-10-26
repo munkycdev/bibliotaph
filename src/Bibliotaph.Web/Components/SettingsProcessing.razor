@@ -76,6 +76,7 @@
             {
                 <button class="bt-button" disabled="@_saving" @onclick="() => PauseAsync(_state.Paused with { Ai = !_state.Paused.Ai })">
                     <Icon Name="@(_state.Paused.Ai ? "Play" : "Pause")" />@(_state.Paused.Ai ? "Resume AI" : "Pause AI")</button>
+                <a class="bt-button" href="ai-reading">See what the AI is reading</a>
             }
         </div>
         <p class="bt-fine">A pause holds until you resume, even after you sign out. Pausing the AI stops requests on your key.</p>

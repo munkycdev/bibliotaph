@@ -33,6 +33,7 @@
                 {
                     <small class="bt-problem" role="alert">@problem</small>
                 }
+                <small><a class="bt-link" href="ai-reading">See what the AI is reading</a></small>
             </div>
             <div class="bt-segments" role="group" aria-label="Use AI">
                 <button class="@(_page.Enabled ? "" : "on")" aria-pressed="@(!_page.Enabled)" @onclick="() => SwitchAsync(false)">Off</button>
