@@ -40,6 +40,18 @@ public sealed class ServerOptions
     /// </summary>
     public string? CoverContainer { get; set; }
 
+    /// <summary>
+    /// The Blob container that keeps every user's weekly backups and the backups made before a restore
+    /// (https://account.blob.core.windows.net/backups). Unset with <see cref="CoverContainer"/> set, it is the container
+    /// named backups in the covers' account, made when first needed; with neither, backups live in <see cref="DataRoot"/>.
+    /// </summary>
+    public string? BackupContainer { get; set; }
+
+    /// <summary>When the first look for weekly backups that are due comes after the server starts, and how often after.</summary>
+    public TimeSpan WeeklyBackupFirst { get; set; } = TimeSpan.FromMinutes(1);
+
+    public TimeSpan WeeklyBackupEvery { get; set; } = TimeSpan.FromHours(1);
+
     /// <summary>The user-assigned managed identity that reaches Blob storage and Key Vault.</summary>
     public string? ManagedIdentityClientId { get; set; }
 }

@@ -1375,6 +1375,70 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task A_weekly_backup_is_kept_and_restoring_it_brings_the_library_back_as_it_was()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var store = _factory.Services.GetRequiredService<IBackupStore>();
+        var backups = _factory.Services.GetRequiredService<WebBackups>();
+        var libraries = _factory.Services.GetRequiredService<UserLibraries>();
+        // Four weekly backups from a year ago: the oldest goes when this week's is made.
+        var old = new DateTimeOffset(2025, 10, 6, 9, 0, 0, TimeSpan.Zero);
+        for (var week = 0; week < 4; week++)
+            await store.UploadAsync(user.Id, BackupNames.For(BackupNames.Weekly, old.AddDays(7 * week)), new MemoryStream([1, 2, 3]), ct);
+
+        KeptBackup? empty, made, again;
+        await using (var lease = await libraries.OpenAsync(user.Id, ct)) empty = await backups.BackUpWeeklyIfDueAsync(lease.Library, ct);
+        using (await client.PostAsJsonAsync("/api/library/elsewhere", new ElsewhereAdd("Tomb of the Test", "", "", "", [], "", null), ct)) { }
+        await using (var lease = await libraries.OpenAsync(user.Id, ct))
+        {
+            made = await backups.BackUpWeeklyIfDueAsync(lease.Library, ct);
+            again = await backups.BackUpWeeklyIfDueAsync(lease.Library, ct);
+        }
+        var kept = (await client.GetFromJsonAsync<List<KeptBackupInfo>>("/api/library/backups", ct))!;
+        using var download = await client.GetAsync($"/api/library/backups/{made!.Name}", ct);
+        using var notKept = await client.GetAsync("/api/library/backups/catalog.db", ct);
+
+        using (await client.PostAsJsonAsync("/api/library/elsewhere", new ElsewhereAdd("Vault of the Second", "", "", "", [], "", null), ct)) { }
+        using var read = await client.PostAsync($"/api/library/restore?backup={made.Name}", null, ct);
+        var preview = (await read.Content.ReadFromJsonAsync<RestoreRead>(ct))!.Preview!;
+        using var restore = await client.PostAsync($"/api/library/restore/{preview.Token}", null, ct);
+        using var twice = await client.PostAsync($"/api/library/restore/{preview.Token}", null, ct);
+        var after = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!;
+        var keptAfter = (await client.GetFromJsonAsync<List<KeptBackupInfo>>("/api/library/backups", ct))!;
+
+        using var notABackup = await client.PostAsync("/api/library/restore", new ByteArrayContent([1, 2, 3]), ct);
+        var refused = (await notABackup.Content.ReadFromJsonAsync<RestoreRead>(ct))!;
+        using var current = await client.GetAsync("/api/library/backup", ct);
+        using var upload = await client.PostAsync("/api/library/restore", new StreamContent(await current.Content.ReadAsStreamAsync(ct)), ct);
+        var uploaded = (await upload.Content.ReadFromJsonAsync<RestoreRead>(ct))!.Preview!;
+        using var cancel = await client.DeleteAsync($"/api/library/restore/{uploaded.Token}", ct);
+        using var cancelled = await client.PostAsync($"/api/library/restore/{uploaded.Token}", null, ct);
+
+        Assert.Null(empty);
+        Assert.NotNull(made);
+        Assert.Null(again);
+        Assert.Equal(4, kept.Count);
+        Assert.All(kept, b => Assert.True(b.Weekly));
+        Assert.Equal(made.Name, kept[0].Name);
+        Assert.DoesNotContain(kept, b => b.Name == BackupNames.For(BackupNames.Weekly, old));
+        Assert.StartsWith("Bibliotaph weekly backup ", download.Content.Headers.ContentDisposition!.FileNameStar, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.NotFound, notKept.StatusCode);
+        Assert.Equal(1, preview.Books);
+        Assert.Equal(HttpStatusCode.OK, restore.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, twice.StatusCode);
+        Assert.Equal(["Tomb of the Test"], after.Books.Select(b => b.Title));
+        Assert.Contains(keptAfter, b => !b.Weekly && b.Name.StartsWith(BackupNames.BeforeRestore, StringComparison.Ordinal));
+        Assert.Null(refused.Preview);
+        Assert.NotNull(refused.Problem);
+        Assert.Equal(1, uploaded.Books);
+        Assert.Equal(HttpStatusCode.NoContent, cancel.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, cancelled.StatusCode);
+    }
+
+    [Fact]
     public async Task Settings_library_chooses_the_start_page_and_switches_a_folder_name_off()
     {
         var ct = TestContext.Current.CancellationToken;
