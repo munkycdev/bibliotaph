@@ -75,7 +75,7 @@ collections and corrections stay for when you connect it again.
 
 ## Library folders
 
-**Settings** › **Library folders** works as in the Windows app. Choose **Add a folder** (or **Add a folder** on Home),
+**Settings** › **Library** works as in the Windows app. Choose **Add a folder** (or **Add a folder** on Home),
 walk down to the folder you want, and choose **Use this folder**. Folders already in your library are marked. The new
 folder shows what's directly in it; choose **Add to library** to keep it or **Cancel**. Each folder then says when it was
 added and what it holds, such as "488 PDFs, 12 e-books, 120 images · 15 other files ignored". The **×** removes a folder
@@ -87,6 +87,15 @@ says what it's doing, such as **Reading 120 new files** or **Up to date**.
 
 Changes in your storage (books added, moved or deleted) are picked up within a few minutes (Google Drive's within five), whether or not you have
 Bibliotaph open, and twice a day it looks through every folder anyway. **Look for changes** looks straight away.
+
+Below the folders, as in the Windows app:
+
+- **Start on** chooses whether bibliotaph.online opens on **Home** or the **Library**.
+- **Folder names** lists the folder names read as suggestions for the books inside, such as "Adventures" → "Type:
+  Adventure", with how many documents are under each. Untick one if that name means something else in your library;
+  its books' suggestions are read again straight away. **Refresh** lists them again.
+- **Folder rules** lists the rules you answered in Needs review, such as "Fey Court" → "system Pathfinder 2e", with where
+  the folder is. Untick one to stop it suggesting its value; ticking it again brings the suggestions back.
 
 Each book is then read as the Windows app reads it: its pages, outline and text for search, its cover, and hints from
 its file and folder names. Two files of the same book, such as copies bought by different people, become one card with
