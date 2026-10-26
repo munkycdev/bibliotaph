@@ -1,3 +1,5 @@
+using System.Globalization;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Classification;
 
 namespace Bibliotaph.Processing;
@@ -117,4 +119,49 @@ public sealed class AiReadingFeed(TimeProvider? clock = null)
     {
         public void Report(ModelProgress value) => feed.Update(documentId, value);
     }
+}
+
+/// <summary>A book the AI has read, as the AI reading page lists it: what it kept, what it dropped and why, or why it failed.</summary>
+public sealed record AiReadingDone(string Title, string Summary, string? Problem, IReadOnlyList<AiTestLine> Kept, IReadOnlyList<AiTestLine> Dropped);
+
+/// <summary>The AI reading page's words, in the Windows app and on the web.</summary>
+public static class AiReadingText
+{
+    public const string Subtitle =
+        "What the AI is reading now, its answer as it writes it, and what the evidence check kept from the last books. Only values that quote their page are kept.";
+
+    public const string NothingRead = "Nothing read since Bibliotaph started.";
+
+    /// <summary>What the AI is doing with the book now.</summary>
+    public static string Step(AiReadingBook book) => book.Step switch
+    {
+        AiReadingStep.Reading => $"Reading the excerpt with {book.Model}",
+        AiReadingStep.Writing => $"{book.Model} is writing its answer",
+        _ => $"Waiting for {book.Model}: a model that isn't loaded yet takes a little while to start",
+    };
+
+    /// <summary>With no book being read: why not.</summary>
+    public static string Idle(bool ready, bool paused, string? waiting) =>
+        !ready ? "AI is off, or not set up yet, so no book is being read."
+        : paused ? "Cataloguing with AI is paused."
+        : waiting is { Length: > 0 } ? $"Cataloguing with AI is waiting: {waiting}"
+        : "No book is being read right now. Books are read one at a time as they're added or changed.";
+
+    /// <summary>The answer's fields so far: "Title: The Sunken Lantern", "…" while a field has no value yet.</summary>
+    public static IReadOnlyList<AiTestLine> Fields(AiReadingBook book) =>
+        [.. book.Fields.Select(field => new AiTestLine(MetadataFields.Find(field.Name)?.Label ?? field.Name,
+            field.Values.Count == 0 ? "…" : string.Join(", ", field.Values)))];
+
+    /// <summary>A book read: "Kept 5 values, dropped 2 · 41 s", with each value's page and quote, or why it couldn't be read.</summary>
+    public static AiReadingDone Describe(AiReadingBook book, Vocabulary vocabulary)
+    {
+        var took = book.Took is { } t ? $" · {Seconds(t)}" : "";
+        if (book.Result is not { } result) return new AiReadingDone(book.Title, $"Couldn't be read{took}", book.Problem, [], []);
+        var kept = AiText.Kept(result, vocabulary);
+        var dropped = AiText.Dropped(result);
+        return new AiReadingDone(book.Title, $"Kept {(kept.Count == 1 ? "1 value" : $"{kept.Count.ToString(CultureInfo.CurrentCulture)} values")}, dropped {dropped.Count.ToString(CultureInfo.CurrentCulture)}{took}",
+            null, kept, dropped);
+    }
+
+    public static string Seconds(TimeSpan time) => $"{Math.Max(0, time.TotalSeconds).ToString("0", CultureInfo.CurrentCulture)} s";
 }

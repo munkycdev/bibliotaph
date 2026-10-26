@@ -40,3 +40,19 @@ public sealed record AiTest(string Endpoint, string Model, bool RemoteAllowed);
 public sealed record AiTestReport(string? Summary, string? Problem, IReadOnlyList<AiTestReportLine> Kept, IReadOnlyList<AiTestReportLine> Dropped);
 
 public sealed record AiTestReportLine(string Text, string Detail);
+
+/// <summary>
+/// AI reading, GET /api/ai/reading: the book the AI is reading now, or why none is (<paramref name="Idle"/>), and the
+/// last books read with what the evidence check kept and dropped.
+/// </summary>
+public sealed record AiReadingPage(AiReadingNow? Now, string? Idle, IReadOnlyList<AiReadingBookRead> Recent);
+
+/// <summary>
+/// The book being read: what the AI is doing, how long it has been at it, how much of the excerpt it has read when the
+/// model service says (0 to 100), and its answer's fields as it writes them.
+/// </summary>
+public sealed record AiReadingNow(string Title, string Step, double Seconds, double? ReadPercent, IReadOnlyList<AiTestReportLine> Fields);
+
+/// <summary>A book read: "Kept 5 values, dropped 2 · 41 s", what was kept and thrown away, or why it couldn't be read.</summary>
+public sealed record AiReadingBookRead(string Title, string Summary, string? Problem, IReadOnlyList<AiTestReportLine> Kept,
+    IReadOnlyList<AiTestReportLine> Dropped);

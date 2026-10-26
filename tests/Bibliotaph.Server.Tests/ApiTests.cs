@@ -308,6 +308,32 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Ai_reading_says_why_no_book_is_being_read_and_lists_what_was_read()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var off = (await client.GetFromJsonAsync<AiReadingPage>("/api/ai/reading", ct))!;
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            var feed = lease.Library.Get<AiReadingFeed>();
+            feed.Start(7, "The Sunken Lantern", "fake-mini");
+            feed.Fail(7, "The model's answer was cut off");
+            feed.Start(8, "Tides of the Lantern Coast", "fake-mini");
+        }
+        var reading = (await client.GetFromJsonAsync<AiReadingPage>("/api/ai/reading", ct))!;
+
+        Assert.Equal(("AI is off, or not set up yet, so no book is being read.", null, 0), (off.Idle, off.Now, off.Recent.Count));
+        Assert.Null(reading.Idle);
+        Assert.Equal("Tides of the Lantern Coast", reading.Now!.Title);
+        Assert.StartsWith("Waiting for fake-mini", reading.Now.Step, StringComparison.Ordinal);
+        var failed = Assert.Single(reading.Recent);
+        Assert.Equal(("The Sunken Lantern", "The model's answer was cut off"), (failed.Title, failed.Problem));
+        Assert.StartsWith("Couldn't be read", failed.Summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Collections_are_made_filled_and_changed_as_the_windows_app_changes_them()
     {
         var ct = TestContext.Current.CancellationToken;

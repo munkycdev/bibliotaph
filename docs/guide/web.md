@@ -512,6 +512,12 @@ one of your books and shows what it kept, with each page and quote, and what it 
 **Off** or **On** without losing your setup, **Reclassify** reads again the books an earlier model read or couldn't
 read, and **Library folders sent to AI** keeps a folder's books away from the model.
 
+**See what the AI is reading**, under **Use AI** and beside **Pause AI** in **Settings** › **Processing**, shows the book
+the AI is on, how long it has been at it, its answer as the model writes it, and the last 20 books read with what the
+evidence check kept, each with its page and quote, and what it threw away and why, or why a book couldn't be read. With
+no book being read, it says why: AI is off, paused or waiting for the model service. The list starts afresh when the
+server restarts.
+
 The service bills you for what it reads: cataloguing reads a few thousand words of each book once.
 
 ### Scanning whole books

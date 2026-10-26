@@ -280,6 +280,9 @@ public sealed class ApiClient(HttpClient http)
     public Task<ReaderLink> ReaderLinkAsync(long documentId, CancellationToken ct = default) =>
         SendAsync<ReaderLink>(HttpMethod.Get, $"{Document(documentId)}/link", null, ct);
 
+    /// <summary>AI reading: the book the AI is on, its answer so far, and the last books read.</summary>
+    public Task<AiReadingPage> AiReadingAsync(CancellationToken ct = default) => SendAsync<AiReadingPage>(HttpMethod.Get, "api/ai/reading", null, ct);
+
     /// <summary>The password remembered for a locked PDF, tried before the reader asks.</summary>
     public Task<ReaderPassword> RememberedPasswordAsync(long documentId, CancellationToken ct = default) =>
         SendAsync<ReaderPassword>(HttpMethod.Get, $"{Document(documentId)}/password", null, ct);

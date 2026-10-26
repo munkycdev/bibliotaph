@@ -135,6 +135,25 @@ public static class AiApi
         });
 
         // Holds the request while the model reads, as the Windows dialog waits; closing the dialog cancels it.
+        // Asked for every second while the page shows, as the Windows page looks at the feed on a timer.
+        ai.MapGet("/reading", async (ClaimsPrincipal principal, UserLibraries libraries, TimeProvider clock, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var library = lease.Library;
+            var feed = library.Get<AiReadingFeed>();
+            var vocabulary = await library.Get<AiService>().VocabularyAsync(ct);
+            var now = feed.Current is { } book
+                ? new AiReadingNow(book.Title, AiReadingText.Step(book), Math.Max(0, (clock.GetUtcNow() - book.Started).TotalSeconds),
+                    book.Read is { } read ? read * 100 : null, [.. AiReadingText.Fields(book).Select(Line)])
+                : null;
+            var indexing = library.Indexing;
+            var idle = now is null
+                ? AiReadingText.Idle(library.Get<AiSettings>().Setup.IsReady, indexing.IsPaused(Lane.Classify), indexing.Unavailable(Lane.Classify))
+                : null;
+            return new AiReadingPage(now, idle, [.. feed.Recent.Select(done => AiReadingText.Describe(done, vocabulary))
+                .Select(d => new AiReadingBookRead(d.Title, d.Summary, d.Problem, [.. d.Kept.Select(Line)], [.. d.Dropped.Select(Line)]))]);
+        });
+
         ai.MapPost("/test", async (AiTest test, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             if (ModelServices.Problem(test.Endpoint) is { } problem) return Report(problem);

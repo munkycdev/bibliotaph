@@ -188,6 +188,9 @@
   book is read for search with it, and Remember it, which keeps the password sealed in your web library so the book
   opens without asking. Settings › Passwords lists those books and forgets their passwords, and Needs review's locked
   files have Open to unlock, and protected ones Download the file. See [Reading a book](docs/guide/web.md#reading-a-book).
+- **See what the AI is reading, on the web.** Settings › AI and Settings › Processing open the Windows app's AI reading
+  page: the book the AI is on, its answer as it writes it, and what the evidence check kept from the last books. See
+  [AI](docs/guide/web.md#ai).
 
 ## 1.3 · 19 October 2026
 

@@ -1098,3 +1098,20 @@ a.bt-menuitem{text-decoration:none}
 .bt-onlinemissing{display:flex;gap:16px;justify-content:space-between;align-items:center}
 @media (max-width:640px){.bt-onlineservice,.bt-onlinesummary,.bt-onlinecovers{flex-direction:column;align-items:stretch}.bt-onlineactions{align-items:flex-start}}
 .bt-passwordbook{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+/* AI reading: the book being read in a panel, as the Windows page has it, then the last books read. */
+.bt-aireading{max-width:860px;margin-top:24px}
+.bt-ainow{background:var(--bt-side);border-radius:6px;padding:18px;margin-top:8px}
+.bt-ainowhead{display:flex;gap:12px;justify-content:space-between;align-items:baseline}
+.bt-ainowhead .bt-row{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-ainow .bt-small{margin-top:4px}
+.bt-ainow .bt-bar{margin-top:10px;width:100%}
+.bt-aifields{list-style:none;margin:10px 0 0;padding:0;font-size:12px}
+.bt-aifields li{margin-top:3px}
+.bt-aifields b{font-weight:600}
+.bt-aireading .bt-actions{margin-top:12px}
+.bt-aireadlast{display:block;margin-top:28px}
+.bt-airead{list-style:none;margin:0;padding:0}
+.bt-airead li{padding:10px 0;border-bottom:1px solid var(--bt-line);font-size:12px}
+.bt-airead b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-airead .bt-small{margin-top:2px}
+.bt-aikept{display:flex;flex-direction:column;margin-top:6px}
