@@ -115,8 +115,8 @@ protected ones **Open in another app**, and **Try again** and **Try all again** 
 Bibliotaph hit a bug, **Copy details** copies the version and the error, without file names, to paste into a bug
 report.
 
-Every decision has **Undo**. **Settings > Needs review** chooses what waits for a look: **When unsure** (only what
-sources disagree about, and missing titles) or **All suggestions**.
+Every decision has **Undo**. **What waits for review** in **Settings > Preferences** chooses what waits for a look:
+**When unsure** (only what sources disagree about, and missing titles) or **All suggestions**.
 
 ## Copies and versions
 
