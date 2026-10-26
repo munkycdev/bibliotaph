@@ -214,9 +214,7 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
     /// </summary>
     public Func<string, CancellationToken, Task<byte[]?>> SavedCovers(string folder) => async (url, ct) =>
     {
-        var path = Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" ? uri.AbsolutePath : url.Split('?', '#')[0];
-        var name = Uri.UnescapeDataString(path[(path.LastIndexOfAny(['/', '\\']) + 1)..]);
-        if (name.Length == 0 || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
+        if (CoverFileName(url) is not { } name) return null;
         var file = Path.Combine(folder, name);
         if (!File.Exists(file) || new FileInfo(file).Length > MaxCoverBytes) return null;
         await using var stream = files.OpenRead(file);
@@ -224,6 +222,17 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
         await stream.CopyToAsync(copy, ct);
         return copy.ToArray();
     };
+
+    /// <summary>
+    /// The file name a saved page keeps a cover under, whether the page gives it as a web address or as the saved file
+    /// ("./… _files/cover.jpg"); null for one that can't be a file's name.
+    /// </summary>
+    public static string? CoverFileName(string url)
+    {
+        var path = Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" ? uri.AbsolutePath : url.Split('?', '#')[0];
+        var name = Uri.UnescapeDataString(path[(path.LastIndexOfAny(['/', '\\']) + 1)..]);
+        return name.Length == 0 || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ? null : name;
+    }
 
     async Task KeepCoverAsync(Guid syncId, string url, Func<string, CancellationToken, Task<byte[]?>> cover, CancellationToken ct)
     {
