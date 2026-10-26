@@ -183,7 +183,10 @@ jobs:
           if ($start -lt 0) { throw "CHANGELOG.md has no '## $minor' section." }
           $end = [array]::FindIndex($lines, $start + 1, [Predicate[string]] { param($l) $l.StartsWith('## ') })
           if ($end -lt 0) { $end = $lines.Count }
-          ($lines[($start + 1)..($end - 1)] -join "`n").Trim() | Set-Content notes.md -Encoding utf8NoBOM
+          # CHANGELOG.md links to the guide relative to itself, which on the release page would lead nowhere.
+          $notes = ($lines[($start + 1)..($end - 1)] -join "`n").Trim()
+          $notes -replace '\]\((?!https?:|#|mailto:)([^)\s]+)\)', "](https://github.com/$env:GITHUB_REPOSITORY/blob/$env:TAG/`$1)" |
+            Set-Content notes.md -Encoding utf8NoBOM
 
           # GitHub's list starts from the last published release, not from an earlier tag whose release never happened.
           $since = @()
