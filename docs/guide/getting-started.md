@@ -99,8 +99,11 @@ In the Library, double-click a cover to open the book. Click it once to see its 
 and the rest of what you can do with it. Click anywhere outside the details, or press **Esc**, to close them.
 Right-click a cover for everything else you can do with it, including **Open** and **Open in new window**.
 
-**Ctrl+/** lists every keyboard shortcut. **Settings > Appearance** switches between light, dark and Windows'
-own setting, and **Settings > Library > Start on** chooses whether Bibliotaph opens on Home or the Library.
+**Ctrl+/** lists every keyboard shortcut. **Settings > Preferences** switches between light, dark and Windows'
+own setting, and its **Start on** chooses whether Bibliotaph opens on Home or the Library.
+
+**Settings** lists its sections in the same order as on the web: **Library** (your folders), **Online libraries**,
+**Devices** (your web library), **AI**, **Processing**, **Vocabulary**, **Preferences**, **Passwords** and **Backup**.
 
 ---
 

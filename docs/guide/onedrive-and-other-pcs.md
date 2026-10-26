@@ -22,7 +22,7 @@ The file's content, name, place and dates don't change. Files you already had on
 Other cloud apps' folders work too, as ordinary folders.
 
 Bibliotaph's own catalog is kept in `%LOCALAPPDATA%\Bibliotaph` on your PC, never in OneDrive. Don't move it into a
-synced folder: to use your library on two PCs, see [A second PC](#a-second-pc) below.
+synced folder: to use your library on two PCs, see [More than one PC](#more-than-one-pc) below.
 
 ## USB and external drives
 
@@ -77,19 +77,17 @@ for a spreadsheet. **Export JSON…** saves everything in the catalog, for other
    **Point to its new place**; for a drive you'll plug in later, **Leave it offline**.
 4. Click **Restore and restart…**.
 
-## A second PC
+## More than one PC
 
-To use your library on two Windows PCs, say a desktop and a laptop, set up **Sync with another PC** in
-**Settings > Backup** on both:
-
-1. Click **Choose a folder…** and pick a folder both PCs can see, such as one in OneDrive.
-2. Each PC writes a small file of its own there, and reads the other's. Changes go across within a few seconds of the
-   folder syncing, or straight away with **Sync now**.
-3. The status line says when it last merged, such as "Last merged from DESKTOP-2 at 09:14.", or what went wrong.
+To use your library on two Windows PCs, say a desktop and a laptop, connect each of them to your
+[web library](web.md) in **Settings > Devices**: **Connect…** opens bibliotaph.online in your browser, where you sign
+in, check the code the app shows and approve the PC. The section then says whose library it's connected to and when it
+last merged, such as "Last merged from bibliotaph.online at 09:14.", and **Disconnect** ends it.
 
 What travels: your corrections, hearts, notes, collections, saved searches, binders (with any pages online in them),
-pins, vocabulary, books you own elsewhere (imported ones too) and your answers in Needs review. Where both PCs change
-the same thing, the newer change wins; changes to different things are all kept.
+pins, vocabulary, books you own elsewhere (imported ones too) and your answers in Needs review. A change reaches the
+web a few seconds after you make it, and your other PCs within a minute or so. Where two PCs change the same thing, the
+newer change wins; changes to different things are all kept.
 
 What doesn't: your library folders, where you left each book, settings, the words your tags are found by (the tags
 on your books do travel), the sign-ins of Bibliotaph's browser, whether a collection made from a folder still follows
@@ -97,16 +95,13 @@ that folder (the collection itself travels), and the books you said Never to for
 your folders on each PC. Books are matched by their content, so the same file in a different place on each PC is still
 the same book.
 
-**Stop syncing** ends it on that PC. Only the sync files go in that folder, never Bibliotaph's catalog itself.
+What the AI found in a book is shared with your web library and your other connected PCs as well, so the same book is
+read by the AI once, wherever that happens first, and so is the text read from scanned pages. See
+[Connecting a Windows PC](web.md#connecting-a-windows-pc).
 
-## Your web library
-
-If you use [Bibliotaph on the web](web.md), connect this PC to it in **Settings > Web library**: **Connect…** opens
-bibliotaph.online in your browser, where you sign in, check the code the app shows and approve this PC. Your work then
-travels between this PC and the web as it does between two PCs, with the same list of what travels; the section says
-whose library it's connected to and when it last merged, and **Disconnect** ends it. What the AI found in a book is
-shared with your web library and your other connected PCs as well, so the same book is read by the AI once, wherever
-that happens first, and so is the text read from scanned pages. See [Connecting a Windows PC](web.md#connecting-a-windows-pc).
+Bibliotaph used to sync two PCs through a folder you picked, such as one in OneDrive. That's gone: the web library
+does the same for every PC, and for the web. The files it left in that folder (in **Bibliotaph sync**) aren't read any
+more, and you can delete them.
 
 ---
 

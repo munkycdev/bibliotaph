@@ -173,7 +173,7 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
     async Task<string> UnreachableAsync(CancellationToken ct) =>
         $"{(await AddressAsync(ct)).Host} can't be reached just now. Bibliotaph tries again in a few minutes.";
 
-    const string DisconnectedProblem = "This PC was disconnected from your web library. Connect it again in Settings > Web library.";
+    const string DisconnectedProblem = "This PC was disconnected from your web library. Connect it again in Settings > Devices.";
 
     /// <summary>The other devices' files the web library keeps, or why they can't be listed.</summary>
     async Task<(IReadOnlyList<SyncFileInfo>? Files, string? Problem)> ListAsync(CancellationToken ct)
