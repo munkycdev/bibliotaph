@@ -1118,6 +1118,40 @@ else
     [JSInvokable]
     public Task FindKey(bool back) => StepAsync(!back);
 
+    (long DocumentId, Task<(Bibliotaph.Core.Reading.PrintedPages Printed, HashSet<int> Listed)?> Pages)? _printed;
+
+    /// <summary>
+    /// The printed page numbers on an index or contents page, by the Windows reader's rules, for the pages to make
+    /// links of: where each is in the page's text, its page, and what its tooltip says. None when nothing says how the
+    /// book numbers its pages.
+    /// </summary>
+    [JSInvokable]
+    public async Task<PrintedLink[]> PrintedLinks(int page, string text)
+    {
+        if (_book is not { } book) return [];
+        if (_printed is not { } known || known.DocumentId != book.DocumentId) _printed = known = (book.DocumentId, PrintedPagesAsync(book.DocumentId));
+        if (await known.Pages is not { } pages) return [];
+        return [.. Bibliotaph.Core.Reading.PageReferences.Find(text, pages.Printed, pages.Listed.Contains(page)).Select(r => new PrintedLink(r.Range.Start, r.Range.Length,
+            r.PageIndex, Bibliotaph.Core.Reading.PageReferences.Tip(r.Printed, r.PageIndex, r.PageIndex < book.Labels.Count ? book.Labels[r.PageIndex] : null)))];
+    }
+
+    async Task<(Bibliotaph.Core.Reading.PrintedPages, HashSet<int>)?> PrintedPagesAsync(long documentId)
+    {
+        try
+        {
+            var found = await Api.PrintedPagesAsync(documentId);
+            var source = found.FromLabels ? Bibliotaph.Core.Reading.PrintedPagesSource.Labels : Bibliotaph.Core.Reading.PrintedPagesSource.Folios;
+            return (Bibliotaph.Core.Reading.PrintedPages.FromTable(source, found.Pages), [.. found.Listed]);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // No links are guessed; the page's own still work.
+            return null;
+        }
+    }
+
+    public sealed record PrintedLink(int Start, int Length, int PageIndex, string Tip);
+
     /// <summary>The link to the file now; asked for again when the last one has expired.</summary>
     [JSInvokable]
     public async Task<string?> Link()

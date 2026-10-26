@@ -217,6 +217,10 @@ public sealed class ApiClient(HttpClient http)
     public Task<EditResult> MarkAdventureAsync(long documentId, PartEdit part, CancellationToken ct = default) =>
         SendAsync<EditResult>(HttpMethod.Post, $"{Document(documentId)}/parts", part, ct);
 
+    /// <summary>How the book numbers its pages, for links made from the printed numbers on its index and contents pages.</summary>
+    public Task<ReaderPrintedPages> PrintedPagesAsync(long documentId, CancellationToken ct = default) =>
+        SendAsync<ReaderPrintedPages>(HttpMethod.Get, $"{Document(documentId)}/printed-pages", null, ct);
+
     /// <summary>The bookmark a page sits under, which Add pages… starts its label with.</summary>
     public Task<ReaderBookmark> BookmarkAsync(long documentId, int page, CancellationToken ct = default) =>
         SendAsync<ReaderBookmark>(HttpMethod.Get, $"{Document(documentId)}/bookmark?page={page.ToString(System.Globalization.CultureInfo.InvariantCulture)}", null, ct);

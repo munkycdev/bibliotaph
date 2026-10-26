@@ -242,6 +242,9 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var opened = (await ReaderApi.OpenAsync(library, new EntryId(card.EntryId), null, null, null, false, Ct))!;
         Assert.Equal(0, opened.CoverPage);
         Assert.All(opened.Outline, o => Assert.InRange(o.LastPage, o.Page, opened.PageCount - 1));
+        var printed = await ReaderApi.PrintedPagesAsync(library, document, Ct);
+        Assert.All(printed.Pages, p => Assert.InRange(p, -1, opened.PageCount - 1));
+        Assert.All(printed.Listed, p => Assert.InRange(p, 0, opened.PageCount - 1));
 
         var used = (await ReaderApi.UseCoverAsync(library, document, 1, Ct))!;
         Assert.Equal((1, "This page is the cover now."), (used.CoverPage, used.Message));

@@ -105,6 +105,14 @@ public sealed record ReaderCover(int Page);
 /// <summary>What Use this page as the cover did: the cover page now, and what the reader says about it.</summary>
 public sealed record ReaderCoverUsed(int CoverPage, string Message);
 
+/// <summary>
+/// How the open PDF numbers its pages, for the links the reader makes from the printed numbers on an index or contents
+/// page: <see cref="Pages"/> is the PDF page index of printed page 1, 2, 3… in turn (-1 where there is none), empty
+/// when nothing says; <see cref="FromLabels"/> is whether it came from the PDF's page labels rather than the numbers
+/// printed on its pages; <see cref="Listed"/> are the pages under an "Index" or "Contents" bookmark.
+/// </summary>
+public sealed record ReaderPrintedPages(IReadOnlyList<int> Pages, bool FromLabels, IReadOnlyList<int> Listed);
+
 /// <summary>Add pages…'s label to start with: the bookmark the page sits under, or none.</summary>
 public sealed record ReaderBookmark(string? Title);
 

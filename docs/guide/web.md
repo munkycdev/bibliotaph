@@ -307,7 +307,9 @@ server never has a copy. What you've read is kept in your browser, so turning ba
   has read the whole book. An adventure's own bookmarks stand out.
 - **Page thumbnails**: the toolbar button shows a strip of small pages under the pages, the page you're on outlined.
   The browser remembers whether it was showing until you close it.
-- **Links** in the PDF work, and **Back to page …** takes you back after following one.
+- **Links** in the PDF work, and **Back to page …** takes you back after following one. On an index or contents page
+  whose entries aren't links, the page numbers are made into links anyway, as in the Windows app: point at one to see
+  where it goes ("Go to page 34", with the PDF page too when that's different) and click to go there.
 - **Find**: **Ctrl+F**, then **Enter** or **F3** for the next match and **Shift+F3** for the one before. In an
   adventure, Find looks in its pages unless you tick **Whole file**.
 - **Copy**: select text and press **Ctrl+C**. If a PDF doesn't allow copying, Bibliotaph says so.

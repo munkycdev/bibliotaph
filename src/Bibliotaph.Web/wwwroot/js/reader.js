@@ -147,7 +147,9 @@ class Reader {
     eventBus.on('scalechanging', e => this.page.invokeMethodAsync('ScaleChanged', e.presetValue ?? String(e.scale)));
     eventBus.on('textlayerrendered', e => {
       const div = e.source?.textLayer?.div;
-      if (div) this.marks.pageShown(e.pageNumber - 1, div);
+      if (!div) return;
+      this.marks.pageShown(e.pageNumber - 1, div);
+      this.#printedLinks(e.pageNumber - 1, e.source).catch(() => { });
     });
     eventBus.on('pagerendered', () => this.thumbnails?.wake(), { once: true });
 
@@ -182,6 +184,48 @@ class Reader {
     this.#offline();
     // A book kept offline that the browser has partly cleared reads the rest again.
     if (cache.kept && !cache.complete) this.keepOffline(true);
+  }
+
+  /**
+   * An index or contents page whose entries aren't links in the PDF gets links made from its printed page numbers, as
+   * in the Windows reader: the page asks which numbers they are, by the same rules, and each is covered by a link to
+   * its page. A page with links of its own keeps them, and gets none guessed beside them.
+   */
+  async #printedLinks(index, view) {
+    view.div.querySelector('.bt-printedlinks')?.remove();
+    const layer = view.textLayer?.div;
+    // A page of prose seldom ends three lines with numbers, so most pages are never asked about.
+    const { text, nodes } = layerText(layer);
+    if ((text.match(/\p{L}.*\d[,;]?\s*$/gmu) ?? []).length < 3) return;
+    const annotations = await view.pdfPage.getAnnotations({ intent: 'display' });
+    if (annotations.some(a => a.subtype === 'Link')) return;
+    const links = await this.page.invokeMethodAsync('PrintedLinks', index, text);
+    if (this.closed || !links?.length || !layer.isConnected) return;
+    view.div.querySelector('.bt-printedlinks')?.remove();
+    const box = view.div.getBoundingClientRect();
+    const overlay = document.createElement('div');
+    overlay.className = 'bt-printedlinks';
+    for (const link of links) {
+      const range = textRange(nodes, link.start, link.start + link.length);
+      const rects = range ? [...range.getClientRects()].filter(r => r.width > 0 && r.height > 0) : [];
+      if (rects.length === 0) continue;
+      const left = Math.min(...rects.map(r => r.left)), top = Math.min(...rects.map(r => r.top));
+      const right = Math.max(...rects.map(r => r.right)), bottom = Math.max(...rects.map(r => r.bottom));
+      const a = document.createElement('a');
+      a.href = '#';
+      a.title = link.tip;
+      a.setAttribute('aria-label', link.tip);
+      // A point of slack around the digits, so a narrow "4" is not fiddly to hit.
+      Object.assign(a.style, { left: `${left - box.left - 1}px`, top: `${top - box.top - 1}px`, width: `${right - left + 2}px`, height: `${bottom - top + 2}px` });
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        const from = this.viewer.currentPageNumber - 1;
+        this.goTo(link.pageIndex);
+        this.page.invokeMethodAsync('LinkFollowed', from);
+      });
+      overlay.appendChild(a);
+    }
+    view.div.appendChild(overlay);
   }
 
   #offline() {
@@ -392,8 +436,8 @@ function phrasePattern(phrase) {
   return new RegExp(words.join('\\s+'), 'giu');
 }
 
-// Every match of a pattern in a text layer, as ranges over its text, which PDF.js splits into many runs.
-function findRanges(div, pattern) {
+// A text layer's text, its lines broken where PDF.js breaks them, and where each of its many runs starts in it.
+function layerText(div) {
   const nodes = [];
   let text = '';
   const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
@@ -405,16 +449,28 @@ function findRanges(div, pattern) {
       text += '\n';
     }
   }
+  return { text, nodes };
+}
+
+// The characters from start to end of a text layer's text, as a range over its runs.
+function textRange(nodes, start, end) {
+  const from = locate(nodes, start, false), to = locate(nodes, end, true);
+  if (!from || !to) return null;
+  const range = document.createRange();
+  range.setStart(from.node, from.offset);
+  range.setEnd(to.node, to.offset);
+  return range;
+}
+
+// Every match of a pattern in a text layer, as ranges over its text, which PDF.js splits into many runs.
+function findRanges(div, pattern) {
+  const { text, nodes } = layerText(div);
   const ranges = [];
   pattern.lastIndex = 0;
   for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
     if (match[0].length === 0) { pattern.lastIndex++; continue; }
-    const from = locate(nodes, match.index, false), to = locate(nodes, match.index + match[0].length, true);
-    if (!from || !to) continue;
-    const range = document.createRange();
-    range.setStart(from.node, from.offset);
-    range.setEnd(to.node, to.offset);
-    ranges.push(range);
+    const range = textRange(nodes, match.index, match.index + match[0].length);
+    if (range) ranges.push(range);
   }
   return ranges;
 }
