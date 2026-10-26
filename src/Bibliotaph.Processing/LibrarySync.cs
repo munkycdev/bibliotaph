@@ -22,7 +22,8 @@ public sealed record SyncPass(IReadOnlyList<string> MergedFrom, bool Changed, bo
 /// changes, and every ten minutes, it reads the others' files and merges them, newest change per field winning
 /// (<see cref="SyncMerge"/>). The databases never go in the folder, and the folder may be offline: then the pass
 /// says so and is tried again later. Only the user's work travels; file locations, online-only marks, window places
-/// and caches stay on their PC.
+/// and caches stay on their PC. A PC connected to the web library also swaps files through it, and the web library
+/// runs this too, as one more device (<see cref="ISyncChannel"/>).
 /// </summary>
 public sealed partial class LibrarySync : IHostedService, IDisposable
 {
@@ -38,6 +39,9 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
     /// <summary>A merge this often anyway, for a folder that was offline or a change the watcher missed.</summary>
     public static readonly TimeSpan Recheck = TimeSpan.FromMinutes(10);
 
+    /// <summary>How often a channel is asked whether another device's file changed.</summary>
+    public static readonly TimeSpan ChannelPoll = TimeSpan.FromMinutes(1);
+
     readonly LibrarySyncStore _store;
     readonly SettingsStore _settings;
     readonly AppPaths _paths;
@@ -45,18 +49,20 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
     readonly MetadataProjector? _projector;
     readonly TimeProvider _clock;
     readonly ILogger _log;
+    readonly IReadOnlyList<ISyncChannel> _channels;
     readonly SemaphoreSlim _gate = new(1, 1);
     readonly Lock _lock = new();
     ITimer? _writeTimer;
     ITimer? _readTimer;
     ITimer? _recheckTimer;
+    ITimer? _pollTimer;
     FileSystemWatcher? _watcher;
     DateTime? _firstUnwritten;
     SyncStatus _status = new(null, null, null, null, null);
     bool _started;
 
     public LibrarySync(LibrarySyncStore store, SettingsStore settings, AppPaths paths, CatalogDatabase? catalog = null, MetadataProjector? projector = null,
-        TimeProvider? clock = null, ILogger<LibrarySync>? log = null, string? machineName = null)
+        TimeProvider? clock = null, ILogger<LibrarySync>? log = null, string? machineName = null, IEnumerable<ISyncChannel>? channels = null)
     {
         _store = store;
         _settings = settings;
@@ -66,7 +72,11 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
         _clock = clock ?? TimeProvider.System;
         _log = log ?? NullLogger<LibrarySync>.Instance;
         MachineName = string.IsNullOrWhiteSpace(machineName) ? Environment.MachineName : machineName.Trim();
+        _channels = [.. channels ?? []];
     }
+
+    /// <summary>Whether any channel besides the folder is in use, so there is something to sync with even without a folder.</summary>
+    bool ChannelsOn => _channels.Any(c => c.IsOn);
 
     /// <summary>This PC's name, which its sync file is called by.</summary>
     public string MachineName { get; }
@@ -172,7 +182,9 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
             _writeTimer = _clock.CreateTimer(_ => Fire(merge: false), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             _readTimer = _clock.CreateTimer(_ => Fire(merge: true), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
             _recheckTimer = _clock.CreateTimer(_ => Fire(merge: true), null, ReadDelay, Recheck);
+            if (_channels.Count > 0) _pollTimer = _clock.CreateTimer(_ => Poll(), null, ChannelPoll, ChannelPoll);
         }
+        foreach (var channel in _channels) channel.Changed += OnChannelChanged;
         _writes?.Written += OnCatalogWritten;
         Watch(folder);
     }
@@ -181,19 +193,21 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
     public async Task StopAsync(CancellationToken cancellationToken)
     {
         _writes?.Written -= OnCatalogWritten;
+        foreach (var channel in _channels) channel.Changed -= OnChannelChanged;
         lock (_lock)
         {
             _started = false;
             _writeTimer?.Dispose();
             _readTimer?.Dispose();
             _recheckTimer?.Dispose();
+            _pollTimer?.Dispose();
             _watcher?.Dispose();
-            _writeTimer = _readTimer = _recheckTimer = null;
+            _writeTimer = _readTimer = _recheckTimer = _pollTimer = null;
             _watcher = null;
         }
         try
         {
-            if (await GetFolderAsync(cancellationToken) is not null) await WriteNowAsync(cancellationToken);
+            if (await GetFolderAsync(cancellationToken) is not null || ChannelsOn) await WriteNowAsync(cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -208,6 +222,7 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
             _writeTimer?.Dispose();
             _readTimer?.Dispose();
             _recheckTimer?.Dispose();
+            _pollTimer?.Dispose();
             _watcher?.Dispose();
         }
         _gate.Dispose();
@@ -218,7 +233,7 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
     {
         lock (_lock)
         {
-            if (!_started || _status.Folder is null) return;
+            if (!_started || (_status.Folder is null && !ChannelsOn)) return;
             var now = _clock.GetUtcNow().UtcDateTime;
             _firstUnwritten ??= now;
             var wait = now - _firstUnwritten.Value >= MaxWriteDelay ? TimeSpan.Zero : WriteDelay;
@@ -230,12 +245,37 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
     {
         try
         {
-            if (await GetFolderAsync() is not null) await RunAsync(merge, CancellationToken.None);
+            if (await GetFolderAsync() is not null || ChannelsOn) await RunAsync(merge, CancellationToken.None);
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Library sync failed");
             SetStatus(s => s with { Problem = "Syncing stopped with an error; it's tried again in a few minutes. The details are in the log." });
+        }
+    });
+
+    /// <summary>Another device's file changed in a channel that says so at once: merged shortly, as a changed file in the folder is.</summary>
+    void OnChannelChanged(object? sender, EventArgs e)
+    {
+        lock (_lock) _readTimer?.Change(ReadDelay, Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>Asks each channel in use whether another device's file changed, and merges when one did.</summary>
+    void Poll() => _ = Task.Run(async () =>
+    {
+        try
+        {
+            foreach (var channel in _channels.Where(c => c.IsOn))
+                if (await channel.HasChangesAsync(CancellationToken.None))
+                {
+                    OnChannelChanged(this, EventArgs.Empty);
+                    return;
+                }
+        }
+        catch (Exception ex)
+        {
+            // Asked again in a minute; the recheck merges anyway.
+            _log.LogInformation(ex, "Asking a sync channel for changes failed");
         }
     });
 
@@ -280,15 +320,22 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
     {
         if (status.Folder is null) return "Not syncing.";
         if (status.Problem is { } problem) return problem;
-        if (status.LastMergedFrom is { } from && status.LastMergedUtc is { } at)
-        {
-            var local = TimeZoneInfo.ConvertTimeFromUtc(at, zone);
-            var today = TimeZoneInfo.ConvertTime(now, zone).Date;
-            var when = local.Date == today ? local.ToString("'at' HH:mm", CultureInfo.CurrentCulture)
-                : local.ToString("'on' d MMMM 'at' HH:mm", CultureInfo.CurrentCulture);
-            return $"Last merged from {from} {when}.";
-        }
+        if (LastMerged(status, now, zone) is { } merged) return merged;
         return status.LastWrittenUtc is null ? "Waiting to write this PC's sync file."
             : "No other PC has written to this folder yet. Pick the same folder in Bibliotaph on your other PC.";
+    }
+
+    /// <summary>The same for Settings > Web library, on a PC connected to the web library.</summary>
+    public static string DescribeWeb(SyncStatus status, DateTimeOffset now, TimeZoneInfo zone) =>
+        status.Problem ?? LastMerged(status, now, zone) ?? "Your work is merged with your web library a few seconds after it changes.";
+
+    static string? LastMerged(SyncStatus status, DateTimeOffset now, TimeZoneInfo zone)
+    {
+        if (status.LastMergedFrom is not { } from || status.LastMergedUtc is not { } at) return null;
+        var local = TimeZoneInfo.ConvertTimeFromUtc(at, zone);
+        var today = TimeZoneInfo.ConvertTime(now, zone).Date;
+        var when = local.Date == today ? local.ToString("'at' HH:mm", CultureInfo.CurrentCulture)
+            : local.ToString("'on' d MMMM 'at' HH:mm", CultureInfo.CurrentCulture);
+        return $"Last merged from {from} {when}.";
     }
 }

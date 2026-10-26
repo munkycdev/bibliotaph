@@ -102,8 +102,9 @@ the same book.
 ## Your web library
 
 If you use [Bibliotaph on the web](web.md), connect this PC to it in **Settings > Web library**: **Connect…** opens
-bibliotaph.online in your browser, where you sign in, check the code the app shows and approve this PC. The app then
-says whose library it's connected to, and **Disconnect** ends it. See [Connecting a Windows PC](web.md#connecting-a-windows-pc).
+bibliotaph.online in your browser, where you sign in, check the code the app shows and approve this PC. Your work then
+travels between this PC and the web as it does between two PCs, with the same list of what travels; the section says
+whose library it's connected to and when it last merged, and **Disconnect** ends it. See [Connecting a Windows PC](web.md#connecting-a-windows-pc).
 
 ---
 

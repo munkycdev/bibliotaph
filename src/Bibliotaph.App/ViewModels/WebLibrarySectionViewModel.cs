@@ -9,11 +9,13 @@ namespace Bibliotaph.App.ViewModels;
 /// <summary>
 /// Settings > Web library: connects this PC to the user's library at bibliotaph.online. Connect opens the approval
 /// page in the browser and shows the code the page shows, then waits for the user's answer there; leaving the section
-/// stops waiting. Once connected, it says whose library, and Disconnect forgets the PC's key here and on the web.
+/// stops waiting. Once connected, it says whose library and how library sync with it is going, and Disconnect
+/// forgets the PC's key here and on the web.
 /// </summary>
-public sealed partial class WebLibrarySectionViewModel(WebLibrary web, IDesktopShell shell, ILogger<WebLibrarySectionViewModel> log)
-    : SettingsSectionViewModel
+public sealed partial class WebLibrarySectionViewModel(WebLibrary web, LibrarySync sync, IDesktopShell shell, TimeProvider clock,
+    ILogger<WebLibrarySectionViewModel> log) : SettingsSectionViewModel
 {
+    System.Windows.Threading.Dispatcher? _dispatcher;
     // Stops the wait; the wait itself owns its token source.
     Action? _stopWaiting;
     string? _approveUrl;
@@ -36,6 +38,10 @@ public sealed partial class WebLibrarySectionViewModel(WebLibrary web, IDesktopS
     [ObservableProperty]
     public partial string? StatusLine { get; private set; }
 
+    /// <summary>How sync with the web library is going, while connected.</summary>
+    [ObservableProperty]
+    public partial string? SyncLine { get; private set; }
+
     /// <summary>How the last Connect or Disconnect went, when it needs saying.</summary>
     [ObservableProperty]
     public partial string? Note { get; private set; }
@@ -48,14 +54,22 @@ public sealed partial class WebLibrarySectionViewModel(WebLibrary web, IDesktopS
 
     public override async Task LoadAsync()
     {
+        _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
+        sync.StatusChanged -= OnSyncStatusChanged;
+        sync.StatusChanged += OnSyncStatusChanged;
         if (IsWaiting) return;
         await ShowAsync();
     }
 
     public override void Unload()
     {
+        sync.StatusChanged -= OnSyncStatusChanged;
         _stopWaiting?.Invoke();
     }
+
+    void OnSyncStatusChanged(object? sender, EventArgs e) => _dispatcher?.InvokeAsync(ShowSync);
+
+    void ShowSync() => SyncLine = IsConnected ? LibrarySync.DescribeWeb(sync.Status, clock.GetUtcNow(), clock.LocalTimeZone) : null;
 
     async Task ShowAsync()
     {
@@ -69,6 +83,7 @@ public sealed partial class WebLibrarySectionViewModel(WebLibrary web, IDesktopS
             WebLibraryState.Disconnected => "This PC was disconnected on the web. Connect again to use your web library.",
             _ => "Not connected.",
         };
+        ShowSync();
     }
 
     [RelayCommand]
@@ -113,6 +128,8 @@ public sealed partial class WebLibrarySectionViewModel(WebLibrary web, IDesktopS
             Code = null;
         }
         await ShowAsync();
+        // Merged now rather than at the next minute's look, so the web library's work shows here straight away.
+        if (IsConnected) _ = Task.Run(() => sync.SyncNowAsync());
     }
 
     /// <summary>Opens the approval page again, as when its tab was closed.</summary>

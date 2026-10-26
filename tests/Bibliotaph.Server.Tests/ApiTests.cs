@@ -1445,6 +1445,55 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal(WebLibraryState.NotConnected, (await third.CheckAsync(ct)).State);
     }
 
+    [Fact]
+    public async Task A_connected_PC_and_the_web_library_merge_each_others_work_through_the_API()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var web = Client(user);
+        web.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var path = Path.Combine(_folder.Path, "pc-catalog.db");
+        var catalog = new CatalogDatabase(path, Path.Combine(_folder.Path, "pc-backups"));
+        await using (var db = catalog.CreateContext()) await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database, ct);
+        var contexts = new CatalogFile(path);
+        var settings = new SettingsStore(contexts);
+        await settings.SetAsync(SettingKeys.WebAddress, "http://localhost", ct);
+        var pcWeb = new WebLibrary(new HttpClient(_factory.Server.CreateHandler()), new MemoryWebLibraryKey(), settings, TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WebLibrary>.Instance);
+        var started = (await pcWeb.StartAsync("DESKTOP-1", ct))!;
+        var waiting = pcWeb.WaitAsync(started, ct);
+        (await web.PostAsync($"/api/devices/connect/{started.Code}", null, ct)).EnsureSuccessStatusCode();
+        Assert.Equal(WebConnectOutcome.Connected, await waiting);
+        using var pc = new LibrarySync(new LibrarySyncStore(contexts, new MetadataStore(contexts), new VocabularyStore(contexts)), settings,
+            new AppPaths(Path.Combine(_folder.Path, "pc")), machineName: "DESKTOP-1", channels: [pcWeb]);
+
+        // Work done on the PC reaches the web library when the PC's file is sent.
+        await new CollectionStore(contexts).CreateAsync("Saltmarsh campaign", ct: ct);
+        var sent = await pc.SyncNowAsync(ct);
+        Assert.True(sent.Wrote);
+        Assert.Contains((await web.GetFromJsonAsync<CollectionList>("/api/collections", ct))!.Tree, c => c.Name == "Saltmarsh campaign");
+
+        // Work done on the web reaches the PC once the web library has written its own file.
+        (await web.PostAsJsonAsync("/api/collections", new CollectionName("Rime of the Frostmaiden", null), ct)).EnsureSuccessStatusCode();
+        var merged = await WaitAsync(async () =>
+        {
+            if (!await pcWeb.HasChangesAsync(ct)) return null;
+            var pass = await pc.SyncNowAsync(ct);
+            await using var db = contexts.CreateDbContext();
+            return db.Collections.Any(c => c.Name == "Rime of the Frostmaiden") ? pass : null;
+        }, ct);
+        Assert.Contains(SyncFiles.WebMachine, merged.MergedFrom);
+
+        // Only a PC's key reaches the sync files, and a disconnected PC's file goes.
+        Assert.Equal(HttpStatusCode.Unauthorized, (await web.GetAsync("/api/sync", ct)).StatusCode);
+        var device = Assert.Single((await web.GetFromJsonAsync<List<ConnectedDevice>>("/api/devices", ct))!);
+        (await web.DeleteAsync($"/api/devices/{device.Id}", ct)).EnsureSuccessStatusCode();
+        var files = await _factory.Services.GetRequiredService<UserLibraries>().SyncFilesAsync(user.Id, ct);
+        Assert.Equal([SyncFiles.WebDevice], (await files.ListAsync(ct)).Select(f => f.Device));
+        Assert.StartsWith("This PC was disconnected", (await pcWeb.ReadPeersAsync(ct)).Problem, StringComparison.Ordinal);
+        Assert.False(pcWeb.IsOn);
+    }
+
     static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);

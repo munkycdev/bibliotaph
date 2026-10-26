@@ -26,6 +26,12 @@ public sealed partial class LibrarySync
     /// <summary>Set when this PC's file is behind what it knows: changes not written yet, or none written since Bibliotaph started.</summary>
     bool _unwritten = true;
 
+    /// <summary>The channels this PC's file is behind in, as <see cref="_unwritten"/> is for the folder.</summary>
+    readonly HashSet<ISyncChannel> _channelsBehind = [];
+
+    /// <summary>The channels this PC's file has been written to since Bibliotaph started, which the first pass writes to whatever changed.</summary>
+    readonly HashSet<ISyncChannel> _channelsWritten = [];
+
     DateTime Now => _clock.GetUtcNow().UtcDateTime;
 
     /// <summary>
@@ -35,8 +41,10 @@ public sealed partial class LibrarySync
     /// </summary>
     async Task<SyncPass> PassAsync(bool merge, CancellationToken ct)
     {
-        if (await GetFolderAsync(ct) is not { } folder) return new SyncPass([], false, false);
-        var files = Path.Combine(folder, SyncFile.FolderName);
+        var folder = await GetFolderAsync(ct);
+        var channels = _channels.Where(c => c.IsOn).ToList();
+        if (folder is null && channels.Count == 0) return new SyncPass([], false, false);
+        var files = folder is null ? null : Path.Combine(folder, SyncFile.FolderName);
         var machineId = await MachineIdAsync(ct);
         var snapshot = await _store.ReadAsync(ct);
         var state = (await _store.LoadStateAsync(ct)).ToDictionary(k => k.Key, k => new Known(k.Value.Record, k.Value.Pending), StringComparer.Ordinal);
@@ -49,7 +57,15 @@ public sealed partial class LibrarySync
         HashSet<string> waiting = [with(StringComparer.Ordinal)];
         if (merge)
         {
-            (mergedFrom, problem) = await ReadPeersAsync(files, machineId, ct);
+            if (files is not null) (mergedFrom, problem) = await ReadPeersAsync(files, machineId, ct);
+            foreach (var channel in channels)
+            {
+                var read = await channel.ReadPeersAsync(ct);
+                mergedFrom.AddRange(read.Peers.Where(p => p.MachineId != machineId));
+                problem ??= read.Problem;
+            }
+            // A device reached through both the folder and a channel counts once, as its newest file.
+            mergedFrom = [.. mergedFrom.GroupBy(p => p.MachineId).Select(g => g.MaxBy(p => p.WrittenUtc)!)];
             var aliases = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal);
             foreach (var record in mergedFrom.SelectMany(p => p.Records).Concat(state.Values.Select(k => k.Record)).Where(r => r.Aliases.Count > 0))
                 aliases[record.Key] = record.Aliases;
@@ -89,10 +105,14 @@ public sealed partial class LibrarySync
         foreach (var key in removed.Where(state.ContainsKey).ToList()) removed.Remove(key);
         var dirty = state.Values.Where(k => k.Dirty).Select(k => (k.Record, k.Pending)).ToList();
         await _store.SaveStateAsync(dirty, removed, ct);
-        if (dirty.Count > 0 || removed.Count > 0) _unwritten = true;
+        if (dirty.Count > 0 || removed.Count > 0)
+        {
+            _unwritten = true;
+            _channelsBehind.UnionWith(_channels);
+        }
 
         var wrote = false;
-        if (problem is null || !problem.StartsWith(DuplicateName, StringComparison.Ordinal))
+        if (files is not null && (problem is null || !problem.StartsWith(DuplicateName, StringComparison.Ordinal)))
         {
             try
             {
@@ -103,6 +123,20 @@ public sealed partial class LibrarySync
                 _log.LogWarning(ex, "Writing the library sync file to {Folder} failed", files);
                 problem ??= $"This PC's sync file couldn't be written: {ex.Message} Bibliotaph tries again in a few minutes.";
             }
+        }
+
+        foreach (var channel in channels.Where(c => _channelsBehind.Contains(c) || !_channelsWritten.Contains(c)))
+        {
+            var records = Own(state.Values).ToList();
+            if (await channel.WriteOwnAsync((stream, token) =>
+                SyncFile.WriteAsync(stream, MachineName, machineId, BackupService.AppVersion, Now, records, token), ct) is { } failed)
+            {
+                problem ??= failed;
+                continue;
+            }
+            _channelsBehind.Remove(channel);
+            _channelsWritten.Add(channel);
+            wrote = true;
         }
 
         if (changed && _projector is not null) await _projector.ProjectAllAsync(ct);
@@ -318,8 +352,7 @@ public sealed partial class LibrarySync
         try
         {
             await using (var stream = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None))
-                await SyncFile.WriteAsync(stream, MachineName, machineId, BackupService.AppVersion, Now,
-                    state.Where(k => !k.Pending && (k.Record.Fields.Count > 0 || k.Record.DeletedUtc is not null)).Select(k => k.Record), ct);
+                await SyncFile.WriteAsync(stream, MachineName, machineId, BackupService.AppVersion, Now, Own(state), ct);
             File.Move(partial, path, overwrite: true);
         }
         finally
@@ -329,6 +362,10 @@ public sealed partial class LibrarySync
         _unwritten = false;
         return true;
     }
+
+    /// <summary>What this PC's file holds: everything this PC has or did, never what is pending.</summary>
+    static IEnumerable<SyncRecord> Own(IEnumerable<Known> state) =>
+        state.Where(k => !k.Pending && (k.Record.Fields.Count > 0 || k.Record.DeletedUtc is not null)).Select(k => k.Record);
 
     async Task<Guid> MachineIdAsync(CancellationToken ct)
     {

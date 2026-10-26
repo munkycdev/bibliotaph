@@ -154,9 +154,12 @@
       <StackPanel>
         <TextBlock Text="Web library" Style="{StaticResource Text.H2}" />
         <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
-                   Text="Use your library at bibliotaph.online from this PC. Connect opens the website in your browser, where you sign in and approve this PC. The PC gets a key of its own, kept in Windows Credential Manager, and you can disconnect it here or in Settings on the web." />
-        <TextBlock x:Name="WebLibraryStatus" Text="{Binding StatusLine}" Style="{StaticResource Text.Row}" Margin="0,12,0,12" TextWrapping="Wrap"
-                   Visibility="{Binding IsWaiting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                   Text="Use your library at bibliotaph.online with this PC. Connect opens the website in your browser, where you sign in and approve this PC. Then your corrections, hearts, notes, collections, binders, saved searches and pins are merged both ways, as with a second PC; your books and their files stay where they are. The PC's key is kept in Windows Credential Manager, and you can disconnect it here or in Settings on the web." />
+        <StackPanel Margin="0,12,0,12" Visibility="{Binding IsWaiting, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+          <TextBlock x:Name="WebLibraryStatus" Text="{Binding StatusLine}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
+          <TextBlock x:Name="WebLibrarySync" Text="{Binding SyncLine}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
+                     Visibility="{Binding SyncLine, Converter={StaticResource Bt.VisibleWhenSet}}" />
+        </StackPanel>
         <StackPanel Visibility="{Binding IsWaiting, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,12,0,12">
           <TextBlock Text="Approve this PC in your browser." Style="{StaticResource Text.Row}" />
           <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap">
