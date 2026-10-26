@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Bibliotaph.App.ViewModels;
+using Bibliotaph.Processing;
 
 namespace Bibliotaph.App.Views;
 
@@ -150,10 +151,10 @@ public partial class SessionReaderView
                     AutomationProperties.SetName(item, $"{page.Heading}, from {binder.Pack.Title}");
                     menu.Items.Add(item);
                 }
-                if (binder.Pages.Count == 0) menu.Items.Add(new MenuItem { Header = "    Nothing in this binder yet", IsEnabled = false });
+                if (binder.Pages.Count == 0) menu.Items.Add(new MenuItem { Header = "    " + AtHandGroups.NothingInIt, IsEnabled = false });
             }
         }
-        if (menu.Items.Count == 0) menu.Items.Add(new MenuItem { Header = "No other binder is kept at hand", IsEnabled = false });
+        if (menu.Items.Count == 0) menu.Items.Add(new MenuItem { Header = AtHandGroups.NoneAtHand, IsEnabled = false });
         menu.PlacementTarget = button;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;

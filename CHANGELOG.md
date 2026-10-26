@@ -89,6 +89,9 @@
   list, Back to this item's pages, the page notes on the item's pages, and Use this page for an item whose pages
   changed. Edit binder opens the list, which has Done and opens each item at its pages. See
   [Binders](docs/guide/web.md#binders).
+- **At hand and Pop out in the web binder reader.** At hand lists the binders kept at hand with their pages, those for
+  the binder's game systems first, and opens a page in a window of its own; Pop out moves the binder into its own
+  window and Return to main window brings it back. See [Binders](docs/guide/web.md#binders).
 
 ## 1.3 · 19 October 2026
 

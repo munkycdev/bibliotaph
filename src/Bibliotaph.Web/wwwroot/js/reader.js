@@ -1090,8 +1090,8 @@ function themeCss() {
   return `:root{color-scheme:${dark ? 'dark' : 'light'};${tokens};--bt-hit:color-mix(in srgb,var(--bt-accent) 40%,transparent)}`;
 }
 
-export function popOut(url) {
-  const opened = window.open(url, '_blank', 'popup,width=960,height=900');
+export function popOut(url, name) {
+  const opened = window.open(url, name || '_blank', 'popup,width=960,height=900');
   return opened != null;
 }
 

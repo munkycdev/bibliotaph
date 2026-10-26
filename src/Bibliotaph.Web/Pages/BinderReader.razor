@@ -28,7 +28,7 @@ else
     var current = Current;
     var at = current is null ? -1 : items.FindIndex(i => i.Id == current.Id);
     <PageTitle>@binder.Title · Bibliotaph</PageTitle>
-    <div class="bt-binderreader @(_showNotes ? "" : "nonotes")" @onkeydown="KeyAsync">
+    <div class="bt-binderreader @(_showNotes ? "" : "nonotes") @(Popout == true ? "popout" : "")" @onkeydown="KeyAsync">
         <div class="bt-binderreaderhead">
             <div class="bt-binderreadertitles">
                 <span class="bt-eyebrow bt-eyebrow-block">@binder.Eyebrow</span>
@@ -50,13 +50,54 @@ else
                     <Icon Name="ChevronRight" />Next
                 </button>
                 <button class="bt-button" title="Add the page in view to this binder, after the one in hand" disabled="@(!CanAddPage)" @onclick="AddPageAsync"><Icon Name="Plus" />Add this page</button>
+                @if (binder.HasAtHand)
+                {
+                    <div class="bt-menuanchor">
+                        <button class="bt-button" title="Open a page from a binder kept at hand, in a window of its own" aria-haspopup="menu" aria-expanded="@(_atHand is not null)"
+                                @onclick="ToggleAtHandAsync"><Icon Name="BookOpen" />At hand</button>
+                        @if (_atHand is { } atHand)
+                        {
+                            <div class="bt-backdrop fixed bt-menuback" @onclick="() => _atHand = null"></div>
+                            <div class="bt-menu bt-athandmenu" role="menu" aria-label="At hand">
+                                @foreach (var group in atHand.Groups)
+                                {
+                                    @if (atHand.Groups.Count > 1) { <div class="bt-eyebrow bt-athandgroup" role="presentation">@group.Heading.ToUpper(System.Globalization.CultureInfo.CurrentCulture)</div> }
+                                    @foreach (var other in group.Binders)
+                                    {
+                                        <div class="bt-athandbinder" role="presentation">@other.Title</div>
+                                        @foreach (var held in other.Pages)
+                                        {
+                                            var opens = held.CanOpen || held.OnlineLink is not null;
+                                            <button class="bt-menuitem bt-athandpage" role="menuitem" disabled="@(!opens)" title="@(opens ? held.Where : held.Reason)"
+                                                    aria-label="@($"{held.Heading}, from {other.Title}")" @onclick="() => OpenAtHandAsync(held)">@held.Heading</button>
+                                        }
+                                        @if (other.Pages.Count == 0) { <button class="bt-menuitem bt-athandpage" role="menuitem" disabled>@atHand.NothingInIt</button> }
+                                    }
+                                }
+                                @if (atHand.Groups.Count == 0) { <button class="bt-menuitem" role="menuitem" disabled>@atHand.NoneAtHand</button> }
+                            </div>
+                        }
+                    </div>
+                }
                 <button class="bt-button" title="Pinned binders show in the sidebar and on Home" @onclick="() => Pins.ToggleAsync(PinKinds.Binder, Id)"><Icon Name="Pin" />@Pins.PinLabel(PinKinds.Binder, Id)</button>
                 <a class="bt-icon" href="@($"binders/{Id}/edit")" title="Edit binder: sections, order and notes" aria-label="Edit binder"><Icon Name="Pencil" /></a>
                 <button class="bt-icon @(_showNotes ? "on" : "")" title="Show or hide the binder notes" aria-label="Binder notes" aria-pressed="@_showNotes"
                         @onclick="() => _showNotes = !_showNotes"><Icon Name="PanelRight" /></button>
+                @if (Popout == true)
+                {
+                    <button class="bt-icon" title="Return to the main window" aria-label="Return to main window" @onclick="ReturnToMainAsync"><Icon Name="SquareArrowDownLeft" /></button>
+                }
+                else
+                {
+                    <button class="bt-icon" title="Pop out the binder into a window of its own" aria-label="Pop out" @onclick="PopOutAsync"><Icon Name="SquareArrowOutUpRight" /></button>
+                }
             </div>
         </div>
 
+        @if (_problem is not null)
+        {
+            <div class="bt-librarynote bt-pagenote"><DoneNote Result="_problem" Dismissed="() => _problem = null" /></div>
+        }
         <div class="bt-binderreaderbody">
             <nav class="bt-binderlist" aria-label="Binder items">
                 @foreach (var row in binder.Rows)
@@ -93,7 +134,7 @@ else
                 }
                 else
                 {
-                    <ReaderView @ref="_reader" EntryId="current.EntryId" Item="current.Id" InBinder="true" PlaceChanged="PlaceChanged"
+                    <ReaderView @ref="_reader" EntryId="current.EntryId" Item="current.Id" Page="current.Id == Item ? Page : null" InBinder="true" PlaceChanged="PlaceChanged"
                                 NotesChanged="NotesChanged" ItemMoved="LoadAsync" />
                 }
             </div>
@@ -133,6 +174,11 @@ else
     /// <summary>The item in hand, so Back and a reload come back to it; the first item without one.</summary>
     [SupplyParameterFromQuery] public long? Item { get; set; }
 
+    /// <summary>The page the item was at, as the binder moves to or from a window of its own.</summary>
+    [SupplyParameterFromQuery] public int? Page { get; set; }
+
+    [SupplyParameterFromQuery] public bool? Popout { get; set; }
+
     BinderPage? _page;
     bool _missing;
     long _shownId;
@@ -147,6 +193,8 @@ else
     bool _focusRename;
     ElementReference _renameBox;
     IJSObjectReference? _module;
+    AtHandList? _atHand;
+    ActionResult? _problem;
 
     List<BinderItem> Items => _page is { } page ? [.. page.Rows.Select(r => r.Item).OfType<BinderItem>()] : [];
 
@@ -190,8 +238,7 @@ else
             // The name is ready to type over, as on Windows.
             try
             {
-                _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/reader.js");
-                await _module.InvokeVoidAsync("selectAll", _renameBox);
+                if (await ModuleAsync() is { } module) await module.InvokeVoidAsync("selectAll", _renameBox);
             }
             catch (JSException)
             {
@@ -228,7 +275,106 @@ else
         if (item.Id == Current?.Id) return;
         _place = null;
         _bookNotes = null;
-        Navigation.NavigateTo($"binders/{Id}?item={item.Id}", replace: true);
+        Navigation.NavigateTo(Url(item.Id), replace: true);
+    }
+
+    /// <summary>The binder at an item, and the page in view there, in this window or a window of its own.</summary>
+    string Url(long? item, int? page = null, bool? popout = null)
+    {
+        var query = new List<string>();
+        if (item is { } at) query.Add("item=" + at.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (page is { } shown) query.Add("page=" + shown.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (popout ?? Popout == true) query.Add("popout=true");
+        return $"binders/{Id}" + (query.Count > 0 ? "?" + string.Join('&', query) : "");
+    }
+
+    /// <summary>The item in hand and the page in view in it, so the binder opens there in the other window.</summary>
+    (long? Item, int? Page) Here() => (Current?.Id, _place is { Item: not null } place ? place.Page : null);
+
+    async Task<IJSObjectReference?> ModuleAsync()
+    {
+        try
+        {
+            return _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/reader.js");
+        }
+        catch (JSException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Pop out: the whole binder moves to a window of its own, at the same item and page; one window per binder, so
+    /// popping it out again brings that window back.
+    /// </summary>
+    async Task PopOutAsync()
+    {
+        await SaveNotesAsync();
+        var (item, page) = Here();
+        var url = Navigation.ToAbsoluteUri(Url(item, page, popout: true)).ToString();
+        try
+        {
+            if (await ModuleAsync() is { } module && await module.InvokeAsync<bool>("popOut", url, $"bibliotaph-binder-{Id}"))
+            {
+                await module.InvokeVoidAsync("leave");
+                return;
+            }
+        }
+        catch (JSException)
+        {
+            // Said below.
+        }
+        _problem = new ActionResult("The browser didn't open a new window. Allow pop-ups for Bibliotaph, then try again.");
+    }
+
+    /// <summary>Return to main window: the binder comes back at the same item and page, and this window closes.</summary>
+    async Task ReturnToMainAsync()
+    {
+        await SaveNotesAsync();
+        var (item, page) = Here();
+        var url = Url(item, page, popout: false);
+        try
+        {
+            if (await ModuleAsync() is { } module && await module.InvokeAsync<bool>("returnToMain", Navigation.ToAbsoluteUri(url).ToString())) return;
+        }
+        catch (JSException)
+        {
+            // The window stays and shows the binder as the main window would.
+        }
+        Navigation.NavigateTo(url, forceLoad: true);
+    }
+
+    async Task ToggleAtHandAsync()
+    {
+        if (_atHand is not null)
+        {
+            _atHand = null;
+            return;
+        }
+        try
+        {
+            _atHand = await Api.AtHandAsync(Id);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _problem = new ActionResult("The binders kept at hand couldn't be listed just now. Try again in a moment.");
+        }
+    }
+
+    /// <summary>A page picked in At hand opens in a reader window of its own, keeping no reading position, so the page in hand stays put.</summary>
+    async Task OpenAtHandAsync(BinderItem page)
+    {
+        _atHand = null;
+        var url = page.OnlineLink ?? Navigation.ToAbsoluteUri(ReaderUrl.For(page.EntryId, popout: true, item: page.Id)).ToString();
+        try
+        {
+            if (await ModuleAsync() is { } module && await module.InvokeAsync<bool>("popOut", url, (string?)null)) return;
+        }
+        catch (JSException)
+        {
+            // Said below.
+        }
+        _problem = new ActionResult("The browser didn't open a new window. Allow pop-ups for Bibliotaph, then try again.");
     }
 
     Task StepAsync(int by)
