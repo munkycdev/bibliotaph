@@ -280,6 +280,10 @@ public sealed class ApiClient(HttpClient http)
     public Task<ReaderLink> ReaderLinkAsync(long documentId, CancellationToken ct = default) =>
         SendAsync<ReaderLink>(HttpMethod.Get, $"{Document(documentId)}/link", null, ct);
 
+    /// <summary>Check a download: one file's verdict, from its hash and, for a PDF, its pages' fingerprints.</summary>
+    public Task<CheckResult> CheckAsync(CheckFile file, CancellationToken ct = default) =>
+        SendAsync<CheckResult>(HttpMethod.Post, "api/library/check", file, ct);
+
     /// <summary>The password remembered for a locked PDF, tried before the reader asks.</summary>
     public Task<ReaderPassword> RememberedPasswordAsync(long documentId, CancellationToken ct = default) =>
         SendAsync<ReaderPassword>(HttpMethod.Get, $"{Document(documentId)}/password", null, ct);

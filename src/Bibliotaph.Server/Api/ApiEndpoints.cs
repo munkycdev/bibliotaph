@@ -63,6 +63,7 @@ public static class ApiEndpoints
         api.MapOnlineApi();
         api.MapReaderApi();
         api.MapPasswordsApi();
+        api.MapCheckApi();
         api.MapPageNotesApi();
         api.MapAiApi();
         api.MapAskApi();

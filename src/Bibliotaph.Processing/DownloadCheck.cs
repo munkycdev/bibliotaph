@@ -48,6 +48,28 @@ public sealed record CheckedFile(CheckItem Item, CheckVerdict Verdict, string? N
 }
 
 /// <summary>
+/// What a PDF's pages gave a check, read here or in the browser: each page's fingerprint, the PDF's own information,
+/// and why its pages couldn't be compared, so it was judged by its name.
+/// </summary>
+public sealed record PageReading(IReadOnlyList<string?> Fingerprints, DocMetadata? Info, string? Problem)
+{
+    public const string NeedsPassword = "It needs a password, so it was judged by its name.";
+    public const string NotReadable = "It isn't a readable PDF, so it was judged by its name.";
+    public const string EngineFailed = "The PDF engine couldn't open it, so it was judged by its name.";
+    public const string LittleText = "It has too little text to compare, so it was judged by its name.";
+
+    /// <summary>
+    /// Pages read: scanned pages have no text until OCR, which a check doesn't run, so a book with too few pages of
+    /// text is judged by its name.
+    /// </summary>
+    public static PageReading Read(IReadOnlyList<string?> fingerprints, int pagesWithText, DocMetadata? info) =>
+        new(fingerprints, info, pagesWithText < PageFingerprints.MinimumMatchingPages ? LittleText : null);
+
+    /// <summary>Pages that couldn't be read at all.</summary>
+    public static PageReading Unread(string problem) => new([], null, problem);
+}
+
+/// <summary>
 /// Check a download: which files in a folder or ZIP the library already has, before anything is copied anywhere. It
 /// reads through the read-only reader and writes only its own temporary copies of PDFs inside a ZIP, in the extract
 /// cache, which go when the check ends. Nothing goes into the catalog, the index or the job queue. The rules are
@@ -88,7 +110,7 @@ public sealed class DownloadCheck(LibraryStore library, EntryStore entries, Inde
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or UnauthorizedAccessException)
         {
-            return [new CheckItem(zip, null, "This ZIP couldn't be read; it may be damaged or still downloading.")];
+            return [new CheckItem(zip, null, ArchiveProblems.Unreadable)];
         }
     }
 
@@ -123,19 +145,30 @@ public sealed class DownloadCheck(LibraryStore library, EntryStore entries, Inde
                 return new CheckedFile(item, CheckVerdict.Unreadable, $"It couldn't be read: {ex.Message}");
             }
 
-            if (await library.FindDocumentAsync(hash, ct) is { } owned)
-            {
-                var where = (await library.GetLocationsAsync(owned, ct)).FirstOrDefault(l => l.State != FileLocationState.Missing)?.FullPath;
-                return await MatchAsync(item, CheckVerdict.AlreadyOwned, owned, ct) with { MatchWhere = where };
-            }
-            // Images have no text to compare.
-            if (!pdf || file is null) return new CheckedFile(item, CheckVerdict.New);
-            return await CompareAsync(item, file, root, vocabulary, ct);
+            // Images have no text to compare, and a file the library has needs its pages read no more than they are.
+            var pages = pdf && file is not null && await library.FindDocumentAsync(hash, ct) is null ? await ReadAsync(file, ct) : null;
+            return await JudgeAsync(item, hash, pages, Path.GetRelativePath(root, item.Location), vocabulary, ct);
         }
         finally
         {
             if (file is not null) await file.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// The verdict on a file from its hash and, for a PDF, what its pages gave (null for any other file, which has no
+    /// text to compare). <paramref name="relativePath"/> is where it is below the folder checked, which its folder
+    /// names are read from. The browser reads a file and its pages itself, so on the web only this runs on the server.
+    /// </summary>
+    public async Task<CheckedFile> JudgeAsync(CheckItem item, ContentHash hash, PageReading? pages, string relativePath, Vocabulary vocabulary,
+        CancellationToken ct = default)
+    {
+        if (await library.FindDocumentAsync(hash, ct) is { } owned)
+        {
+            var where = (await library.GetLocationsAsync(owned, ct)).FirstOrDefault(l => l.State != FileLocationState.Missing)?.FullPath;
+            return await MatchAsync(item, CheckVerdict.AlreadyOwned, owned, ct) with { MatchWhere = where };
+        }
+        return pages is null ? new CheckedFile(item, CheckVerdict.New) : await CompareAsync(item, pages, relativePath, vocabulary, ct);
     }
 
     /// <summary>
@@ -181,12 +214,11 @@ public sealed class DownloadCheck(LibraryStore library, EntryStore entries, Inde
     }
 
     /// <summary>A PDF that isn't an exact match: its pages against the library's, then its title and publisher.</summary>
-    async Task<CheckedFile> CompareAsync(CheckItem item, LocalFile file, string root, Vocabulary vocabulary, CancellationToken ct)
+    async Task<CheckedFile> CompareAsync(CheckItem item, PageReading pages, string relative, Vocabulary vocabulary, CancellationToken ct)
     {
-        var (texts, info, problem) = await ReadAsync(file, ct);
-        if (texts is not null)
+        var (fingerprints, info, problem) = pages;
+        if (fingerprints.Count > 0)
         {
-            var fingerprints = PageFingerprints.Compute(texts);
             var mine = fingerprints.OfType<string>().Distinct(StringComparer.Ordinal).ToList();
             if (mine.Count >= PageFingerprints.MinimumMatchingPages)
             {
@@ -207,7 +239,6 @@ public sealed class DownloadCheck(LibraryStore library, EntryStore entries, Inde
             }
         }
 
-        var relative = Path.GetRelativePath(root, item.Location);
         var hints = RuleHints.Propose(new HintSource(relative, info?.Title, info?.Author, info?.Subject, info?.Keywords), vocabulary);
         var title = Best(hints, MetadataFields.Title);
         var publisher = Best(hints, MetadataFields.Publisher);
@@ -228,8 +259,8 @@ public sealed class DownloadCheck(LibraryStore library, EntryStore entries, Inde
     /// <summary>Publishers that don't say the books differ: the same, or one of them unknown.</summary>
     static bool Agree(string? a, string? b) => a is null || b is null || string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Every page's text and the PDF's own information; or why its pages couldn't be read, to say beside the verdict.</summary>
-    async Task<(IReadOnlyList<string?>? Texts, DocMetadata? Info, string? Problem)> ReadAsync(LocalFile file, CancellationToken ct)
+    /// <summary>Every page's fingerprint and the PDF's own information; or why its pages couldn't be read, to say beside the verdict.</summary>
+    async Task<PageReading> ReadAsync(LocalFile file, CancellationToken ct)
     {
         PdfSession? opened;
         PdfResult<IPdfDocument> result;
@@ -239,12 +270,9 @@ public sealed class DownloadCheck(LibraryStore library, EntryStore entries, Inde
         }
         catch (PdfEngineException)
         {
-            return (null, null, "The PDF engine couldn't open it, so it was judged by its name.");
+            return PageReading.Unread(PageReading.EngineFailed);
         }
-        if (opened is null)
-            return (null, null, result.Error == ErrorKind.Password
-                ? "It needs a password, so it was judged by its name."
-                : "It isn't a readable PDF, so it was judged by its name.");
+        if (opened is null) return PageReading.Unread(result.Error == ErrorKind.Password ? PageReading.NeedsPassword : PageReading.NotReadable);
         await using var session = opened;
 
         var texts = new List<string?>(session.Doc.PageCount);
@@ -255,11 +283,7 @@ public sealed class DownloadCheck(LibraryStore library, EntryStore entries, Inde
             var pages = await TextStage.ExtractRunAsync(session, first, count, ct) ?? await TextStage.ExtractOneByOneAsync(session, first, count, ct);
             texts.AddRange(pages.Select(p => p.Error is null ? p.Text : null));
         }
-        // Scanned pages have no text until OCR, which a check doesn't run: such a book is judged by its name.
-        var problem = texts.Count(t => !string.IsNullOrWhiteSpace(t)) < PageFingerprints.MinimumMatchingPages
-            ? "It has too little text to compare, so it was judged by its name."
-            : null;
-        return (texts, session.Doc.Metadata, problem);
+        return PageReading.Read(PageFingerprints.Compute(texts), texts.Count(t => !string.IsNullOrWhiteSpace(t)), session.Doc.Metadata);
     }
 
     /// <summary>The verdict, naming the card that shows <paramref name="documentId"/>, and the document it opens.</summary>

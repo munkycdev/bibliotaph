@@ -1,0 +1,259 @@
+@page "/check"
+@using Bibliotaph.Core
+@inject ApiClient Api
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+@* The Windows app's Check a download: a folder or ZIP checked against the library, file by file, grouped by verdict,
+   New first. The browser reads the files: each one's hash and, for a PDF that isn't the very same file, its pages'
+   fingerprints go to the server for the verdict, never the file. *@
+<PageHeading Title="Check a download." TabTitle="Check a download"
+             Subtitle="See which files in a folder or ZIP you already have before you copy them anywhere. Nothing is copied, moved or added to your library." />
+
+<div class="bt-checkbuttons">
+    <button class="bt-button primary" disabled="@_running" @onclick="() => StartAsync(true)"><Icon Name="Folder" />Check a folder…</button>
+    <button class="bt-button" disabled="@_running" @onclick="() => StartAsync(false)">Check a ZIP…</button>
+    @if (_running)
+    {
+        <button class="bt-button" @onclick="Stop">Stop</button>
+    }
+    @if (_groups.Count > 0)
+    {
+        <button class="bt-button" title="The results as text, one file a line: verdict, file and the book it matched" @onclick="CopyListAsync">Copy list</button>
+    }
+</div>
+
+@if (_target is not null)
+{
+    <div class="bt-checktarget">
+        <div class="bt-row" title="@_target">@_target</div>
+        <div class="bt-small" role="status">@Progress</div>
+        @if (_problem is not null)
+        {
+            <div class="bt-small" role="alert">@_problem</div>
+        }
+        @if (_copied is not null)
+        {
+            <div class="bt-small bt-muted">@_copied</div>
+        }
+    </div>
+}
+
+@foreach (var group in _groups)
+{
+    <section class="bt-checkgroup" aria-label="@group.Label">
+        <h2>@group.Label · @group.Files.Count.ToString("N0")</h2>
+        <div class="bt-small">@group.Explanation</div>
+        <ul class="bt-checkrows">
+            @foreach (var (target, result) in group.Files)
+            {
+                <li>
+                    <div class="bt-checkfile">
+                        <b>@target.Name</b>
+                        <small title="@target.Location">@target.Location</small>
+                        @if (result.Detail is { } detail)
+                        {
+                            <span class="bt-small bt-muted">@detail</span>
+                        }
+                    </div>
+                    @if (result is { MatchEntryId: { } entry, MatchDocumentId: { } document })
+                    {
+                        <a class="bt-link" href="@ReaderUrl.For(entry, document)" aria-label="@($"Open the book {target.Name} matched")">Open the book</a>
+                    }
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    sealed record Group(int Order, string Label, string Explanation, List<(CheckTarget Target, CheckResult Result)> Files);
+
+    IJSObjectReference? _module;
+    readonly List<Group> _groups = [];
+    CancellationTokenSource? _stop;
+    bool _running, _stopped;
+    string? _target, _problem, _copied;
+    int _checked, _total;
+
+    string Progress
+    {
+        get
+        {
+            static string Files(int n) => $"{n:N0} {(n == 1 ? "file" : "files")}";
+            return _running && _total == 0 && _checked == 0 ? "Looking for PDFs and images…"
+                : _total == 0 ? "There are no PDFs or images here."
+                : _stopped && _checked < _total ? $"Stopped after {_checked:N0} of {Files(_total)}."
+                : _checked < _total ? $"Checked {_checked:N0} of {Files(_total)}…"
+                : $"Checked {Files(_total)}. Nothing was copied, moved or added.";
+        }
+    }
+
+    /// <summary>Checks a folder or ZIP, replacing the last results, until it's done or stopped.</summary>
+    async Task StartAsync(bool folder)
+    {
+        if (_running) return;
+        List<PickedFile>? picked;
+        try
+        {
+            _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/check.js");
+            picked = await _module.InvokeAsync<List<PickedFile>?>("pick", folder ? "folder" : "zip");
+        }
+        catch (JSException e)
+        {
+            _problem = $"This browser couldn't open the picker: {FirstLine(e.Message)}";
+            return;
+        }
+        if (picked is null || picked.Count == 0) return;
+
+        _target = folder ? picked[0].Path.Split('/')[0] : picked[0].Path;
+        _groups.Clear();
+        _problem = _copied = null;
+        _checked = _total = 0;
+        _stopped = false;
+        _running = true;
+        using var stop = _stop = new CancellationTokenSource();
+        StateHasChanged();
+        try
+        {
+            var items = await DownloadCheckItems.ListAsync(picked, folder, ListZipAsync);
+            _total = items.Count;
+            StateHasChanged();
+            foreach (var item in items)
+            {
+                stop.Token.ThrowIfCancellationRequested();
+                Add(item, await CheckAsync(item, stop.Token));
+                _checked++;
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Stopped: the results so far stay, and the progress says where it stopped.
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _problem = $"The check stopped: {e.Message}";
+        }
+        finally
+        {
+            _stop = null;
+            _running = false;
+            await ReleaseAsync();
+        }
+    }
+
+    /// <summary>Lets the browser forget the files picked, and the ZIP member it last read.</summary>
+    async Task ReleaseAsync()
+    {
+        try
+        {
+            if (_module is not null) await _module.InvokeVoidAsync("release");
+        }
+        catch (JSException)
+        {
+            // Forgotten with the page all the same.
+        }
+    }
+
+    void Stop()
+    {
+        _stopped = true;
+        _stop?.Cancel();
+    }
+
+    async Task<IReadOnlyList<ZipMember>?> ListZipAsync(int id)
+    {
+        try
+        {
+            return await _module!.InvokeAsync<List<ZipMember>>("list", id);
+        }
+        catch (JSException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// One file's verdict: by its hash first, and for a PDF that isn't the very same file, by its pages too, read here
+    /// and sent only as fingerprints.
+    /// </summary>
+    async Task<CheckResult> CheckAsync(CheckTarget item, CancellationToken ct)
+    {
+        var file = new CheckFile(item.Name, item.Location, item.RelativePath, null, item.Problem, null);
+        if (item.Problem is null)
+        {
+            try
+            {
+                file = file with { Hash = await _module!.InvokeAsync<string>("hash", ct, item.Id, item.Entry) };
+            }
+            catch (JSException e)
+            {
+                file = file with { Problem = $"It couldn't be read: {FirstLine(e.Message)}" };
+            }
+        }
+        var result = await Api.CheckAsync(file, ct);
+        if (file.Hash is null || !item.IsPdf || result.Owned) return result;
+
+        PickedPages pages;
+        try
+        {
+            pages = await _module!.InvokeAsync<PickedPages>("pages", ct, item.Id, item.Entry);
+        }
+        catch (JSException)
+        {
+            pages = new PickedPages("invalid", null, null, null, null, null);
+        }
+        var texts = pages.Texts ?? [];
+        return await Api.CheckAsync(file with
+        {
+            Pages = new CheckPages(pages.Texts is null ? [] : PageFingerprints.Compute(texts), texts.Count(t => !string.IsNullOrWhiteSpace(t)),
+                pages.Unread, pages.Title, pages.Author, pages.Subject, pages.Keywords),
+        }, ct);
+    }
+
+    static string FirstLine(string message) => message.Split('\n', 2)[0].Trim();
+
+    void Add(CheckTarget item, CheckResult result)
+    {
+        if (_groups.FirstOrDefault(g => g.Order == result.Order) is not { } group)
+        {
+            group = new Group(result.Order, result.Label, result.Explanation, []);
+            _groups.Insert(_groups.TakeWhile(g => g.Order < result.Order).Count(), group);
+        }
+        group.Files.Add((item, result));
+    }
+
+    /// <summary>The results as text, one file a line, tab-separated so they paste into a spreadsheet.</summary>
+    async Task CopyListAsync()
+    {
+        var text = new System.Text.StringBuilder("Verdict\tFile\tBook in your library").AppendLine();
+        foreach (var group in _groups)
+            foreach (var (target, result) in group.Files)
+                text.Append(group.Label).Append('\t').Append(target.Location).Append('\t').AppendLine(result.MatchTitle ?? "");
+        try
+        {
+            _copied = await JS.InvokeAsync<bool>("bibliotaphCopy", text.ToString()) ? "The list is on the clipboard." : "The clipboard is busy. Try again.";
+        }
+        catch (JSException)
+        {
+            _copied = "The clipboard is busy. Try again.";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _stop?.Cancel();
+        if (_module is null) return;
+        await ReleaseAsync();
+        try
+        {
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The page is closing with the tab.
+        }
+    }
+}

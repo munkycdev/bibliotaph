@@ -232,6 +232,16 @@ pictures your browser saved beside the page, in the folder ending in "_files"; o
 used. Books imported before that the page no longer lists are offered under **No longer in this library**, where
 **Remove from library** takes one out; nothing goes unless you say so.
 
+### Check a download
+
+Before copying a new bundle into your storage, **Add ▾** › **Check a download…** in the Library tells you which files
+you already have, as in the Windows app: **Check a folder…** or **Check a ZIP…** on your computer. Each PDF, e-book and
+picture, those in the folder's ZIPs included, is marked as new, already owned, another copy, maybe a new version, or
+owned elsewhere, grouped so the new ones come first, with **Open the book** for a match. **Stop** stops it, and **Copy
+list** copies the results to paste somewhere else. Your browser reads the files itself: only each file's SHA-256 hash
+and, for a PDF that isn't the very same file, its title and fingerprints of its pages' text go to bibliotaph.online,
+never the files. Nothing is copied, moved or added.
+
 ### Collections
 
 **Collections** gathers books around a campaign, a setting or an idea, as in the Windows app. Its page has a card for
