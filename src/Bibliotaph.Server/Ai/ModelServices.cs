@@ -4,8 +4,12 @@ using Bibliotaph.Classification;
 
 namespace Bibliotaph.Server.Ai;
 
-/// <summary>How a library reaches a model service: by address, with the key read when a request is made.</summary>
-public sealed record ModelClientFactory(Func<string, Func<string?>, IModelClient> Create);
+/// <summary>
+/// How a library reaches a model service: by address, with the key read when a request is made. <see cref="QuietPeriod"/>
+/// is how long reading whole books waits after the last request a person or the catalogue made; half a minute unless
+/// tests give a shorter one.
+/// </summary>
+public sealed record ModelClientFactory(Func<string, Func<string?>, IModelClient> Create, TimeSpan? QuietPeriod = null);
 
 /// <summary>
 /// Where the server may send a user's book excerpts: a model service on the internet, over https. Anything else would

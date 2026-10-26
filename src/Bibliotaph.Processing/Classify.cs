@@ -102,15 +102,18 @@ public sealed record AiState(AiSetup Setup, ModelClassifier? Classifier, ModelPl
 /// where the app has none (tests).</param>
 /// <param name="activity">Tracks every request a person waits on, so reading whole books gives way to them. Made here when
 /// not given, since everything that uses it reaches it through <see cref="Activity"/>; tests give one a shorter quiet period.</param>
+/// <param name="scanWholeBooksByDefault">Whether books are read whole until the user chooses: on where the AI is the user's
+/// own machine, off where every request is paid for by the page.</param>
 public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null,
-    BuiltInEngine? builtInEmbedding = null, ModelActivity? activity = null)
+    BuiltInEngine? builtInEmbedding = null, ModelActivity? activity = null, bool scanWholeBooksByDefault = true)
 {
     /// <summary>A local model can take minutes to load and read a long excerpt on a modest GPU.</summary>
     static readonly Lazy<HttpClient> Http = new(() => new HttpClient { Timeout = TimeSpan.FromMinutes(10) });
 
     readonly Func<string, IModelClient> _clients = clients ?? (endpoint => ClientFor(endpoint, keys));
     volatile AiState _state = AiState.Off;
-    volatile bool _scanWholeBooks = true;
+    readonly bool _scanByDefault = scanWholeBooksByDefault;
+    volatile bool _scanWholeBooks = scanWholeBooksByDefault;
 
     /// <summary>The usual client for a model server: the shared HttpClient, with the endpoint's key read when a request is made.</summary>
     public static IModelClient ClientFor(string endpoint, IApiKeyStore keys) => new LocalModelClient(Http.Value, endpoint, () => keys.Find(endpoint));
@@ -129,8 +132,8 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     public ModelActivity Activity { get; } = activity ?? new ModelActivity();
 
     /// <summary>
-    /// Whether books are read whole, chapter by chapter, once they are catalogued: on unless the user switched it off,
-    /// and only ever while AI itself is on.
+    /// Whether books are read whole, chapter by chapter, once they are catalogued: as the user chose, or the default
+    /// until they do, and only ever while AI itself is on.
     /// </summary>
     public bool ScanWholeBooks => _scanWholeBooks;
 
@@ -202,7 +205,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             await settings.GetAsync(SettingKeys.AiEmbeddingModel, ct),
             await settings.GetAsync(SettingKeys.AiBuiltInEmbeddingModel, ct),
             await settings.GetAsync(SettingKeys.AiLibraryVectors, ct) != bool.FalseString));
-        _scanWholeBooks = await settings.GetAsync(SettingKeys.AiScanWholeBooks, ct) != bool.FalseString;
+        _scanWholeBooks = await settings.GetAsync(SettingKeys.AiScanWholeBooks, ct) is { } scan ? scan != bool.FalseString : _scanByDefault;
     }
 
     public async Task SaveAsync(AiSetup setup, CancellationToken ct = default)

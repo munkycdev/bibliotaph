@@ -119,7 +119,10 @@ public static class LibraryServices
         services.AddSingleton<MetadataHints>();
         services.AddSingleton<FolderRules>();
 
-        // What the details change: the Windows inspector's services, without AI's chapter scan, which the server doesn't run yet.
+        // What the details change: the Windows inspector's services.
+        services.AddSingleton(sp => new ChapterScanStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), host.Clock));
+        services.AddSingleton<ChapterProjection>();
+        services.AddSingleton<ChapterScanService>();
         services.AddSingleton<MetadataService>();
         services.AddSingleton<CorrectionService>();
         services.AddSingleton<FavoritesService>();
@@ -137,7 +140,7 @@ public static class LibraryServices
         services.AddSingleton<IStage, OcrStage>();
         services.AddSingleton<UserTagService>();
         services.AddSingleton<IStage, MatchStage>();
-        // AI: the Windows app's Classify stage and Settings > AI, over a model service the user chose, with their key.
+        // AI: the Windows app's Classify and whole-book scan stages and Settings > AI, over a model service the user chose, with their key.
         services.AddSingleton(sp => new ServerApiKeys(sp.GetRequiredService<SettingsStore>(), host.Protection.CreateProtector($"Bibliotaph.Ai.Keys.{userId}")));
         services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ServerApiKeys>());
         services.AddSingleton(host.Models);
@@ -145,14 +148,16 @@ public static class LibraryServices
         {
             var keys = sp.GetRequiredService<ServerApiKeys>();
             var clients = sp.GetRequiredService<ModelClientFactory>();
+            // Reading whole books waits to be switched on: each of its requests is paid for on the user's key.
             return new AiSettings(sp.GetRequiredService<SettingsStore>(), keys, endpoint => clients.Create(endpoint, () => keys.Find(endpoint)),
-                activity: new ModelActivity(host.Clock));
+                activity: new ModelActivity(host.Clock, clients.QuietPeriod), scanWholeBooksByDefault: false);
         });
         services.AddSingleton(new AiReadingFeed(host.Clock));
         services.AddSingleton<ExampleFinder>();
         services.AddSingleton<ClassifierInputs>();
         services.AddSingleton<ClassificationResults>();
         services.AddSingleton<IStage, ClassifyStage>();
+        services.AddSingleton<IStage, ChapterScanStage>();
         services.AddSingleton<AiService>();
         services.AddSingleton<IStageCatalog, StageCatalog>();
         services.AddSingleton(new IndexingOptions { OnlineOnlyReserveBytes = 0 });

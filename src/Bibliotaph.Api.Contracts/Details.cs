@@ -10,7 +10,14 @@ public sealed record BookDetails(
     string PartsHeading, bool CanMarkParts, string? PartOf, long? PartOfEntryId, IReadOnlyList<PackFile> PackFiles, string PackFilesHeading,
     string FactsHeading, IReadOnlyList<DetailFact> Facts, bool ShowsLocations, IReadOnlyList<DetailLocation> Locations, IReadOnlyList<DetailCopy> Copies,
     string CopiesHeading, IReadOnlyList<DetailFact> Stages, bool Reprocessing, string NotesLabel, string FirstPage, string PartFrom, string PartTo,
-    string SplitPackLabel, string SplitPackTip, IReadOnlyList<CollectionChip> Collections, bool HasChosenCover = false);
+    string SplitPackLabel, string SplitPackTip, IReadOnlyList<CollectionChip> Collections, IReadOnlyList<DetailChapter> Chapters,
+    bool HasChosenCover = false);
+
+/// <summary>
+/// A chapter under Found inside the book: its title and pages as the file numbers them, one line per field the AI
+/// found something for ("Creatures: Goblin, Ogre"), or why there is nothing.
+/// </summary>
+public sealed record DetailChapter(string Title, string Pages, IReadOnlyList<string> Lines, string? Note);
 
 /// <summary>
 /// One field under Details: its values as they read, where each came from and the other suggestions, and how it is

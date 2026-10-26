@@ -52,11 +52,12 @@ public sealed class UserLibrary
         var counts = await Get<LibraryStore>().GetCountsAsync(ct);
         // Files that couldn't be read are tried again after the next scan, not now.
         if (counts.Unhashed > indexing.Unreadable.Count) return true;
-        // Scanned pages are read, and books catalogued, to the end even with nobody signed in.
+        // Scanned pages are read, and books catalogued and scanned whole, to the end even with nobody signed in.
         var progress = await Get<IndexQueries>().GetProgressAsync(ct);
         if (!indexing.IsPaused(Lane.Ocr) && progress.PagesAwaitingOcr > 0) return true;
-        return Get<AiSettings>().Setup.IsReady && !indexing.IsPaused(Lane.Classify) && indexing.Unavailable(Lane.Classify) is null
-            && progress.ToClassify > 0;
+        var ai = Get<AiSettings>();
+        return ai.Setup.IsReady && !indexing.IsPaused(Lane.Classify) && indexing.Unavailable(Lane.Classify) is null
+            && (progress.ToClassify > 0 || ai.ScanWholeBooks && progress.ToScanWhole > 0);
     }
 }
 
@@ -258,6 +259,8 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             // Before the Classify lane looks at whether it may send anything.
             await library.Get<ServerApiKeys>().LoadAsync();
             await library.Get<AiSettings>().LoadAsync();
+            // A rebuilt index.db gets its chapters back from catalog.db, without the AI reading a book again.
+            await library.Get<ChapterProjection>().RestoreAsync();
 
             await library.Drives.ReloadAsync();
             // Scans every library folder as it starts, which picks up whatever changed while the library was closed.

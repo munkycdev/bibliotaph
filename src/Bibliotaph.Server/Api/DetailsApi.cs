@@ -22,6 +22,17 @@ public static class DetailsApi
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             return await DetailsAsync(lease.Library, new EntryId(entryId), ct) is { } details ? Results.Ok(details) : Results.NotFound();
         });
+
+        // Scan again: forgets what the AI found in the book and reads it again, while scanning whole books is on.
+        api.MapPost("/library/books/{entryId:long}/scan-again", async (long entryId, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var library = lease.Library;
+            if (await library.Get<LibraryQueries>().GetDetailsAsync(new EntryId(entryId), ct) is not { } details) return Results.NotFound();
+            var chapters = library.Get<ChapterScanService>();
+            await chapters.RescanAsync(details.Entry.DocumentId, ct);
+            return Results.Ok(new EditResult(await DetailsAsync(library, details.Entry.EntryId, ct), Message: DetailsText.ScanAgain(chapters.IsOn)));
+        });
     }
 
     /// <summary>
@@ -123,7 +134,21 @@ public static class DetailsApi
             DetailsText.SplitPackLabel(hasPdfs),
             DetailsText.SplitPackTip(hasPdfs),
             chips,
+            await ChaptersAsync(library, entry, labels, ct),
             entry.IsElsewhere && await library.Get<ChosenCovers>().HasChosenAsync(entryId, ct));
+    }
+
+    /// <summary>What the AI found reading the book chapter by chapter; an adventure inside a file shows only its own chapters.</summary>
+    static async Task<IReadOnlyList<DetailChapter>> ChaptersAsync(UserLibrary library, LibraryEntry entry, IReadOnlyList<string?> labels,
+        CancellationToken ct)
+    {
+        if (entry.IsElsewhere || entry.IsPack || !SourceFormats.HasPages(entry.Format)) return [];
+        var chapters = await library.Get<ChapterScanService>().GetChaptersAsync(entry.DocumentId, entry.IsPart ? entry.Pages : null, ct);
+        return [.. chapters.Select(c =>
+        {
+            var lines = ChapterFields.Describe(c.Tags);
+            return new DetailChapter(c.Title, c.Pages.Describe(labels), lines, DetailsText.ChapterNote(c, lines.Count));
+        })];
     }
 
     /// <summary>An adventure's first page as the editor starts with it.</summary>

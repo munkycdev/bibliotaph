@@ -112,6 +112,13 @@ public static class AiApi
             return Results.NoContent();
         });
 
+        ai.MapPut("/scan", async (AiSwitch change, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            await lease.Library.Get<ChapterScanService>().SetOnAsync(change.On, ct);
+            return Results.NoContent();
+        });
+
         ai.MapPost("/reclassify", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
@@ -158,8 +165,10 @@ public static class AiApi
             .Select(r => new AiFolder(r.Id, FolderText.Name(r.Path), FolderText.Location(r.Path, library.Drives), !setup.SkippedRoots.Contains(r.Id)))
             .ToList();
         var waiting = setup.IsReady ? library.Indexing.Unavailable(Lane.Classify) : null;
+        var scan = library.Get<AiSettings>().ScanWholeBooks;
         return new AiPage(setup.Enabled, setup.Endpoint, setup.Model, setup.RemoteAllowed,
             setup.Endpoint is { } endpoint ? library.Get<ServerApiKeys>().Ending(endpoint) : null,
-            AiText.Progress(setup, summary, progress), waiting, reclassify, folders);
+            AiText.Progress(setup, summary, progress), waiting, reclassify, folders, scan,
+            AiText.ScanProgress(setup, scan, progress));
     }
 }

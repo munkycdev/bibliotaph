@@ -65,6 +65,8 @@ public sealed class ApiClient(HttpClient http)
     public Task SendFolderToAiAsync(long id, bool send, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Put, $"api/ai/folders/{id}", new AiFolderSend(send), ct);
 
+    public Task ScanWholeBooksAsync(bool on, CancellationToken ct = default) => SendAsync(HttpMethod.Put, "api/ai/scan", new AiSwitch(on), ct);
+
     public Task<AiNote> ReclassifyAsync(CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Post, "api/ai/reclassify", null, ct);
 
     /// <summary>Test with a book: held open while the model reads, and cancelled with <paramref name="ct"/>.</summary>
@@ -180,6 +182,9 @@ public sealed class ApiClient(HttpClient http)
 
     public Task<BookDetails> ReprocessAsync(long entryId, CancellationToken ct = default) =>
         SendAsync<BookDetails>(HttpMethod.Post, $"{Book(entryId)}/reprocess", null, ct);
+
+    public Task<EditResult> ScanAgainAsync(long entryId, CancellationToken ct = default) =>
+        SendAsync<EditResult>(HttpMethod.Post, $"{Book(entryId)}/scan-again", null, ct);
 
     public Task<EditResult> AddPartAsync(long entryId, PartEdit part, CancellationToken ct = default) =>
         SendAsync<EditResult>(HttpMethod.Post, $"{Book(entryId)}/parts", part, ct);
