@@ -4,7 +4,7 @@ namespace Bibliotaph.Api.Contracts;
 public sealed record OnlineService(string Key, string Name, string LibraryPage, string Explanation);
 
 /// <summary>
-/// What importing a saved library page will do, as Settings › Online libraries previews it: its groups of books by
+/// What importing a library page will do, as Settings › Online libraries previews it: its groups of books by
 /// what each becomes, the books from earlier imports the page no longer lists, and how many of the page's covers are
 /// among the images given with it so far. <paramref name="Wanted"/> is the addresses of the covers still missing, which
 /// Send to Bibliotaph fetches from the service's page.
@@ -21,7 +21,7 @@ public sealed record OnlineRow(int Index, string Title, string Detail, bool CanC
 /// <summary>A book imported before that the page no longer lists, which Remove from library takes away.</summary>
 public sealed record OnlineMissing(long EntryId, string Title);
 
-/// <summary>A saved page read, or why it couldn't be.</summary>
+/// <summary>A library page read, or why it couldn't be.</summary>
 public sealed record OnlinePageRead(OnlinePreview? Preview, string? Problem);
 
 /// <summary>The books of a preview to import, by their places in it.</summary>

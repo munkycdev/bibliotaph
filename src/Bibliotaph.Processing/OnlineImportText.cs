@@ -10,7 +10,7 @@ namespace Bibliotaph.Processing;
 public static class OnlineImportText
 {
     public const string Unreadable = "That page isn't a library page Bibliotaph can read. Open your library on the service, sign in if asked, "
-        + "and save the page with Save as, choosing Webpage, complete.";
+        + "and send the page from there.";
 
     public const string MissingHeading = "No longer in this library";
 

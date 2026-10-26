@@ -8,19 +8,18 @@ namespace Bibliotaph.Processing.Tests;
 
 public abstract partial class PipelineTests
 {
-    OnlineImports OnlineImports() => new(_metadataStore, _metadata, _entries, _projector, _queries, new SourceFileReader(), new FakeCodec(),
-        new CoverCache(_paths));
+    OnlineImports OnlineImports() => new(_metadataStore, _metadata, _entries, _projector, _queries, new FakeCodec(), new CoverCache(_paths));
 
-    /// <summary>The made-up D&amp;D Beyond page, saved with the cover of its second book beside it.</summary>
-    string SavedLibraryPage()
+    /// <summary>A made-up library page, read as Read this page or Send to Bibliotaph reads it.</summary>
+    static (IOnlineLibraryReader Reader, OnlinePage Page) LibraryPage(string name)
     {
-        var folder = Directory.CreateDirectory(Path.Combine(_dir, "saved")).FullName;
-        var page = Path.Combine(folder, "dndbeyond-library.html");
-        File.Copy(Path.Combine(AppContext.BaseDirectory, "online", "dndbeyond-library.html"), page);
-        var images = Directory.CreateDirectory(Path.Combine(folder, "dndbeyond-library_files")).FullName;
-        File.WriteAllBytes(Path.Combine(images, "639000000000000002.jpeg"), FakeCodec.Png(200, 260));
-        return page;
+        var html = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "online", name));
+        return Processing.OnlineImports.Services.Select(r => (Reader: r, Page: r.Read(html))).First(r => r.Page is not null)!;
     }
+
+    /// <summary>Covers as Send to Bibliotaph gives them: a picture for each of these file names, found by the cover's address.</summary>
+    static Func<string, CancellationToken, Task<byte[]?>> SentCovers(params string[] names) => (url, _) =>
+        Task.FromResult(Processing.OnlineImports.CoverFileName(url) is { } name && names.Contains(name) ? FakeCodec.Png(200, 260) : null);
 
     async Task<IReadOnlyList<string>> Values(EntryId entryId, MetadataField field) =>
         [.. (await _metadata.GetAsync(entryId, Ct)).Metadata[field].Values.Select(v => v.Value).Order(StringComparer.Ordinal)];
@@ -29,7 +28,7 @@ public abstract partial class PipelineTests
     public sealed class OnlineImportTests(SyntheticPdfs synthetic) : PipelineTests(synthetic)
     {
         [Fact]
-        public async Task A_saved_library_page_is_previewed_imported_undone_and_imported_again_without_changing_the_users_work()
+        public async Task A_library_page_is_previewed_imported_undone_and_imported_again_without_changing_the_users_work()
         {
             await _service.StartAsync(Ct);
             var search = new LibraryQueries(_index);
@@ -42,8 +41,8 @@ public abstract partial class PipelineTests
             var (other, _) = await _elsewhere.AddAsync(new ElsewhereDraft("Atlas of the Drowned Coast", Publisher: "Kobold Works"), Ct);
             var (gone, _) = await _elsewhere.AddAsync(new ElsewhereDraft("Sold Back", AlsoOwn: ["https://www.dndbeyond.com/sources/dnd/sold-back/"]), Ct);
 
-            var saved = await import.ReadSavedPageAsync(SavedLibraryPage(), Ct);
-            Assert.NotNull(saved);
+            var saved = LibraryPage("dndbeyond-library.html");
+            var covers = SentCovers("639000000000000002.jpeg");
             Assert.Equal(("dnd-beyond", 2, 1), (saved.Reader.Key, saved.Page.Books.Count, saved.Page.Shared));
 
             // The preview: the first book goes on its card; the second is new, its publisher being another; the third is missing.
@@ -52,7 +51,7 @@ public abstract partial class PipelineTests
             Assert.Equal("The Ember Vault", plan.Rows[0].CardTitle);
             Assert.Equal((gone!.Value, "Sold Back"), (Assert.Single(plan.Missing).EntryId, plan.Missing[0].Title));
 
-            var result = await import.ImportAsync(plan, plan.Rows, import.SavedCovers(saved.Images), Ct);
+            var result = await import.ImportAsync(plan, plan.Rows, covers, Ct);
             Assert.Equal((1, 1), (result.Added, result.Changed));
 
             // The card had D&D Beyond with no link: now it has the link, once.
@@ -60,7 +59,7 @@ public abstract partial class PipelineTests
             Assert.Equal(["gilded press"], (await Values(vault.Value, MetadataFields.Publisher)).Select(v => v.ToLowerInvariant()));
             Assert.Empty(await Values(vault.Value, MetadataFields.Year));
 
-            // The new book has every value the page gave, as the user's own, and the cover the saved page had.
+            // The new book has every value the page gave, as the user's own, and the cover sent with the page.
             var atlas = (await search.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct)).Single(c => c.Title == "Atlas of the Drowned Coast" && c.EntryId != other);
             Assert.Equal(("https://www.dndbeyond.com/sources/dnd/drowned-coast", "D&D Beyond"), (atlas.OnlineLink, atlas.OnlineLabel));
             Assert.Equal(["dnd-5e-2024"], await Values(atlas.EntryId, MetadataFields.Edition));
@@ -77,7 +76,7 @@ public abstract partial class PipelineTests
             Assert.Equal(["dnd-beyond"], await Values(vault.Value, MetadataFields.AlsoOwn));
 
             // Imported again, then again once the user has set a year: the second time only empty fields are filled.
-            await import.ImportAsync(plan, plan.Rows, import.SavedCovers(saved.Images), Ct);
+            await import.ImportAsync(plan, plan.Rows, covers, Ct);
             Assert.Null(await _metadata.SetAsync(vault.Value, MetadataFields.Year, "2020", Ct));
             var again = await import.PlanAsync(saved.Reader, saved.Page, Ct);
             Assert.Equal([OnlineOutcome.Update, OnlineOutcome.Unchanged], again.Rows.Select(r => r.Outcome));
@@ -137,20 +136,14 @@ public abstract partial class PipelineTests
         }
 
         [Fact]
-        public async Task A_saved_page_that_gives_its_covers_as_saved_files_keeps_them()
+        public async Task A_page_whose_covers_are_given_as_saved_files_still_finds_the_pictures_sent_for_them()
         {
             await _service.StartAsync(Ct);
             var import = OnlineImports();
-            var folder = Directory.CreateDirectory(Path.Combine(_dir, "saved")).FullName;
-            var page = Path.Combine(folder, "Source Library - Ember Isles RPG Nexus.html");
-            File.Copy(Path.Combine(AppContext.BaseDirectory, "online", "demiplane-sources.html"), page);
-            var images = Directory.CreateDirectory(Path.Combine(folder, "Source Library - Ember Isles RPG Nexus_files")).FullName;
-            File.WriteAllBytes(Path.Combine(images, "cover(1).jpg"), FakeCodec.Png(200, 260));
-
-            var saved = await import.ReadSavedPageAsync(page, Ct);
-            Assert.Equal("demiplane", saved?.Reader.Key);
-            var plan = await import.PlanAsync(saved!.Reader, saved.Page, Ct);
-            await import.ImportAsync(plan, plan.Rows, import.SavedCovers(saved.Images), Ct);
+            var (reader, page) = LibraryPage("demiplane-sources.html");
+            Assert.Equal("demiplane", reader.Key);
+            var plan = await import.PlanAsync(reader, page, Ct);
+            await import.ImportAsync(plan, plan.Rows, SentCovers("cover(1).jpg"), Ct);
 
             var cards = (await new LibraryQueries(_index).ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct)).OrderBy(c => c.Title, StringComparer.Ordinal).ToList();
             Assert.Equal([("Ember Isles Core Rules", false), ("Tides of Ash & Salt", true)], cards.Select(c => (c.Title, c.Cover is not null)));

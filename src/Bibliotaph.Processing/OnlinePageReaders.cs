@@ -47,8 +47,8 @@ static partial class PageMarkup
     }
 
     /// <summary>
-    /// An image's address as the page gives it: on the web, or the file a saved page keeps it in ("./… _files/cover.jpg"),
-    /// which <see cref="OnlineImports.SavedCovers"/> finds by its name.
+    /// An image's address as the page gives it, by which the browser's own copy of the picture is found, or the picture
+    /// Send to Bibliotaph sends under its file name (<see cref="OnlineImports.CoverFileName"/>).
     /// </summary>
     internal static string? Image(string? src)
     {

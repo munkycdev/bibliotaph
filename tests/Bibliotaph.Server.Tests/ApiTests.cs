@@ -94,10 +94,13 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         using var oldPrivacy = await Client().GetAsync("/privacy.html", ct);
         using var picture = await Client().GetAsync("/site/library.png", ct);
 
-        Assert.Contains("Find the right book, and the right page", landing, StringComparison.Ordinal);
+        Assert.Contains("The exact page you need.", landing, StringComparison.Ordinal);
         Assert.Contains("""href="/signin">Sign in""", landing, StringComparison.Ordinal);
+        // Its icons are drawn in place, none left as a placeholder.
+        Assert.Contains("""<svg class="bt-ico" """, landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{", landing, StringComparison.Ordinal);
         // Signed in, the root is the app's, not the landing page.
-        Assert.DoesNotContain("Find the right book, and the right page", await signedIn.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        Assert.DoesNotContain("The exact page you need.", await signedIn.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
         Assert.Contains("Open your library", openLibrary, StringComparison.Ordinal);
         Assert.All(pages.Values, html => Assert.Contains("""<a href="/terms""", html, StringComparison.Ordinal));
         Assert.Contains("""<a href="/terms" aria-current="page">""", pages["/terms"], StringComparison.Ordinal);
@@ -862,7 +865,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
-    public async Task A_saved_online_library_page_previews_imports_with_its_covers_and_undoes_as_the_windows_app_does()
+    public async Task A_sent_online_library_page_previews_imports_with_its_covers_and_undoes_as_the_windows_app_does()
     {
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
@@ -890,7 +893,6 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         using var gone = await client.GetAsync("/api/online/pages/0123456789abcdef0123456789abcdef", ct);
 
         Assert.Equal(["D&D Beyond", "Demiplane", "Humble Bundle", "DriveThruRPG"], services.Select(s => s.Name));
-        Assert.Contains("Save as", services[0].Explanation, StringComparison.Ordinal);
         Assert.Contains("Send to Bibliotaph", services[0].Explanation, StringComparison.Ordinal);
         Assert.Null(read.Problem);
         Assert.Equal(("D&D Beyond", "Your D&D Beyond library: 2 books. 1 book shared with you was left out."), (preview.Service, preview.Summary));

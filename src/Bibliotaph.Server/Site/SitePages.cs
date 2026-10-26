@@ -1,5 +1,7 @@
 using System.Collections.Frozen;
 using System.Net;
+using System.Text.RegularExpressions;
+using Bibliotaph.Web.Icons;
 using Bibliotaph.Web.Services;
 
 namespace Bibliotaph.Server.Site;
@@ -10,7 +12,7 @@ namespace Bibliotaph.Server.Site;
 /// once, so they load without the WebAssembly client and work for anyone. The change log and licences come from the
 /// repository's own CHANGELOG.md, THIRD-PARTY-NOTICES.md and LICENSE-EXCEPTION.md, so they can't drift from them.
 /// </summary>
-public static class SitePages
+public static partial class SitePages
 {
     /// <summary>A page: its address, resource, title for the tab, and description for search engines and link previews.</summary>
     sealed record Page(string Path, string Resource, string Title, string Description);
@@ -91,6 +93,7 @@ public static class SitePages
                 .Replace("{{changelog}}", SiteMarkdown.ToHtml(Text("CHANGELOG.md")), StringComparison.Ordinal)
                 .Replace("{{notices}}", SiteMarkdown.ToHtml(Text("THIRD-PARTY-NOTICES.md")), StringComparison.Ordinal)
                 .Replace("{{exception}}", SiteMarkdown.ToHtml(Text("LICENSE-EXCEPTION.md")), StringComparison.Ordinal);
+            content = IconPlaceholder().Replace(content, m => Icon(m.Groups["name"].Value));
             // The page's own link in the header and footer says so, for screen readers and the underline.
             var html = layout
                 .Replace("{{title}}", WebUtility.HtmlEncode(page.Title), StringComparison.Ordinal)
@@ -102,6 +105,17 @@ public static class SitePages
         }
         return pages.ToFrozenDictionary(StringComparer.Ordinal);
     }
+
+    /// <summary>
+    /// {{icon:Search}} in a page: the app's Lucide icon drawn inline, since the pages load without the app's script and
+    /// the site's policy allows no inline styles. A name the app doesn't have stops the server at its first page.
+    /// </summary>
+    static string Icon(string name) => LucideIcons.Paths.TryGetValue(name, out var path)
+        ? $"""<svg class="bt-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{path}"/></svg>"""
+        : throw new InvalidOperationException($"The site names an icon the app doesn't have: {name}.");
+
+    [GeneratedRegex(@"\{\{icon:(?<name>[A-Za-z0-9]+)\}\}")]
+    private static partial Regex IconPlaceholder();
 
     static string Text(string name)
     {
