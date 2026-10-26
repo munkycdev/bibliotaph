@@ -93,6 +93,18 @@ else
                             @onclick="ToggleFavoriteAsync"><Icon Name="Heart" Size="15" /></button>
                     <button class="bt-icon bt-pinbutton @(pinned ? "on" : "")" title="@pinAction" aria-label="@pinAction" aria-pressed="@pinned"
                             @onclick="() => Pins.ToggleAsync(PinKinds.Book, book.EntryId)"><Icon Name="Pin" Size="15" /></button>
+                    @if (_stored)
+                    {
+                        var offlineAction = !_kept ? "Keep offline: the whole book downloads to this browser, so it opens without the network"
+                            : _offlineProgress < 1 ? "Downloading to keep offline. Click to stop and let it go with the other books in this browser"
+                            : "Kept offline in this browser. Click to let it go with the other books read here";
+                        <button class="bt-icon bt-offline @(_kept ? "on" : "")" title="@offlineAction" aria-label="Keep offline" aria-pressed="@_kept"
+                                @onclick="ToggleOfflineAsync"><Icon Name="HardDrive" Size="15" /></button>
+                        @if (_kept && _offlineProgress < 1)
+                        {
+                            <span class="bt-small bt-offlineprogress" role="status">@_offlineProgress.ToString("P0", System.Globalization.CultureInfo.CurrentCulture)</span>
+                        }
+                    }
                     <span class="bt-tooldivider"></span>
                     @if (Popout == true)
                     {
@@ -198,6 +210,8 @@ else
     IJSObjectReference? _module, _reader;
     DotNetObjectReference<Reader>? _self;
     bool _opened, _canCopy = true, _favorite, _showOutline, _showStrip;
+    bool _stored, _kept;
+    double _offlineProgress;
     int _page;
     string _pageEntry = "";
     bool _editingPage;
@@ -261,6 +275,7 @@ else
         _linkBack = null;
         _opened = false;
         _canCopy = true;
+        _stored = _kept = false;
         ClearFindState();
         if (_book.Notice is { } notice) ShowNotice(notice);
     }
@@ -296,7 +311,11 @@ else
         {
             _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/reader.js");
             _self ??= DotNetObjectReference.Create(this);
-            var options = new { key = book.ContentHash, size = book.Size, start = book.StartPage, labels = book.Labels, marks = book.Marks };
+            var options = new
+            {
+                key = book.ContentHash, size = book.Size, start = book.StartPage, labels = book.Labels, marks = book.Marks,
+                title = book.Title, entryId = book.EntryId, documentId = book.DocumentId,
+            };
             reader = await _module.InvokeAsync<IJSObjectReference>("open", _stage, _strip, options, _self);
         }
         catch (JSException e)
@@ -360,6 +379,16 @@ else
     {
         _opened = true;
         _canCopy = canCopy;
+        StateHasChanged();
+    }
+
+    /// <summary>Whether this browser keeps the book's pages, whether it's kept offline, and how much of it is here.</summary>
+    [JSInvokable]
+    public void Offline(bool stored, bool kept, double progress)
+    {
+        _stored = stored;
+        _kept = kept;
+        _offlineProgress = progress;
         StateHasChanged();
     }
 
@@ -540,6 +569,12 @@ else
             _favorite = !_favorite;
             ShowNotice(e.Message);
         }
+    }
+
+    async Task ToggleOfflineAsync()
+    {
+        _kept = !_kept;
+        await CallAsync("keepOffline", _kept);
     }
 
     /// <summary>The book moves to a window of its own, at the page in view, as the Windows reader's Pop out.</summary>

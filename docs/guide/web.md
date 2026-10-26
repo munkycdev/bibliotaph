@@ -311,6 +311,24 @@ server never has a copy. What you've read is kept in your browser, so turning ba
 A PDF with a password asks for it each time it opens; the password isn't kept. A book owned elsewhere has nothing to
 open, and a file inside a ZIP opens in the Windows app for now. Pictures, packs and e-books come to the reader next.
 
+### Books in this browser
+
+The pages you read are kept in your browser, so a book you've opened before shows its pages without downloading them
+again. Each browser keeps its own, and they're only ever a copy: letting one go never touches the file or anything
+you've written about it.
+
+- **Keep offline**: the drive button in the reader's toolbar downloads the whole book to this browser, showing how far
+  it has got, so it opens and turns pages at once. Click it again to let the book go with the others. If the download
+  stops, it carries on next time you open the book.
+- **Settings → Books in this browser** lists the books kept here, how much room they take, and when you last read
+  them. Set the room for books not kept offline (2 GB to start); past it, the books you read longest ago are let go
+  first. A book kept offline is never let go for room. **×** lets one book go, and **Let go of books not kept
+  offline** lets go of the rest.
+- When you first keep a book offline, Bibliotaph asks the browser not to clear its books when the computer runs short
+  of space. Some browsers agree only for a site you visit often or have bookmarked; until then, Settings says the
+  browser may clear them.
+- A private window can't keep books: each page downloads as you read it.
+
 ## Your theme
 
 The button at the top right cycles between your device's theme, light and dark, as in the Windows app. The browser

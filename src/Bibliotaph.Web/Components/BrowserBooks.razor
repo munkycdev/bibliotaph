@@ -1,0 +1,176 @@
+@* The books this browser keeps for the reader: how much room they take, the most it keeps, and each one to let go. *@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<section class="bt-section" id="offline" aria-labelledby="offline-heading">
+    <h2 id="offline-heading">Books in this browser</h2>
+    <p class="bt-copy">The pages you read are kept in this browser, so a book opens again without downloading them. A book kept
+        offline is kept whole; the others are let go, those read longest ago first, once they take more than the room below.</p>
+    @if (_books is null)
+    {
+        <p class="bt-sample">@(_unavailable ? "This browser can't keep books, as in a private window: each page downloads as you read it." : "Looking…")</p>
+    }
+    else
+    {
+        <div class="bt-settingrow">
+            <div>Room for books not kept offline<small>@Usage</small></div>
+            <select aria-label="Room for books not kept offline" value="@_limit" @onchange="LimitChangedAsync">
+                @foreach (var gigabytes in Limits)
+                {
+                    <option value="@(gigabytes * Gigabyte)">@gigabytes GB</option>
+                }
+            </select>
+        </div>
+        @foreach (var book in _books)
+        {
+            <div class="bt-source bt-sourcerow">
+                <Icon Name="@(book.Keep ? "HardDrive" : "BookOpen")" />
+                <div><a href="@ReaderUrl.For(book.EntryId, book.DocumentId > 0 ? book.DocumentId : null)">@(book.Title.Length > 0 ? book.Title : "A book")</a><small>@Detail(book)</small></div>
+                <button class="bt-icon" title="Let it go from this browser" aria-label="@($"Let {book.Title} go from this browser")" @onclick="() => RemoveAsync(book)"><Icon Name="X" /></button>
+            </div>
+        }
+        @if (_books.Count == 0)
+        {
+            <p class="bt-sample">No books yet. Open one and its pages are kept here as you read.</p>
+        }
+        else
+        {
+            <div class="bt-actions">
+                <button class="bt-button" disabled="@(!_books.Any(b => !b.Keep))" @onclick="ClearAsync"><Icon Name="Trash2" />Let go of books not kept offline</button>
+            </div>
+        }
+        <p class="bt-sample">Letting a book go here never touches its file or anything you've written about it.@(_persisted ? "" : " The browser may also let books go when the computer runs short of space.")</p>
+    }
+</section>
+
+@code {
+    const long Gigabyte = 1L << 30;
+    static readonly int[] Limits = [1, 2, 5, 10, 20];
+
+    IJSObjectReference? _cache;
+    List<KeptBook>? _books;
+    bool _unavailable, _persisted;
+    long _limit, _quota;
+
+    /// <summary>One book's folder in the browser, as bookcache.js lists it.</summary>
+    sealed record KeptBook(string Key, string Title, long EntryId, long DocumentId, long Size, long Bytes, bool Complete, bool Keep, double Read);
+
+    sealed record Space(long Usage, long Quota, bool Persisted);
+
+    string Usage
+    {
+        get
+        {
+            var total = _books?.Sum(b => b.Bytes) ?? 0;
+            var taken = total > 0 ? $"Books take {Size(total)}" : "Nothing kept yet";
+            return _quota > 0 ? $"{taken}; the browser lets Bibliotaph keep up to {Size(_quota)}." : taken + ".";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try
+        {
+            _cache = await JS.InvokeAsync<IJSObjectReference>("import", "./js/bookcache.js");
+            _limit = await _cache.InvokeAsync<long>("limit");
+        }
+        catch (JSException)
+        {
+            _unavailable = true;
+            StateHasChanged();
+            return;
+        }
+        await RefreshAsync();
+    }
+
+    async Task RefreshAsync()
+    {
+        if (_cache is null) return;
+        try
+        {
+            var books = await _cache.InvokeAsync<List<KeptBook>>("books");
+            var space = await _cache.InvokeAsync<Space>("space");
+            _books = [.. books.OrderByDescending(b => b.Keep).ThenByDescending(b => b.Read)];
+            (_quota, _persisted) = (space.Quota, space.Persisted);
+            _unavailable = false;
+        }
+        catch (JSException)
+        {
+            _books = null;
+            _unavailable = true;
+        }
+        StateHasChanged();
+    }
+
+    async Task LimitChangedAsync(ChangeEventArgs e)
+    {
+        if (_cache is null || !long.TryParse(e.Value?.ToString(), out var limit)) return;
+        _limit = limit;
+        try
+        {
+            await _cache.InvokeVoidAsync("setLimit", limit);
+            await _cache.InvokeVoidAsync("trim", null, limit);
+        }
+        catch (JSException)
+        {
+            // The limit holds from the next book opened.
+        }
+        await RefreshAsync();
+    }
+
+    async Task RemoveAsync(KeptBook book)
+    {
+        if (_cache is null) return;
+        try
+        {
+            await _cache.InvokeAsync<bool>("remove", book.Key);
+        }
+        catch (JSException)
+        {
+            // Listed again below as it is.
+        }
+        await RefreshAsync();
+    }
+
+    async Task ClearAsync()
+    {
+        if (_cache is null) return;
+        try
+        {
+            await _cache.InvokeVoidAsync("clear");
+        }
+        catch (JSException)
+        {
+            // Listed again below as it is.
+        }
+        await RefreshAsync();
+    }
+
+    static string Detail(KeptBook book)
+    {
+        var read = book.Read > 0 ? $" · read {DateTimeOffset.FromUnixTimeMilliseconds((long)book.Read).LocalDateTime:d MMM yyyy}" : "";
+        if (book.Keep) return book.Complete ? $"Kept offline · {Size(book.Size)}{read}" : $"Kept offline · {Size(book.Bytes)} of {Size(book.Size)} here{read}";
+        return book.Complete ? $"All {Size(book.Size)} here{read}" : $"{Size(book.Bytes)} of {Size(book.Size)} here{read}";
+    }
+
+    static string Size(long bytes) => bytes switch
+    {
+        >= Gigabyte => $"{bytes / (double)Gigabyte:0.#} GB",
+        >= 1L << 20 => $"{bytes / (double)(1L << 20):0} MB",
+        _ => $"{Math.Max(1, bytes / 1024):N0} KB",
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_cache is null) return;
+        try
+        {
+            await _cache.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The page is going anyway.
+        }
+    }
+}
