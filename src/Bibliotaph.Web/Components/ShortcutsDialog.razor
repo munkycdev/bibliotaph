@@ -1,0 +1,44 @@
+@* The Windows app's Keyboard shortcuts popup (Ctrl+/, or the link under the Settings sections): every shortcut, by
+   where it works. *@
+
+<div class="bt-backdrop fixed bt-dialogback" @onclick="Closed"></div>
+<div class="bt-dialog bt-wide bt-shortcuts" role="dialog" aria-modal="true" aria-labelledby="shortcuts-heading" @onkeydown="KeyDownAsync">
+    <div class="bt-drawer-head bt-dialoghead">
+        <div>
+            <h2 class="bt-dialogtitle" id="shortcuts-heading">Keyboard shortcuts</h2>
+            <div class="bt-small bt-dialogintro">Tab and Shift+Tab move between controls, and Space or Enter presses what has focus. These work too:</div>
+        </div>
+        <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="Closed" @ref="_close"><Icon Name="X" /></button>
+    </div>
+    <div class="bt-shortcutlist" tabindex="0" aria-label="Keyboard shortcuts">
+        @foreach (var area in KeyboardShortcuts.All)
+        {
+            <h3>@area.Name</h3>
+            <dl>
+                @foreach (var shortcut in area.Shortcuts)
+                {
+                    <div><dt>@shortcut.Keys</dt><dd>@shortcut.Action</dd></div>
+                }
+            </dl>
+        }
+    </div>
+    <div class="bt-actions bt-dialogactions">
+        <button class="bt-button primary" @onclick="Closed">Close</button>
+    </div>
+</div>
+
+@code {
+    ElementReference _close;
+
+    [Parameter, EditorRequired] public EventCallback Closed { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _close.FocusAsync();
+    }
+
+    async Task KeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Closed.InvokeAsync();
+    }
+}

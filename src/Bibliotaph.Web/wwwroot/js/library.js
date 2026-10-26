@@ -67,3 +67,55 @@ window.bibliotaphCopy = function (text) {
   if (!navigator.clipboard) return Promise.resolve(false);
   return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return false; });
 };
+// The keys that work everywhere, as in the Windows app: Ctrl+K (or /, as on the web) puts the keyboard in the search
+// box, and Ctrl+/ shows every shortcut. In a reader popped out of the main window, Ctrl+K searches in that window.
+// Shift+Enter or a middle-click on a book's card pops it out into a window of its own.
+window.bibliotaphShell = (function () {
+  var shell = null;
+  function typing(target) {
+    return target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT' || target.isContentEditable);
+  }
+  function searchBox(win) {
+    try { return win.document.querySelector('.bt-search input'); } catch (e) { return null; }
+  }
+  function focusSearch() {
+    var box = searchBox(window);
+    var main = window;
+    if (!box && window.opener && !window.opener.closed) {
+      main = window.opener;
+      box = searchBox(main);
+    }
+    if (!box) return false;
+    main.focus();
+    box.focus();
+    box.select();
+    return true;
+  }
+  function popOut(card) {
+    var url = card && card.getAttribute('data-popout');
+    if (!url) return false;
+    window.open(url, '_blank', 'popup,width=960,height=900');
+    return true;
+  }
+  document.addEventListener('keydown', function (e) {
+    var ctrl = (e.ctrlKey || e.metaKey) && !e.altKey;
+    if (ctrl && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+      if (focusSearch()) e.preventDefault();
+    } else if (ctrl && e.key === '/') {
+      if (!shell || document.querySelector('.bt-dialog')) return;
+      e.preventDefault();
+      shell.invokeMethodAsync('ShowShortcuts');
+    } else if (e.key === '/' && !ctrl && !e.altKey && !typing(e.target) && !document.querySelector('.bt-dialog')) {
+      if (focusSearch()) e.preventDefault();
+    } else if (e.key === 'Enter' && e.shiftKey && !ctrl && e.target && e.target.closest) {
+      if (popOut(e.target.closest('[data-popout]'))) e.preventDefault();
+    }
+  });
+  document.addEventListener('auxclick', function (e) {
+    if (e.button === 1 && e.target && e.target.closest && popOut(e.target.closest('[data-popout]'))) e.preventDefault();
+  });
+  return {
+    start: function (s) { shell = s; },
+    stop: function () { shell = null; }
+  };
+})();

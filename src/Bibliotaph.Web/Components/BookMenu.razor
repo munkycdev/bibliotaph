@@ -78,7 +78,8 @@
         await Closed.InvokeAsync();
         try
         {
-            await JS.InvokeVoidAsync("open", ReaderUrl.For(Book), "_blank", "noopener");
+            // A reader window of its own, as Shift+Enter on the card opens.
+            await JS.InvokeVoidAsync("open", ReaderUrl.For(Book, popout: true), "_blank", "popup,width=960,height=900");
         }
         catch (JSException)
         {

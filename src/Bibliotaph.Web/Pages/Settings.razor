@@ -19,6 +19,7 @@
             }
             <div class="bt-settingsrule"></div>
             <button class="bt-settingsentry" @onclick="() => _about = true">About Bibliotaph</button>
+            <button class="bt-settingsentry" title="Ctrl+/" @onclick="() => _shortcuts = true">Keyboard shortcuts</button>
         </nav>
         <div class="bt-settingsbody">
             <CascadingValue Name="ChooseSettingsSection" Value="_choose" IsFixed="true">
@@ -48,11 +49,17 @@
     <AboutDialog Closed="() => _about = false" />
 }
 
+@if (_shortcuts)
+{
+    <ShortcutsDialog Closed="() => _shortcuts = false" />
+}
+
 @code {
     CurrentUser? _me;
     string _selected = "storage";
     Func<string, Task> _choose = null!;
     bool _about;
+    bool _shortcuts;
 
     [SupplyParameterFromQuery(Name = "problem")] public string? Problem { get; set; }
 

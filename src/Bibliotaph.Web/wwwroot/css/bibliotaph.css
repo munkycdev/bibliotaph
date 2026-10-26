@@ -603,6 +603,14 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-filename{font-size:12px;font-weight:500;overflow-wrap:anywhere}
 .bt-dialog.bt-wide{width:min(660px,calc(100% - 32px));display:flex;flex-direction:column;overflow:hidden}
 .bt-bulkbody{flex:1;min-height:0;overflow:auto;margin-top:10px;padding-right:8px}
+.bt-shortcutlist{flex:1;min-height:0;overflow:auto;margin-top:6px;padding-right:12px}
+.bt-shortcutlist:focus-visible{outline:2px solid var(--bt-accent);outline-offset:2px;border-radius:4px}
+.bt-shortcutlist h3{margin:16px 0 4px;font-size:12px;font-weight:600}
+.bt-shortcutlist dl{margin:0}
+.bt-shortcutlist dl>div{display:grid;grid-template-columns:2fr 3fr;gap:12px;padding:7px 0;border-bottom:1px solid var(--bt-line);font-size:12px}
+.bt-shortcutlist dt{font-weight:500}
+.bt-shortcutlist dd{margin:0;color:var(--bt-muted)}
+.bt-shortcuts .bt-dialogactions{justify-content:flex-end;margin-top:16px}
 .bt-bulkfield{padding:12px 0;border-bottom:1px solid var(--bt-line)}
 .bt-bulkline{display:flex;align-items:center;gap:10px}
 .bt-bulkwhat{flex:1;min-width:0}

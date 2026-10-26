@@ -24,7 +24,9 @@ sections beside the one you're in, in the Windows app's order. **Storage**, **Li
 **Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
 invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
-the privacy policy.
+the privacy policy. **Keyboard shortcuts**, under it, lists every key that works on the web, by where it works; Ctrl+/
+shows the same list from anywhere. Ctrl+K, or / when you're not typing, puts the keyboard in the search box, and in a
+reader popped out into a window of its own, Ctrl+K searches in the main window.
 
 ## Signing in and out
 
@@ -116,7 +118,8 @@ remembers the layout, the order and the pack view.
 
 Right-click a book (or press and hold it on a touch screen) for the Windows app's menu: **Open**, **Open in new
 window**, **Details**, **Add to favorites**, **Pin**, **Cataloged wrong…**, **Add to collection** and **Add to binder**,
-each with the list to choose from, and **Remove from library** for a book owned elsewhere.
+each with the list to choose from, and **Remove from library** for a book owned elsewhere. **Open in new window**
+opens the book in a reader window of its own, as Shift+Enter on a book or a middle-click does.
 
 **Filters** opens the Windows app's filter panel: game system, type, character level (with **Include unknown levels**)
 and players, then under **More filters** the style and length of an adventure, the book's setting, themes,
