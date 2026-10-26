@@ -95,18 +95,19 @@ public sealed class IndexQueries(IndexDatabase database)
 
     /// <summary>
     /// Failed and blocked stages, newest first, with the document's title where Probe got that far. A book the AI couldn't
-    /// read is one of them; one waiting for the AI to answer at all isn't, since that never fails a book.
+    /// read is one of them; one waiting for the AI to answer at all isn't, since that never fails a book. With
+    /// <paramref name="documents"/>, only theirs: the documents in the library's folders, leaving out a removed one's.
     /// </summary>
-    public async Task<IReadOnlyList<AttentionItem>> GetAttentionAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<AttentionItem>> GetAttentionAsync(IReadOnlyCollection<long>? documents = null, CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
         var rows = await connection.QueryAsync<(long DocumentId, string? Title, string Stage, string Status, string? Reason, string Updated)>(new CommandDefinition(
-            """
+            $"""
             SELECT s.document_id, d.display_title, s.stage, s.status, s.reason, s.updated_utc
             FROM stage_status s LEFT JOIN doc d ON d.document_id = s.document_id
-            WHERE s.status IN ('Failed', 'Blocked')
+            WHERE s.status IN ('Failed', 'Blocked') {(documents is null ? "" : "AND s.document_id IN (SELECT value FROM json_each(@documents))")}
             ORDER BY s.updated_utc DESC
-            """, cancellationToken: ct));
+            """, new { documents = documents is null ? null : System.Text.Json.JsonSerializer.Serialize(documents) }, cancellationToken: ct));
         return [.. rows.Select(r => new AttentionItem(r.DocumentId, r.Title ?? $"Document {r.DocumentId}", Enum.Parse<Stage>(r.Stage),
             Enum.Parse<StageStatus>(r.Status), r.Reason, DateTime.Parse(r.Updated, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal)))];
     }
@@ -503,25 +504,33 @@ public sealed class IndexQueries(IndexDatabase database)
     /// The entries with Needs review cards, by title, with the document each shows (null before Probe has added it)
     /// and how many cards each has.
     /// </summary>
-    public async Task<IReadOnlyList<(EntryId EntryId, long? DocumentId, string Title, int Reviews)>> GetReviewEntriesAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<(EntryId EntryId, long? DocumentId, string Title, int Reviews)>> GetReviewEntriesAsync(
+        IReadOnlyCollection<EntryId>? scope = null, CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
         var rows = await connection.QueryAsync<(long EntryId, long? DocumentId, string? Title, long Reviews)>(new CommandDefinition(
-            """
+            $"""
             SELECT m.entry_id, e.document_id, coalesce(m.title, d.display_title), m.needs_review
             FROM entry_meta m LEFT JOIN entry_doc e ON e.entry_id = m.entry_id LEFT JOIN doc d ON d.document_id = e.document_id
-            WHERE m.needs_review > 0
+            WHERE m.needs_review > 0 {(scope is null ? "" : "AND m.entry_id IN (SELECT value FROM json_each(@scope))")}
             ORDER BY coalesce(m.title, d.display_title) COLLATE NOCASE, m.entry_id
-            """, cancellationToken: ct));
+            """, new { scope = Scope(scope) }, cancellationToken: ct));
         return [.. rows.Select(r => (new EntryId(r.EntryId), r.DocumentId, r.Title ?? $"Document {r.EntryId}", (int)r.Reviews))];
     }
 
-    /// <summary>How many Needs review cards entries have, in all.</summary>
-    public async Task<long> CountReviewsAsync(CancellationToken ct = default)
+    /// <summary>
+    /// How many Needs review cards entries have, in all, or among <paramref name="scope"/>: the entries the library
+    /// shows, since a removed folder's books keep their projected metadata in case the folder is added back.
+    /// </summary>
+    public async Task<long> CountReviewsAsync(IReadOnlyCollection<EntryId>? scope = null, CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
-        return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT coalesce(sum(needs_review), 0) FROM entry_meta", cancellationToken: ct));
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            $"SELECT coalesce(sum(needs_review), 0) FROM entry_meta {(scope is null ? "" : "WHERE entry_id IN (SELECT value FROM json_each(@scope))")}",
+            new { scope = Scope(scope) }, cancellationToken: ct));
     }
+
+    static string? Scope(IReadOnlyCollection<EntryId>? scope) => scope is null ? null : System.Text.Json.JsonSerializer.Serialize(scope.Select(e => e.Value));
 
     /// <summary>A document's embedded information, or null before Probe has added it.</summary>
     public async Task<EmbeddedInfo?> GetEmbeddedInfoAsync(long documentId, CancellationToken ct = default)

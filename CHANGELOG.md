@@ -165,6 +165,9 @@
   NAS on the internet, with its folder's address, your user name and an app password, kept encrypted and used only to
   read. Its books open in the reader through the server, and Nextcloud's changes are noticed within five minutes. See
   [Connecting your storage](docs/guide/web.md#connecting-your-storage).
+- **Needs review forgets a removed folder's books.** Removing a library folder, on the web or in the Windows app, left
+  its books' suggestions, new terms and failed files in Needs review and the sidebar's count; now only the books in the
+  library's folders count.
 
 ## 1.3 · 19 October 2026
 

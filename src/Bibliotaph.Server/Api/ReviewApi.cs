@@ -203,7 +203,7 @@ public static class ReviewApi
     static async Task<ReviewFiles> FilesAsync(UserLibrary library, CancellationToken ct)
     {
         var stages = library.Get<IStageCatalog>();
-        var rows = (await library.Get<IndexQueries>().GetAttentionAsync(ct))
+        var rows = (await library.Get<IndexQueries>().GetAttentionAsync(await library.Get<LibraryStore>().GetVisibleDocumentIdsAsync(ct), ct))
             .Select(item => ReviewText.Row(item, stages))
             .Concat(library.Indexing.Unreadable.Select(u => ReviewText.Unreadable(Path.GetFileName(u.Path), u.Reason)))
             .Concat((await library.Get<LibraryStore>().GetProblemsAsync(ct)).Select(p => ReviewText.Problem(Path.GetFileName(p.FullPath), p.Problem, p.FullPath)));

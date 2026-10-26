@@ -91,7 +91,7 @@ collections and corrections stay for when you connect it again.
 walk down to the folder you want, and choose **Use this folder**. Folders already in your library are marked. The new
 folder shows what's directly in it; choose **Add to library** to keep it or **Cancel**. Each folder then says when it was
 added and what it holds, such as "488 PDFs, 12 e-books, 120 images · 15 other files ignored". The **×** removes a folder
-from your library without touching its files.
+from your library without touching its files, and its books' cards leave Needs review and its count with them.
 
 Bibliotaph looks through a new folder straight away, then reads each new file to recognise it. Your books aren't
 copied: each is downloaded only while it's being read and deleted straight after. The line at the bottom of the sidebar

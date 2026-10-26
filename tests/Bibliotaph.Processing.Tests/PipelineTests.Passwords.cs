@@ -51,7 +51,7 @@ public abstract partial class PipelineTests
             Assert.Equal(TextAccess.Locked, locked.TextAccess);
             Assert.False(locked.Searchable);
             Assert.Equal(1, progress.Withheld);
-            var attention = Assert.Single(await _queries.GetAttentionAsync(Ct));
+            var attention = Assert.Single(await _queries.GetAttentionAsync(ct: Ct));
             Assert.Equal(TextAccess.Locked, TextAccessReasons.Of(attention.Status, attention.Reason));
 
             // Unlocked in the reader with "Make its text searchable" ticked: the app lends indexing the password and retries.
@@ -68,7 +68,7 @@ public abstract partial class PipelineTests
             var details = (await new LibraryQueries(_index).GetDetailsAsync(unlocked.EntryId, Ct))!;
             Assert.False(details.CanCopy);
             Assert.True(details.Encrypted);
-            Assert.Empty(await _queries.GetAttentionAsync(Ct));
+            Assert.Empty(await _queries.GetAttentionAsync(ct: Ct));
         }
 
         [Fact]
@@ -83,7 +83,7 @@ public abstract partial class PipelineTests
             Assert.Equal(TextAccess.Protected, entry.TextAccess);
             Assert.False(entry.Searchable);
             Assert.Equal((1, 0, 1), (progress.Documents, progress.Searchable, progress.Withheld));
-            var attention = Assert.Single(await _queries.GetAttentionAsync(Ct));
+            var attention = Assert.Single(await _queries.GetAttentionAsync(ct: Ct));
             Assert.Equal(TextAccess.Protected, TextAccessReasons.Of(attention.Status, attention.Reason));
 
             // Its details stay editable.
