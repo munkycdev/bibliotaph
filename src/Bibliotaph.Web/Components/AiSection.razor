@@ -1,0 +1,406 @@
+@* Settings › AI, as the Windows app's with a model server: Use AI on and off with how far it has got, the server's
+   address, Connect and its models, the key (never shown again), Save, Test with a book, Reclassify, and the folders
+   sent to AI. The server only reaches a model service on the internet, over https. *@
+@implements IDisposable
+@inject ApiClient Api
+@inject LibraryActivity Activity
+
+<section class="bt-section" id="ai" aria-labelledby="ai-heading">
+    <h2 id="ai-heading">AI</h2>
+    <p class="bt-copy">A model reads a few pages of each book (its opening pages, contents, introduction and a sample of the rest)
+        and suggests its title, game system, type, levels and more. Each suggestion has to quote the page it came from, or it's
+        thrown away. Your own values always win. Bibliotaph doesn't run a model or pay for one: you use your own key with a
+        service such as OpenAI or OpenRouter, or your own model server on the internet.</p>
+    @if (_page is null)
+    {
+        <p class="bt-sample">Looking…</p>
+    }
+    else
+    {
+        <div class="bt-settingrow">
+            <div>
+                Use AI<small>@_page.Progress</small>
+                @if (_page.Waiting is { } waiting)
+                {
+                    <small class="bt-problem">Waiting: @waiting</small>
+                }
+                @if (_switchNote is { } note)
+                {
+                    <small>@note</small>
+                }
+                @if (_switchProblem is { } problem)
+                {
+                    <small class="bt-problem" role="alert">@problem</small>
+                }
+            </div>
+            <div class="bt-segments" role="group" aria-label="Use AI">
+                <button class="@(_page.Enabled ? "" : "on")" aria-pressed="@(!_page.Enabled)" @onclick="() => SwitchAsync(false)">Off</button>
+                <button class="@(_page.Enabled ? "on" : "")" aria-pressed="@_page.Enabled" @onclick="() => SwitchAsync(true)">On</button>
+            </div>
+        </div>
+
+        <h3 class="bt-subheading">Model server</h3>
+        <p class="bt-sample">Any server that speaks the OpenAI chat API works, such as OpenAI at https://api.openai.com/v1,
+            OpenRouter at https://openrouter.ai/api/v1, or your own Ollama or LM Studio behind https.</p>
+        <label class="bt-field" for="ai-address">Address</label>
+        <div class="bt-inputrow">
+            <input id="ai-address" class="bt-input" aria-label="Model server address" placeholder="https://api.openai.com/v1"
+                   @bind="_endpoint" @bind:event="oninput" @bind:after="Edited" @onkeydown="AddressKeyDown" />
+            <button class="bt-button" disabled="@(_connecting || _endpoint.Trim().Length == 0)" @onclick="ConnectAsync"><Icon Name="RotateCcw" />Connect</button>
+        </div>
+        @if (_connection is { Text: { } found })
+        {
+            <p class="bt-sample">@found</p>
+        }
+        @if (_connection is { Problem: { } connectProblem })
+        {
+            <p class="bt-problem" role="alert">@connectProblem</p>
+        }
+
+        <p class="bt-problem">Each book's excerpt, a few thousand words of its text, is sent to this server, and so are the pages of
+            a book you ask a question. What the server's owner does with them is up to them.</p>
+        <label class="bt-check small bt-aisend"><input type="checkbox" @bind="_remoteAllowed" @bind:after="Edited" />Send excerpts to this server</label>
+
+        <label class="bt-field">Model
+            @if (_models.Count > 0)
+            {
+                <select aria-label="Model" @bind="_model" @bind:after="Edited">
+                    @foreach (var model in _models)
+                    {
+                        <option value="@model">@model</option>
+                    }
+                </select>
+            }
+            else
+            {
+                <input aria-label="Model name" @bind="_model" @bind:event="oninput" @bind:after="Edited" />
+            }
+        </label>
+        <p class="bt-sample">A small, fast model is enough to catalogue: it reads a few thousand words a book.</p>
+
+        <label class="bt-field" for="ai-key">Key, only if the server needs one</label>
+        <div class="bt-inputrow">
+            <input id="ai-key" class="bt-input" type="password" autocomplete="off" aria-label="Key" @bind="_key" @bind:event="oninput" @bind:after="Edited" />
+            @if (_page.KeyEnding is not null && SameAddress)
+            {
+                <button class="bt-button" @onclick="ForgetKeyAsync">Forget key</button>
+            }
+        </div>
+        <p class="bt-sample">Kept encrypted on Bibliotaph's server, used only to ask this server, and never shown again.</p>
+        @if (_page.KeyEnding is { } ending && SameAddress)
+        {
+            <p class="bt-sample">A key ending in @ending is saved for this server.</p>
+        }
+
+        <div class="bt-actions">
+            <button class="bt-button primary" disabled="@(!_dirty || _saving || _endpoint.Trim().Length == 0 || _model.Trim().Length == 0)" @onclick="SaveAsync"><Icon Name="Check" />Save</button>
+            <button class="bt-button" disabled="@(_endpoint.Trim().Length == 0 || _model.Trim().Length == 0)" @onclick="StartTestAsync">Test with a book</button>
+        </div>
+        @if (_saveNote is { } saved)
+        {
+            <p class="bt-sample" role="status">@saved</p>
+        }
+        @if (_saveProblem is { } saveProblem)
+        {
+            <p class="bt-problem" role="alert">@saveProblem</p>
+        }
+
+        @if (_page.Reclassify is { } reclassify)
+        {
+            <div class="bt-settingrow bt-topline">
+                <div>
+                    Reclassify<small>@reclassify.Text</small>
+                    @if (reclassify.HasFailed)
+                    {
+                        <small><a href="review?tab=files">See which books, and why</a></small>
+                    }
+                    <small>Values you've accepted, typed or rejected stay as they are.</small>
+                </div>
+                <button class="bt-button" @onclick="ReclassifyAsync">@reclassify.Label</button>
+            </div>
+        }
+
+        <div class="bt-topline">
+            <h3 class="bt-subheading">Library folders sent to AI</h3>
+            <p class="bt-sample">Untick a folder to keep its books away from the model. They keep their hints from names, and you can
+                still fill them in yourself.</p>
+            @foreach (var folder in _page.Folders)
+            {
+                <label class="bt-check small bt-aifolder">
+                    <input type="checkbox" checked="@folder.Send" aria-label="@($"Send the books in {folder.Location} to AI")"
+                           @onchange="e => SendFolderAsync(folder, e.Value is true)" />@folder.Location
+                </label>
+            }
+            @if (_page.Folders.Count == 0)
+            {
+                <p class="bt-sample">No library folders yet.</p>
+            }
+        </div>
+    }
+</section>
+
+@if (_test is not null)
+{
+    <div class="bt-backdrop fixed bt-dialogback" @onclick="CloseTest"></div>
+    <div class="bt-dialog bt-wide bt-aitest" role="dialog" aria-modal="true" aria-label="Test with a book" tabindex="-1" @onkeydown="TestKeyDown" @ref="_dialog">
+        <div class="bt-drawer-head bt-dialoghead">
+            <h2 class="bt-dialogtitle">Testing @_test.Model</h2>
+            <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="CloseTest"><Icon Name="X" /></button>
+        </div>
+        @if (_test.Report is not { } report)
+        {
+            <div class="bt-aiteststep">
+                <div>Waiting for @_test.Model…<small>It picks a book from your library and reads its opening pages, contents,
+                    introduction and a sample of the rest. A model that isn't loaded yet can take a minute or two to answer the
+                    first time.</small></div>
+                <span class="bt-small">@_test.Seconds s</span>
+            </div>
+            <div class="bt-busybar" aria-label="Testing"><span></span></div>
+        }
+        else
+        {
+            <div class="bt-aitestresult" tabindex="0" aria-label="Test results">
+                @if (report.Summary is { } summary)
+                {
+                    <p class="bt-aitestsummary">@summary</p>
+                }
+                @if (report.Problem is { } testProblem)
+                {
+                    <p class="bt-problem">@testProblem</p>
+                }
+                @foreach (var line in report.Kept)
+                {
+                    <div class="bt-aitestline">@line.Text<small>@line.Detail</small></div>
+                }
+                @if (report.Dropped.Count > 0)
+                {
+                    <div class="bt-eyebrow bt-eyebrow-block bt-aitestdropped">Thrown away</div>
+                    @foreach (var line in report.Dropped)
+                    {
+                        <div class="bt-small">@line.Text · @line.Detail</div>
+                    }
+                }
+            </div>
+        }
+        <div class="bt-boxactions bt-dialogactions bt-aitestactions">
+            @if (_test.Report is not null)
+            {
+                <button class="bt-button" @onclick="RunTestAsync"><Icon Name="RotateCcw" />Test again</button>
+            }
+            <button class="bt-button primary" @onclick="CloseTest">@(_test.Report is null ? "Cancel" : "Close")</button>
+        </div>
+    </div>
+}
+
+@code {
+    AiPage? _page;
+    string _endpoint = "", _model = "", _key = "";
+    bool _remoteAllowed, _dirty, _connecting, _saving;
+    List<string> _models = [];
+    AiConnection? _connection;
+    string? _switchNote, _switchProblem, _saveNote, _saveProblem;
+    TestRun? _test;
+    ElementReference _dialog;
+    bool _focusDialog;
+
+    /// <summary>A test in the dialog: the model, the seconds so far, and its report once it's back.</summary>
+    sealed class TestRun(string model)
+    {
+        public string Model { get; } = model;
+        public int Seconds { get; set; }
+        public AiTestReport? Report { get; set; }
+        public CancellationTokenSource Stop { get; } = new();
+    }
+
+    /// <summary>Whether the address on the page is the one saved, so the saved key belongs to it.</summary>
+    bool SameAddress => _page?.Endpoint is { } saved && Trimmed(_endpoint) == saved;
+
+    static string Trimmed(string endpoint)
+    {
+        var text = endpoint.Trim().TrimEnd('/');
+        if (!text.Contains("://", StringComparison.Ordinal)) text = "https://" + text;
+        return text.EndsWith("/v1", StringComparison.OrdinalIgnoreCase) ? text[..^3] : text;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _page = await Api.AiAsync();
+        _endpoint = _page.Endpoint is { } endpoint ? endpoint + "/v1" : "";
+        _model = _page.Model ?? "";
+        _remoteAllowed = _page.RemoteAllowed;
+        if (_page.Model is { } model) _models = [model];
+        if (_page.Endpoint is not null) await ConnectAsync();
+        _dirty = false;
+    }
+
+    void Edited()
+    {
+        _dirty = true;
+        _saveNote = null;
+        _saveProblem = null;
+    }
+
+    async Task AddressKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await ConnectAsync();
+    }
+
+    /// <summary>Finds out what is at the address and lists its models, keeping the model on the page.</summary>
+    async Task ConnectAsync()
+    {
+        _connecting = true;
+        _connection = new AiConnection(null, "Connecting…", null, []);
+        try
+        {
+            _connection = await Api.ConnectAiAsync(new AiConnect(_endpoint, _key.Length > 0 ? _key : null));
+        }
+        catch (HttpRequestException)
+        {
+            _connection = new AiConnection(null, null, "Bibliotaph couldn't reach its server just now. Try again in a moment.", []);
+        }
+        _connecting = false;
+        if (_connection.Models.Count == 0) return;
+        var keep = _model.Trim();
+        _models = [.. _connection.Models];
+        // A model the server no longer lists stays as typed, so the user sees what is saved.
+        if (keep.Length > 0 && !_models.Contains(keep)) _models.Insert(0, keep);
+        if (keep.Length == 0)
+        {
+            _model = _models[0];
+            _dirty = true;
+        }
+    }
+
+    async Task SaveAsync()
+    {
+        _saving = true;
+        try
+        {
+            var result = await Api.SaveAiAsync(new AiSave(_endpoint, _model, _key.Length > 0 ? _key : null, _remoteAllowed));
+            (_saveNote, _saveProblem) = (result.Note, result.Problem);
+            if (result.Problem is null)
+            {
+                _key = "";
+                _dirty = false;
+                _switchProblem = null;
+                await RefreshAsync();
+            }
+        }
+        catch (HttpRequestException)
+        {
+            _saveProblem = "Bibliotaph couldn't reach its server just now. Try again in a moment.";
+        }
+        _saving = false;
+    }
+
+    async Task SwitchAsync(bool on)
+    {
+        if (_page is null || _page.Enabled == on) return;
+        var result = await Api.SwitchAiAsync(on);
+        (_switchNote, _switchProblem) = (result.Note, result.Problem);
+        await RefreshAsync();
+    }
+
+    async Task ForgetKeyAsync()
+    {
+        if (_page?.Endpoint is not { } endpoint) return;
+        await Api.ForgetAiKeyAsync(endpoint);
+        await RefreshAsync();
+    }
+
+    async Task ReclassifyAsync()
+    {
+        _saveNote = (await Api.ReclassifyAsync()).Note;
+        await RefreshAsync();
+    }
+
+    async Task SendFolderAsync(AiFolder folder, bool send)
+    {
+        await Api.SendFolderToAiAsync(folder.Id, send);
+        await RefreshAsync();
+    }
+
+    async Task RefreshAsync()
+    {
+        _page = await Api.AiAsync();
+        Activity.Refresh();
+    }
+
+    async Task StartTestAsync()
+    {
+        if (!_remoteAllowed)
+        {
+            _saveProblem = "Tick “Send excerpts to this server” first: the test sends a book's excerpt too.";
+            return;
+        }
+        _test = new TestRun(_model.Trim());
+        _focusDialog = true;
+        await RunTestAsync();
+    }
+
+    /// <summary>Runs the test; a second run reads the same book, so it compares models fairly.</summary>
+    async Task RunTestAsync()
+    {
+        if (_test is not { } test) return;
+        test.Report = null;
+        test.Seconds = 0;
+        using var ticking = new CancellationTokenSource();
+        _ = TickAsync(test, ticking.Token);
+        try
+        {
+            test.Report = await Api.TestAiAsync(new AiTest(_endpoint, test.Model, _remoteAllowed), test.Stop.Token);
+        }
+        catch (OperationCanceledException) when (test.Stop.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            test.Report = new AiTestReport(null, "The test didn't finish: the model took too long, or Bibliotaph's server couldn't be reached.", [], []);
+        }
+        finally
+        {
+            await ticking.CancelAsync();
+        }
+    }
+
+    /// <summary>Counts the seconds, so a model that is still loading never looks like a stuck page.</summary>
+    async Task TickAsync(TestRun test, CancellationToken ct)
+    {
+        try
+        {
+            while (true)
+            {
+                await Task.Delay(1000, ct);
+                test.Seconds++;
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The test finished or was stopped.
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusDialog || _test is null) return;
+        _focusDialog = false;
+        // Esc closes it, as the Windows dialog's Cancel does.
+        await _dialog.FocusAsync();
+    }
+
+    void TestKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CloseTest();
+    }
+
+    void CloseTest()
+    {
+        _test?.Stop.Cancel();
+        _test?.Stop.Dispose();
+        _test = null;
+    }
+
+    public void Dispose() => CloseTest();
+}

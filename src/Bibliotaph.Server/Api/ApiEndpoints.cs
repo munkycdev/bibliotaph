@@ -54,6 +54,7 @@ public static class ApiEndpoints
         api.MapElsewhereApi();
         api.MapReaderApi();
         api.MapPageNotesApi();
+        api.MapAiApi();
 
         var invites = api.MapGroup("/invites").RequireAuthorization(AuthSetup.AdminPolicy);
 

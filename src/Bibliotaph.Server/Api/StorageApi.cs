@@ -135,10 +135,14 @@ public static class StorageApi
         var folders = (await library.Get<SourceRootStore>().ListAsync(ct)).Count;
         var unhashed = counts.Unhashed - indexing.Unreadable.Count;
         var progress = await library.Get<IndexQueries>().GetProgressAsync(ct);
+        var ai = library.Get<AiSettings>().Setup.IsReady && progress.ToClassify > 0;
         var text = indexing.IsScanning ? "Looking through your folders"
             : unhashed > 0 && indexing.IsPaused(Lane.Index) ? "Indexing paused"
             : unhashed > 0 ? $"Reading {unhashed:N0} new {FolderText.Plural(unhashed, "file", "files")}"
             : progress.PagesAwaitingOcr > 0 ? indexing.IsPaused(Lane.Ocr) ? "Reading scanned pages paused" : $"Reading scanned pages · {progress.PagesAwaitingOcr:N0} left"
+            : ai && indexing.IsPaused(Lane.Classify) ? "Cataloguing with AI paused"
+            : ai && indexing.Unavailable(Lane.Classify) is not null ? "Cataloguing with AI is waiting"
+            : ai ? $"Cataloguing with AI · {progress.ToClassify:N0} left"
             : counts.Documents == 0 ? "Nothing to process"
             : $"Up to date · {counts.Documents:N0} {FolderText.Plural(counts.Documents, "item", "items")}";
         var suggestions = await library.Get<ReviewService>().CountAsync(ct);

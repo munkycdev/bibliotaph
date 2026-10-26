@@ -247,12 +247,9 @@ public sealed partial class AiSettingsViewModel(
 
     public bool CanReclassify => Earlier > 0 || Failed > 0;
 
-    public string ReclassifyText => Earlier > 0 && Failed > 0
-        ? $"{Earlier:N0} {Books(Earlier)} were classified by another model or an earlier version of Bibliotaph, and {Failed:N0} couldn't be."
-        : Earlier > 0 ? $"{Earlier:N0} {Books(Earlier)} were classified by another model or an earlier version of Bibliotaph."
-        : $"{Failed:N0} {Books(Failed)} couldn't be classified.";
+    public string ReclassifyText => AiText.Reclassify(Earlier, Failed);
 
-    public string ReclassifyLabel => Earlier > 0 ? $"Reclassify {Earlier + Failed:N0}" : "Try again";
+    public string ReclassifyLabel => AiText.ReclassifyLabel(Earlier, Failed);
 
     public override async Task LoadAsync()
     {
@@ -374,16 +371,8 @@ public sealed partial class AiSettingsViewModel(
             Failed = progress.ClassifyFailed;
             OnPropertyChanged(nameof(ReclassifyText));
             OnPropertyChanged(nameof(ReclassifyLabel));
-            var model = ai.Setup.ModelName;
-            ProgressText = model is null || !ai.Setup.Enabled
-                ? $"{summary.Current + summary.Earlier:N0} {Books(summary.Current + summary.Earlier)} classified so far."
-                : progress.ToClassify > 0
-                    ? $"{summary.Current:N0} {Books(summary.Current)} classified with {model}; {progress.ToClassify:N0} waiting."
-                    : $"{summary.Current:N0} {Books(summary.Current)} classified with {model}. Nothing is waiting.";
-            var scans = progress.ScannedWhole + progress.ToScanWhole;
-            ScanProgressText = model is null || !ai.Setup.Enabled || !ScanWholeBooks || scans == 0 ? ""
-                : progress.ToScanWhole > 0 ? $"Scanning whole books · {progress.ScannedWhole:N0} of {scans:N0}"
-                : $"{progress.ScannedWhole:N0} whole {Books(progress.ScannedWhole)} scanned.";
+            ProgressText = AiText.Progress(ai.Setup, summary, progress);
+            ScanProgressText = AiText.ScanProgress(ai.Setup, ScanWholeBooks, progress);
         }
         catch (Exception ex)
         {
@@ -404,7 +393,7 @@ public sealed partial class AiSettingsViewModel(
         }
         IsConnecting = true;
         ConnectionProblem = null;
-        ConnectionText = "Connecting…";
+        ConnectionText = AiText.Connecting;
         try
         {
             var keep = Model;
@@ -419,10 +408,7 @@ public sealed partial class AiSettingsViewModel(
             var dirty = Dirty;
             Model = keep.Length > 0 ? keep : (info.Models.Count > 0 ? info.Models[0] : "");
             Dirty = dirty || keep.Length == 0;
-            var server = info.Kind == EndpointKind.Ollama ? $"Ollama{(info.Version is { } v ? " " + v : "")}" : "an OpenAI-compatible server";
-            ConnectionText = info.Models.Count == 0
-                ? $"Found {server}, but it has no models. Download one there first."
-                : $"Found {server} with {info.Models.Count:N0} {(info.Models.Count == 1 ? "model" : "models")}.";
+            ConnectionText = AiText.Found(info);
         }
         catch (ModelEndpointException ex)
         {
@@ -477,9 +463,7 @@ public sealed partial class AiSettingsViewModel(
         IsOn = enabled;
         SwitchProblem = null;
         Dirty = false;
-        SaveNote = was.Model is { } old && old != Model.Trim()
-            ? "Saved. Books already classified keep their values; Reclassify reads them again with this model."
-            : enabled ? "Saved. Books are classified in the background, one at a time." : "Saved.";
+        SaveNote = AiText.Saved(was.Model, Model.Trim(), enabled);
         await RefreshProgressAsync();
     }
 
@@ -526,14 +510,14 @@ public sealed partial class AiSettingsViewModel(
             await Task.Yield();
             OnIsOnChanged(IsOn);
             SwitchNote = null;
-            SwitchProblem = "Connect to a model server and pick a model first. Saving turns AI on.";
+            SwitchProblem = AiText.ConnectFirst;
             FocusEndpointRequested?.Invoke(this, EventArgs.Empty);
             return;
         }
         IsOn = on;
         SwitchProblem = null;
         await ai.SaveAsync(ai.Setup with { Enabled = on });
-        SwitchNote = on ? "On. Books are classified in the background, one at a time." : "Off. Nothing is sent; your setup is kept.";
+        SwitchNote = on ? AiText.SwitchedOn : AiText.SwitchedOff;
     }
 
     async Task OnFolderChangedAsync(AiFolderItem folder)
@@ -575,9 +559,7 @@ public sealed partial class AiSettingsViewModel(
     async Task ReclassifyAsync()
     {
         var queued = await ai.ReclassifyAsync();
-        SaveNote = queued == 0 ? "Nothing to reclassify." : "The books go back to the AI one at a time, in the background.";
+        SaveNote = AiText.Reclassified(queued);
         Activity.Invalidate();
     }
-
-    static string Books(long count) => count == 1 ? "book" : "books";
 }

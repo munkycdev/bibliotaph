@@ -9,9 +9,6 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Bibliotaph.App.ViewModels;
 
-/// <summary>One line of a Test result: a value the model gave and the page that backs it, or one the check threw out.</summary>
-public sealed record AiTestLine(string Text, string Detail);
-
 /// <summary>
 /// The Test with a book dialog: classifies one book with the endpoint and model on screen, or the built-in AI, and stores
 /// nothing. While it runs it says which step it is on and for how long; then it shows what the model kept, with page
@@ -70,27 +67,14 @@ public sealed partial class AiTestViewModel(AiService ai, Func<IProgress<AiTestP
         {
             // Progress posts each step back to this (the UI) thread, whichever thread reports it.
             var test = await run(new Progress<AiTestProgress>(Show), work.Token);
-            var seconds = test.Took.TotalSeconds.ToString("0", CultureInfo.CurrentCulture);
+            Summary = AiText.Summary(test);
             if (test.Result is not { } result)
             {
-                Summary = test.Title.Length > 0 ? $"Tried {test.Title}." : null;
                 Problem = test.Problem;
                 return;
             }
-            Summary = result.Accepted.Count == 0
-                ? $"Read {test.Title} in {seconds} s, and found nothing it could back up with a quote."
-                : $"Read {test.Title} in {seconds} s. Every value below quotes the page it came from.";
-            var vocabulary = await ai.VocabularyAsync();
-            foreach (var claim in result.Accepted)
-            {
-                var value = claim.Field.Kind == FieldKind.Term && !claim.IsNewTerm
-                    ? vocabulary.Label(claim.Field.Vocabulary!, claim.Value)
-                    : claim.IsNewTerm ? $"{claim.Value} (new)" : claim.Value;
-                Kept.Add(new AiTestLine($"{claim.Field.Label}: {value}",
-                    $"Page {ClassifierPrompt.Marker(claim.PdfPage).ToString(CultureInfo.CurrentCulture)}{(claim.FromSampling ? ", from sampled pages" : "")}: “{claim.Quote}”"));
-            }
-            foreach (var dropped in result.Dropped)
-                Dropped.Add(new AiTestLine($"{MetadataFields.Find(dropped.Claim.Field)?.Label ?? dropped.Claim.Field}: {dropped.Claim.Value}", dropped.Reason));
+            foreach (var line in AiText.Kept(result, await ai.VocabularyAsync())) Kept.Add(line);
+            foreach (var line in AiText.Dropped(result)) Dropped.Add(line);
             HasDropped = Dropped.Count > 0;
         }
         catch (OperationCanceledException) when (work.IsCancellationRequested)
@@ -128,13 +112,5 @@ public sealed partial class AiTestViewModel(AiService ai, Func<IProgress<AiTestP
         }
     }
 
-    void Show(AiTestProgress progress)
-    {
-        (StepText, StepDetail) = progress.Step switch
-        {
-            AiTestStep.Choosing => ("Picking a book from your library…", null),
-            AiTestStep.Reading => ($"Reading {progress.Title}…", "Its opening pages, contents, introduction and a sample of the rest."),
-            _ => ($"Waiting for {model}…", "A model that isn't loaded yet can take a minute or two to answer the first time."),
-        };
-    }
+    void Show(AiTestProgress progress) => (StepText, StepDetail) = AiText.Step(progress, model);
 }

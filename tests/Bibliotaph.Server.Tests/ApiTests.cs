@@ -7,6 +7,8 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Server.Accounts;
+using Bibliotaph.Server.Ai;
+using Bibliotaph.Pdf.Host.Tests;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
@@ -19,18 +21,23 @@ using Microsoft.Extensions.Options;
 
 namespace Bibliotaph.Server.Tests;
 
-public sealed class ApiTests : IDisposable
+public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
 {
     readonly TempFolder _folder = new();
     readonly FakeGraph _graph = new();
+    readonly FakeModelService _models = new();
+    readonly SyntheticPdfs _pdfs;
     readonly WebApplicationFactory<Program> _factory;
 
-    public ApiTests() =>
+    public ApiTests(SyntheticPdfs pdfs)
+    {
+        _pdfs = pdfs;
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
         {
             host.UseEnvironment("Testing");
             host.UseSetting("Server:DataRoot", _folder.Path);
             host.ConfigureServices(services => services.AddSingleton<IHttpClientFactory>(new FakeHttp(_graph)));
+            host.ConfigureServices(services => services.AddSingleton(new ModelClientFactory(_models.ClientFor)));
             host.ConfigureServices(services => services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestSession>(AuthSetup.SessionScheme + "-test", _ => { }));
             host.ConfigureServices(services => services.PostConfigure<AuthenticationOptions>(o =>
@@ -40,6 +47,7 @@ public sealed class ApiTests : IDisposable
                 o.DefaultChallengeScheme = AuthSetup.SessionScheme + "-test";
             }));
         });
+    }
 
     public void Dispose()
     {
@@ -1119,6 +1127,68 @@ public sealed class ApiTests : IDisposable
         bitmap.Erase(color ?? SkiaSharp.SKColors.SeaGreen);
         using var data = bitmap.Encode(SkiaSharp.SKEncodedImageFormat.Png, 100);
         return data.ToArray();
+    }
+
+    [Fact]
+    public async Task Settings_ai_uses_a_model_service_on_the_internet_with_its_key_sealed_and_catalogs_books_with_it()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(_pdfs.KnownText, ct));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        const string Service = "https://api.example.com/v1";
+
+        var before = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
+        async Task<AiConnection> ConnectAsync(string endpoint, string? key)
+        {
+            using var response = await client.PostAsJsonAsync("/api/ai/connect", new AiConnect(endpoint, key), ct);
+            return (await response.Content.ReadFromJsonAsync<AiConnection>(ct))!;
+        }
+        async Task<AiNote> SendAsync(HttpMethod method, string path, object? body = null)
+        {
+            using var request = new HttpRequestMessage(method, path) { Content = body is null ? null : JsonContent.Create(body) };
+            using var response = await client.SendAsync(request, ct);
+            return (await response.Content.ReadFromJsonAsync<AiNote>(ct))!;
+        }
+        var local = await ConnectAsync("http://localhost:11434", null);
+        var lan = await ConnectAsync("https://10.1.2.3/v1", null);
+        var keyless = await ConnectAsync(Service, null);
+        var found = await ConnectAsync("api.example.com/v1", FakeModelService.Key);
+        var unticked = await SendAsync(HttpMethod.Put, "/api/ai", new AiSave(Service, "fake-mini", FakeModelService.Key, RemoteAllowed: false));
+        var saved = await SendAsync(HttpMethod.Put, "/api/ai", new AiSave(Service, "fake-mini", FakeModelService.Key, RemoteAllowed: true));
+        var page = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
+        var classified = await WaitAsync(async () => (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.Progress is var p
+            && p == "1 book classified with fake-mini. Nothing is waiting." ? p : null, ct);
+        string? sealedKeys;
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+            sealedKeys = await lease.Library.Get<SettingsStore>().GetAsync("server.ai-keys", ct);
+        using var tested = await client.PostAsJsonAsync("/api/ai/test", new AiTest(Service, "fake-mini", RemoteAllowed: true), ct);
+        var report = (await tested.Content.ReadFromJsonAsync<AiTestReport>(ct))!;
+        var off = await SendAsync(HttpMethod.Put, "/api/ai/enabled", new AiSwitch(false));
+        using (await client.DeleteAsync($"/api/ai/key?endpoint={Uri.EscapeDataString(Service)}", ct)) { }
+        var forgotten = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
+
+        Assert.Equal((false, null), (before.Enabled, before.Endpoint));
+        Assert.Contains("https", local.Problem, StringComparison.Ordinal);
+        Assert.Contains("private network", lan.Problem, StringComparison.Ordinal);
+        Assert.Equal("The endpoint needs a key, or didn't accept the one saved.", keyless.Problem);
+        Assert.Equal(("https://api.example.com", "Found an OpenAI-compatible server with 2 models."), (found.Endpoint, found.Text));
+        Assert.Equal(["fake-mini", "fake-large"], found.Models);
+        Assert.Equal("Tick “Send excerpts to this server” first.", unticked.Problem);
+        Assert.Equal("Saved. Books are classified in the background, one at a time.", saved.Note);
+        Assert.Equal((true, "https://api.example.com", "fake-mini", "abcd"), (page.Enabled, page.Endpoint, page.Model, page.KeyEnding));
+        Assert.Equal("RPG", Assert.Single(page.Folders).Name);
+        Assert.NotEmpty(classified);
+        Assert.All(_models.Requests, r => Assert.Equal(("https://api.example.com", FakeModelService.Key), (r.Endpoint, r.Key)));
+        Assert.DoesNotContain(FakeModelService.Key, sealedKeys, StringComparison.Ordinal);
+        // The one book is too short to be a sample, so the test says so, as the Windows dialog does.
+        Assert.Equal("There's no book with text to try yet. Add a folder, or wait for its books to be read.", report.Problem);
+        Assert.Equal(AiText.SwitchedOff, off.Note);
+        Assert.Null(forgotten.KeyEnding);
     }
 
     static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class

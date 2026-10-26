@@ -3,18 +3,21 @@ using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Contracts;
 using Bibliotaph.Processing;
+using Bibliotaph.Server.Ai;
 using Bibliotaph.Server.Storage;
 using Bibliotaph.Storage.OneDrive;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Server.Libraries;
 
 /// <summary>
 /// What every library shares with the server: logging, the clock, the way to reach a user's drives, the PDF worker
-/// and image codec, so one worker reads for every user in turn rather than one each, and where covers are kept.
+/// and image codec, so one worker reads for every user in turn rather than one each, where covers are kept, the keys
+/// that seal a user's AI keys, and how a model service is reached.
 /// </summary>
 public sealed record LibraryHost(ILoggerFactory Logs, TimeProvider Clock, UserDriveFactory Drives, string TemporaryFolder, IPdfEngine Pdf,
-    IImageCodec Images, ICoverStore Covers);
+    IImageCodec Images, ICoverStore Covers, IDataProtectionProvider Protection, ModelClientFactory Models);
 
 /// <summary>
 /// One library's services: the same stores, queries and indexing the Windows app composes in its own host, built once
@@ -125,8 +128,8 @@ public static class LibraryServices
         services.AddSingleton(new HeldActions(host.Clock));
         services.AddSingleton(new PendingCovers(host.Clock));
 
-        // Indexing: the Windows app's stages that read a book and match it with others, without AI, which the server
-        // doesn't run yet. OCR is Tesseract in the PDF worker, where the Windows app has Windows OCR.
+        // Indexing: the Windows app's stages that read a book and match it with others. OCR is Tesseract in the PDF
+        // worker, where the Windows app has Windows OCR.
         services.AddSingleton<IStage, ProbeStage>();
         services.AddSingleton<IStage, TextStage>();
         services.AddSingleton<IStage, CoversStage>();
@@ -134,6 +137,23 @@ public static class LibraryServices
         services.AddSingleton<IStage, OcrStage>();
         services.AddSingleton<UserTagService>();
         services.AddSingleton<IStage, MatchStage>();
+        // AI: the Windows app's Classify stage and Settings > AI, over a model service the user chose, with their key.
+        services.AddSingleton(sp => new ServerApiKeys(sp.GetRequiredService<SettingsStore>(), host.Protection.CreateProtector($"Bibliotaph.Ai.Keys.{userId}")));
+        services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ServerApiKeys>());
+        services.AddSingleton(host.Models);
+        services.AddSingleton(sp =>
+        {
+            var keys = sp.GetRequiredService<ServerApiKeys>();
+            var clients = sp.GetRequiredService<ModelClientFactory>();
+            return new AiSettings(sp.GetRequiredService<SettingsStore>(), keys, endpoint => clients.Create(endpoint, () => keys.Find(endpoint)),
+                activity: new ModelActivity(host.Clock));
+        });
+        services.AddSingleton(new AiReadingFeed(host.Clock));
+        services.AddSingleton<ExampleFinder>();
+        services.AddSingleton<ClassifierInputs>();
+        services.AddSingleton<ClassificationResults>();
+        services.AddSingleton<IStage, ClassifyStage>();
+        services.AddSingleton<AiService>();
         services.AddSingleton<IStageCatalog, StageCatalog>();
         services.AddSingleton(new IndexingOptions { OnlineOnlyReserveBytes = 0 });
         services.AddSingleton<IndexingFiles>();

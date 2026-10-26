@@ -1,6 +1,7 @@
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Bibliotaph.Server.Accounts;
+using Bibliotaph.Server.Ai;
 using Bibliotaph.Server.Api;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Pdf.Host;
@@ -33,7 +34,10 @@ public static class ServerSetup
         services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions(), sp.GetRequiredService<ILoggerFactory>()));
         services.AddSingleton(sp => new LibraryHost(sp.GetRequiredService<ILoggerFactory>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<UserDriveFactory>(), paths.Downloads, new WorkerPdfEngine(sp.GetRequiredService<PdfWorkerPool>()),
-            new SkiaImageCodec(), sp.GetRequiredService<ICoverStore>()));
+            new SkiaImageCodec(), sp.GetRequiredService<ICoverStore>(), sp.GetRequiredService<IDataProtectionProvider>(),
+            sp.GetRequiredService<ModelClientFactory>()));
+        // Model services only on the internet, over https; tests put a stand-in here.
+        services.AddSingleton(new ModelClientFactory(ModelServices.ClientFor));
         services.AddSingleton<UserLibraries>();
         services.AddHostedService<IdleLibraries>();
         services.AddBibliotaphStorage(configuration);
