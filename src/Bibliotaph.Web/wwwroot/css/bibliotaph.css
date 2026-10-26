@@ -1098,3 +1098,17 @@ a.bt-menuitem{text-decoration:none}
 .bt-onlinemissing{display:flex;gap:16px;justify-content:space-between;align-items:center}
 @media (max-width:640px){.bt-onlineservice,.bt-onlinesummary,.bt-onlinecovers{flex-direction:column;align-items:stretch}.bt-onlineactions{align-items:flex-start}}
 .bt-passwordbook{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+/* Check a download: its buttons, what's being checked, and each verdict's files, as the Windows page lays them out. */
+.bt-checkbuttons{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.bt-checktarget{margin-top:12px;max-width:860px}
+.bt-checktarget .bt-row{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-checktarget .bt-small{margin-top:4px}
+.bt-checkgroup{margin-top:24px;max-width:860px}
+.bt-checkgroup h2{font-size:15px;margin:0 0 4px}
+.bt-checkrows{list-style:none;margin:8px 0 0;padding:0;border-top:1px solid var(--bt-line)}
+.bt-checkrows li{display:flex;gap:16px;align-items:flex-start;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--bt-line)}
+.bt-checkfile{min-width:0;display:flex;flex-direction:column;gap:2px}
+.bt-checkfile b{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-checkfile small{font-size:11px;color:var(--bt-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-checkfile .bt-small{margin-top:2px}
+.bt-checkrows .bt-link{flex:none}

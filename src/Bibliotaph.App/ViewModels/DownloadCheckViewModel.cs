@@ -178,25 +178,9 @@ public sealed partial class CheckGroupViewModel(CheckVerdict verdict) : Observab
 {
     public CheckVerdict Verdict { get; } = verdict;
 
-    public string Label { get; } = verdict switch
-    {
-        CheckVerdict.New => "New",
-        CheckVerdict.MaybeNewVersion => "Maybe a new version",
-        CheckVerdict.OwnedElsewhere => "Owned elsewhere",
-        CheckVerdict.AnotherCopy => "Another copy",
-        CheckVerdict.AlreadyOwned => "Already owned",
-        _ => "Couldn't be read",
-    };
+    public string Label { get; } = DownloadCheckText.Label(verdict);
 
-    public string Explanation { get; } = verdict switch
-    {
-        CheckVerdict.New => "Not in your library.",
-        CheckVerdict.MaybeNewVersion => "Shares most pages with a book you have, or its title and publisher. It may be an updated printing.",
-        CheckVerdict.OwnedElsewhere => "Has the title of a book you own in print or on a virtual tabletop.",
-        CheckVerdict.AnotherCopy => "The same book page for page, perhaps watermarked for someone else.",
-        CheckVerdict.AlreadyOwned => "The very same file is in your library.",
-        _ => "These files couldn't be checked.",
-    };
+    public string Explanation { get; } = DownloadCheckText.Explanation(verdict);
 
     public ObservableCollection<CheckResultViewModel> Items { get; } = [];
 
@@ -219,22 +203,7 @@ public sealed partial class CheckResultViewModel(CheckedFile result, DownloadChe
     public string Location => Result.Item.Location;
 
     /// <summary>"Another copy of Drowned Abbey", "In your library at …", and anything to add, such as why its pages weren't read.</summary>
-    public string Detail
-    {
-        get
-        {
-            var title = Result.MatchTitle ?? "a book in your library";
-            var said = Result.Verdict switch
-            {
-                CheckVerdict.AlreadyOwned => Result.MatchWhere is { } where ? $"{title}, at {where}" : title,
-                CheckVerdict.AnotherCopy => $"Another copy of {title}",
-                CheckVerdict.MaybeNewVersion => $"Maybe a new version of {title}",
-                CheckVerdict.OwnedElsewhere => $"You own {title} elsewhere",
-                _ => null,
-            };
-            return string.Join(" ", new[] { said is null ? null : said + ".", Result.Note }.OfType<string>());
-        }
-    }
+    public string Detail => DownloadCheckText.Detail(Result);
 
     public bool HasDetail => Detail.Length > 0;
 

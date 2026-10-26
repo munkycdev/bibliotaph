@@ -210,6 +210,9 @@ public static class LibraryServices
         services.AddSingleton<ReviewCards>();
         services.AddSingleton<ReviewService>();
 
+        // Check a download: only its verdicts, since the browser reads the files and sends their hashes and fingerprints.
+        services.AddSingleton<DownloadCheck>();
+
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 }

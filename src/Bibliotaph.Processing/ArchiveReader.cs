@@ -11,12 +11,12 @@ namespace Bibliotaph.Processing;
 public sealed class ArchiveReader(ISourceFileReader reader)
 {
     /// <summary>A member bigger than this isn't extracted: the extract cache could never hold it.</summary>
-    public const long MaxMemberBytes = SourceFiles.DefaultLimitBytes;
+    public const long MaxMemberBytes = ArchiveProblems.MaxMemberBytes;
 
-    public const string Nested = "A ZIP inside a ZIP isn't read. Unpack it to include its files.";
-    public const string Encrypted = "It is password-protected inside the ZIP.";
-    public const string TooBig = "It is too big to read from inside a ZIP (over 5 GB). Unpack it to include it.";
-    public const string Damaged = "It is damaged inside the ZIP.";
+    public const string Nested = ArchiveProblems.Nested;
+    public const string Encrypted = ArchiveProblems.Encrypted;
+    public const string TooBig = ArchiveProblems.TooBig;
+    public const string Damaged = ArchiveProblems.Damaged;
 
     /// <summary>
     /// The PDFs and images in a ZIP, and the ZIPs inside it, which are listed with the reason they aren't read. Other

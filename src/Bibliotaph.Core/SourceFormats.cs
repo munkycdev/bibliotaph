@@ -89,3 +89,21 @@ public static class ArchivePaths
     /// <summary>A folder hint's name for a folder or a ZIP: "Coriolis Bundle.zip" reads as "Coriolis Bundle".</summary>
     public static string FolderName(string name) => SourceFormats.IsArchive(name) ? Path.GetFileNameWithoutExtension(name) : name;
 }
+
+/// <summary>
+/// Why a file in a ZIP isn't read, the same wherever the ZIP is read: in a library folder, or by Check a download in
+/// the Windows app or the browser.
+/// </summary>
+public static class ArchiveProblems
+{
+    /// <summary>A member bigger than this isn't read: the extract cache could never hold it, nor a browser's memory.</summary>
+    public const long MaxMemberBytes = 5L * 1024 * 1024 * 1024;
+
+    public const string Nested = "A ZIP inside a ZIP isn't read. Unpack it to include its files.";
+    public const string Encrypted = "It is password-protected inside the ZIP.";
+    public const string TooBig = "It is too big to read from inside a ZIP (over 5 GB). Unpack it to include it.";
+    public const string Damaged = "It is damaged inside the ZIP.";
+
+    /// <summary>A ZIP whose list of files can't be read.</summary>
+    public const string Unreadable = "This ZIP couldn't be read; it may be damaged or still downloading.";
+}

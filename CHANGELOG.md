@@ -188,6 +188,9 @@
   book is read for search with it, and Remember it, which keeps the password sealed in your web library so the book
   opens without asking. Settings › Passwords lists those books and forgets their passwords, and Needs review's locked
   files have Open to unlock, and protected ones Download the file. See [Reading a book](docs/guide/web.md#reading-a-book).
+- **Check a download on the web.** The Library's Add button has Check a download…, which checks a folder or ZIP on your
+  computer against your library as the Windows app does. Your browser reads the files and sends only their fingerprints,
+  never the files. See [Check a download](docs/guide/web.md#check-a-download).
 
 ## 1.3 · 19 October 2026
 
