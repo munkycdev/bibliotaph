@@ -628,9 +628,14 @@ else
             _loadProblem = new ReaderProblem("This book isn't in your library any more.", "It may have been removed, or its file taken out of your library.");
             return;
         }
-        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        catch (ApiProblemException e)
         {
             _loadProblem = new ReaderProblem("This book could not be opened.", e.Message);
+            return;
+        }
+        catch (HttpRequestException)
+        {
+            _loadProblem = new ReaderProblem("This book could not be opened.", "Check your connection, then try again.");
             return;
         }
         if (!InBinder) Breadcrumb.Show(_book.Title);
@@ -1392,6 +1397,8 @@ else
 
     ReaderProblem? _linkProblem;
 
+    const string SomethingWentWrong = "Something went wrong while opening it. Try again, and if it keeps happening, let us know from Contact us.";
+
     [JSInvokable]
     public async Task Failed(string kind, string message)
     {
@@ -1408,8 +1415,10 @@ else
             "link" => (_linkProblem ?? new ReaderProblem("The file couldn't be reached.", "Check your connection, then try again."), "Try again"),
             "invalid" => (new ReaderProblem("This book could not be opened.", "The file isn't a PDF Bibliotaph can read. It may be damaged."), "Try again"),
             "image" => (new ReaderProblem("This image could not be read.", "The file may be damaged, or still uploading."), "Try again"),
-            _ => (new ReaderProblem("This book could not be opened.", message.Length > 0 ? message : "Try again in a moment."), "Try again"),
+            _ => (new ReaderProblem("This book could not be opened.", SomethingWentWrong), "Try again"),
         };
+        // What went wrong is for a bug report, not the page: it goes to the browser's console.
+        if (kind is not ("password" or "link" or "image") && message.Length > 0) Console.Error.WriteLine($"The reader couldn't open the book ({kind}): {message}");
         await CloseAsync();
         StateHasChanged();
     }
