@@ -34,12 +34,24 @@ public abstract partial class PipelineTests
             lock (_lock) return _held.TryGetValue((hash, kind), out var held) ? held.Result : null;
         }
 
+        /// <summary>How many times a file's OCR was asked for.</summary>
+        public int Asked { get; private set; }
+
+        public Task<SharedResult?> ReadResultAsync(string kind, string contentHash, CancellationToken ct)
+        {
+            lock (_lock)
+            {
+                Asked++;
+                return Task.FromResult(_held.TryGetValue((contentHash, kind), out var held) ? held.Result : null);
+            }
+        }
+
         public Task<SharedResultPage?> ReadResultsAsync(long after, CancellationToken ct)
         {
             lock (_lock)
             {
                 var newer = _held.Values.Where(h => h.Seq > after).OrderBy(h => h.Seq).ToList();
-                return Task.FromResult<SharedResultPage?>(new SharedResultPage([.. newer.Where(h => !h.Ours).Select(h => h.Result)],
+                return Task.FromResult<SharedResultPage?>(new SharedResultPage([.. newer.Where(h => !h.Ours && !SharedResultKinds.OnRequest(h.Result.Kind)).Select(h => h.Result)],
                     newer.Count > 0 ? newer[^1].Seq : after, More: false));
             }
         }
@@ -139,6 +151,64 @@ public abstract partial class PipelineTests
             Assert.Equal("3", Assert.Single(metadata[MetadataFields.Levels].Values).Value);
             Assert.Empty(metadata[MetadataFields.Authors].Values);
             Assert.Single(_hub.Sent);
+        }
+        string? OcrStatus()
+        {
+            using var c = _index.OpenRead();
+            return StatusOf(c, "Goblin Scan", Stage.Ocr);
+        }
+
+        [Fact]
+        public async Task A_scanned_book_another_device_read_takes_its_text_and_isnt_read_again_here()
+        {
+            Copy(_pdfs.Scanned, "Scans/Goblin Scan.pdf");
+            await _roots.AddAsync(_library, Ct);
+            _service.Pause(Lane.Ocr);
+            await _service.StartAsync(Ct);
+            await WaitForAsync(() => Task.FromResult(OcrStatus() == "Pending"), "The scan wasn't read as far as OCR.");
+            var hash = await OnlyHashAsync();
+            await using (var c = _index.OpenRead())
+            {
+                var documentId = c.ExecuteScalar<long>("SELECT document_id FROM doc");
+                var pages = await _queries.GetPagesNeedingOcrAsync(documentId, Ct);
+                _hub.Add(new SharedResult(hash, SharedResultKinds.PageText, 1, "ocr-on-the-pc", new DateTime(2026, 10, 20, 9, 0, 0, DateTimeKind.Utc),
+                    JsonSerializer.Serialize(new SharedOcr([.. pages.Select(p => new SharedOcrPage(p.PdfPage, "The warrens of the goblin king", 0.9,
+                        ["warrens", "goblin"], [72, 700, 140, 688, 150, 700, 200, 688]))]), Web)));
+            }
+
+            _service.Resume(Lane.Ocr);
+            await SettleAsync();
+            await _shared.SyncNowAsync(Ct);
+
+            await using var after = _index.OpenRead();
+            // The PC's text is the page's, words and all, though this computer may have no OCR at all.
+            Assert.Equal("Complete", StatusOf(after, "Goblin Scan", Stage.Ocr));
+            Assert.Equal(("The warrens of the goblin king", "ocr"), after.QuerySingle<(string, string)>("SELECT text, text_source FROM page WHERE needs_ocr = 0 LIMIT 1"));
+            Assert.Equal(2 * after.ExecuteScalar<long>("SELECT count(*) FROM page WHERE text_source = 'ocr'"), after.ExecuteScalar<long>("SELECT count(*) FROM ocr_word"));
+            Assert.Equal(1, _hub.Asked);
+            // Taken text isn't sent back.
+            Assert.Empty(_hub.Sent);
+        }
+
+        [Fact]
+        public async Task A_scanned_book_read_here_is_shared_once()
+        {
+            Copy(_pdfs.Scanned, "Scans/Goblin Scan.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            Assert.SkipWhen(OcrStatus() == "Blocked", "This computer has no OCR to read the scan with.");
+            var hash = await OnlyHashAsync();
+
+            await _shared.SyncNowAsync(Ct);
+            await _shared.SyncNowAsync(Ct);
+
+            var sent = Assert.Single(_hub.Sent);
+            Assert.Equal((hash, SharedResultKinds.PageText), (sent.ContentHash, sent.Kind));
+            var pages = JsonSerializer.Deserialize<SharedOcr>(sent.Content, Web)!.Pages;
+            Assert.Contains(pages, p => p.Text.Contains("goblin", StringComparison.OrdinalIgnoreCase));
+            Assert.All(pages, p => Assert.Equal(p.Words.Count * 4, p.Boxes.Count));
+            Assert.Equal(1, _hub.Asked);
         }
     }
 }

@@ -140,12 +140,14 @@ public sealed class SyncFiles(string path)
     {
         await using var db = await OpenAsync(ct);
         await using var command = db.CreateCommand();
-        // The device's own are skipped but counted, so it isn't asked about them again.
+        // The device's own are skipped but counted, so it isn't asked about them again, and so are those asked for one
+        // file at a time, without reading their content.
         command.CommandText = """
-            SELECT content_hash, kind, prompt_version, id, finished_utc, content, device, seq FROM results
-            WHERE seq > $after ORDER BY seq LIMIT $take
+            SELECT content_hash, kind, prompt_version, id, finished_utc, CASE WHEN kind = $onRequest THEN '' ELSE content END, device, seq
+            FROM results WHERE seq > $after ORDER BY seq LIMIT $take
             """;
         command.Parameters.AddWithValue("$after", after);
+        command.Parameters.AddWithValue("$onRequest", SharedResultKinds.PageText);
         command.Parameters.AddWithValue("$take", ResultPage + 1);
         await using var reader = await command.ExecuteReaderAsync(ct);
         var results = new List<SharedResult>();
@@ -155,14 +157,29 @@ public sealed class SyncFiles(string path)
         {
             if (++read > ResultPage) return new SharedResultPage(results, last, More: true);
             last = reader.GetInt64(7);
-            if (reader.GetString(6) == device) continue;
-            results.Add(new SharedResult(reader.GetString(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3),
-                DateTime.Parse(reader.GetString(4), System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal),
-                reader.GetString(5)));
+            if (reader.GetString(6) == device || SharedResultKinds.OnRequest(reader.GetString(1))) continue;
+            results.Add(Result(reader));
         }
         return new SharedResultPage(results, last, More: false);
     }
+
+    /// <summary>The result of <paramref name="kind"/> held for a file, whichever device sent it, or null.</summary>
+    public async Task<SharedResult?> ReadResultAsync(string kind, string contentHash, CancellationToken ct = default)
+    {
+        await using var db = await OpenAsync(ct);
+        await using var command = db.CreateCommand();
+        command.CommandText = "SELECT content_hash, kind, prompt_version, id, finished_utc, content FROM results WHERE content_hash = $hash AND kind = $kind";
+        command.Parameters.AddWithValue("$hash", contentHash);
+        command.Parameters.AddWithValue("$kind", kind);
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? Result(reader) : null;
+    }
+
+    static SharedResult Result(SqliteDataReader reader) =>
+        new(reader.GetString(0), reader.GetString(1), reader.GetInt32(2), reader.GetString(3),
+            DateTime.Parse(reader.GetString(4), System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal),
+            reader.GetString(5));
 
     static string Stamp(DateTime when) =>
         DateTime.SpecifyKind(when, DateTimeKind.Utc).ToString("O", System.Globalization.CultureInfo.InvariantCulture);
@@ -258,4 +275,7 @@ public sealed class ServerResultChannel(SyncFiles files) : IResultChannel
         await files.WriteResultsAsync(SyncFiles.WebDevice, results, ct);
         return true;
     }
+
+    public async Task<SharedResult?> ReadResultAsync(string kind, string contentHash, CancellationToken ct) =>
+        await files.ReadResultAsync(kind, contentHash, ct);
 }

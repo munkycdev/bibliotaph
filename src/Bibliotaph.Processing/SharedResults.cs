@@ -21,6 +21,15 @@ public static class SharedResultKinds
 
     /// <summary>A finished whole-book scan: the chapters and what the AI found in each.</summary>
     public const string Chapters = "chapters";
+
+    /// <summary>
+    /// The text OCR read on a file's scanned pages, with its words' boxes (<see cref="SharedPageText"/>). Too big to
+    /// hand every device in the list of results, so it is asked for by file when OCR is about to read one.
+    /// </summary>
+    public const string PageText = "ocr";
+
+    /// <summary>Whether results of <paramref name="kind"/> are asked for one file at a time rather than listed.</summary>
+    public static bool OnRequest(string kind) => kind == PageText;
 }
 
 /// <summary>
@@ -37,6 +46,12 @@ public interface IResultChannel
 
     /// <summary>Sends this device's results. Returns false when they couldn't be sent now.</summary>
     Task<bool> WriteResultsAsync(IReadOnlyList<SharedResult> results, CancellationToken ct);
+
+    /// <summary>
+    /// The result of <paramref name="kind"/> held for a file, made by any device, for those asked for one file at a
+    /// time (<see cref="SharedResultKinds.OnRequest"/>). Null when there is none or it can't be had now.
+    /// </summary>
+    Task<SharedResult?> ReadResultAsync(string kind, string contentHash, CancellationToken ct);
 }
 
 /// <summary>A value the AI suggested, as shared: a term by its key here and its label, which another device resolves to its own key.</summary>
@@ -56,7 +71,8 @@ public sealed record SharedChapters(string Model, DateTime StartedUtc, IReadOnly
 /// others': a taken classification becomes a run here (<see cref="ClassificationStore.Shared"/>) with the same
 /// suggestions, and a taken scan this file's chapters. The newest result for a file wins; one made with a newer prompt
 /// always does. A result is never sent back by a device that took it, and a file waits in index.db for its results
-/// until it is in this library. The user's decisions about the suggestions go by library sync, as ever.
+/// until it is in this library. The user's decisions about the suggestions go by library sync, as ever. OCR is sent
+/// at the same passes (<see cref="SharedPageText"/>).
 /// </summary>
 public sealed class SharedResults : IHostedService, IDisposable
 {
@@ -90,6 +106,7 @@ public sealed class SharedResults : IHostedService, IDisposable
     readonly SharedResultCache _cache;
     readonly AiSettings _ai;
     readonly IResultChannel? _channel;
+    readonly SharedPageText? _pageText;
     readonly TimeProvider _clock;
     readonly ILogger _log;
     readonly SemaphoreSlim _gate = new(1, 1);
@@ -103,8 +120,9 @@ public sealed class SharedResults : IHostedService, IDisposable
 
     public SharedResults(ClassificationStore runs, ChapterScanStore scans, MetadataStore metadata, VocabularyStore vocabularies, EntryStore entries,
         LibraryStore library, MetadataProjector projector, ChapterProjection chapters, ChapterQueries chapterQueries, SharedResultCache cache, AiSettings ai,
-        IResultChannel? channel = null, TimeProvider? clock = null, ILogger<SharedResults>? log = null)
+        IResultChannel? channel = null, TimeProvider? clock = null, ILogger<SharedResults>? log = null, SharedPageText? pageText = null)
     {
+        _pageText = pageText;
         _runs = runs;
         _scans = scans;
         _metadata = metadata;
@@ -184,6 +202,7 @@ public sealed class SharedResults : IHostedService, IDisposable
             {
                 await PushRunsAsync(channel, ct);
                 await PushScansAsync(channel, ct);
+                if (_pageText is not null) await _pageText.PushAsync(ct);
                 await PullAsync(channel, taken, ct);
             }
             await ApplyAsync(taken, ct);

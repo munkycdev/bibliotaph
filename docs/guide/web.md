@@ -604,6 +604,11 @@ or another connected PC's, isn't sent to this PC's AI. The chapters a whole-book
 file in a folder you keep from AI gets no suggestions from elsewhere. If two devices read the same book, the newest
 reading wins; your answers about its suggestions travel with the rest of your work.
 
+Scanned pages are shared the same way. Reading a scanned book's pages (OCR) is slow, so before a device reads one it
+asks whether another of your devices already has, and takes that text, with each word's place on the page so selecting
+text still works. A book the PC read is ready to search in the web library without being read again there, and the
+other way round. **Reprocess with OCR on every page** still reads the pages again on the device where you ask for it.
+
 The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Windows PCs** on the web lists each
 connected PC with when it was connected and last used, and **×** disconnects one: its key stops working straight
 away, and the PC keeps its own books and work. What it already shared stays in your web library. **Disconnect** in the app does the same from the PC.
