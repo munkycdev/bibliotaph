@@ -11,8 +11,6 @@
   [Online libraries](docs/guide/online-libraries.md#without-bibliotaphs-browser).
 - **PDFs with copy or print restrictions open on the web again.** The reader failed on them. When a book can't be
   opened for a reason Bibliotaph doesn't recognise, it now says so plainly instead of showing the technical error.
-## Unreleased
-
 - **The web library answers first.** Reading books in the background, scanned pages most of all, now steps aside while
   you're using the library, and a library opens faster after an update. See [Processing](docs/guide/web.md#processing).
 - **Choose which file is the current version.** A New version? card names both files with their pages, and asks
