@@ -42,6 +42,8 @@
   Show these books in the Library and pinned binders work too. See [Binders](docs/guide/web.md#binders).
 - **Add to binder on the web.** A book's details, the Select bar and a matching page's + add to a binder, the one you
   worked on last, another or a new one, as in the Windows app, with Undo. See [Binders](docs/guide/web.md#binders).
+- **Copies and new versions on the web.** Two files of one book on your drive become one card with two copies, and a
+  file that shares most of a book's pages is offered as its new version, as in the Windows app.
 - **Scanned pages on the web.** The server reads scanned pages by OCR, in English, so search finds them as on Windows,
   and the sidebar counts the pages left. See [Bibliotaph on the web](docs/guide/web.md).
 - **Sign in to the web through Auth0.** bibliotaph.online's sign-in page has one Continue button, which offers Google,
