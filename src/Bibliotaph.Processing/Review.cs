@@ -44,7 +44,8 @@ public sealed record ReviewCards(
     PartsService Parts,
     PartProposalService Proposals,
     FolderCollections Folders,
-    CollectionSuggestions Suggestions);
+    CollectionSuggestions Suggestions,
+    LibraryStore Library);
 
 /// <summary>
 /// Needs review's metadata suggestions: which cards there are, and the user's decisions about them. Every
@@ -79,8 +80,10 @@ public sealed class ReviewService(
     /// weren't found, the files that look like they hold adventures, the folders that could be collections, and the
     /// books that could join collections.
     /// </summary>
-    public async Task<long> CountAsync(CancellationToken ct = default) =>
-        await queries.CountReviewsAsync(ct) + (await vocabularies.GetPendingAsync(ct)).Count + await cards.Copies.CountVersionsAsync(ct)
+    public async Task<long> CountAsync(CancellationToken ct = default)
+    {
+        var shown = await cards.Library.GetVisibleEntryIdsAsync(ct: ct);
+        return await queries.CountReviewsAsync(shown, ct) + (await vocabularies.GetPendingAsync(shown, ct)).Count + await cards.Copies.CountVersionsAsync(ct)
             + (await cards.Packs.GetProposalsAsync(ct)).Count + await cards.Elsewhere.CountPendingAsync(ct)
             + await cards.Places.CountRevisionsAsync(ct)
             + (await cards.Corrections.GetWaitingAsync(ct)).Count + (await cards.Rules.GetProposedAsync(ct)).Count
@@ -88,6 +91,7 @@ public sealed class ReviewService(
             + await cards.Proposals.CountPendingAsync(ct)
             + await cards.Folders.CountAsync(ct)
             + await cards.Suggestions.CountAsync(ct);
+    }
 
     /// <summary>
     /// The cards: sources that disagree first, then missing titles, then other suggestions, each by title. The cards
@@ -99,7 +103,9 @@ public sealed class ReviewService(
         cards.Folders.ClearNotNow();
         cards.Suggestions.ClearNotNow();
         var reviewAll = await GetReviewAllAsync(ct);
-        var entries = await queries.GetReviewEntriesAsync(ct);
+        // Only the books the library shows: a removed folder's books keep what was projected for them, unseen.
+        var shown = await cards.Library.GetVisibleEntryIdsAsync(ct: ct);
+        var entries = await queries.GetReviewEntriesAsync(shown, ct);
         var all = await metadata.GetManyAsync([.. entries.Select(e => e.EntryId)], ct);
         var found = entries
             .Where(e => all.ContainsKey(e.EntryId) && e.DocumentId is not null)
@@ -110,7 +116,7 @@ public sealed class ReviewService(
             .OrderBy(f => f.Issue.Kind)
             .Select(f => new ReviewItem(f.EntryId, f.DocumentId, f.Title, f.Issue, f.Issue.CanAccept ? groups[f.Issue.GroupKey] : 1))
             .ToList();
-        return await ListAsync(items, await vocabularies.GetPendingAsync(ct), ct);
+        return await ListAsync(items, await vocabularies.GetPendingAsync(shown, ct), ct);
     }
 
     /// <summary>

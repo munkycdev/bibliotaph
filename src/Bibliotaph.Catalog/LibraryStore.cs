@@ -820,6 +820,14 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         return [.. entries.Concat(packs).Concat(elsewhere).Select(e => new EntryId(e))];
     }
 
+    /// <summary>The documents with a file in a folder the user hasn't removed, present or not.</summary>
+    public async Task<IReadOnlyList<long>> GetVisibleDocumentIdsAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.FileLocations.Where(f => f.DocumentId != null && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .Select(f => f.DocumentId!.Value).Distinct().ToListAsync(ct);
+    }
+
     /// <summary>
     /// The cards the library shows that can't be opened now, and why: Offline while a file of one is in a folder that
     /// can't be reached, otherwise Missing, every file it had being gone. A card with a file it can open isn't listed,

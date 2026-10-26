@@ -168,6 +168,9 @@
 - **Box on the web.** Settings › Storage connects a Box account, read-only, once the server's Box app is set up. Its
   books open in the reader through the server, and changes are noticed within five minutes. See
   [Connecting your storage](docs/guide/web.md#connecting-your-storage).
+- **Needs review forgets a removed folder's books.** Removing a library folder, on the web or in the Windows app, left
+  its books' suggestions, new terms and failed files in Needs review and the sidebar's count; now only the books in the
+  library's folders count.
 
 ## 1.3 · 19 October 2026
 

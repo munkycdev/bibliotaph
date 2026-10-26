@@ -301,7 +301,7 @@ public abstract partial class PipelineTests
                 Assert.Equal(1, await c.ExecuteScalarAsync<long>("SELECT count(*) FROM page_fts WHERE page_fts MATCH @q", new { q = "\"owlbear waits\"" }));
             Assert.Null(await _metadata.SetAsync(entryId, MetadataFields.Title, "The Owlbear Book", Ct));
             Assert.Equal("The Owlbear Book", Assert.Single(await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct)).Title);
-            Assert.DoesNotContain(await _queries.GetAttentionAsync(Ct), a => a.Stage == Stage.Classify);
+            Assert.DoesNotContain(await _queries.GetAttentionAsync(ct: Ct), a => a.Stage == Stage.Classify);
 
             // The server comes back: the lane tries again by itself and the book is classified.
             _model.Down = false;

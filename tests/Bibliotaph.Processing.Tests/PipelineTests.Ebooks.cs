@@ -90,7 +90,7 @@ public abstract partial class PipelineTests
             var card = Assert.Single(await search.ListAsync(new LibraryFilter(await _libraryStore.GetVisibleEntryIdsAsync(ct: Ct)), ct: Ct));
             Assert.Equal("Tides of the Lantern Coast", card.Title);
             Assert.Equal(TextAccess.Protected, card.TextAccess);
-            Assert.Contains(await _queries.GetAttentionAsync(Ct), a => a.Reason == TextAccessReasons.ProtectedEbook);
+            Assert.Contains(await _queries.GetAttentionAsync(ct: Ct), a => a.Reason == TextAccessReasons.ProtectedEbook);
         }
 
         [Fact]
@@ -103,7 +103,7 @@ public abstract partial class PipelineTests
 
             await using var c = _index.OpenRead();
             Assert.Equal("Failed", StatusOf(c, "Broken", Stage.Probe));
-            Assert.Contains(await _queries.GetAttentionAsync(Ct), a => a.Reason!.Contains("EPUB", StringComparison.Ordinal));
+            Assert.Contains(await _queries.GetAttentionAsync(ct: Ct), a => a.Reason!.Contains("EPUB", StringComparison.Ordinal));
         }
 
         static byte[] Kindle(string name) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "ebooks", name));
@@ -146,7 +146,7 @@ public abstract partial class PipelineTests
 
             await using var c = _index.OpenRead();
             Assert.Equal("Failed", StatusOf(c, "Locked", Stage.Probe));
-            Assert.Contains(await _queries.GetAttentionAsync(Ct), a => a.Reason!.Contains("KFX", StringComparison.Ordinal));
+            Assert.Contains(await _queries.GetAttentionAsync(ct: Ct), a => a.Reason!.Contains("KFX", StringComparison.Ordinal));
         }
     }
 }
