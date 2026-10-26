@@ -20,7 +20,7 @@ Without an invitation, signing in with an account Bibliotaph doesn't know shows 
 ## Settings
 
 **Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of
-sections beside the one you're in, in the Windows app's order. **Storage**, **Library**, **Windows PCs**, **Processing**, **Appearance**, **Needs review**, **Vocabulary**, **AI**, **Backup**,
+sections beside the one you're in, in the Windows app's order. **Storage**, **Library**, **Online libraries**, **Windows PCs**, **Processing**, **Appearance**, **Needs review**, **Vocabulary**, **AI**, **Backup**,
 **Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
 invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
@@ -209,6 +209,23 @@ In its details, **Choose a cover image…** changes the cover, **Remove the cove
 and **Remove from library** takes the book out, with **Undo**. The covers you choose are kept with your account, so a
 new version of the server keeps them. When a file with its title arrives, Needs review asks whether it's this book's
 file.
+
+### Online libraries
+
+The books you own on D&D Beyond or Demiplane, and those you bought on Humble Bundle or DriveThruRPG, can come in all
+at once. **Add ▾** › **Import from an online library…** in the Library opens **Settings** › **Online libraries**.
+Choose **Open D&D Beyond** (or another service) to open your library there in a new tab, sign in if it asks, and save
+the page with your browser's **Save as**, choosing **Webpage, complete**. Then choose **Import a saved page…** beside
+the service and pick the page you saved. Bibliotaph on the web never visits the service itself and never sees your
+password; the Windows app does the same with a browser of its own.
+
+Bibliotaph shows what importing does before anything changes, as the Windows app does: **New** books become books owned
+elsewhere, opening on their service (or, from a store, books to get there); a book **Already in your library** gets the
+service and its link rather than a second card; one **Imported before** only has its empty fields filled. Untick what
+you'd rather leave out and choose **Import**, with **Undo**. For the new books' covers, **Choose pictures…** and pick the
+pictures your browser saved beside the page, in the folder ending in "_files"; only the pictures the page names are
+used. Books imported before that the page no longer lists are offered under **No longer in this library**, where
+**Remove from library** takes one out; nothing goes unless you say so.
 
 ### Collections
 

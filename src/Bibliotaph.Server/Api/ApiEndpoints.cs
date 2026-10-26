@@ -60,6 +60,7 @@ public static class ApiEndpoints
         api.MapVocabularyApi();
         api.MapProcessingApi();
         api.MapElsewhereApi();
+        api.MapOnlineApi();
         api.MapReaderApi();
         api.MapPageNotesApi();
         api.MapAiApi();

@@ -537,6 +537,23 @@ public sealed class ApiClient(HttpClient http)
     public Task<ActionResult> RemoveElsewhereAsync(long entryId, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Delete, $"api/library/books/{Id(entryId)}/elsewhere", null, ct);
 
+    public async Task<List<OnlineService>> OnlineServicesAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<OnlineService>>("api/online/services", ct) ?? [];
+
+    /// <summary>Reads a library page saved from a service: its preview, or why it isn't one.</summary>
+    public Task<OnlinePageRead> ReadOnlinePageAsync(Stream page, CancellationToken ct = default) =>
+        SendAsync<OnlinePageRead>(HttpMethod.Post, "api/online/pages", Picture(page, "text/html"), ct);
+
+    public Task<OnlinePreview> OnlinePreviewAsync(string token, CancellationToken ct = default) =>
+        SendAsync<OnlinePreview>(HttpMethod.Get, $"api/online/pages/{Uri.EscapeDataString(token)}", null, ct);
+
+    /// <summary>Gives an image saved with the page, for the covers that name it.</summary>
+    public Task<OnlinePreview> AddOnlineImageAsync(string token, string name, Stream image, string contentType, CancellationToken ct = default) =>
+        SendAsync<OnlinePreview>(HttpMethod.Put, $"api/online/pages/{Uri.EscapeDataString(token)}/images/{Uri.EscapeDataString(name)}", Picture(image, contentType), ct);
+
+    public Task<OnlineImported> ImportOnlineAsync(string token, OnlineImportChoice choice, CancellationToken ct = default) =>
+        SendAsync<OnlineImported>(HttpMethod.Post, $"api/online/pages/{Uri.EscapeDataString(token)}/import", choice, ct);
+
     static StreamContent Picture(Stream picture, string contentType)
     {
         var content = new StreamContent(picture);
