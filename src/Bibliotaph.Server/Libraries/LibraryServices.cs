@@ -142,6 +142,7 @@ public static class LibraryServices
         // What the AI worked out about files, shared with the user's PCs by content through sync.db.
         services.AddSingleton<SharedResultCache>();
         services.AddSingleton<IResultChannel, ServerResultChannel>();
+        services.AddSingleton<SharedPageText>();
         services.AddSingleton<SharedResults>();
 
         // What the details change: the Windows inspector's services.

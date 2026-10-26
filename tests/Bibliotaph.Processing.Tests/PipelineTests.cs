@@ -145,8 +145,10 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _chapterProjection = new ChapterProjection(_chapterScans, index, new ChapterQueries(_index), library);
         var chapters = new ChapterScanStage(_ai, library, _queries, _chapterScans, _chapterProjection, vocabulary);
         _userTags = new UserTagService(new UserTagStore(contexts), _metadataStore, new UserTagQueries(_index), projector);
+        var sharedCache = new SharedResultCache(_index, _writer);
+        var pageText = new SharedPageText(_queries, index, sharedCache, _hub);
         _shared = new SharedResults(_runs, _chapterScans, _metadataStore, vocabulary, entries, library, projector, _chapterProjection, new ChapterQueries(_index),
-            new SharedResultCache(_index, _writer), _ai, _hub);
+            sharedCache, _ai, _hub, pageText: pageText);
         var classify = new ClassifyStage(_ai, library, _queries, Inputs(), _runs,
             new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), _aiReading, _parts, _proposals, shared: _shared);
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
@@ -157,7 +159,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _service = new IndexingService(_roots, library, queue,
             new StageCatalog(
             [
-                new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services), classify,
+                new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services, pageText, _shared), classify,
                 new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere, _places, hints, _parts, _userTags), _matchGate),
                 chapters,
             ]),

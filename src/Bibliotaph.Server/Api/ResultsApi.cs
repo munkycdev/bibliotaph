@@ -10,11 +10,12 @@ namespace Bibliotaph.Server.Api;
 /// <summary>
 /// /api/results: what the user's devices worked out about their files, shared by content (<see cref="SharedResults"/>).
 /// Only a PC's key reaches it. A PC sends its own results and asks for the others' since the last it had, the web
-/// library's among them; results sent are given to the web library's own files straight after.
+/// library's among them, and asks for a file's OCR by itself; results sent are given to the web library's own files
+/// straight after.
 /// </summary>
 public static class ResultsApi
 {
-    /// <summary>The most taken at once: far beyond a batch, which is a hundred results of a few kilobytes.</summary>
+    /// <summary>The most taken at once: far beyond a batch of a hundred results of a few kilobytes, or one book's OCR.</summary>
     const long MaxUpload = 64L * 1024 * 1024;
 
     public static void MapResultsApi(this IEndpointRouteBuilder app)
@@ -24,6 +25,12 @@ public static class ResultsApi
         // Asked every minute by each connected PC, so it reads sync.db without opening the library.
         results.MapGet("/", async (long? after, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
             await (await libraries.SyncFilesAsync(principal.UserId()!, ct)).ReadResultsAsync(Math.Max(0, after ?? 0), principal.DeviceId()!, ct));
+
+        // OCR, asked for by file when a PC is about to read one.
+        results.MapGet("/{kind}/{hash}", async (string kind, string hash, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+            SharedResultKinds.OnRequest(kind) && await (await libraries.SyncFilesAsync(principal.UserId()!, ct)).ReadResultAsync(kind, hash, ct) is { } found
+                ? Results.Ok(found)
+                : Results.NotFound());
 
         results.MapPost("/", async (HttpRequest request, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
