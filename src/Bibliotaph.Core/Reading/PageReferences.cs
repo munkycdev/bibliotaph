@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Bibliotaph.Core.Reading;
@@ -78,6 +79,18 @@ public static partial class PageReferences
             || ((listed || heading) && refLines >= HintedMinimumLines && share >= HintedMinimumShare)
             || (refLines >= PlainMinimumLines && share >= PlainMinimumShare);
         return lists ? [.. entries.SelectMany(e => e.References)] : [];
+    }
+
+    /// <summary>
+    /// What a link made from a printed number says it does: "Go to page 34" as the book numbers its pages, naming the
+    /// PDF page too when the rest of the reader counts PDF pages there, as in a book without page labels whose number
+    /// isn't the PDF page's: "Go to page 34 (PDF page 36)". <paramref name="label"/> is the target page's label.
+    /// </summary>
+    public static string Tip(int printed, int pageIndex, string? label)
+    {
+        var number = printed.ToString(CultureInfo.CurrentCulture);
+        var same = label is null ? printed == pageIndex + 1 : label.Trim() == printed.ToString(CultureInfo.InvariantCulture);
+        return same ? $"Go to page {number}" : $"Go to page {number} (PDF page {(pageIndex + 1).ToString(CultureInfo.CurrentCulture)})";
     }
 
     /// <summary>

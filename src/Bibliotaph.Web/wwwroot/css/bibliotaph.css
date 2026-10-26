@@ -772,6 +772,9 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-pages{position:absolute;inset:0;overflow:auto;outline:none}
 .bt-pages .pdfViewer{padding:12px 0}
 .bt-pages .pdfViewer .page{margin:0 auto 12px;border:0;box-shadow:0 4px 10px #0000001c}
+.bt-printedlinks{position:absolute;inset:0;pointer-events:none;z-index:4}
+.bt-printedlinks a{position:absolute;pointer-events:auto;cursor:pointer;border-radius:2px}
+.bt-printedlinks a:hover,.bt-printedlinks a:focus-visible{background:color-mix(in srgb,var(--bt-accent) 18%,transparent);outline:none}
 .bt-picture{min-height:100%;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;width:max-content;min-width:100%}
 .bt-picture img{display:block;max-width:none;box-shadow:0 4px 10px #0000001c}
 .bt-ebook{position:absolute;inset:0}
@@ -785,6 +788,7 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-thumbframe{display:grid;place-items:center;height:96px;min-width:68px;background:var(--bt-side);border:1px solid var(--bt-line);border-radius:2px;overflow:hidden}
 .bt-thumbframe canvas{display:block;height:96px;width:auto}
 .bt-thumbnail.current .bt-thumbframe{outline:2px solid var(--bt-accent);outline-offset:1px}
+.bt-thumbnail.initem::after{content:"";position:absolute;left:0;right:0;top:99px;height:3px;border-radius:2px;background:var(--bt-accent)}
 .bt-thumbnail{position:relative}
 .bt-thumbnote{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:9px;display:grid;place-items:center;background:var(--bt-accent);color:var(--bt-accent-text)}
 .bt-thumbnote[hidden]{display:none}
@@ -795,6 +799,10 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-reader-actions .bt-addpagemenu{margin-left:-6px}
 .bt-notepagefields .bt-select{width:100%}
 .bt-readerbars{position:absolute;left:50%;top:14px;transform:translateX(-50%);width:min(560px,calc(100% - 36px));z-index:3;pointer-events:none}
+.bt-readerbars .bt-itembanner{pointer-events:auto;display:flex;align-items:center;gap:12px;background:var(--bt-side);border:1px solid var(--bt-warm);border-radius:6px;padding:10px 14px;margin:0 0 8px;font-size:11px;color:var(--bt-text)}
+.bt-itembanner .bt-itembannertext{flex:1}
+.bt-itembanner .bt-link{padding:0;white-space:nowrap}
+.bt-reader.inbinder{height:100%;min-height:0}
 .bt-readerbars .bt-donenote{pointer-events:auto;background:var(--bt-side);border:1px solid var(--bt-line);border-radius:6px;padding:10px 14px;margin:0 0 8px;color:var(--bt-text)}
 .bt-contents li.bt-menuanchor .bt-menu{top:auto;margin-top:2px}
 .bt-readernote{background:var(--bt-side);border-radius:6px;padding:8px 10px;margin-bottom:6px;font-size:12px}
@@ -813,3 +821,41 @@ button.bt-heart{color:var(--bt-accent)}
 ::highlight(bt-mark){background-color:#f1d27a80}
 ::highlight(bt-mark-current){background-color:#e8a33dcc}
 @media(max-width:620px){.bt-reader{height:calc(100vh - 140px)}.bt-contents{width:180px}.bt-notespanel{width:200px}}
+/* A binder's reader, as the Windows binder reader: the list on the left gives way first, then the notes on the right. */
+.bt-binderreader{display:flex;flex-direction:column;height:calc(100vh - 68px - 66px);min-height:460px}
+.bt-binderreaderhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.bt-binderreadertitles{flex:1;min-width:0}
+.bt-binderreaderline{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;margin-top:4px}
+.bt-binderreadertitle{font:600 16px/1.3 'DM Sans',sans-serif;letter-spacing:0;margin:0;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-binderreaderline .bt-link{padding:0}
+.bt-binderreaderactions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.bt-binderreaderactions .bt-button.primary{margin-right:6px}
+.bt-binderreaderactions .bt-icon.on{background:var(--bt-soft)}
+.bt-binderreaderbody{flex:1;min-height:0;display:grid;grid-template-columns:minmax(150px,250px) minmax(0,3fr) 260px;gap:12px}
+.bt-binderreader.nonotes .bt-binderreaderbody{grid-template-columns:minmax(150px,250px) minmax(0,3fr)}
+.bt-binderlist{background:var(--bt-side);border:1px solid var(--bt-line);border-radius:6px;padding:6px;overflow-x:hidden;overflow-y:auto;min-height:0}
+.bt-binderlistsection{display:block;margin:16px 10px 6px}
+.bt-binderrow{position:relative;margin-bottom:2px}
+.bt-binderrowopen{display:flex;gap:10px;width:100%;text-align:left;background:transparent;border:1px solid transparent;border-radius:5px;padding:8px 28px 8px 10px;cursor:pointer;color:inherit;font:inherit}
+.bt-binderrowopen:hover{background:var(--bt-soft)}
+.bt-binderrow.current .bt-binderrowopen{background:var(--bt-panel);border-color:var(--bt-line)}
+.bt-binderrow.dimmed .bt-binderrowtext{opacity:.55}
+.bt-binderrowopen .bt-bindernumber{font-weight:600;padding-top:1px}
+.bt-binderrowtext{display:flex;flex-direction:column;gap:2px;min-width:0}
+.bt-binderrowheading{font-size:12px;font-weight:600;color:var(--bt-text);overflow-wrap:anywhere}
+.bt-binderrowtext .bt-binderwhere{margin:0}
+.bt-binderrowspace{display:block;height:24px}
+.bt-binderrowreason.changed{color:var(--bt-text)}
+.bt-binderrename{position:absolute;left:30px;right:4px;top:5px;width:auto;min-width:0;box-sizing:border-box;font-size:12px;border-color:var(--bt-line);background:var(--bt-panel)}
+.bt-binderrowrename{position:absolute;right:2px;top:4px;visibility:hidden}
+.bt-binderrow:hover .bt-binderrowrename,.bt-binderrow:focus-within .bt-binderrowrename{visibility:visible}
+.bt-binderreaderview{min-width:0;min-height:0;display:flex;flex-direction:column}
+.bt-binderreaderview>.bt-reader{flex:1}
+.bt-bindernotespanel{display:flex;flex-direction:column;gap:10px;min-height:0}
+.bt-bindernoteshead{font-size:13px;font-weight:600;color:var(--bt-text)}
+.bt-bindernotespanel .bt-notebox{flex:1;min-height:120px;resize:none}
+.bt-itemnotes{max-height:260px;overflow-y:auto}
+@media(max-width:850px){.bt-binderreader{height:auto}
+.bt-binderreaderbody,.bt-binderreader.nonotes .bt-binderreaderbody{grid-template-columns:minmax(0,1fr)}
+.bt-binderlist{max-height:200px}
+.bt-binderreaderview{height:calc(100vh - 140px);min-height:460px}}

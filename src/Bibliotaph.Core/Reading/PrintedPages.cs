@@ -40,18 +40,23 @@ public sealed partial class PrintedPages
     /// </summary>
     const int FolioDrift = 10;
 
+    /// <summary>The highest printed number a <see cref="ToTable"/> table goes to.</summary>
+    const int MaxPrinted = 9999;
+
     readonly Dictionary<int, int> _labels;
     readonly Dictionary<int, List<int>> _folios;
     readonly int _offset;
     readonly int _pageCount;
+    readonly bool _tabled;
 
-    PrintedPages(PrintedPagesSource source, Dictionary<int, int> labels, Dictionary<int, List<int>> folios, int offset, int pageCount)
+    PrintedPages(PrintedPagesSource source, Dictionary<int, int> labels, Dictionary<int, List<int>> folios, int offset, int pageCount, bool tabled = false)
     {
         Source = source;
         _labels = labels;
         _folios = folios;
         _offset = offset;
         _pageCount = pageCount;
+        _tabled = tabled;
     }
 
     /// <summary>Nothing known: every lookup is null.</summary>
@@ -107,9 +112,39 @@ public sealed partial class PrintedPages
         return new PrintedPages(PrintedPagesSource.Folios, [], folios, best, pageCount);
     }
 
+    /// <summary>
+    /// Every lookup written out: the PDF page index of printed page 1, 2, 3… in turn, -1 where there is none, up to the
+    /// last number with a page. Empty when nothing is known. The web reader is sent this, so it needn't read every
+    /// page's text again to find the book's folios.
+    /// </summary>
+    public IReadOnlyList<int> ToTable()
+    {
+        var last = Source switch
+        {
+            PrintedPagesSource.Labels when _tabled => _labels.Keys.DefaultIfEmpty(0).Max(),
+            PrintedPagesSource.Labels => _labels.Where(l => l.Value >= 0).Select(l => l.Key).DefaultIfEmpty(0).Max(),
+            PrintedPagesSource.Folios when _tabled => _labels.Keys.DefaultIfEmpty(0).Max(),
+            PrintedPagesSource.Folios => Math.Max(_pageCount - 1 - _offset, _folios.Keys.DefaultIfEmpty(0).Max()),
+            _ => 0,
+        };
+        var table = new int[Math.Clamp(last, 0, MaxPrinted)];
+        for (var i = 0; i < table.Length; i++) table[i] = IndexOf(i + 1) ?? -1;
+        return table;
+    }
+
+    /// <summary>A book's printed pages from a <see cref="ToTable"/> table, as they were found from <paramref name="source"/>.</summary>
+    public static PrintedPages FromTable(PrintedPagesSource source, IReadOnlyList<int> table)
+    {
+        var byNumber = new Dictionary<int, int>();
+        for (var i = 0; i < table.Count; i++)
+            if (table[i] >= 0) byNumber[i + 1] = table[i];
+        return source == PrintedPagesSource.None || byNumber.Count == 0 ? None : new PrintedPages(source, byNumber, [], 0, 0, tabled: true);
+    }
+
     /// <summary>The PDF page index of a printed page number, or null when the book has no such page or it isn't known.</summary>
     public int? IndexOf(int printed)
     {
+        if (_tabled) return _labels.TryGetValue(printed, out var found) ? found : null;
         switch (Source)
         {
             case PrintedPagesSource.Labels:

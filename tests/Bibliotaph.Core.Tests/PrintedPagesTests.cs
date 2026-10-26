@@ -84,6 +84,25 @@ public class PrintedPagesTests
     }
 
     [Fact]
+    public void A_table_of_every_lookup_finds_the_same_pages_again()
+    {
+        var folios = PrintedPages.FromFolios(Book(30, page => page < 4 ? null : (page - 3).ToString(CultureInfo.InvariantCulture), top: false), 30);
+        var labels = PrintedPages.FromLabels(["Cover", "i", "1", "2", "1", "4"], 6);
+
+        foreach (var printed in new[] { folios, labels })
+        {
+            var table = printed.ToTable();
+            var again = PrintedPages.FromTable(printed.Source, table);
+            Assert.Equal(printed.Source, again.Source);
+            for (var number = 1; number <= table.Count + 5; number++) Assert.Equal(printed.IndexOf(number), again.IndexOf(number));
+        }
+        Assert.Equal(26, folios.ToTable().Count);
+        Assert.Equal([-1, 3, -1, 5], labels.ToTable());
+        Assert.Empty(PrintedPages.None.ToTable());
+        Assert.False(PrintedPages.FromTable(PrintedPagesSource.Labels, [-1, -1]).IsKnown);
+    }
+
+    [Fact]
     public void Too_few_pages_agreeing_says_nothing()
     {
         // Two numbered pages are not enough to trust.

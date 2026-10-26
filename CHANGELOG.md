@@ -83,6 +83,14 @@
   adventure and the contents' Index as its own adventure… give pages a card of their own; Use this page as the cover
   and Use this image as the pack's cover change a card's cover, as in the Windows reader. See
   [Reading a book](docs/guide/web.md#reading-a-book).
+- **Index pages link to their pages on the web.** The page numbers on an index or contents page that has no links of
+  its own become links in the web reader, found by the same rules as in the Windows reader. See
+  [Reading a book](docs/guide/web.md#reading-a-book).
+- **The binder reader on the web.** Opening a binder shows its items down the left, the item in hand in the reader and
+  the binder's notes on the right, with Next and Previous (Ctrl+Right and Ctrl+Left), Add this page, renaming in the
+  list, Back to this item's pages, the page notes on the item's pages, and Use this page for an item whose pages
+  changed. Edit binder opens the list, which has Done and opens each item at its pages. See
+  [Binders](docs/guide/web.md#binders).
 
 ## 1.3 · 19 October 2026
 

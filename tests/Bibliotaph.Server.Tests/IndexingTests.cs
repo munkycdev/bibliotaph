@@ -242,6 +242,9 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         var opened = (await ReaderApi.OpenAsync(library, new EntryId(card.EntryId), null, null, null, false, Ct))!;
         Assert.Equal(0, opened.CoverPage);
         Assert.All(opened.Outline, o => Assert.InRange(o.LastPage, o.Page, opened.PageCount - 1));
+        var printed = await ReaderApi.PrintedPagesAsync(library, document, Ct);
+        Assert.All(printed.Pages, p => Assert.InRange(p, -1, opened.PageCount - 1));
+        Assert.All(printed.Listed, p => Assert.InRange(p, 0, opened.PageCount - 1));
 
         var used = (await ReaderApi.UseCoverAsync(library, document, 1, Ct))!;
         Assert.Equal((1, "This page is the cover now."), (used.CoverPage, used.Message));
@@ -268,6 +271,43 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         Assert.Null(await BindersApi.AddAsync(library, long.MaxValue, new BinderAdd([], DocumentId: document, Page: 0), Ct));
         await library.Get<HeldActions>().Take(pages.Undo!)!(Ct);
         Assert.DoesNotContain((await sessions.GetAsync(binder.Id, Ct))!.Items, i => i.Label == "Warehouse ambush");
+    }
+
+    [Fact]
+    public async Task A_binders_reader_opens_its_items_at_their_pages_adds_after_the_one_in_hand_and_uses_a_page()
+    {
+        Fixture.Graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(pdfs.KnownText, Ct));
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
+        var library = lease.Library;
+        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        library.Indexing.RequestScan(root.Id);
+        var card = await WaitAsync(async () =>
+            (await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct)).Books is [{ Cover: not null } only] ? only : null);
+        var document = card.DocumentId;
+        var sessions = library.Get<SessionsService>();
+        var binder = await sessions.CreateAsync("Harbor night", ct: Ct);
+        await BindersApi.AddAsync(library, binder.Id, new BinderAdd([], DocumentId: document, Page: 1, LastPage: 2, Label: "Warehouse ambush"), Ct);
+        await BindersApi.AddAsync(library, binder.Id, new BinderAdd([card.EntryId], card.Title), Ct);
+        var (pages, whole) = (await sessions.GetAsync(binder.Id, Ct))!.Items is [var a, var b] ? (a, b) : default;
+
+        var opened = (await ReaderApi.OpenAsync(library, new EntryId(card.EntryId), null, null, null, false, Ct, pages.Id))!;
+        Assert.Equal(("Warehouse ambush", 1, false), (opened.Title, opened.StartPage, opened.KeepsPlace));
+        Assert.Equal(new ReaderItem(pages.Id, "Harbor night", 1, 2, false), opened.Item);
+        Assert.Equal((0, true), (await ReaderApi.OpenAsync(library, new EntryId(card.EntryId), null, null, null, false, Ct, whole.Id))! is var book
+            ? (book.StartPage, book.Item!.WholeBook) : default);
+        Assert.Null(await ReaderApi.OpenAsync(library, new EntryId(card.EntryId + 1000), null, null, null, false, Ct, pages.Id));
+
+        var added = (await BindersApi.AddAfterAsync(library, binder.Id, new BinderPageAdd(document, 0, After: pages.Id), Ct))!.Value;
+        Assert.Equal([pages.Id, added, whole.Id], (await sessions.GetAsync(binder.Id, Ct))!.Items.Select(i => i.Id));
+        Assert.Null(await BindersApi.AddAfterAsync(library, binder.Id, new BinderPageAdd(document, 999), Ct));
+
+        var used = (await BindersApi.UsePageAsync(library, pages.Id, new ReaderUsePage(document, 0), Ct))!;
+        Assert.Equal((0, 1), (used.FirstPage, used.LastPage));
+        Assert.StartsWith("Saved. In Harbor night, this item now opens at page ", used.Message, StringComparison.Ordinal);
+        Assert.Equal((0, 1), (await ReaderApi.OpenAsync(library, new EntryId(card.EntryId), null, null, null, false, Ct, pages.Id))!.Item is { } moved
+            ? (moved.FirstPage, moved.LastPage) : default);
+        Assert.Null(await BindersApi.UsePageAsync(library, pages.Id, new ReaderUsePage(document, 999), Ct));
     }
 
     [Fact]

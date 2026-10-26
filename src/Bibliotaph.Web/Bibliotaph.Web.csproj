@@ -10,6 +10,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Bibliotaph.Api.Contracts\Bibliotaph.Api.Contracts.csproj" />
+    <!-- Links made from an index page's printed numbers are found by the same rules as in the Windows reader. -->
+    <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
     <!-- E-books are cut into pages in the browser, by the same code that cut them for the index, so page 37 is the same page. -->
     <ProjectReference Include="..\Bibliotaph.Ebooks\Bibliotaph.Ebooks.csproj" />
   </ItemGroup>

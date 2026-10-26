@@ -40,7 +40,23 @@ public sealed record ReaderBook(long EntryId, long DocumentId, string Title, str
 
     /// <summary>The page the file's card shows: 0 unless Use this page as the cover chose another.</summary>
     public int CoverPage { get; init; }
+
+    /// <summary>The binder item being read, when the book was opened from a binder.</summary>
+    public ReaderItem? Item { get; init; }
 }
+
+/// <summary>
+/// A binder item open in the reader: the binder, its pages in the open file (0-based, inclusive), whether it's the
+/// whole book, and, when its pages weren't where they were, the banner over the pages that says why, with Use this
+/// page when they changed.
+/// </summary>
+public sealed record ReaderItem(long Id, string Binder, int FirstPage, int LastPage, bool WholeBook, string? Banner = null, bool CanUsePage = false);
+
+/// <summary>Use this page: the page in view, in the file open.</summary>
+public sealed record ReaderUsePage(long DocumentId, int Page);
+
+/// <summary>Where the item opens now, and what the reader says about it.</summary>
+public sealed record ReaderItemUsed(int FirstPage, int LastPage, string Message);
 
 /// <summary>The readers a file can open in, by its format.</summary>
 public static class ReaderKinds
@@ -104,6 +120,14 @@ public sealed record ReaderCover(int Page);
 
 /// <summary>What Use this page as the cover did: the cover page now, and what the reader says about it.</summary>
 public sealed record ReaderCoverUsed(int CoverPage, string Message);
+
+/// <summary>
+/// How the open PDF numbers its pages, for the links the reader makes from the printed numbers on an index or contents
+/// page: <see cref="Pages"/> is the PDF page index of printed page 1, 2, 3… in turn (-1 where there is none), empty
+/// when nothing says; <see cref="FromLabels"/> is whether it came from the PDF's page labels rather than the numbers
+/// printed on its pages; <see cref="Listed"/> are the pages under an "Index" or "Contents" bookmark.
+/// </summary>
+public sealed record ReaderPrintedPages(IReadOnlyList<int> Pages, bool FromLabels, IReadOnlyList<int> Listed);
 
 /// <summary>Add pages…'s label to start with: the bookmark the page sits under, or none.</summary>
 public sealed record ReaderBookmark(string? Title);

@@ -588,12 +588,7 @@ public partial class PdfPagesView
         if (link.Uri is { } uri) return uri;
         var label = link.PageIndex < _pages.Count ? _pages[link.PageIndex].Label : null;
         var pdf = (link.PageIndex + 1).ToString(CultureInfo.CurrentCulture);
-        if (link.Printed is { } number)
-        {
-            var printed = number.ToString(CultureInfo.CurrentCulture);
-            var same = label is null ? number == link.PageIndex + 1 : label.Trim() == number.ToString(CultureInfo.InvariantCulture);
-            return same ? $"Go to page {printed}" : $"Go to page {printed} (PDF page {pdf})";
-        }
+        if (link.Printed is { } number) return PageReferences.Tip(number, link.PageIndex, label);
         return label is not null ? $"Go to page {label}" : $"Go to page {pdf}";
     }
 
