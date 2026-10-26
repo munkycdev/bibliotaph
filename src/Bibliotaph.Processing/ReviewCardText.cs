@@ -27,9 +27,10 @@ public sealed record VersionCardText(VersionItem Item)
 {
     public const string Chip = "New version?";
 
+    // Neither file is the likelier current one, so no choice stands out: a dark first button read as already chosen.
     public static IReadOnlyList<ReviewChoiceText> Choices { get; } =
     [
-        new("current", "This file is current", "One card for both files, opening this one from now on. Your work on both cards is kept.", true),
+        new("current", "This file is current", "One card for both files, opening this one from now on. Your work on both cards is kept."),
         new("copy", "The book's file is current", "One card for both files, still opening the one it opens now. This one is kept as another version."),
         new("separate", "Separate book", "Two cards, as now. Bibliotaph won't ask about these two files again."),
     ];

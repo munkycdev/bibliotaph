@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Clearer New version? cards.** **This file is current** no longer looks already chosen: the card's three choices
+  look alike, in the Windows app and on the web, and nothing is picked until you click one. Page headings on the web
+  no longer show an outline when a page opens. See [Cataloging](docs/guide/cataloging.md).
 - **The front page, signed in too.** bibliotaph.online shows the front page to everyone, with **Open your library** in
   place of **Sign in**, and the web app's Home moved to bibliotaph.online/home. **b. Bibliotaph** at the top of the
   app's sidebar goes to the front page. See [The site](docs/guide/web.md#the-site).

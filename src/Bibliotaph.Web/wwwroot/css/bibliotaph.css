@@ -20,6 +20,8 @@ button{border:0;background:none}
 svg{width:17px;height:17px;flex-shrink:0;stroke-width:1.65}
 h1,h2,h3,p{margin:0}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--bt-accent);outline-offset:3px}
+/* Each page moves focus to its heading so a screen reader announces it; a heading isn't something to act on, so no ring. */
+h1:focus{outline:none}
 .bt-shell{display:grid;grid-template-columns:192px minmax(0,1fr);min-height:820px;background:var(--bt-bg);border:1px solid var(--bt-line);border-radius:12px;overflow:clip}
 .bt-sidebar{background:var(--bt-side);padding:27px 13px 18px;display:flex;flex-direction:column;border-right:1px solid var(--bt-line)}
 .bt-brand{display:flex;align-items:center;gap:10px;font-family:'Libre Caslon Display',Georgia,serif;font-size:23px;letter-spacing:-.7px;padding:0 4px 26px;font-weight:400}

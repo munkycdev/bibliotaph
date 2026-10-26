@@ -246,8 +246,8 @@
               </StackPanel>
             </DockPanel>
             <WrapPanel Margin="0,16,0,0">
-              <Button Style="{StaticResource Bt.Button.Primary}" Content="This file is current" c:Ui.Icon="{StaticResource Icon.Check}"
-                      Command="{Binding MakeCurrentCommand}" Margin="0,0,8,8"
+              <!-- Neither file is the likelier current one, so no choice stands out: a dark first button read as already chosen. -->
+              <Button Content="This file is current" Command="{Binding MakeCurrentCommand}" Margin="0,0,8,8"
                       ToolTip="One card for both files, opening this one from now on. Your work on both cards is kept." />
               <Button Content="The book's file is current" Command="{Binding KeepAsCopyCommand}" Margin="0,0,8,8"
                       ToolTip="One card for both files, still opening the one it opens now. This one is kept as another version." />
