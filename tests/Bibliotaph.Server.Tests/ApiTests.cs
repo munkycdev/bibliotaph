@@ -1320,6 +1320,72 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.False(offDetails.CanAsk);
     }
 
+    [Fact]
+    public async Task Ask_in_the_top_bar_reads_a_request_as_a_search_and_answers_a_question_from_the_books_the_library_shows()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Id, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/crown.pdf", await File.ReadAllBytesAsync(_pdfs.ChapterBook, ct));
+        _models.Answer = request =>
+        {
+            if (request.SchemaJson == PlainSearchPrompt.SchemaJson)
+                return """{"filters": [{"field": "players", "value": "4", "exclude": false}], "words": [{"text": "heist", "exclude": false}]}""";
+            if (request.System != AskPrompt.LibrarySystemMessage) return "{}";
+            // Cites the page the goblins are on, by the book and page it was sent with.
+            var at = request.User.IndexOf("bog goblins wait", request.User.IndexOf("[Page ", StringComparison.Ordinal), StringComparison.Ordinal);
+            var page = Regex.Matches(request.User, @"\[Page ([^\]]+)\]").Last(m => m.Index < at).Groups[1].Value;
+            return $"They wait in the reeds by the drowned road [p. {page}].";
+        };
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var before = (await client.GetFromJsonAsync<AskStatus>("/api/ask", ct))!;
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        using (await client.PutAsJsonAsync("/api/ai", new AiSave("https://api.example.com/v1", "fake-mini", FakeModelService.Key, RemoteAllowed: true,
+            EmbeddingModel: "fake-embed"), ct)) { }
+        var settings = await WaitAsync(async () => await client.GetFromJsonAsync<AiPage>("/api/ai", ct) is { } p
+            && p.Progress.StartsWith("1 book classified", StringComparison.Ordinal) ? p : null, ct);
+        var book = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.Single();
+        async Task<List<AskUpdate>> AskAsync(string question, LibraryQuery scope)
+        {
+            using var response = await client.PostAsJsonAsync("/api/ask/library", new AskLibraryQuestion(question, scope), ct);
+            Assert.Equal("application/x-ndjson", response.Content.Headers.ContentType?.MediaType);
+            return [.. (await response.Content.ReadAsStringAsync(ct)).Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => JsonSerializer.Deserialize<AskUpdate>(line, JsonSerializerOptions.Web)!)];
+        }
+
+        var ready = (await client.GetFromJsonAsync<AskStatus>("/api/ask", ct))!;
+        using var read = await client.PostAsJsonAsync("/api/ask/search", new AskQuestion("a heist for four players"), ct);
+        var reading = (await read.Content.ReadFromJsonAsync<AskReading>(ct))!;
+        var answered = await AskAsync("Where do the bog goblins wait?", new LibraryQuery());
+        var elsewhere = await AskAsync("Where do the bog goblins wait?", new LibraryQuery { Type = "Map" });
+        using (await client.PutAsJsonAsync("/api/ai/library", new AiSwitch(true), ct)) { }
+        var reads = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
+
+        Assert.False(before.Ready);
+        Assert.True(ready.Ready);
+        Assert.Equal([new AskChip("players", "4", false), new AskChip(null, "heist", false)], reading.Parts);
+        Assert.Null(reading.Problem);
+        Assert.Contains(answered, u => u.Step == "Looking through your books…");
+        var passage = Assert.Single(answered.SelectMany(u => u.Passages ?? []), p => p.Page == 1);
+        Assert.Equal((book.DocumentId, book.EntryId), (passage.DocumentId, passage.EntryId));
+        Assert.Contains(" · p. 2", passage.Link, StringComparison.Ordinal);
+        var last = answered[^1];
+        Assert.True(last.Done);
+        var citation = Assert.Single(last.Answer!, p => p.Kind == AskPartKind.Citation);
+        Assert.Equal((1, book.DocumentId, book.EntryId), (citation.Page, citation.DocumentId, citation.EntryId));
+        Assert.EndsWith(", p. 2]", citation.Text, StringComparison.Ordinal);
+        Assert.EndsWith(" in 1 book", last.PassagesHeading, StringComparison.Ordinal);
+        Assert.StartsWith("Searched ", answered.Select(u => u.Coverage).OfType<string>().Single(), StringComparison.Ordinal);
+        // A Library filtered to maps has no book to ask.
+        Assert.Equal("None of these books has pages with text yet.", elsewhere.Select(u => u.Coverage).OfType<string>().Single());
+        Assert.Empty(elsewhere.SelectMany(u => u.Passages ?? []));
+        // Reading the library for meaning waits to be switched on: each batch of pages is a request on the user's key.
+        Assert.False(settings.ReadLibrary);
+        Assert.True(reads.ReadLibrary);
+    }
+
     static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);

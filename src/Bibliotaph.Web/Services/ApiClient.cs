@@ -70,6 +70,9 @@ public sealed class ApiClient(HttpClient http)
 
     public Task ScanWholeBooksAsync(bool on, CancellationToken ct = default) => SendAsync(HttpMethod.Put, "api/ai/scan", new AiSwitch(on), ct);
 
+    /// <summary>"Read the library for meaning in the background".</summary>
+    public Task ReadLibraryAsync(bool on, CancellationToken ct = default) => SendAsync(HttpMethod.Put, "api/ai/library", new AiSwitch(on), ct);
+
     public Task<AiNote> ReclassifyAsync(CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Post, "api/ai/reclassify", null, ct);
 
     /// <summary>Test with a book: held open while the model reads, and cancelled with <paramref name="ct"/>.</summary>
@@ -243,9 +246,26 @@ public sealed class ApiClient(HttpClient http)
     /// Asks the book a question, yielding each change to the panel as the server finds the pages and the model writes
     /// its answer. Cancelling <paramref name="ct"/> stops the model.
     /// </summary>
-    public async IAsyncEnumerable<AskUpdate> AskAsync(long documentId, string question, [EnumeratorCancellation] CancellationToken ct = default)
+    public IAsyncEnumerable<AskUpdate> AskAsync(long documentId, string question, CancellationToken ct = default) =>
+        StreamAsync(Ask(documentId), new AskQuestion(question), ct);
+
+    /// <summary>Whether Ask in the top bar can read a request or answer a question: AI is set up and on.</summary>
+    public Task<AskStatus> AskStatusAsync(CancellationToken ct = default) => SendAsync<AskStatus>(HttpMethod.Get, "api/ask", null, ct);
+
+    /// <summary>Reads a request in plain English as the search box's fields and words. Cancelling stops the model.</summary>
+    public Task<AskReading> ReadRequestAsync(string request, CancellationToken ct = default) =>
+        SendAsync<AskReading>(HttpMethod.Post, "api/ask/search", new AskQuestion(request), ct);
+
+    /// <summary>
+    /// Asks the books in <paramref name="scope"/>, the Library's filters and search fields, a question, yielding each
+    /// change to the panel as the server finds the pages and the model writes its answer. Cancelling stops the model.
+    /// </summary>
+    public IAsyncEnumerable<AskUpdate> AskLibraryAsync(string question, LibraryQuery scope, CancellationToken ct = default) =>
+        StreamAsync("api/ask/library", new AskLibraryQuestion(question, scope), ct);
+
+    async IAsyncEnumerable<AskUpdate> StreamAsync<T>(string url, T question, [EnumeratorCancellation] CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, Ask(documentId)) { Content = JsonContent.Create(new AskQuestion(question)) };
+        using var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(question) };
         // Read as it comes, rather than once the whole answer is in.
         request.SetBrowserResponseStreamingEnabled(true);
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);

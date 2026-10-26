@@ -56,8 +56,10 @@ public sealed class UserLibrary
         var progress = await Get<IndexQueries>().GetProgressAsync(ct);
         if (!indexing.IsPaused(Lane.Ocr) && progress.PagesAwaitingOcr > 0) return true;
         var ai = Get<AiSettings>();
-        return ai.Setup.IsReady && !indexing.IsPaused(Lane.Classify) && indexing.Unavailable(Lane.Classify) is null
-            && (progress.ToClassify > 0 || ai.ScanWholeBooks && progress.ToScanWhole > 0);
+        if (ai.Setup.IsReady && !indexing.IsPaused(Lane.Classify) && indexing.Unavailable(Lane.Classify) is null
+            && (progress.ToClassify > 0 || ai.ScanWholeBooks && progress.ToScanWhole > 0)) return true;
+        // Reading the library for meaning, too, carries on to the end; one whose model stopped answering is left until next time.
+        return Get<LibraryVectors>().Status is { State: LibraryVectorsState.Reading or LibraryVectorsState.Waiting } vectors && vectors.WithVectors < vectors.Pages;
     }
 }
 
@@ -210,6 +212,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         {
             var library = await slot.Opening.Value;
             // Indexing first, so it can still record the job it was on; then the writer, as the Windows app stops them.
+            await library.Get<LibraryVectors>().StopAsync(CancellationToken.None);
             await library.Indexing.StopAsync(CancellationToken.None);
             await library.Writer.StopAsync(CancellationToken.None);
             var index = library.Index;
@@ -265,6 +268,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             await library.Drives.ReloadAsync();
             // Scans every library folder as it starts, which picks up whatever changed while the library was closed.
             await library.Indexing.StartAsync(CancellationToken.None);
+            await library.Get<LibraryVectors>().StartAsync(CancellationToken.None);
             return library;
         }
         catch

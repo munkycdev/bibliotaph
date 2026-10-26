@@ -178,7 +178,7 @@ public static class LibraryApi
         return query.Favorites ? new ScopeText(SavedSearchText.FavoritesName, SavedSearchText.FavoritesSubtitle, $"In {SavedSearchText.FavoritesName}") : null;
     }
 
-    static LibraryFilter Filter(LibraryQuery query, IReadOnlyCollection<EntryId> scope)
+    internal static LibraryFilter Filter(LibraryQuery query, IReadOnlyCollection<EntryId> scope)
     {
         var sort = Parse<LibrarySort>(query.Sort) ?? LibrarySort.Relevance;
         // Best match means nothing without a search; the Windows app browses newest first.

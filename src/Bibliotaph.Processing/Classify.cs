@@ -104,8 +104,9 @@ public sealed record AiState(AiSetup Setup, ModelClassifier? Classifier, ModelPl
 /// not given, since everything that uses it reaches it through <see cref="Activity"/>; tests give one a shorter quiet period.</param>
 /// <param name="scanWholeBooksByDefault">Whether books are read whole until the user chooses: on where the AI is the user's
 /// own machine, off where every request is paid for by the page.</param>
+/// <param name="libraryVectorsByDefault">Whether the whole library is read for meaning until the user chooses, for the same reason.</param>
 public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<string, IModelClient>? clients = null, BuiltInEngine? builtIn = null,
-    BuiltInEngine? builtInEmbedding = null, ModelActivity? activity = null, bool scanWholeBooksByDefault = true)
+    BuiltInEngine? builtInEmbedding = null, ModelActivity? activity = null, bool scanWholeBooksByDefault = true, bool libraryVectorsByDefault = true)
 {
     /// <summary>A local model can take minutes to load and read a long excerpt on a modest GPU.</summary>
     static readonly Lazy<HttpClient> Http = new(() => new HttpClient { Timeout = TimeSpan.FromMinutes(10) });
@@ -204,7 +205,7 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             await settings.GetAsync(SettingKeys.AiBuiltInModel, ct),
             await settings.GetAsync(SettingKeys.AiEmbeddingModel, ct),
             await settings.GetAsync(SettingKeys.AiBuiltInEmbeddingModel, ct),
-            await settings.GetAsync(SettingKeys.AiLibraryVectors, ct) != bool.FalseString));
+            await settings.GetAsync(SettingKeys.AiLibraryVectors, ct) is { } library ? library != bool.FalseString : libraryVectorsByDefault));
         _scanWholeBooks = await settings.GetAsync(SettingKeys.AiScanWholeBooks, ct) is { } scan ? scan != bool.FalseString : _scanByDefault;
     }
 

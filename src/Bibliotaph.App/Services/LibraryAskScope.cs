@@ -34,20 +34,9 @@ public sealed class LibraryAskScope
     public void Set(LibraryFilter filter, SearchQuery query, IEnumerable<string> labels)
     {
         var plan = SearchPlan.From(query) with { TextMatch = null, TextExclude = null };
-        IReadOnlyList<string> all = [.. labels, .. Fields(query)];
+        IReadOnlyList<string> all = [.. labels, .. query.FieldClauses()];
         var was = _current;
         _current = new Snapshot(filter, plan, all);
         if (was.Filter is null || !was.Labels.SequenceEqual(all)) Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    /// <summary>The query's field clauses as typed: "system:dnd", "not type:map".</summary>
-    static IEnumerable<string> Fields(SearchQuery query)
-    {
-        var clauses = query.Root is AndNode and ? and.Items : query.Root is null ? [] : [query.Root];
-        foreach (var clause in clauses)
-        {
-            if (clause is FieldNode field) yield return field.ToString();
-            else if (clause is NotNode { Operand: FieldNode excluded }) yield return "not " + excluded;
-        }
     }
 }

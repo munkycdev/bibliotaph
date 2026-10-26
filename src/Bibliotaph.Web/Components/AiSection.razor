@@ -157,6 +157,20 @@
             </div>
         }
 
+        @if (_page.LibraryProgress is { } libraryProgress)
+        {
+            @* Reading the whole library for meaning, for questions to the library. *@
+            <div class="bt-topline bt-readlibrary">
+                <h3 class="bt-subheading">Read the whole library for meaning</h3>
+                <p class="bt-sample">So a question to your whole library finds pages by what they mean, not only by their words. It runs
+                    slowly in the background, can take hours for a large library, pauses while you're using the AI, and carries on where
+                    it was after a restart. Each batch of pages is a request on your key.</p>
+                <label class="bt-check"><input type="checkbox" checked="@_page.ReadLibrary" aria-label="Read the library for meaning in the background"
+                           @onchange="e => ReadLibraryAsync(e.Value is true)" />Read the library for meaning in the background</label>
+                <p class="bt-sample">@libraryProgress</p>
+            </div>
+        }
+
         <div class="bt-topline">
             <h3 class="bt-subheading">Library folders sent to AI</h3>
             <p class="bt-sample">Untick a folder to keep its books away from the model. They keep their hints from names, and you can
@@ -357,6 +371,12 @@
     async Task ScanWholeBooksAsync(bool on)
     {
         await Api.ScanWholeBooksAsync(on);
+        await RefreshAsync();
+    }
+
+    async Task ReadLibraryAsync(bool on)
+    {
+        await Api.ReadLibraryAsync(on);
         await RefreshAsync();
     }
 

@@ -1,7 +1,7 @@
 @page "/read/{EntryId:long}"
 @* A book on a page of its own: the reader, at the file, page, search or binder item the address says. *@
 
-<ReaderView EntryId="EntryId" Doc="Doc" Page="Page" Q="Q" Keep="Keep" Popout="Popout" Item="Item" Ask="Ask" />
+<ReaderView EntryId="EntryId" Doc="Doc" Page="Page" Q="@Q" Keep="Keep" Popout="Popout" Item="Item" Ask="Ask" />
 
 @code {
     [Parameter] public long EntryId { get; set; }

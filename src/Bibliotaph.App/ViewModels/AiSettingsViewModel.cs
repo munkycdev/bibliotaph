@@ -347,18 +347,7 @@ public sealed partial class AiSettingsViewModel(
         var status = libraryVectors.Status;
         HasLibraryVectors = status.State != LibraryVectorsState.Unavailable;
         OnPropertyChanged(nameof(ReadLibrary));
-        if (!HasLibraryVectors) return;
-        var share = status.Pages == 0 ? "" : $" ({(double)status.WithVectors / status.Pages:P0})";
-        var counted = $"{status.WithVectors:N0} of {status.Pages:N0} pages read for meaning{share}.";
-        LibraryVectorsText = status.State switch
-        {
-            LibraryVectorsState.Off => counted + " Switched off: questions to the library find the other pages by their words.",
-            LibraryVectorsState.Reading => counted + " Reading the rest in the background.",
-            LibraryVectorsState.Waiting => counted + " Waiting while the AI is in use.",
-            LibraryVectorsState.Done => counted + " Every page is read.",
-            LibraryVectorsState.Stopped => counted + $" Stopped for now: {status.Problem ?? "the model server didn't answer"}. It tries again in a few minutes.",
-            _ => counted,
-        };
+        if (AiText.LibraryVectors(status) is { } text) LibraryVectorsText = text;
     }
 
     async Task RefreshProgressAsync()

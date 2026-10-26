@@ -37,7 +37,7 @@
                     <div class="bt-askturn">
                         <div class="bt-askquestion">@turn.Question</div>
                         @if (turn.LookedFor is { } lookedFor) { <div class="bt-small">@lookedFor</div> }
-                        <div class="bt-askanswer small">@Answer(turn.Answer)</div>
+                        <div class="bt-askanswer small"><AskAnswer Parts="turn.Answer" Open="OpenCitationAsync" /></div>
                     </div>
                 }
             </div>
@@ -45,7 +45,7 @@
 
         @if (_asked is { } asked) { <div class="bt-askquestion bt-asked">@asked</div> }
         @if (_lookedFor is { } looked) { <div class="bt-small">@looked</div> }
-        @if (_answer.Count > 0) { <div class="bt-askanswer" aria-label="The answer">@Answer(_answer)</div> }
+        @if (_answer.Count > 0) { <div class="bt-askanswer" aria-label="The answer"><AskAnswer Parts="_answer" Open="OpenCitationAsync" /></div> }
         @if (_message is { } message) { <div class="bt-askmessage" role="status">@message</div> }
         @if (_passages.Count > 0)
         {
@@ -213,30 +213,6 @@
     Task OpenCitationAsync(AskPart part) => part.Page is { } page
         ? Show.InvokeAsync((page, part.Phrase ?? _passages.FirstOrDefault(p => p.Page == page)?.Phrase))
         : Task.CompletedTask;
-
-    /// <summary>An answer as checked: each citation a link, a quotation not on its page in italics, and a muted note where citations were taken out.</summary>
-    RenderFragment Answer(IReadOnlyList<AskPart> parts) => __builder =>
-    {
-        foreach (var part in parts)
-        {
-            switch (part.Kind)
-            {
-                case AskPartKind.Citation:
-                    <button class="bt-citation" title="Open this page" aria-label="Go to page @part.Text.Trim('[', ']').Replace("p. ", "")"
-                            @onclick="() => OpenCitationAsync(part)">@part.Text</button>
-                    break;
-                case AskPartKind.Paraphrase:
-                    <em title="Not the book's exact words: this quotation isn't on the page it cites.">@part.Text</em>
-                    break;
-                case AskPartKind.Unsupported:
-                    <em class="bt-unsupported" title="This cited a page Ask didn't read, so the citation was taken out."> @part.Text</em>
-                    break;
-                default:
-                    @part.Text
-                    break;
-            }
-        }
-    };
 
     public void Dispose()
     {

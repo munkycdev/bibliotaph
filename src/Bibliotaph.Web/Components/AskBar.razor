@@ -1,0 +1,346 @@
+@* .bt-askbar: Ask's panel under the top bar while Ask is on, as the Windows app's: what to do, a reading in progress, or
+   the request read as chips (a field and an editable value, or words to find) with notes on anything changed or left
+   out, and Search, which puts the chips in the box as query text and runs it. Or, with Answer from my books
+   (Ctrl+Enter), the request as a question answered from the pages of the books the Library shows, each citation
+   opening its book at its page. Without AI it says Ask needs it, with a link to Settings > AI. *@
+@using Bibliotaph.Core.Search
+@implements IDisposable
+@inject ApiClient Api
+@inject AskScope Scope
+@inject NavigationManager Navigation
+
+<section class="bt-askbar" aria-label="Ask">
+    <Icon Name="Sparkles" Size="15" />
+    <div class="bt-askbarbody">
+        <p class="bt-askbarmessage" role="status">@Message</p>
+        @if (_state == AskState.NeedsAi)
+        {
+            <button class="bt-link bt-askbarlink" @onclick="OpenAiSettings"><Icon Name="Settings2" Size="13" />Set AI up in Settings</button>
+        }
+        else
+        {
+            <button class="bt-link bt-askbarlink" title="Answer this question from the pages of the books the Library shows (Ctrl+Enter)"
+                    aria-label="Answer from my books" @onclick="() => AnswerAsync(Text)"><Icon Name="BookOpen" Size="13" />Answer from my books</button>
+        }
+
+        @if (_asked is { } asked)
+        {
+            @* The answer from the library: the question, the answer with citations to book and page, and the pages it was read from. *@
+            <div class="bt-askbaranswer">
+                <div class="bt-askquestion">@asked</div>
+                @if (_step is { } step)
+                {
+                    <div class="bt-askactions">
+                        <span class="bt-small bt-askstep" role="status">@step</span>
+                        @if (_answering)
+                        {
+                            <button class="bt-link bt-askstop" title="Stop the answer here" aria-label="Stop answering" @onclick="Stop">Stop</button>
+                        }
+                    </div>
+                }
+                @if (_answer.Count > 0)
+                {
+                    <div class="bt-askanswer" aria-label="The answer"><AskAnswer Parts="_answer" Open="OpenCitation" FromLibrary="true" /></div>
+                }
+                @if (_message is { } message) { <div class="bt-askmessage">@message</div> }
+                @if (_passages.Count > 0)
+                {
+                    <div class="bt-askpageshead">@_passagesHeading</div>
+                    <div aria-label="Pages that look like they answer it">
+                        @foreach (var passage in _passages)
+                        {
+                            <div class="bt-askpassage">
+                                <button class="bt-link" title="Open this book at this page, with the matching word marked" aria-label="@passage.Open"
+                                        @onclick="() => Open(passage.EntryId, passage.DocumentId, passage.Page, passage.Phrase)">@passage.Link</button>
+                                <div class="bt-askpassagetext">@passage.Text</div>
+                                <div class="bt-small">@passage.Found</div>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (_coverage is { } coverage) { <p class="bt-small bt-asknote">@coverage</p> }
+            </div>
+        }
+
+        @if (_state == AskState.Reading)
+        {
+            <div class="bt-askbarreading">
+                <div class="bt-busybar" role="progressbar" aria-label="Reading your question"><span></span></div>
+                <button class="bt-button" @onclick="Cancel">Cancel</button>
+            </div>
+        }
+        @if (_state == AskState.Interpreted)
+        {
+            <div class="bt-askbarchips" aria-label="What will be searched for">
+                @foreach (var chip in _chips)
+                {
+                    <span class="bt-chip on bt-askchip">
+                        <span class="bt-askchipname">@chip.Name</span>
+                        <input class="bt-askchipvalue" aria-label="@chip.ValueName" @bind="chip.Value" @bind:event="oninput" size="@Math.Clamp(chip.Value.Length, 2, 36)" />
+                        <button class="bt-chipx" title="@chip.RemoveName" aria-label="@chip.RemoveName" @onclick="() => _chips.Remove(chip)"><Icon Name="X" Size="12" /></button>
+                    </span>
+                }
+            </div>
+            @if (_notes.Count > 0)
+            {
+                <div aria-label="Notes on how your question was read">
+                    @foreach (var note in _notes)
+                    {
+                        <p class="bt-askbarnote"><Icon Name="TriangleAlert" Size="12" />@note</p>
+                    }
+                </div>
+            }
+            @if (_chips.Count > 0)
+            {
+                <div class="bt-askbarsearch">
+                    <button class="bt-button primary" title="Put this in the search box and search" disabled="@(QueryText.Length == 0)" @onclick="SearchAsync">
+                        <Icon Name="Search" Size="13" />Search</button>
+                    <span class="bt-small bt-askbarquery" title="@QueryText">@QueryText</span>
+                </div>
+            }
+        }
+    </div>
+    <button class="bt-icon bt-askbarclose" title="Close Ask (Esc)" aria-label="Close Ask" @onclick="() => Close.InvokeAsync()"><Icon Name="X" /></button>
+</section>
+
+@code {
+    enum AskState { Waiting, NeedsAi, Reading, Interpreted, Problem, Answering }
+
+    /// <summary>One chip of the reading: "system:" and an editable value, or "words:" for words to find.</summary>
+    sealed class Chip(SearchFieldInfo? searchField, string value, bool exclude)
+    {
+        public string Value { get; set; } = value;
+
+        /// <summary>"system:", "not theme:", "words:".</summary>
+        public string Name => (exclude ? "not " : "") + (searchField is null ? "words:" : searchField.Prefix);
+
+        public string ValueName => (searchField is null ? "words" : searchField.Name) + " value";
+
+        public string RemoveName => $"Remove {Name} {Value}";
+
+        /// <summary>What it adds to the search; a chip whose value is emptied adds nothing.</summary>
+        public string? Clause => QueryClause.Format(searchField, Value, exclude);
+    }
+
+    /// <summary>The search box's text, which Answer from my books asks.</summary>
+    [Parameter] public string Text { get; set; } = "";
+
+    [Parameter] public EventCallback Close { get; set; }
+
+    /// <summary>Search: the query text to put in the box and run, leaving Ask.</summary>
+    [Parameter] public EventCallback<string> Search { get; set; }
+
+    AskState _state = AskState.Waiting;
+    string? _problem;
+    readonly List<Chip> _chips = [];
+    List<string> _notes = [];
+    CancellationTokenSource? _work;
+
+    string? _asked, _step, _message, _coverage;
+    bool _answering;
+    string _passagesHeading = "";
+    IReadOnlyList<AskPart> _answer = [];
+    IReadOnlyList<AskPassageLine> _passages = [];
+
+    string QueryText => QueryClause.Join(_chips.Select(c => c.Clause));
+
+    /// <summary>The line at the top of the panel: what to do now, or what went wrong.</summary>
+    string Message => _state switch
+    {
+        AskState.NeedsAi => AskPanelText.NeedsAi,
+        AskState.Reading => AskPanelText.Reading,
+        AskState.Problem => _problem ?? "",
+        AskState.Interpreted when _chips.Count == 0 => AskPanelText.NothingToSearch,
+        AskState.Interpreted => AskPanelText.Interpreted,
+        AskState.Answering => AskPanelText.Scope(Scope.Labels),
+        _ => AskPanelText.Intro,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Scope.Changed += OnScopeChanged;
+        try
+        {
+            if (!(await Api.AskStatusAsync()).Ready) _state = AskState.NeedsAi;
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // Asking says what's wrong when it gets that far.
+        }
+    }
+
+    void OnScopeChanged() => InvokeAsync(StateHasChanged);
+
+    // Called from the top bar's box, so the panel draws itself when each finishes.
+
+    /// <summary>Enter in Ask mode: reads the request and shows its chips. A request still being read is dropped for the new one.</summary>
+    public async Task InterpretAsync(string request)
+    {
+        await ReadAsync(request);
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Ctrl+Enter in Ask mode, or Answer from my books: answers the question from the pages of the books the Library
+    /// shows, instead of reading it as a search.
+    /// </summary>
+    public async Task AnswerAsync(string question)
+    {
+        await AnswerFromLibraryAsync(question);
+        StateHasChanged();
+    }
+
+    async Task ReadAsync(string request)
+    {
+        var work = Restart();
+        _state = AskState.Reading;
+        StateHasChanged();
+        try
+        {
+            var reading = await Api.ReadRequestAsync(request, work.Token);
+            if (work.IsCancellationRequested) return;
+            if (reading.Problem is { } problem)
+            {
+                _problem = problem;
+                _state = reading.NeedsAi ? AskState.NeedsAi : AskState.Problem;
+                return;
+            }
+            _chips.AddRange(reading.Parts.Select(p => new Chip(p.Field is { } name ? SearchFields.Find(name) : null, p.Value, p.Exclude)));
+            _notes = [.. reading.Notes];
+            _state = AskState.Interpreted;
+        }
+        catch (OperationCanceledException) when (work.IsCancellationRequested)
+        {
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _problem = AskPanelText.Failed;
+            _state = AskState.Problem;
+        }
+        finally
+        {
+            Finish(work);
+        }
+    }
+
+    async Task AnswerFromLibraryAsync(string question)
+    {
+        var work = Restart();
+        question = question.Trim();
+        if (_state == AskState.NeedsAi) return;
+        if (question.Length == 0)
+        {
+            _problem = AskPanelText.QuestionFirst;
+            _state = AskState.Problem;
+            return;
+        }
+        _state = AskState.Answering;
+        _asked = question;
+        StateHasChanged();
+        try
+        {
+            await foreach (var update in Api.AskLibraryAsync(question, Scope.Query, work.Token))
+            {
+                Apply(update);
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException) when (work.IsCancellationRequested)
+        {
+            if (_work == work) _message = "Stopped. What was written so far is above.";
+        }
+        catch (ApiProblemException e)
+        {
+            _message = e.Message;
+        }
+        catch (HttpRequestException)
+        {
+            _message = "Bibliotaph couldn't reach its server just now. Try again in a moment.";
+        }
+        finally
+        {
+            if (_work == work)
+            {
+                _answering = false;
+                _step = null;
+            }
+            Finish(work);
+        }
+    }
+
+    void Apply(AskUpdate update)
+    {
+        _step = update.Step;
+        _answering = update.Answering;
+        if (update.Answer is { } answer) _answer = answer;
+        if (update.Passages is { } passages) _passages = passages;
+        if (update.PassagesHeading is { } heading) _passagesHeading = heading;
+        if (update.Message is { } message) _message = message;
+        if (update.Coverage is { } coverage) _coverage = coverage;
+    }
+
+    /// <summary>Drops whatever was being read or answered, and what it showed, for something new.</summary>
+    CancellationTokenSource Restart()
+    {
+        _work?.Cancel();
+        var work = _work = new CancellationTokenSource();
+        _chips.Clear();
+        _notes = [];
+        _problem = null;
+        _asked = _step = _message = _coverage = null;
+        _answering = false;
+        _answer = [];
+        _passages = [];
+        _passagesHeading = "";
+        if (_state != AskState.NeedsAi) _state = AskState.Waiting;
+        return work;
+    }
+
+    void Finish(CancellationTokenSource work)
+    {
+        if (_work == work) _work = null;
+        work.Dispose();
+    }
+
+    /// <summary>Stops reading a request.</summary>
+    void Cancel()
+    {
+        _work?.Cancel();
+        _state = AskState.Waiting;
+    }
+
+    /// <summary>Stops an answer being written.</summary>
+    void Stop() => _work?.Cancel();
+
+    Task SearchAsync() => Search.InvokeAsync(QueryText);
+
+    async Task OpenAiSettings()
+    {
+        await Close.InvokeAsync();
+        Navigation.NavigateTo("settings#ai");
+    }
+
+    /// <summary>
+    /// Opens the book and page a citation names, marking the quotation it follows when that was on the page, else the
+    /// word the page was found by.
+    /// </summary>
+    void OpenCitation(AskPart part)
+    {
+        if (part is not { Page: { } page, DocumentId: { } documentId }) return;
+        var passage = _passages.FirstOrDefault(p => p.DocumentId == documentId && p.Page == page);
+        Open(part.EntryId ?? passage?.EntryId, documentId, page, part.Phrase ?? passage?.Phrase);
+    }
+
+    void Open(long? entryId, long? documentId, int page, string? phrase)
+    {
+        if (entryId is not { } entry) return;
+        var words = phrase?.Replace("\"", "", StringComparison.Ordinal).Trim();
+        Navigation.NavigateTo(ReaderUrl.For(entry, documentId, page, words is { Length: > 0 } ? $"\"{words}\"" : null));
+    }
+
+    public void Dispose()
+    {
+        Scope.Changed -= OnScopeChanged;
+        _work?.Cancel();
+    }
+}

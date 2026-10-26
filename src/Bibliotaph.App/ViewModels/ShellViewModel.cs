@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -126,7 +127,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public PlainSearchViewModel PlainSearch { get; }
 
     /// <summary>The empty box's hint, which says what it takes in Ask mode.</summary>
-    public string SearchPlaceholder => PlainSearch.IsOn ? "Ask for books in plain English…" : "Search books, topics, passages…";
+    public string SearchPlaceholder => PlainSearch.IsOn ? AskPanelText.Placeholder : "Search books, topics, passages…";
 
     /// <summary>Searches now (Enter, or a pause in typing) and shows the results in the Library.</summary>
     [RelayCommand]

@@ -1,0 +1,36 @@
+@* An answer as checked, as the Windows app shows it: each citation a link, a quotation not on its page in italics, and a
+   muted note where citations were taken out. *@
+
+@foreach (var part in Parts)
+{
+    switch (part.Kind)
+    {
+        case AskPartKind.Citation:
+            <button class="bt-citation" title="@CitationTip" aria-label="@CitationName(part)" @onclick="() => Open.InvokeAsync(part)">@part.Text</button>
+            break;
+        case AskPartKind.Paraphrase:
+            <em title="Not the book's exact words: this quotation isn't on the page it cites.">@part.Text</em>
+            break;
+        case AskPartKind.Unsupported:
+            <em class="bt-unsupported" title="This cited a page Ask didn't read, so the citation was taken out."> @part.Text</em>
+            break;
+        default:
+            @part.Text
+            break;
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<AskPart> Parts { get; set; } = [];
+
+    /// <summary>A citation was clicked: opens its page.</summary>
+    [Parameter] public EventCallback<AskPart> Open { get; set; }
+
+    /// <summary>A citation in an answer from the library opens its book, not only its page.</summary>
+    [Parameter] public bool FromLibrary { get; set; }
+
+    string CitationTip => FromLibrary ? "Open this book at this page" : "Open this page";
+
+    /// <summary>"Go to page 112", or in an answer from the library, "Open The Sunken Keep, p. 112".</summary>
+    string CitationName(AskPart part) => FromLibrary ? "Open " + part.Text.Trim('[', ']') : "Go to page " + part.Text.Trim('[', ']').Replace("p. ", "");
+}

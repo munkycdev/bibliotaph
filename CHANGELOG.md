@@ -47,6 +47,10 @@
 - **Ask this book on the web.** The reader's Ask panel answers a question from the book's own pages, as in the Windows
   app, shown as the model writes it, with each citation opening its page, follow-ups and New conversation; an
   embedding model in Settings › AI finds pages by meaning too. See [Ask this book](docs/guide/web.md#ask-this-book).
+- **Ask in the top bar on the web.** The ✦ button beside the search box reads a request in plain English as a search,
+  shown as chips to change before searching, or answers a question from the books the Library shows, each citation
+  opening its book at its page. Reading the whole library for meaning is a setting in Settings › AI, off until ticked.
+  Search words now reach the reader on the web, so a matching page opens with them marked.
 - **Scan whole books on the web.** Settings › AI's Scan whole books reads each book chapter by chapter, as in the
   Windows app, and a book's details show what it found under Found inside the book, with Scan again. It's off on the
   web until you tick it, since every chapter is a request on your key. See

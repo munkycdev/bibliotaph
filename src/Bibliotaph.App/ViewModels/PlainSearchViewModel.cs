@@ -96,14 +96,13 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
     /// <summary>The line at the top of the Ask panel: what to do now, or what went wrong.</summary>
     public string Message => State switch
     {
-        PlainSearchState.NeedsAi => PlainSearchText.NeedsAi,
-        PlainSearchState.Reading => "Reading your question…",
+        PlainSearchState.NeedsAi => AskPanelText.NeedsAi,
+        PlainSearchState.Reading => AskPanelText.Reading,
         PlainSearchState.Problem => Problem ?? "",
-        PlainSearchState.Interpreted when Parts.Count == 0 => "Nothing in that could be searched for. Try saying it another way.",
-        PlainSearchState.Interpreted => "Here's how that reads as a search. Change or remove anything, then press Search.",
+        PlainSearchState.Interpreted when Parts.Count == 0 => AskPanelText.NothingToSearch,
+        PlainSearchState.Interpreted => AskPanelText.Interpreted,
         PlainSearchState.Answering => Library.ScopeText,
-        _ => "Describe what you're looking for, such as “a one-shot heist for 4 players in a city”, and press Enter to search. "
-            + "Or ask your books a question, such as “how does grappling work?”, and press Ctrl+Enter or Answer from my books.",
+        _ => AskPanelText.Intro,
     };
 
     /// <summary>Raised by Search with the query text to put in the box and run.</summary>
@@ -168,7 +167,7 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
         catch (Exception ex)
         {
             log.LogError(ex, "Ask failed");
-            Problem = "Something went wrong reading your question. Try again.";
+            Problem = AskPanelText.Failed;
             State = PlainSearchState.Problem;
         }
         finally
@@ -193,7 +192,7 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
         }
         if (string.IsNullOrWhiteSpace(question))
         {
-            Problem = "Type a question first, then press Ctrl+Enter.";
+            Problem = AskPanelText.QuestionFirst;
             State = PlainSearchState.Problem;
             return;
         }

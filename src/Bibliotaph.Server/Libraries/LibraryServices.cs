@@ -148,9 +148,9 @@ public static class LibraryServices
         {
             var keys = sp.GetRequiredService<ServerApiKeys>();
             var clients = sp.GetRequiredService<ModelClientFactory>();
-            // Reading whole books waits to be switched on: each of its requests is paid for on the user's key.
+            // Reading whole books, and the whole library for meaning, wait to be switched on: each of their requests is paid for on the user's key.
             return new AiSettings(sp.GetRequiredService<SettingsStore>(), keys, endpoint => clients.Create(endpoint, () => keys.Find(endpoint)),
-                activity: new ModelActivity(host.Clock, clients.QuietPeriod), scanWholeBooksByDefault: false);
+                activity: new ModelActivity(host.Clock, clients.QuietPeriod), scanWholeBooksByDefault: false, libraryVectorsByDefault: false);
         });
         services.AddSingleton(new AiReadingFeed(host.Clock));
         services.AddSingleton<ExampleFinder>();
@@ -164,6 +164,12 @@ public static class LibraryServices
         services.AddSingleton<AskQueries>();
         services.AddSingleton(new AiUse(host.Clock));
         services.AddSingleton<AskService>();
+        // Ask in the top bar: a request read as a search, or a question answered from the books the Library shows, which
+        // find pages by meaning as the library is read for it in the background.
+        services.AddSingleton<PlainSearchService>();
+        services.AddSingleton<LibraryAskQueries>();
+        services.AddSingleton<LibraryAskService>();
+        services.AddSingleton<LibraryVectors>();
         services.AddSingleton<IStageCatalog, StageCatalog>();
         services.AddSingleton(new IndexingOptions { OnlineOnlyReserveBytes = 0 });
         services.AddSingleton<IndexingFiles>();

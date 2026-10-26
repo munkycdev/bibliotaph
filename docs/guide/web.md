@@ -451,7 +451,23 @@ answer. Follow-up questions are understood in the light of the ones before, each
 
 Ask finds pages by their words. Choose an **Embedding model, for Ask this book** in Settings › AI, such as OpenAI's
 `text-embedding-3-small`, and it finds them by meaning too: a book's pages are read for meaning when you open it, on
-your key, and the panel says how far that has got. Questions to your whole library aren't on the web yet.
+your key, and the panel says how far that has got.
+
+### Ask in the top bar
+
+The ✦ button beside the search box turns on **Ask**, as in the Windows app (see
+[Ask in plain English](searching.md#ask-in-plain-english) and [Ask your library a question](searching.md#ask-your-library-a-question)).
+Type a request in plain English, such as “a one-shot heist for 4 players in a city”, and press **Enter**: the AI reads
+it as the search box's own fields and words, shown as chips with notes on anything it changed or left out. Change or
+remove a chip, then **Search** puts them in the box and searches. Or type a question, such as “how does grappling
+work?”, and press **Ctrl+Enter** or **Answer from my books**: it's answered from the pages of the books the Library
+shows (its filters and the search box's fields, as the Library last showed them), each citation naming its book and
+page and opening that book there. **Esc** leaves Ask and keeps what you typed.
+
+With an embedding model chosen, Settings › AI offers **Read the library for meaning in the background**, so questions to
+your library find pages by meaning as well as by words. It's off until you tick it, since every batch of pages is a
+request on your key; it goes slowly, pauses while you're using the AI, carries on where it was, and Settings says how
+far it has got.
 
 ## Your theme
 
