@@ -7,6 +7,7 @@ using Bibliotaph.Server.Auth;
 using Bibliotaph.Pdf.Host;
 using Bibliotaph.Server.Indexing;
 using Bibliotaph.Server.Libraries;
+using Bibliotaph.Server.Site;
 using Bibliotaph.Server.Storage;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -133,8 +134,7 @@ public static class ServerSetup
             developerSignIn: app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Auth:DeveloperSignIn"));
         app.MapApi();
         app.MapStorage();
-        // The address given to sign-in and storage providers; the page itself is static so it reads without the client.
-        app.MapGet("/privacy", () => Results.Redirect("/privacy.html"));
+        app.MapSite();
 
         // The Blazor WebAssembly client: its files, and its page for every other path so its router can take over.
         app.MapStaticAssets();

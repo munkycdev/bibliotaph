@@ -1138,3 +1138,44 @@ a.bt-menuitem{text-decoration:none}
 .bt-restore .bt-copy{margin-top:0}
 .bt-restorefolders .bt-settingrow{padding:8px 0}
 .bt-restorefolders .bt-offline{color:var(--bt-accent);max-width:50%;text-align:right}
+/* The site's own pages (Features, About, Terms and the rest), served by the server around the app. */
+.bt-site{height:auto;min-height:100%;display:flex;flex-direction:column}
+.bt-skip{position:absolute;left:-9999px}
+.bt-skip:focus{left:16px;top:12px;z-index:20;background:var(--bt-panel);padding:8px 12px;border-radius:6px}
+.bt-sitehead{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;max-width:1080px;width:100%;margin:0 auto;padding:22px 24px}
+.bt-sitehead .bt-brand{padding:0}
+.bt-sitenav{display:flex;align-items:center;gap:20px;flex-wrap:wrap;font-size:13px}
+.bt-sitenav a:not(.bt-button),.bt-sitefoot a{color:var(--bt-text);text-decoration:none}
+.bt-sitenav a:not(.bt-button):hover,.bt-sitefoot a:hover,.bt-sitenav a[aria-current=page],.bt-sitefoot a[aria-current=page]{text-decoration:underline;text-underline-offset:4px}
+.bt-sitemain{flex:1;width:100%}
+.bt-sitemain a:focus-visible,.bt-sitehead a:focus-visible,.bt-sitefoot a:focus-visible{outline:2px solid var(--bt-accent);outline-offset:3px}
+.bt-site .bt-policy{padding-top:24px}
+.bt-site .bt-policy a:not(.bt-button){color:var(--bt-accent)}
+.bt-lede,.bt-policy .bt-lede{font-size:16px;line-height:1.6;color:var(--bt-muted);margin-top:14px}
+.bt-site .bt-eyebrow{display:block;margin-bottom:10px}
+.bt-policy h3{font-size:15px;font-weight:600;margin:24px 0 6px}
+.bt-policy code,.bt-sitegrid code{font-family:ui-monospace,Consolas,monospace;font-size:.92em;background:var(--bt-side);padding:1px 4px;border-radius:3px}
+.bt-tablewrap{overflow-x:auto;margin-top:14px}
+.bt-tablewrap .bt-table{margin-top:0}
+.bt-policy .bt-table td{padding:8px 10px 8px 0;vertical-align:top;border-bottom:1px solid var(--bt-line);overflow-wrap:anywhere}
+.bt-quote{border-left:3px solid var(--bt-line);padding-left:16px}
+.bt-columns{columns:2 220px}
+.bt-licences{max-width:900px}
+.bt-hero{max-width:780px;margin:0 auto;padding:56px 24px 32px;text-align:center}
+.bt-hero h1{font-size:48px;margin-top:12px}
+.bt-hero .bt-lede{max-width:640px;margin:18px auto 0}
+.bt-hero .bt-actions{justify-content:center}
+.bt-hero .bt-button{padding:11px 18px;font-size:13px}
+.bt-hero .bt-fine{margin-top:14px}
+.bt-shot{max-width:1080px;margin:16px auto 0;padding:0 24px}
+.bt-shot img{display:block;width:100%;height:auto;border:1px solid var(--bt-line);border-radius:12px;box-shadow:0 20px 60px #00000018}
+.bt-shot figcaption{font-size:11px;color:var(--bt-muted);text-align:center;margin-top:10px}
+.bt-shot a,.bt-sitecta a{color:var(--bt-accent)}
+.bt-sitegrid{max-width:1080px;margin:0 auto;padding:56px 24px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px 32px}
+.bt-sitegrid h2{font:22px 'Libre Caslon Display',Georgia,serif;font-weight:400;margin-bottom:8px}
+.bt-sitegrid p{font-size:13px;line-height:1.7;color:var(--bt-muted)}
+.bt-sitecta{max-width:780px;margin:0 auto;padding:32px 24px 64px;text-align:center}
+.bt-sitecta h2{font:26px 'Libre Caslon Display',Georgia,serif;font-weight:400;margin-bottom:8px}
+.bt-sitefoot{border-top:1px solid var(--bt-line);margin-top:24px;padding:24px;font-size:12px;color:var(--bt-muted);text-align:center}
+.bt-sitefoot nav{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 20px;margin-bottom:12px}
+@media(max-width:620px){.bt-hero{padding-top:28px}.bt-hero h1{font-size:34px}.bt-sitenav{gap:14px}.bt-sitehead{padding:16px}}

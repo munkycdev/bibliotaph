@@ -23,8 +23,8 @@ Without an invitation, signing in with an account Bibliotaph doesn't know shows 
 sections beside the one you're in, in the Windows app's order. **Storage**, **Library**, **Online libraries**, **Windows PCs**, **Processing**, **Appearance**, **Needs review**, **Vocabulary**, **AI**, **Passwords**, **Backup**,
 **Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
 invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
-**About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
-the privacy policy. **Keyboard shortcuts**, under it, lists every key that works on the web, by where it works; Ctrl+/
+**About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports,
+the privacy policy, the terms and the change log. **Keyboard shortcuts**, under it, lists every key that works on the web, by where it works; Ctrl+/
 shows the same list from anywhere. Ctrl+K, or / when you're not typing, puts the keyboard in the search box, and in a
 reader popped out into a window of its own, Ctrl+K searches in the main window. The button beside **Settings**, or
 Ctrl+B, folds the sidebar to its icons, each named when you point at it, as in the Windows app; the button that takes the
@@ -673,3 +673,12 @@ Safari. It is the same site, signed in the same way, so nothing else changes.
 Your books stay in your own storage. Bibliotaph keeps your account, your storage connections (encrypted), an index of your
 library and the work you do in it. The [privacy policy](https://bibliotaph.online/privacy) says exactly what's kept,
 where, and how to have it deleted.
+
+## The site
+
+Signed out, [bibliotaph.online](https://bibliotaph.online) shows what Bibliotaph is, with **Sign in** at the top. Its
+footer links the rest of the site: [Features](https://bibliotaph.online/features), [About](https://bibliotaph.online/about),
+the [Change log](https://bibliotaph.online/changelog), [Contact us](https://bibliotaph.online/contact),
+[Terms](https://bibliotaph.online/terms), [Privacy](https://bibliotaph.online/privacy) and
+[Licences](https://bibliotaph.online/licences), which has Bibliotaph's licence and every component's. Signed in, the same
+address opens your library, and the site's pages offer **Open your library** in place of **Sign in**.
