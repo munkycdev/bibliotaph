@@ -1,6 +1,6 @@
-@* Settings › Storage: the drives connected, what each was allowed, connecting another of any kind this server offers,
-   connecting one again when its provider stopped letting Bibliotaph in, and disconnecting. WebDAV has no sign-in page
-   of its own, so its address, user name and password are typed here. *@
+@* Settings › Library, above the folders: the drives connected, what each was allowed, connecting another of any kind
+   this server offers, connecting one again when its provider stopped letting Bibliotaph in, and disconnecting. WebDAV
+   has no sign-in page of its own, so its address, user name and password are typed here. *@
 @inject ApiClient Api
 @inject LibraryActivity Activity
 
@@ -111,7 +111,8 @@
     bool _focusForm;
     ElementReference _address;
 
-    [CascadingParameter(Name = "ChooseSettingsSection")] public Func<string, Task>? Choose { get; set; }
+    /// <summary>Storage connected or disconnected, which the library folders below it offer to add from.</summary>
+    [Parameter] public EventCallback Changed { get; set; }
 
     /// <summary>"storage" when connecting didn't finish, as the provider's callback reports it.</summary>
     [Parameter] public string? Problem { get; set; }
@@ -185,8 +186,7 @@
         _url = _user = "";
         _storage = await Api.StorageAsync();
         Activity.Refresh();
-        // As after any other provider's sign-in, the next thing to do is add a folder from it.
-        if (Choose is not null) await Choose("library");
+        await Changed.InvokeAsync();
     }
 
     async Task Disconnect(StorageAccount account)
@@ -194,5 +194,6 @@
         await Api.DisconnectStorageAsync(account.Id);
         _storage = await Api.StorageAsync();
         Activity.Refresh();
+        await Changed.InvokeAsync();
     }
 }

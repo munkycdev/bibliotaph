@@ -311,7 +311,7 @@ public sealed partial class TermCardViewModel : DecidedCardViewModel
 
 /// <summary>
 /// "Looks like a new version of" a book: a file that shares most of its pages with a book in the library, or its
-/// title and publisher, but isn't the same text page for page. Make it current, keep it as another copy, or say it's
+/// title and publisher, but isn't the same text page for page. This file is current, the book's file is current, or it's
 /// a separate book.
 /// </summary>
 public sealed partial class VersionCardViewModel(VersionItem item, IReviewActions actions) : DecidedCardViewModel(actions)

@@ -20,9 +20,13 @@ Without an invitation, signing in with an account Bibliotaph doesn't know shows 
 ## Settings
 
 **Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of
-sections beside the one you're in, in the Windows app's order. **Storage**, **Library**, **Online libraries**, **Windows PCs**, **Processing**, **Appearance**, **Needs review**, **Vocabulary**, **AI**, **Passwords**, **Backup**,
-**Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
-invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
+sections beside the one you're in, in the Windows app's order: where your books are first, then how Bibliotaph reads
+them, then your own choices. **Library** (your storage and the folders from it), **Online libraries**, **Devices** (your
+Windows PCs and the books kept in this browser), **AI**, **Processing**, **Vocabulary**, **Preferences** (light or dark,
+where Bibliotaph opens and what waits for review), **Passwords**, **Backup** and **Account** are there for everyone, and
+**Members** (invitations and accounts) for those who can invite. The address names the section, such as
+bibliotaph.online/settings#library, so Back returns to the last one; an older link to a section since folded into
+another, such as #storage, opens the one it's in now.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports,
 the privacy policy, the terms and the change log. **Keyboard shortcuts**, under it, lists every key that works on the web, by where it works; Ctrl+/
 shows the same list from anywhere. Ctrl+K, or / when you're not typing, puts the keyboard in the search box, and in a
@@ -48,18 +52,18 @@ another service is theirs, so it stays.
 
 ## Inviting others
 
-If your account can invite, **Settings** has **Invitations**. Type who it's for (only you see this), tick **Can invite
+If your account can invite, **Settings** has **Members**. Type who it's for (only you see this), tick **Can invite
 others** if they should be able to invite too, and choose **New invitation**. Copy the link straight away and send it
 yourself: it's shown only once. The list below shows each invitation and whether it has been used.
 
-Under it, **Accounts** lists everyone who has joined, with their email address, when they joined and when they last
+Under the invitations, **Accounts** lists everyone who has joined, with their email address, when they joined and when they last
 signed in. The bin beside an account deletes it once you confirm: it's the same as its owner choosing **Close
 account…**, so their library and everything done in it go, they're signed out in every browser, and nothing in their
 storage is touched. It can't be undone. Your own account isn't deleted here: use **Close account…**.
 
 ## Connecting your storage
 
-Bibliotaph reads your books where they are, so first it needs your storage. In **Settings** › **Storage**, choose
+Bibliotaph reads your books where they are, so first it needs your storage. At the top of **Settings** › **Library**, under **Storage**, choose
 **Connect OneDrive**, **Connect Dropbox**, **Connect Google Drive** or **Connect Box** and sign in with the account that holds your books
 (it doesn't have to be the one you sign in to Bibliotaph with). Microsoft, Dropbox, Google or Box asks you to let Bibliotaph
 read your files and keep access while you're away; Bibliotaph asks for nothing that writes, so it can't change, move or
@@ -89,7 +93,7 @@ collections and corrections stay for when you connect it again.
 
 ## Library folders
 
-**Settings** › **Library** works as in the Windows app. Choose **Add a folder** (or **Add a folder** on Home),
+**Library folders**, under your storage in **Settings** › **Library**, works as in the Windows app. Choose **Add a folder** (or **Add a folder** on Home),
 walk down to the folder you want, and choose **Use this folder**. Folders already in your library are marked. The new
 folder shows what's directly in it; choose **Add to library** to keep it or **Cancel**. Each folder then says when it was
 added and what it holds, such as "488 PDFs, 12 e-books, 120 images · 15 other files ignored". The **×** removes a folder
@@ -106,7 +110,6 @@ for changes**, which looks straight away.
 
 Below the folders, as in the Windows app:
 
-- **Start on** chooses whether bibliotaph.online opens on **Home** or the **Library**.
 - **Folder names** lists the folder names read as suggestions for the books inside, such as "Adventures" → "Type:
   Adventure", with how many documents are under each. Untick one if that name means something else in your library;
   its books' suggestions are read again straight away. **Refresh** lists them again.
@@ -369,8 +372,8 @@ you type, and **Add to a new binder…**, which makes one first. While searching
 clarification.*, has the same two tabs.
 
 **Metadata suggestions** lists new terms first, then a card for each field of each book that needs a second look:
-sources that disagree, a title that looks like a file's name, or, with **All suggestions** chosen in **Settings** ›
-**Needs review**, every value nobody has confirmed. **When unsure**, the default, keeps to the first two; changing it
+sources that disagree, a title that looks like a file's name, or, with **All suggestions** chosen for **What waits for review** in
+**Settings** › **Preferences**, every value nobody has confirmed. **When unsure**, the default, keeps to the first two; changing it
 counts every book's cards again, and the sidebar's count follows. A card shows what the book has now, the suggestion and where it came
 from, with:
 
@@ -388,8 +391,10 @@ while you work, a line offers **Show the new list**.
 
 The cards that ask one question come between the new terms and the field suggestions, as in the Windows app:
 
-- **New version?**: a file that shares most of its pages, or its title and publisher, with a book you have. **Make it
-  current**, **Keep as another copy**, or **Separate book**. **Open the book** shows the book it was matched with.
+- **New version?**: a file that shares most of its pages, or its title and publisher, with a book you have. The card
+  names both files with their pages, and you choose which the book opens: **This file is current** or **The book's file
+  is current**, either way one card for both. **Separate book** keeps them apart. **Open the book** shows the book it
+  was matched with.
 - **Image pack?**: a folder of images, with the first few shown. **Make a pack** or **Keep separate**.
 - **Owned elsewhere**: a new file with the title of a book you own elsewhere. **Same book** puts the file on that
   book's card, or **Separate book**.
@@ -496,7 +501,7 @@ you've written about it.
 - **Keep offline**: the drive button in the reader's toolbar downloads the whole book to this browser, showing how far
   it has got, so it opens and turns pages at once. Click it again to let the book go with the others. If the download
   stops, it carries on next time you open the book.
-- **Settings → Books in this browser** lists the books kept here, how much room they take, and when you last read
+- **Books in this browser**, in **Settings** › **Devices**, lists the books kept here, how much room they take, and when you last read
   them. Set the room for books not kept offline (2 GB to start); past it, the books you read longest ago are let go
   first. A book kept offline is never let go for room. **×** lets one book go, and **Let go of books not kept
   offline** lets go of the rest.
@@ -607,7 +612,7 @@ asks whether another of your devices already has, and takes that text, with each
 text still works. A book the PC read is ready to search in the web library without being read again there, and the
 other way round. **Reprocess with OCR on every page** still reads the pages again on the device where you ask for it.
 
-The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Windows PCs** on the web lists each
+The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Devices** on the web lists each
 connected PC with when it was connected and last used, and **×** disconnects one: its key stops working straight
 away, and the PC keeps its own books and work. What it already shared stays in your web library. **Disconnect** in the app does the same from the PC.
 
@@ -654,17 +659,21 @@ now (listed as *Made before a restore*, so a restore can be undone by restoring 
 in its place. Anything you did since the backup was made is replaced. Your books are then read again for search in the
 background. **Cancel** forgets the backup read.
 
-To keep the Windows app's work and this library up to date with each other, connect the PC under **Windows PCs**
-instead: that merges your work both ways, where a restore replaces it.
+To keep the Windows app's work and this library up to date with each other, connect the PC as **Settings** ›
+**Devices** describes instead: that merges your work both ways, where a restore replaces it.
 
 **Export CSV** saves a row per book (title, system, type, levels, publisher, tags, collections and where its file is)
 for a spreadsheet, and **Export JSON** everything in your catalog, for other programs, as in the Windows app.
 
-## Your theme
+## Your preferences
 
-**Settings** › **Appearance** chooses **Use system**, which follows your device, **Light** or **Dark**, as in the Windows
-app. The button at the top right cycles through the same three. The browser remembers your choice, so another browser
-or computer keeps its own.
+**Settings** › **Preferences** holds the choices about how Bibliotaph works for you:
+
+- **Light or dark** chooses **Use system**, which follows your device, **Light** or **Dark**, as in the Windows app. The
+  button at the top right cycles through the same three. The browser remembers your choice, so another browser or
+  computer keeps its own.
+- **Start on** chooses whether bibliotaph.online opens on **Home** or the **Library**.
+- **What waits for review** chooses **When unsure** or **All suggestions**, as described under Needs review.
 
 ## Installing it as an app
 

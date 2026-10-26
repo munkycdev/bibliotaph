@@ -19,15 +19,18 @@ public static class ReviewCardText
     public static string N(int count) => count.ToString("N0", CultureInfo.CurrentCulture);
 }
 
-/// <summary>"Looks like a new version of" a book: Make it current, Keep as another copy, or Separate book.</summary>
+/// <summary>
+/// "Looks like a new version of" a book: which of the two files the book opens from now on, or Separate book. Either
+/// file can be the newer one, so the card names both and the user picks.
+/// </summary>
 public sealed record VersionCardText(VersionItem Item)
 {
     public const string Chip = "New version?";
 
     public static IReadOnlyList<ReviewChoiceText> Choices { get; } =
     [
-        new("current", "Make it current", "One card for both files, opening this one. Your work on both cards is kept.", true),
-        new("copy", "Keep as another copy", "One card for both files; the book keeps opening the file it opens now."),
+        new("current", "This file is current", "One card for both files, opening this one from now on. Your work on both cards is kept.", true),
+        new("copy", "The book's file is current", "One card for both files, still opening the one it opens now. This one is kept as another version."),
         new("separate", "Separate book", "Two cards, as now. Bibliotaph won't ask about these two files again."),
     ];
 
@@ -39,11 +42,15 @@ public sealed record VersionCardText(VersionItem Item)
         ? $"{ReviewCardText.N(Version.SharedPages)} of {ReviewCardText.N(Version.ComparedPages)} pages are the same as the book's; the rest differ."
         : "It has the book's title and publisher.";
 
-    public string Detail => $"This file: {Pages(Version.PageCount)}. The book: {Pages(Version.MatchedPageCount)}.";
+    public string Detail =>
+        $"This file: {FileName(Item.Path, Item.Title)}, {Pages(Version.PageCount)}. The book's file: {FileName(Item.BookPath, Item.BookTitle)}, {Pages(Version.MatchedPageCount)}.";
 
-    public string MadeCurrent => $"{Item.Title} is now the copy {Item.BookTitle} opens.";
+    public string MadeCurrent => $"{Item.BookTitle} now opens {FileName(Item.Path, Item.Title)}.";
 
-    public string KeptAsCopy => $"{Item.Title} is now another copy of {Item.BookTitle}.";
+    public string KeptAsCopy => $"{Item.BookTitle} still opens {FileName(Item.BookPath, Item.BookTitle)}, with {FileName(Item.Path, Item.Title)} kept as another version.";
+
+    /// <summary>The two files often share a title, so the card tells them apart by their names.</summary>
+    static string FileName(string? path, string title) => path is null ? title : System.IO.Path.GetFileName(path.TrimEnd('/', '\\')) is { Length: > 0 } name ? name : title;
 
     public string KeptSeparate => $"Kept {Item.Title} as a separate book.";
 

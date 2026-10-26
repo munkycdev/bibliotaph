@@ -393,8 +393,8 @@ static partial class SmokeTest
             if (!version.Heading.StartsWith("Looks like a new version of ", StringComparison.Ordinal) || version.Item.Version.Evidence != VersionEvidence.SharedPages)
                 throw new InvalidOperationException($"The new version card says {version.Heading} ({version.Evidence}).");
             await Settle(window);
-            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == version.MakeCurrentCommand), "Make it current");
-            await WaitUntilAsync(window, () => version.IsDone, () => "Make it current didn't decide the new version card.");
+            Click(Descendants<Button>(window).FirstOrDefault(b => b.Command == version.MakeCurrentCommand), "This file is current");
+            await WaitUntilAsync(window, () => version.IsDone, () => "This file is current didn't decide the new version card.");
             await version.UndoCommand.ExecuteAsync(null);
             if (version.IsDone) throw new InvalidOperationException("Undo didn't bring the new version card back.");
 
