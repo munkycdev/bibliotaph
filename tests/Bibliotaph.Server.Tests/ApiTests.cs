@@ -1142,6 +1142,64 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Settings_vocabulary_adds_renames_and_names_a_term_and_keeps_the_users_own_tags()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = Client(await AddUserAsync(admin: false));
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+
+        using var added = await client.PostAsJsonAsync("/api/vocabulary/type", new NewTerm("Hexcrawl"), ct);
+        var termId = (await added.Content.ReadFromJsonAsync<VocabularyChange>(ct))!.TermId!.Value;
+        using (await client.PutAsJsonAsync($"/api/vocabulary/terms/{termId}", new TermRename("Hex crawl", "Hex"), ct)) { }
+        using var named = await client.PostAsJsonAsync($"/api/vocabulary/terms/{termId}/aliases", new NewAlias("pointcrawl"), ct);
+        var term = (await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/type", ct))!.Single(t => t.Id == termId);
+        using var unknown = await client.GetAsync("/api/vocabulary/nonsense", ct);
+
+        Assert.Null((await named.Content.ReadFromJsonAsync<VocabularyChange>(ct))!.Problem);
+        Assert.Equal(("Hex crawl", "Hex", true), (term.Label, term.ShortLabel, term.Yours));
+        var alias = Assert.Single(term.Aliases, a => a.Text == "pointcrawl");
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        using (await client.DeleteAsync($"/api/vocabulary/aliases/{alias.Id}", ct)) { }
+        Assert.DoesNotContain((await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/type", ct))!.Single(t => t.Id == termId).Aliases,
+            a => a.Text == "pointcrawl");
+
+        using var saved = await client.PostAsJsonAsync("/api/tags", new UserTagText("Undead", "zombie, lich"), ct);
+        var tag = (await saved.Content.ReadFromJsonAsync<UserTagChange>(ct))!.Tag!;
+        using var refused = await client.PostAsJsonAsync("/api/tags", new UserTagText("Ghosts", " "), ct);
+        using (await client.PutAsJsonAsync($"/api/tags/{tag.Id}", new UserTagText("The undead", "zombie, lich, ghoul"), ct)) { }
+        var listed = (await client.GetFromJsonAsync<List<UserTag>>("/api/tags", ct))!.Single();
+        using var deleted = await client.DeleteAsync($"/api/tags/{tag.Id}", ct);
+        using var again = await client.DeleteAsync($"/api/tags/{tag.Id}", ct);
+
+        Assert.Equal(["zombie", "lich"], tag.Words);
+        Assert.Equal(0, tag.Books);
+        Assert.NotNull((await refused.Content.ReadFromJsonAsync<UserTagChange>(ct))!.Problem);
+        Assert.Equal(("The undead", 3), (listed.Name, listed.Words.Count));
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NotFound), (deleted.StatusCode, again.StatusCode));
+    }
+
+    [Fact]
+    public async Task Settings_processing_pauses_a_lane_and_keeps_it_paused_when_the_library_opens_again()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var libraries = _factory.Services.GetRequiredService<UserLibraries>();
+
+        var before = (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))!;
+        using var paused = await client.PutAsJsonAsync("/api/processing/paused", new ProcessingPauses(false, false, true), ct);
+        var after = (await paused.Content.ReadFromJsonAsync<ProcessingState>(ct))!;
+        await libraries.CloseIdleAsync(TimeSpan.Zero);
+        var reopened = (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))!;
+
+        Assert.Equal(("Nothing to process", false, new ProcessingPauses(false, false, false)), (before.Summary, before.HasFolders, before.Paused));
+        Assert.Equal(new ProcessingPauses(false, false, true), after.Paused);
+        Assert.Equal(new ProcessingPauses(false, false, true), reopened.Paused);
+        Assert.Empty(reopened.Now);
+    }
+
+    [Fact]
     public async Task Settings_lists_what_each_connection_was_granted_in_plain_words()
     {
         var ct = TestContext.Current.CancellationToken;

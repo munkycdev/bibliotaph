@@ -27,6 +27,8 @@
                 case "storage": <SettingsStorage Problem="@Problem" ProblemProvider="@ProblemProvider" /> break;
                 case "library": <SettingsLibrary /> break;
                 case "devices": <SettingsDevices /> break;
+                case "processing": <SettingsProcessing /> break;
+                case "vocabulary": <SettingsVocabulary /> break;
                 case "ai": <AiSection /> break;
                 case "backup": <SettingsBackup /> break;
                 case "browser": <BrowserBooks /> break;
@@ -68,10 +70,12 @@
             yield return ("storage", "Storage");
             yield return ("library", "Library");
             yield return ("devices", "Windows PCs");
-            yield return ("ai", "AI");
-            yield return ("backup", "Backup");
+            yield return ("processing", "Processing");
             yield return ("appearance", "Appearance");
             yield return ("review", "Needs review");
+            yield return ("vocabulary", "Vocabulary");
+            yield return ("ai", "AI");
+            yield return ("backup", "Backup");
             yield return ("browser", "Books in this browser");
             yield return ("account", "Account");
             if (_me?.IsAdmin != true) yield break;

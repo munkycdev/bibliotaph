@@ -972,3 +972,44 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-arrow{color:var(--bt-muted)}
 /* As the Windows app dims a button it can't use yet, such as Add a folder before any storage is connected. */
 .bt-button:disabled,.bt-icon:disabled,.bt-segments button:disabled,.bt-link:disabled{opacity:.5;cursor:default}
+/* Settings › Vocabulary: tabs above a rule, each term or tag a row that opens into its edit panel. */
+.bt-vocabtabs{margin:12px 0;padding-bottom:12px;border-bottom:1px solid var(--bt-line)}
+.bt-inputrow{display:flex;gap:8px;align-items:flex-end}
+.bt-inputrow .bt-input{flex:1}
+.bt-inputrow .bt-field.bt-wide{flex:2}
+.bt-section .bt-field+.bt-inputrow,.bt-editpanel .bt-inputrow{margin-top:10px}
+.bt-section>.bt-field{margin-top:18px}
+.bt-termlist{margin-top:12px}
+.bt-term{padding:12px 0;border-bottom:1px solid var(--bt-line)}
+.bt-termhead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.bt-term small{display:block;margin-top:4px;font-size:11px;color:var(--bt-muted)}
+.bt-editpanel{background:var(--bt-side);border-radius:6px;padding:15px;margin-top:12px}
+.bt-editpanel>.bt-field:first-child,.bt-editpanel>.bt-inputrow:first-child{margin-top:0}
+.bt-editpanel .bt-actions{margin-top:10px}
+.bt-gap{margin-top:18px;margin-bottom:5px}
+.bt-fine.bt-tight{margin-top:6px}
+.bt-editnote{margin-top:8px;font-size:11px;color:var(--bt-text)}
+@media(max-width:620px){.bt-inputrow{flex-wrap:wrap}.bt-inputrow .bt-field{flex:1 1 100%}}
+/* Settings › Processing: a row per step of indexing, its name, a bar and where it has got to, as in the Windows app. */
+.bt-processingsummary{margin-top:6px}
+.bt-phases{margin-top:8px}
+.bt-phase{display:grid;grid-template-columns:150px minmax(80px,1fr) minmax(190px,auto);gap:10px;align-items:center;margin-top:6px}
+.bt-phasename{min-width:0}
+.bt-phasename strong{display:block;font-size:12px;font-weight:600;color:var(--bt-text)}
+.bt-phasename small,.bt-phasestatus,.bt-now small{display:block;font-size:11px;color:var(--bt-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-phasestatus{text-align:right}
+.bt-bar{appearance:none;-webkit-appearance:none;width:100%;height:4px;border:0;border-radius:2px;background:var(--bt-soft);color:var(--bt-accent);overflow:hidden}
+.bt-bar::-webkit-progress-bar{background:var(--bt-soft);border-radius:2px}
+.bt-bar::-webkit-progress-value{background:var(--bt-accent);border-radius:2px;transition:width .4s}
+.bt-bar::-moz-progress-bar{background:var(--bt-accent);border-radius:2px}
+.bt-bar.done::-webkit-progress-value{background:#76916b}
+.bt-bar.done::-moz-progress-bar{background:#76916b}
+.bt-bar.paused::-webkit-progress-value{background:var(--bt-muted)}
+.bt-bar.paused::-moz-progress-bar{background:var(--bt-muted)}
+.bt-bar:indeterminate,.bt-bar:indeterminate::-webkit-progress-bar{background:linear-gradient(90deg,var(--bt-soft) 20%,var(--bt-accent) 50%,var(--bt-soft) 80%) 0 0/300% 100%;animation:bt-sweep 1.6s linear infinite}
+.bt-bar:indeterminate::-moz-progress-bar{background:transparent}
+@keyframes bt-sweep{from{background-position:100% 0}to{background-position:0 0}}
+@media(prefers-reduced-motion:reduce){.bt-bar:indeterminate,.bt-bar:indeterminate::-webkit-progress-bar{animation:none}}
+.bt-now{margin-top:12px}
+.bt-now small{margin-top:3px}
+@media(max-width:620px){.bt-phase{grid-template-columns:1fr}.bt-phasestatus{text-align:left}}

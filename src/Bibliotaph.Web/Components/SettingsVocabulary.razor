@@ -1,0 +1,353 @@
+@* Settings › Vocabulary, as the Windows app's: a tab per vocabulary with its terms, each renamed or given other names in
+   place, and a last tab of the user's own tags, each found in the books' pages by its words. Renaming keeps a term's
+   key, so nothing filed under it moves; the server brings the library up to date once the edits pause. *@
+@using Bibliotaph.Core.Metadata
+@inject ApiClient Api
+@inject LibraryActivity Activity
+
+<section class="bt-section" aria-labelledby="vocabulary-heading">
+    <h2 id="vocabulary-heading">Vocabulary</h2>
+    <p class="bt-copy">The game systems, types and other terms your books are filed under, and the other names each one goes by.
+        Folder names, searches and what you type all go through these names.</p>
+    <div class="bt-tabs bt-vocabtabs" role="tablist" aria-label="Vocabularies">
+        @foreach (var (key, label) in Vocabularies)
+        {
+            <button class="bt-tab @(key == _selected ? "active" : "")" role="tab" aria-selected="@(key == _selected)" @onclick="() => SelectAsync(key)">@label</button>
+        }
+    </div>
+
+    @if (_selected != TagsKey)
+    {
+        <label class="bt-field">@AddLabel
+            <span class="bt-inputrow">
+                <input class="bt-input" @bind="_newTerm" @bind:event="oninput" @onkeydown="e => OnEnter(e, AddTermAsync)" />
+                <button class="bt-button" @onclick="AddTermAsync"><Icon Name="Plus" />Add</button>
+            </span>
+        </label>
+        <EditNotes Problem="@_addProblem" Note="@_addNote" />
+        <label class="bt-field">Find a term<input class="bt-input" @bind="_filter" @bind:event="oninput" /></label>
+        @if (_terms is null)
+        {
+            <p class="bt-fine">Looking…</p>
+        }
+        else
+        {
+            <div class="bt-termlist" aria-label="Terms">
+                @foreach (var term in Shown)
+                {
+                    <div class="bt-term">
+                        <div class="bt-termhead">
+                            <div class="bt-row">@term.Label
+                                @if (Detail(term) is { Length: > 0 } detail)
+                                {
+                                    <small>@detail</small>
+                                }
+                            </div>
+                            @if (_editing != term.Id)
+                            {
+                                <button class="bt-icon" title="Rename, or change its other names" aria-label="@($"Edit {term.Label}")" @onclick="() => EditTerm(term)"><Icon Name="Pencil" /></button>
+                            }
+                        </div>
+                        @if (_editing == term.Id)
+                        {
+                            <div class="bt-editpanel" @onkeydown="OnEscape">
+                                <div class="bt-inputrow">
+                                    <label class="bt-field bt-wide">Name<input class="bt-input" @bind="_editLabel" @bind:event="oninput" @onkeydown="e => OnEnter(e, () => RenameAsync(term))" /></label>
+                                    <label class="bt-field">Short name, on covers<input class="bt-input" @bind="_editShort" @bind:event="oninput" @onkeydown="e => OnEnter(e, () => RenameAsync(term))" /></label>
+                                </div>
+                                <div class="bt-actions"><button class="bt-button" @onclick="() => RenameAsync(term)"><Icon Name="Check" />Save name</button></div>
+                                <div class="bt-fieldlabel bt-gap">Other names</div>
+                                @if (term.Aliases.Count == 0)
+                                {
+                                    <p class="bt-fine bt-tight">None yet.</p>
+                                }
+                                else
+                                {
+                                    <div class="bt-chips" aria-label="Other names">
+                                        @foreach (var alias in term.Aliases)
+                                        {
+                                            <span class="bt-chip on">@alias.Text<button class="bt-chipx" title="Remove this name" aria-label="@($"Remove {alias.Text}")" @onclick="() => RemoveAliasAsync(term, alias)"><Icon Name="X" Size="11" /></button></span>
+                                        }
+                                    </div>
+                                }
+                                <div class="bt-inputrow">
+                                    <input class="bt-input" aria-label="Another name" @bind="_newAlias" @bind:event="oninput" @onkeydown="e => OnEnter(e, () => AddAliasAsync(term))" />
+                                    <button class="bt-button" @onclick="() => AddAliasAsync(term)"><Icon Name="Plus" />Add name</button>
+                                </div>
+                                <p class="bt-fine bt-tight">A name another term already has as another name moves here.</p>
+                                <EditNotes Problem="@_editProblem" Note="@_editNote" />
+                                <div class="bt-actions"><button class="bt-button" @onclick="Close">Done</button></div>
+                            </div>
+                        }
+                    </div>
+                }
+                @if (Shown.Count == 0)
+                {
+                    <p class="bt-fine">@(_filter.Trim().Length > 0 ? "No term or other name has that in it." : "No terms yet.")</p>
+                }
+            </div>
+        }
+        <p class="bt-fine">Renaming keeps everything filed under a term. Changes reach the library in the background; books under renamed
+            folders are read again.</p>
+    }
+    else
+    {
+        <p class="bt-copy">Your own tags, found in your books by the words on their pages. A book whose pages use a tag's words often enough
+            gets the tag, marked Suggested until you keep it. A tag you reject on a book never comes back to it.</p>
+        <div class="bt-inputrow">
+            <label class="bt-field">New tag<input class="bt-input" @bind="_newTagName" @bind:event="oninput" @onkeydown="e => OnEnter(e, AddTagAsync)" /></label>
+            <label class="bt-field bt-wide">Words that signal it, separated by commas<input class="bt-input" aria-label="Words that signal the new tag"
+                   @bind="_newTagWords" @bind:event="oninput" @onkeydown="e => OnEnter(e, AddTagAsync)" /></label>
+        </div>
+        <div class="bt-actions"><button class="bt-button" disabled="@_searching" @onclick="AddTagAsync"><Icon Name="Plus" />Add tag</button></div>
+        @if (_searching)
+        {
+            <p class="bt-fine bt-tight" role="status">Looking through your books…</p>
+        }
+        <EditNotes Problem="@_addProblem" Note="@_addNote" />
+        @if (_tags is null)
+        {
+            <p class="bt-fine">Looking…</p>
+        }
+        else
+        {
+            <div class="bt-termlist" aria-label="Your tags">
+                @foreach (var tag in _tags)
+                {
+                    <div class="bt-term">
+                        <div class="bt-termhead">
+                            <div class="bt-row">@tag.Name<small>Found by @string.Join(", ", tag.Words) · @Books(tag.Books)</small></div>
+                            @if (_editing != tag.Id)
+                            {
+                                <button class="bt-icon" title="Rename, or change its words" aria-label="@($"Edit {tag.Name}")" @onclick="() => EditTag(tag)"><Icon Name="Pencil" /></button>
+                            }
+                        </div>
+                        @if (_editing == tag.Id)
+                        {
+                            <div class="bt-editpanel" @onkeydown="OnEscape">
+                                <label class="bt-field">Name<input class="bt-input" @bind="_editLabel" @bind:event="oninput" @onkeydown="e => OnEnter(e, () => SaveTagAsync(tag))" /></label>
+                                <label class="bt-field">Words that signal it, separated by commas<input class="bt-input" @bind="_editShort" @bind:event="oninput" @onkeydown="e => OnEnter(e, () => SaveTagAsync(tag))" /></label>
+                                <EditNotes Problem="@_editProblem" Note="@_editNote" />
+                                <div class="bt-actions">
+                                    <button class="bt-button" disabled="@_searching" @onclick="() => SaveTagAsync(tag)"><Icon Name="Check" />Save</button>
+                                    <button class="bt-button" title="Takes its suggestions away. Books where you kept it keep it." @onclick="() => DeleteTagAsync(tag)"><Icon Name="Trash2" />Delete tag</button>
+                                    <button class="bt-button" @onclick="Close">Done</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+        <p class="bt-fine">A word also finds words that start with it, as in search: zombie finds zombies. A book gets the tag when its words are on
+            at least @UserTagRule.MinimumPages of its pages, and on at least one page in @((int)Math.Round(1 / UserTagRule.MinimumShare)). New books are checked once their text is read.</p>
+    }
+</section>
+
+@code {
+    const string TagsKey = "tags";
+
+    static readonly (string Key, string Label)[] Vocabularies =
+    [
+        ("system", "Game systems"), ("edition", "Editions"), ("type", "Types"), ("duration", "Durations"), ("setting", "Settings"),
+        ("style", "Styles"), ("theme", "Themes"), ("environment", "Environments"), ("own", "Also own"), ("store", "Get it from"),
+        ("publisher", "Publishers"), (TagsKey, "Your tags"),
+    ];
+
+    string _selected = "type";
+    List<VocabularyTerm>? _terms;
+    List<UserTag>? _tags;
+    string _filter = "", _newTerm = "", _newAlias = "", _newTagName = "", _newTagWords = "";
+    string? _addProblem, _addNote, _editProblem, _editNote;
+
+    // One row is open at a time; its two fields are a term's name and short name, or a tag's name and words.
+    long? _editing;
+    string _editLabel = "", _editShort = "";
+    bool _searching;
+
+    string AddLabel => $"Add to {Vocabularies.First(v => v.Key == _selected).Label.ToLowerInvariant()}";
+
+    List<VocabularyTerm> Shown
+    {
+        get
+        {
+            var filter = _filter.Trim();
+            return filter.Length == 0 ? _terms ?? [] : [.. (_terms ?? []).Where(t => t.Label.Contains(filter, StringComparison.CurrentCultureIgnoreCase)
+                || t.Aliases.Any(a => a.Text.Contains(filter, StringComparison.CurrentCultureIgnoreCase)))];
+        }
+    }
+
+    protected override Task OnInitializedAsync() => ReloadAsync();
+
+    /// <summary>"Added by you · Also module, scenario, one shot".</summary>
+    static string Detail(VocabularyTerm term)
+    {
+        var names = term.Aliases.Select(a => a.Text).Prepend(term.ShortLabel).OfType<string>().ToList();
+        var also = names.Count == 0 ? "" : "Also " + string.Join(", ", names);
+        return string.Join(" · ", new[] { term.Yours ? "Added by you" : "", also }.Where(s => s.Length > 0));
+    }
+
+    static string Books(int books) => books switch { 0 => "on no book yet", 1 => "on 1 book", _ => $"on {books} books" };
+
+    /// <summary>What a saved tag found, for the note under it.</summary>
+    static string Found(UserTag tag) => tag.Books == 0
+        ? "No book's pages use these words often enough yet."
+        : $"It's on {(tag.Books == 1 ? "1 book" : $"{tag.Books} books")}, suggested until you keep it.";
+
+    async Task SelectAsync(string key)
+    {
+        if (key == _selected) return;
+        _selected = key;
+        _filter = "";
+        _addProblem = _addNote = null;
+        _editing = null;
+        await ReloadAsync();
+    }
+
+    async Task ReloadAsync()
+    {
+        var selected = _selected;
+        if (selected == TagsKey)
+        {
+            var tags = await Api.UserTagsAsync();
+            if (selected == _selected) _tags = tags;
+            return;
+        }
+        _terms = null;
+        var terms = await Api.VocabularyAsync(selected);
+        if (selected == _selected) _terms = terms; // another tab may have been picked meanwhile
+    }
+
+    static async Task OnEnter(KeyboardEventArgs e, Func<Task> act)
+    {
+        if (e.Key == "Enter") await act();
+    }
+
+    void OnEscape(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") Close();
+    }
+
+    void Close() => _editing = null;
+
+    void Open(long id, string first, string second)
+    {
+        _editing = id;
+        _editLabel = first;
+        _editShort = second;
+        _newAlias = "";
+        _editProblem = _editNote = null;
+    }
+
+    void EditTerm(VocabularyTerm term) => Open(term.Id, term.Label, term.ShortLabel ?? "");
+
+    void EditTag(UserTag tag) => Open(tag.Id, tag.Name, string.Join(", ", tag.Words));
+
+    async Task AddTermAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newTerm)) return;
+        var added = _newTerm.Trim();
+        var change = await Api.AddTermAsync(_selected, added);
+        _addProblem = change.Problem;
+        _addNote = change.Problem is null ? $"Added {added}." + (change.Note is { } note ? " " + note : "") : null;
+        if (change.Problem is not null) return;
+        _newTerm = _filter = "";
+        await ReloadAsync();
+        if (_terms?.FirstOrDefault(t => t.Id == change.TermId) is { } term) EditTerm(term);
+        Activity.Refresh();
+    }
+
+    async Task RenameAsync(VocabularyTerm term)
+    {
+        var change = await Api.RenameTermAsync(term.Id, _editLabel, _editShort);
+        await AfterEditAsync(term.Id, change, change.Note ?? "Saved.");
+    }
+
+    async Task AddAliasAsync(VocabularyTerm term)
+    {
+        if (string.IsNullOrWhiteSpace(_newAlias)) return;
+        var change = await Api.AddAliasAsync(term.Id, _newAlias);
+        if (change.Problem is null) _newAlias = "";
+        await AfterEditAsync(term.Id, change, change.Note);
+    }
+
+    async Task RemoveAliasAsync(VocabularyTerm term, VocabularyAlias alias)
+    {
+        await Api.RemoveAliasAsync(alias.Id);
+        await AfterEditAsync(term.Id, new VocabularyChange(term.Id, null, null), $"“{alias.Text}” no longer means {term.Label}.");
+    }
+
+    /// <summary>Lists the terms again with the edited one still open, saying what the edit did or why it was refused.</summary>
+    async Task AfterEditAsync(long termId, VocabularyChange change, string? note)
+    {
+        if (change.Problem is not null)
+        {
+            _editProblem = change.Problem;
+            _editNote = null;
+            return;
+        }
+        await ReloadAsync();
+        _editProblem = null;
+        _editNote = note;
+        if (_terms?.FirstOrDefault(t => t.Id == termId) is { } term)
+        {
+            _editLabel = term.Label;
+            _editShort = term.ShortLabel ?? "";
+        }
+        Activity.Refresh();
+    }
+
+    async Task AddTagAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newTagName) || _searching) return;
+        _searching = true;
+        try
+        {
+            var change = await Api.SaveUserTagAsync(null, _newTagName, _newTagWords);
+            _addProblem = change.Problem;
+            _addNote = change.Tag is { } tag ? $"Added {tag.Name}. {Found(tag)}" : null;
+            if (change.Tag is null) return;
+            _newTagName = _newTagWords = "";
+            await ReloadAsync();
+            Activity.Refresh();
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+
+    async Task SaveTagAsync(UserTag tag)
+    {
+        if (_searching) return;
+        _searching = true;
+        try
+        {
+            var change = await Api.SaveUserTagAsync(tag.Id, _editLabel, _editShort);
+            if (change.Tag is not { } saved)
+            {
+                _editProblem = change.Problem;
+                _editNote = null;
+                return;
+            }
+            await ReloadAsync();
+            Open(saved.Id, saved.Name, string.Join(", ", saved.Words));
+            _editNote = "Saved. " + Found(saved);
+            Activity.Refresh();
+        }
+        finally
+        {
+            _searching = false;
+        }
+    }
+
+    async Task DeleteTagAsync(UserTag tag)
+    {
+        await Api.DeleteUserTagAsync(tag.Id);
+        _editing = null;
+        _addProblem = null;
+        _addNote = $"Deleted {tag.Name}. Books where you kept it keep it.";
+        await ReloadAsync();
+        Activity.Refresh();
+    }
+}

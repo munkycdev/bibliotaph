@@ -269,6 +269,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             await library.Get<ChapterProjection>().RestoreAsync();
 
             await library.Drives.ReloadAsync();
+            Api.PausedLanes.Apply(library.Indexing, await Api.PausedLanes.LoadAsync(library.Get<SettingsStore>()));
             // Scans every library folder as it starts, which picks up whatever changed while the library was closed.
             await library.Indexing.StartAsync(CancellationToken.None);
             await library.Get<LibraryVectors>().StartAsync(CancellationToken.None);

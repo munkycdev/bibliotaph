@@ -1,0 +1,95 @@
+using System.Security.Claims;
+using Bibliotaph.Api.Contracts;
+using Bibliotaph.Catalog;
+using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
+using Bibliotaph.Processing;
+using Bibliotaph.Server.Auth;
+using Bibliotaph.Server.Libraries;
+
+namespace Bibliotaph.Server.Api;
+
+/// <summary>
+/// /api/vocabulary and /api/tags: Settings › Vocabulary, on the Windows app's services. A vocabulary edit changes the
+/// catalog at once and the library catches up in the background once edits pause; saving a tag looks through the
+/// library's text before it answers.
+/// </summary>
+public static class VocabularyApi
+{
+    public static void MapVocabularyApi(this RouteGroupBuilder api)
+    {
+        var vocabulary = api.MapGroup("/vocabulary");
+
+        vocabulary.MapGet("/{key}", async (string key, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!Known(key)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var terms = await lease.Library.Get<VocabularyService>().ListAsync(key, ct);
+            return Results.Ok(terms.Select(Term).ToList());
+        });
+
+        vocabulary.MapPost("/{key}", async (string key, NewTerm term, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!Known(key)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Results.Ok(Change(await lease.Library.Get<VocabularyService>().AddTermAsync(key, term.Label, ct)));
+        });
+
+        vocabulary.MapPut("/terms/{id:long}", async (long id, TermRename rename, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Change(await lease.Library.Get<VocabularyService>().RenameAsync(id, rename.Label, rename.ShortLabel, ct));
+        });
+
+        vocabulary.MapPost("/terms/{id:long}/aliases", async (long id, NewAlias alias, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Change(await lease.Library.Get<VocabularyService>().AddAliasAsync(id, alias.Text, ct));
+        });
+
+        vocabulary.MapDelete("/aliases/{id:long}", async (long id, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            await lease.Library.Get<VocabularyService>().RemoveAliasAsync(id, ct);
+            return Results.NoContent();
+        });
+
+        var tags = api.MapGroup("/tags");
+
+        tags.MapGet("", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return (await lease.Library.Get<UserTagService>().ListAsync(ct)).Select(Tag).ToList();
+        });
+
+        tags.MapPost("", async (UserTagText tag, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Change(await lease.Library.Get<UserTagService>().SaveAsync(null, tag.Name, tag.Words, ct));
+        });
+
+        tags.MapPut("/{id:long}", async (long id, UserTagText tag, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Change(await lease.Library.Get<UserTagService>().SaveAsync(id, tag.Name, tag.Words, ct));
+        });
+
+        tags.MapDelete("/{id:long}", async (long id, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await lease.Library.Get<UserTagService>().DeleteAsync(id, ct) ? Results.NoContent() : Results.NotFound();
+        });
+    }
+
+    // Publishers are a vocabulary too, though their field holds free text.
+    static bool Known(string key) => MetadataFields.TermVocabularies.Contains(key) || key == MetadataFields.Publisher.Vocabulary;
+
+    static VocabularyTerm Term(VocabularyEntry e) =>
+        new(e.Id, e.Label, e.ShortLabel, e.Origin == TermOrigin.User, [.. e.Aliases.Select(a => new VocabularyAlias(a.Id, a.Text))]);
+
+    static VocabularyChange Change(VocabularyEdit edit) => new(edit.TermId, edit.Problem, edit.Note);
+
+    static UserTag Tag(UserTagEntry t) => new(t.Id, t.Name, t.Words, t.Books);
+
+    static UserTagChange Change(UserTagEdit edit) => new(edit.Tag is { } tag ? Tag(tag) : null, edit.Problem);
+}

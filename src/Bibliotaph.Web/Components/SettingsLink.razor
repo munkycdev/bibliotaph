@@ -1,12 +1,15 @@
 @* A link to another section of Settings, which Settings itself switches to: a change of # alone isn't reported to the
    page. Outside Settings it's an ordinary link to the section. *@
-<a class="bt-link" href="@($"settings#{To}")" @onclick="ChooseAsync" @onclick:preventDefault="@(Choose is not null)">@ChildContent</a>
+<a class="@Class" href="@($"settings#{To}")" @onclick="ChooseAsync" @onclick:preventDefault="@(Choose is not null)">@ChildContent</a>
 
 @code {
     /// <summary>The section's id: "storage".</summary>
     [Parameter, EditorRequired] public string To { get; set; } = "";
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>"bt-button" to look like a button; a text link otherwise.</summary>
+    [Parameter] public string Class { get; set; } = "bt-link";
 
     [CascadingParameter(Name = "ChooseSettingsSection")] public Func<string, Task>? Choose { get; set; }
 

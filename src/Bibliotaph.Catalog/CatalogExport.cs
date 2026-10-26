@@ -44,7 +44,7 @@ public sealed class CatalogExport(IDbContextFactory<CatalogDbContext> contexts)
         ("pins", "pin is the sidebar's Pinned group in position order. Its kind says which of entry_id, collection_id, pack_id and smart_view_id it points at; the Favorites pin points at none."),
         ("sync", "sync_id names a row the user made (a collection, a binder, a saved search, a book owned elsewhere) in the library sync file, the same on every PC it reaches; sync_state is what this PC last knew of each record of that file, with each field's change time."),
         ("values", "Times are UTC in ISO 8601. Choices such as kind, state and origin are stored by name."),
-        ("left out", "Passwords and AI keys are never here: the Windows app keeps them in Windows Credential Manager, and the web server's sealed keys (" + string.Join(", ", SettingKeys.Private.Order(StringComparer.Ordinal)) + ") are left out. Left out as particular to one computer: " + string.Join(", ", ExcludedColumns.Order(StringComparer.Ordinal)) + "."),
+        ("left out", "Passwords and AI keys are never here: the Windows app keeps them in Windows Credential Manager, and the web server's own settings, its sealed keys among them (" + string.Join(", ", SettingKeys.Private.Order(StringComparer.Ordinal)) + ") are left out. Left out as particular to one computer: " + string.Join(", ", ExcludedColumns.Order(StringComparer.Ordinal)) + "."),
     ];
 
     /// <summary>Every table of the catalog's model, by table name: what the JSON export holds.</summary>
