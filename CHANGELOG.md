@@ -168,6 +168,10 @@
 - **Box on the web.** Settings › Storage connects a Box account, read-only, once the server's Box app is set up. Its
   books open in the reader through the server, and changes are noticed within five minutes. See
   [Connecting your storage](docs/guide/web.md#connecting-your-storage).
+- **Online libraries on the web.** Settings › Online libraries imports the books you own on D&D Beyond, Demiplane,
+  Humble Bundle and DriveThruRPG from a library page saved with Save as, with the Windows app's preview, Import with
+  Undo, covers from the pictures saved beside the page, and the books no longer listed. See
+  [Online libraries](docs/guide/web.md#online-libraries).
 - **Needs review forgets a removed folder's books.** Removing a library folder, on the web or in the Windows app, left
   its books' suggestions, new terms and failed files in Needs review and the sidebar's count; now only the books in the
   library's folders count.

@@ -683,6 +683,50 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task A_saved_online_library_page_previews_imports_with_its_covers_and_undoes_as_the_windows_app_does()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var folder = Path.Combine(AppContext.BaseDirectory, "online");
+
+        var services = (await client.GetFromJsonAsync<List<OnlineService>>("/api/online/services", ct))!;
+        using var page = new StringContent(await File.ReadAllTextAsync(Path.Combine(folder, "dndbeyond-library.html"), ct), System.Text.Encoding.UTF8, "text/html");
+        using var pageResponse = await client.PostAsync("/api/online/pages", page, ct);
+        var read = (await pageResponse.Content.ReadFromJsonAsync<OnlinePageRead>(ct))!;
+        using var notPage = new StringContent("<html><body>Hello</body></html>", System.Text.Encoding.UTF8, "text/html");
+        using var notPageResponse = await client.PostAsync("/api/online/pages", notPage, ct);
+        var unread = (await notPageResponse.Content.ReadFromJsonAsync<OnlinePageRead>(ct))!;
+        var preview = read.Preview!;
+        using var picture = new ByteArrayContent(await File.ReadAllBytesAsync(Path.Combine(folder, "dndbeyond-library_files", "639000000000000001.jpeg"), ct));
+        using var pictureResponse = await client.PutAsync($"/api/online/pages/{preview.Token}/images/639000000000000001.jpeg", picture, ct);
+        var withCover = (await pictureResponse.Content.ReadFromJsonAsync<OnlinePreview>(ct))!;
+        using var importResponse = await client.PostAsJsonAsync($"/api/online/pages/{preview.Token}/import",
+            new OnlineImportChoice([.. preview.Groups.SelectMany(g => g.Rows).Select(r => r.Index)]), ct);
+        var imported = (await importResponse.Content.ReadFromJsonAsync<OnlineImported>(ct))!;
+        var books = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books;
+        using (await client.PostAsync($"/api/library/held/{imported.Result.Undo}", null, ct)) { }
+        var afterUndo = (await client.GetFromJsonAsync<OnlinePreview>($"/api/online/pages/{preview.Token}", ct))!;
+        using var gone = await client.GetAsync("/api/online/pages/0123456789abcdef0123456789abcdef", ct);
+
+        Assert.Equal(["D&D Beyond", "Demiplane", "Humble Bundle", "DriveThruRPG"], services.Select(s => s.Name));
+        Assert.Contains("Save as", services[0].Explanation, StringComparison.Ordinal);
+        Assert.Null(read.Problem);
+        Assert.Equal(("D&D Beyond", "Your D&D Beyond library: 2 books. 1 book shared with you was left out."), (preview.Service, preview.Summary));
+        Assert.Equal(["New · 2"], preview.Groups.Select(g => g.Heading));
+        Assert.Equal("Each becomes a book owned elsewhere, opening on D&D Beyond.", preview.Groups[0].Explanation);
+        Assert.Equal("Gilded Press · adventure · 5e · 2019", preview.Groups[0].Rows[0].Detail);
+        Assert.Equal((2, 0, 1), (preview.Covers, preview.CoversFound, withCover.CoversFound));
+        Assert.Equal(OnlineImportText.Unreadable, unread.Problem);
+        Assert.Equal("Added 2 books owned on D&D Beyond.", imported.Result.Message);
+        Assert.Equal(["Imported before · 2"], imported.Preview.Groups.Select(g => g.Heading));
+        Assert.Equal(2, books.Count(b => b.Title is "The Ember Vault" or "Atlas of the Drowned Coast"));
+        Assert.Equal(["New · 2"], afterUndo.Groups.Select(g => g.Heading));
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+    }
+
+    [Fact]
     public async Task Removing_the_only_library_folder_and_its_storage_leaves_nothing_in_needs_review()
     {
         var ct = TestContext.Current.CancellationToken;
