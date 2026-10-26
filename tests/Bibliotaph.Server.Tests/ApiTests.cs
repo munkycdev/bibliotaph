@@ -1021,8 +1021,8 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
 
         Assert.Equal(["terms", "field:system", "field:title"], list.Show.Select(s => s.Key));
         Assert.Equal((5, 5), (list.Count, status.Suggestions));
-        Assert.Equal(("Sources disagree.", "Pathfinder", "Dungeons & Dragons", "Accept all 2"),
-            (first.Reason, first.CurrentText, first.SuggestedText, first.AcceptAllLabel));
+        Assert.Equal(("Sources disagree.", "Pathfinder", "Dungeons & Dragons", "Accept all 2", "Keep current"),
+            (first.Reason, first.CurrentText, first.SuggestedText, first.AcceptAllLabel, first.RejectLabel));
         Assert.Equal("From the PDF's own information.", first.Evidence);
         Assert.Contains("Pathfinder", list.Choices["system"]);
         Assert.False(list.Choices.ContainsKey("title"));

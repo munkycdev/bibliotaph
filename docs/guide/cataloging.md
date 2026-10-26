@@ -79,7 +79,8 @@ usable while its card waits. It has two lists:
 
 **Metadata suggestions**, such as:
 
-- A field where the sources disagree, or a book with no useful title. **Accept**, **Reject**, or type your own value.
+- A field where the sources disagree, or a book with no useful title. Each button sits under the value it keeps:
+  **Keep current** under what the book has, **Accept** under the suggestion, or **Edit** to type your own value.
 - A new term the AI used that your vocabulary doesn't know. Add it, file it under an existing term, or reject it.
 - **New version?** A file that looks like another version of a book you have. The card names both files with their
   pages, and you choose which one the book opens: each button names its file, such as **Handbook_v2.pdf is current**,

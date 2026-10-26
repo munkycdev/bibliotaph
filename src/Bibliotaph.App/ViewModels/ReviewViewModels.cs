@@ -172,6 +172,9 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
 
     public bool HasEvidence => Evidence.Length > 0;
 
+    /// <summary>The evidence is the suggestion's, so it goes in its box; a card with nothing to accept shows it below.</summary>
+    public bool ShowsEvidenceBelow => HasEvidence && !HasSuggestion;
+
     public bool CanAccept => _text.CanAccept;
 
     public bool CanAcceptAll => _text.CanAcceptAll;
@@ -195,7 +198,11 @@ public sealed partial class ReviewCardViewModel : DecidedCardViewModel
     public string EditHint => _text.EditHint;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsSuggestionActions))]
     public partial bool IsEditing { get; set; }
+
+    /// <summary>Accept, Accept all and Edit, under the suggestion, until the editor takes their place.</summary>
+    public bool ShowsSuggestionActions => HasSuggestion && !IsEditing;
 
     [ObservableProperty]
     public partial string EditText { get; set; }
