@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "name": "Send to Bibliotaph",
+  "version": "1.0.0",
+  "description": "Sends your D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG library page, with its covers, to Bibliotaph on the web.",
+  "homepage_url": "https://bibliotaph.online",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Send this library page to Bibliotaph",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": [
+    "https://bibliotaph.online/*",
+    "https://*.dndbeyond.com/*",
+    "https://*.demiplane.com/*",
+    "https://*.humblebundle.com/*",
+    "https://hb.imgix.net/*",
+    "https://*.drivethrurpg.com/*",
+    "https://*.dmsguild.com/*",
+    "https://d1vzi28wh99zvq.cloudfront.net/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://bibliotaph.online/*"],
+      "js": ["bibliotaph.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -15,6 +15,8 @@
     else return;
     inbox.changed?.();
   });
+  // The extension marks the page as it loads, so Settings can say it's there.
+  window.bibliotaphExtension = () => document.documentElement.dataset.bibliotaphExtension || null;
   // The bookmark waits for this before it sends the page; it says nothing about the user, so any opener may hear it.
   if (location.pathname === '/online/receive' && window.opener) {
     try {
