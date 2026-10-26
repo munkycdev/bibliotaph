@@ -11,9 +11,10 @@ using Microsoft.AspNetCore.Http.Features;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// Settings › Online libraries on the web: a library page the user saved from the service, read by the Windows app's
-/// readers, its preview, the images saved with it for covers, and the import with Undo. A browser page can't hold the
-/// service's own site as the Windows app's browser does, so a saved page is how a library arrives; the server never
+/// Settings › Online libraries on the web: a library page from the service, read by the Windows app's readers, its
+/// preview, the images given with it for covers, and the import with Undo. A browser page can't hold the service's own
+/// site as the Windows app's browser does, so the page arrives from the user's browser: sent by the Send to Bibliotaph
+/// bookmark or extension, which also fetch the covers the preview still wants, or saved with Save as. The server never
 /// visits the service.
 /// </summary>
 public static class OnlineApi
@@ -79,10 +80,10 @@ public static class OnlineApi
     /// app's says the same of its own browser.
     /// </summary>
     static string Explanation(IOnlineLibraryReader reader) => reader.LinkField == MetadataFields.AlsoOwn
-        ? $"Open your library on {reader.Name}, signing in if it asks, and save the page with Save as, choosing Webpage, complete. Import that "
-            + $"page here: only books you own are imported, each opening on {reader.Name}, and Bibliotaph never sees your password."
-        : $"Open your library on {reader.Name}, signing in if it asks, and save the page with Save as, choosing Webpage, complete. Import that "
-            + $"page here: books you haven't downloaded become books to get from {reader.Name}."
+        ? $"Open your library on {reader.Name}, signing in if it asks, and click Send to Bibliotaph, or save the page with Save as (Webpage, "
+            + $"complete) and import it here. Only books you own are imported, each opening on {reader.Name}, and Bibliotaph never sees your password."
+        : $"Open your library on {reader.Name}, signing in if it asks, and click Send to Bibliotaph, or save the page with Save as (Webpage, "
+            + $"complete) and import it here. Books you haven't downloaded become books to get from {reader.Name}."
             + (reader is DriveThruRpgReader ? " Your DMs Guild books are in the same library." : "")
             + (reader.Hint("") is { } hint ? $" {hint}" : "");
 
@@ -97,9 +98,10 @@ public static class OnlineApi
             .ToList();
         // Covers count only for the books that would get one: those new to the library.
         var covers = plan.Rows.Where(r => r.Outcome == OnlineOutcome.New && r.Book.CoverUrl is not null)
-            .Select(r => OnlineImports.CoverFileName(r.Book.CoverUrl!)).OfType<string>().ToList();
+            .Select(r => (Url: r.Book.CoverUrl!, Name: OnlineImports.CoverFileName(r.Book.CoverUrl!))).Where(c => c.Name is not null).ToList();
+        var wanted = covers.Where(c => !held.HasImage(c.Name!)).Select(c => c.Url).Distinct(StringComparer.Ordinal).ToList();
         return new OnlinePreview(token, held.Reader.Name, OnlineImportText.Summary(held.Reader, plan.Rows.Count, held.Page.Shared), groups,
-            [.. plan.Missing.Select(m => new OnlineMissing(m.EntryId.Value, m.Title))], covers.Count, covers.Count(held.HasImage));
+            [.. plan.Missing.Select(m => new OnlineMissing(m.EntryId.Value, m.Title))], covers.Count, covers.Count - covers.Count(c => !held.HasImage(c.Name!)), wanted);
     }
 
     static IResult Gone() => Results.Problem("That page has gone from Bibliotaph. Import it again.", statusCode: StatusCodes.Status404NotFound);

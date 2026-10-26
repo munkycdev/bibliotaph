@@ -1112,3 +1112,6 @@ a.bt-menuitem{text-decoration:none}
 .bt-checkfile small{font-size:11px;color:var(--bt-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-checkfile .bt-small{margin-top:2px}
 .bt-checkrows .bt-link{flex:none}
+/* Send to Bibliotaph: a link to drag to the bookmarks bar, shown as a button; the receiving page's status beneath its heading. */
+.bt-bookmarklet{cursor:grab}
+.bt-receive{max-width:640px}

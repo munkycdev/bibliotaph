@@ -1,0 +1,125 @@
+@page "/online/receive"
+@inject ApiClient Api
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@implements IAsyncDisposable
+
+@* Where Send to Bibliotaph lands: the bookmark or the extension sends the library page it was clicked on, which is read
+   as an imported page is, then the covers the preview still wants come from the service's page. The preview opens in
+   Settings › Online libraries, where the import is chosen as for a saved page. *@
+<PageHeading Title="Receiving a library page." TabTitle="Receiving a library page"
+             Subtitle="The page you sent from an online library, read here, then its covers. Nothing is imported until you choose." />
+
+<div class="bt-receive" role="status" aria-live="polite">
+    <p class="bt-copy">@_status</p>
+    @if (_problem is { } problem)
+    {
+        <div class="bt-problem" role="alert">@problem</div>
+        <div class="bt-actions">
+            <a class="bt-button primary" href="settings#online">Online libraries</a>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>How long the bookmark has to send the page once this tab has loaded.</summary>
+    static readonly TimeSpan PageWait = TimeSpan.FromSeconds(30);
+
+    /// <summary>How long covers may take, a few a second, from a page with hundreds of books.</summary>
+    static readonly TimeSpan CoverWait = TimeSpan.FromMinutes(3);
+
+    const int MostCoverBytes = 8 * 1024 * 1024;
+
+    IJSObjectReference? _module;
+    string _status = "Waiting for the page…";
+    string? _problem;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await ReceiveAsync();
+        StateHasChanged();
+    }
+
+    async Task ReceiveAsync()
+    {
+        try
+        {
+            var sites = (await Api.OnlineServicesAsync()).Select(s => Site(s.LibraryPage)).OfType<string>().Distinct().ToArray();
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/receive.js");
+            var page = await _module.InvokeAsync<SentPage?>("take", PageWait * 2, sites, (int)PageWait.TotalMilliseconds);
+            if (page is null)
+            {
+                _status = "Nothing arrived.";
+                _problem = "Open your library on the service, signed in, then click Send to Bibliotaph there. Or save the page with Save as and import it in Online libraries.";
+                return;
+            }
+
+            _status = "Reading the page…";
+            StateHasChanged();
+            using var html = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(page.Html));
+            var read = await Api.ReadOnlinePageAsync(html);
+            if (read.Preview is not { } preview)
+            {
+                _status = "That page couldn't be read.";
+                _problem = read.Problem;
+                return;
+            }
+
+            if (preview.Wanted is { Count: > 0 } wanted)
+            {
+                _status = wanted.Count == 1 ? "Fetching 1 cover…" : $"Fetching {wanted.Count:N0} covers…";
+                StateHasChanged();
+                var arrived = await _module.InvokeAsync<int>("fetchCovers", CoverWait * 2, wanted, (int)CoverWait.TotalMilliseconds);
+                for (var i = 0; i < arrived; i++)
+                {
+                    var cover = await _module.InvokeAsync<SentCover>("cover", i);
+                    if (cover.Name.Length == 0) continue;
+                    var bytes = await _module.InvokeAsync<byte[]>("coverBytes", i);
+                    if (bytes.Length is 0 or > MostCoverBytes) continue;
+                    using var image = new MemoryStream(bytes);
+                    try
+                    {
+                        await Api.AddOnlineImageAsync(preview.Token, cover.Name, image, cover.Type.Length > 0 ? cover.Type : "application/octet-stream");
+                    }
+                    catch (ApiProblemException)
+                    {
+                        // As many pictures as a page keeps: the rest stay placeholders, and the preview says how many were found.
+                        break;
+                    }
+                    _status = $"Kept {i + 1:N0} of {arrived:N0} covers…";
+                    StateHasChanged();
+                }
+            }
+            Navigation.NavigateTo($"settings?page={Uri.EscapeDataString(preview.Token)}#online", replace: true);
+        }
+        catch (Exception ex) when (ex is JSException or HttpRequestException or ApiProblemException)
+        {
+            _problem = ex is ApiProblemException ? ex.Message : "Bibliotaph couldn't read the page just now. Try Send to Bibliotaph again.";
+        }
+    }
+
+    /// <summary>A service's site, as the bookmark's page's address ends: dndbeyond.com for www.dndbeyond.com.</summary>
+    static string? Site(string libraryPage) =>
+        Uri.TryCreate(libraryPage, UriKind.Absolute, out var uri)
+            ? (uri.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase) ? uri.Host[4..] : uri.Host).ToLowerInvariant()
+            : null;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is null) return;
+        try
+        {
+            await _module.InvokeVoidAsync("release");
+            await _module.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // The page is closing anyway.
+        }
+    }
+
+    sealed record SentPage(string Url, string Html);
+
+    sealed record SentCover(string Url, string Name, string Type);
+}

@@ -826,12 +826,17 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
 
         Assert.Equal(["D&D Beyond", "Demiplane", "Humble Bundle", "DriveThruRPG"], services.Select(s => s.Name));
         Assert.Contains("Save as", services[0].Explanation, StringComparison.Ordinal);
+        Assert.Contains("Send to Bibliotaph", services[0].Explanation, StringComparison.Ordinal);
         Assert.Null(read.Problem);
         Assert.Equal(("D&D Beyond", "Your D&D Beyond library: 2 books. 1 book shared with you was left out."), (preview.Service, preview.Summary));
         Assert.Equal(["New · 2"], preview.Groups.Select(g => g.Heading));
         Assert.Equal("Each becomes a book owned elsewhere, opening on D&D Beyond.", preview.Groups[0].Explanation);
         Assert.Equal("Gilded Press · adventure · 5e · 2019", preview.Groups[0].Rows[0].Detail);
         Assert.Equal((2, 0, 1), (preview.Covers, preview.CoversFound, withCover.CoversFound));
+        // What Send to Bibliotaph fetches: the covers still missing, by their addresses in the page.
+        Assert.Equal(2, preview.Wanted!.Count);
+        Assert.DoesNotContain(withCover.Wanted!, url => url.EndsWith("639000000000000001.jpeg", StringComparison.Ordinal));
+        Assert.Single(withCover.Wanted!);
         Assert.Equal(OnlineImportText.Unreadable, unread.Problem);
         Assert.Equal("Added 2 books owned on D&D Beyond.", imported.Result.Message);
         Assert.Equal(["Imported before · 2"], imported.Preview.Groups.Select(g => g.Heading));

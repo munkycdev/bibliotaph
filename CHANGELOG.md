@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Send to Bibliotaph, on the web.** A bookmark in Settings › Online libraries, dragged to the bookmarks bar and clicked
+  on your D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG library page, sends the page to Bibliotaph with its
+  covers, so there's no saving and picking files. See [Online libraries](docs/guide/web.md#online-libraries).
 - **The start of Bibliotaph on the web.** bibliotaph.online gets its server and a browser app that looks like the
   Windows one. It is invite-only: a one-time link makes an account, signed in through Auth0 with Google, Microsoft or an email address, and admins make
   invitations in Settings. The privacy policy is published at bibliotaph.online/privacy. Your library comes to it in the
