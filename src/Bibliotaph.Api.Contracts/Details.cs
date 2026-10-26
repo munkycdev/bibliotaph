@@ -12,7 +12,7 @@ public sealed record BookDetails(
     string FactsHeading, IReadOnlyList<DetailFact> Facts, bool ShowsLocations, IReadOnlyList<DetailLocation> Locations, IReadOnlyList<DetailCopy> Copies,
     string CopiesHeading, IReadOnlyList<DetailFact> Stages, bool Reprocessing, string NotesLabel, string FirstPage, string PartFrom, string PartTo,
     string SplitPackLabel, string SplitPackTip, IReadOnlyList<CollectionChip> Collections, IReadOnlyList<DetailChapter> Chapters,
-    bool CanAsk, bool HasChosenCover = false);
+    bool CanAsk, bool HasChosenCover = false, string? OcrEveryPageQuestion = null);
 
 /// <summary>
 /// A chapter under Found inside the book: its title and pages as the file numbers them, one line per field the AI

@@ -1,12 +1,14 @@
-@* A book's right-click menu, as the Windows app's: open it, its details, favorite, pin, Cataloged wrong…, add it to a
-   collection or a binder, and take a book owned elsewhere out of the library. Add to collection and Add to binder open
-   their lists in the same menu, read as they open. *@
+@* A book's right-click menu, as the Windows app's: open it, open its page where it's owned online, its details, Ask
+   this book, favorite, pin, Cataloged wrong…, download a file Bibliotaph can't read, Forget its text or Read it again,
+   add it to a collection or a binder, and take a book owned elsewhere out of the library. Add to collection and Add to
+   binder open their lists in the same menu, read as they open. *@
 @inject ApiClient Api
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject Pins Pins
 @inject CollectionActions Collections
 @inject BinderActions Binders
+@inject LibraryActivity Activity
 
 <div class="bt-backdrop fixed bt-menuback" @onclick="Closed" @oncontextmenu="Closed" @oncontextmenu:preventDefault="true"></div>
 <div class="bt-menu bt-cardmenu" role="menu" aria-label="@Book.Title" @onkeydown="OnKey">
@@ -33,10 +35,32 @@
             <button class="bt-menuitem" role="menuitem" @onclick="Open">Open</button>
             <button class="bt-menuitem" role="menuitem" @onclick="OpenInNewWindowAsync">Open in new window<span class="bt-gesture">Shift+Enter</span></button>
         }
+        @if (Book.OnlineLink is { } online && !Book.Elsewhere)
+        {
+            <a class="bt-menuitem" role="menuitem" href="@online" target="_blank" rel="noopener noreferrer" title="@online" @onclick="Closed">Open on @(Book.OnlineLabel ?? "the web")</a>
+        }
         <button class="bt-menuitem" role="menuitem" @onclick="() => Run(Details)">Details<span class="bt-gesture">Enter</span></button>
+        @if (Book.HasText && Activity.Current?.Ask == true)
+        {
+            <a class="bt-menuitem" role="menuitem" href="@ReaderUrl.For(Book, ask: true)" @onclick="Closed">Ask this book</a>
+        }
         <button class="bt-menuitem" role="menuitem" @onclick="FavoriteAsync">@(Book.Favorite ? "Remove from favorites" : "Add to favorites")</button>
         <button class="bt-menuitem" role="menuitem" title="Pinned books show in the sidebar and on Home" @onclick="PinAsync">@(Pins.IsPinned(PinKinds.Book, Book.EntryId) ? "Unpin" : "Pin")</button>
         <button class="bt-menuitem" role="menuitem" title="Correct its details: the values Bibliotaph guessed are marked" @onclick="() => Run(Correct)">Cataloged wrong…</button>
+        @if (Book.Protected)
+        {
+            <button class="bt-menuitem" role="menuitem" title="Its protection is one Bibliotaph can't open: the file opens from your storage, for an app that can read it"
+                    @onclick="DownloadAsync">Download the file</button>
+        }
+        @if (Book.CanForgetText)
+        {
+            <button class="bt-menuitem" role="menuitem" title="Removes its pages, search text, cover and AI results from Bibliotaph, and stops reading it. The file isn't touched."
+                    @onclick="ForgetTextAsync">Forget its text</button>
+        }
+        @if (Book.CanReadAgain)
+        {
+            <button class="bt-menuitem" role="menuitem" @onclick="ReadAgainAsync">Read it again</button>
+        }
         <button class="bt-menuitem" role="menuitem" @onclick="OpenCollectionsAsync">Add to collection<Icon Name="ChevronRight" Size="14" /></button>
         <button class="bt-menuitem" role="menuitem" @onclick="OpenBindersAsync">Add to binder<Icon Name="ChevronRight" Size="14" /></button>
         @if (Book.Elsewhere)
@@ -138,6 +162,34 @@
         await Attempt(async () =>
         {
             var result = await Api.RemoveElsewhereAsync(Book.EntryId);
+            await Changed.InvokeAsync();
+            await Done.InvokeAsync(result);
+        });
+    }
+
+    async Task DownloadAsync()
+    {
+        await Closed.InvokeAsync();
+        await Attempt(() => FileDownload.OpenAsync(Api, JS, Book.DocumentId, Done));
+    }
+
+    async Task ForgetTextAsync()
+    {
+        await Closed.InvokeAsync();
+        await Attempt(async () =>
+        {
+            var result = await Api.ForgetTextAsync(Book.EntryId);
+            await Changed.InvokeAsync();
+            await Done.InvokeAsync(result);
+        });
+    }
+
+    async Task ReadAgainAsync()
+    {
+        await Closed.InvokeAsync();
+        await Attempt(async () =>
+        {
+            var result = await Api.ReadAgainAsync(Book.EntryId);
             await Changed.InvokeAsync();
             await Done.InvokeAsync(result);
         });

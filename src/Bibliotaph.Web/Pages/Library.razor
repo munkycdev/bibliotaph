@@ -822,10 +822,25 @@ else
     }
 
     /// <summary>A matching page's Add: that page to the binder worked on last, as on Windows.</summary>
-    /// <summary>A double-click opens the book in the reader, as in the Windows app; outside Select mode, and when it has a file.</summary>
-    void OpenBook(BookCard book)
+    /// <summary>
+    /// A double-click opens the book in the reader, as in the Windows app, outside Select mode; a book owned only online
+    /// opens its page there, in a tab of its own.
+    /// </summary>
+    async Task OpenBook(BookCard book)
     {
-        if (!_selecting && !book.Elsewhere) Navigation.NavigateTo(ReaderUrl.For(book));
+        if (_selecting) return;
+        if (!book.Elsewhere) Navigation.NavigateTo(ReaderUrl.For(book));
+        else if (book.OnlineLink is { } online)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("open", online, "_blank", "noopener");
+            }
+            catch (JSException)
+            {
+                // A blocked pop-up: the details' Open on… link still opens it.
+            }
+        }
     }
 
     async Task AddPageAsync(BookCard book, PageMatch hit)

@@ -32,7 +32,7 @@ public sealed record AddLibraryFolder(string StorageId, string Path);
 /// What the library is doing, for the sidebar: the Windows app's status line, whether it's still busy, and what
 /// Needs review holds, its metadata suggestions and its files needing attention, which the sidebar counts together.
 /// </summary>
-public sealed record LibraryStatus(string Text, bool Busy, int Books, int Folders, int Suggestions = 0, int Attention = 0)
+public sealed record LibraryStatus(string Text, bool Busy, int Books, int Folders, int Suggestions = 0, int Attention = 0, bool Ask = false)
 {
     public int Review => Suggestions + Attention;
 }

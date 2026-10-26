@@ -180,7 +180,8 @@ public static class StorageApi
         var failing = (await library.Get<IndexQueries>().GetAttentionAsync(await library.Get<LibraryStore>().GetVisibleDocumentIdsAsync(ct), ct))
             .Select(a => a.DocumentId).Distinct().Count();
         var attention = failing + indexing.Unreadable.Count + counts.Problems;
-        return new LibraryStatus(text, await library.IsBusyAsync(ct), counts.Documents, folders, (int)suggestions, (int)attention);
+        return new LibraryStatus(text, await library.IsBusyAsync(ct), counts.Documents, folders, (int)suggestions, (int)attention,
+            library.Get<AskService>().IsOn);
     }
 }
 

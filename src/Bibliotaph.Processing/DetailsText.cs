@@ -12,6 +12,19 @@ namespace Bibliotaph.Processing;
 /// </summary>
 public static class DetailsText
 {
+    /// <summary>
+    /// The question Reprocess with OCR on every page asks first. Plain Reprocess doesn't ask: nothing of the user's is
+    /// at risk. OCR is slow enough (about a quarter of a second a page) that a long book merits a word first.
+    /// </summary>
+    public static string OcrEveryPageQuestion(string title, int pages) =>
+        $"Bibliotaph will read all {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")} of “{title}” with OCR, " +
+        $"including pages whose text came from the PDF itself. That takes {Core.Progress.TimeLeft.Describe(OcrPerPage * pages)}.";
+
+    /// <summary>What the question says after <see cref="OcrEveryPageQuestion"/>.</summary>
+    public const string OcrEveryPageNote = "Until each page has been read, its current text stays searchable. Nothing you added to the book changes.";
+
+    static readonly TimeSpan OcrPerPage = TimeSpan.FromMilliseconds(250);
+
     /// <summary>The fields shown even when nothing is known about them.</summary>
     static readonly HashSet<MetadataField> PrimaryFields =
         [MetadataFields.Title, MetadataFields.System, MetadataFields.Edition, MetadataFields.Types, MetadataFields.Levels, MetadataFields.Publisher];

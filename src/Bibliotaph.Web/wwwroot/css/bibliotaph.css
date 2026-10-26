@@ -1040,3 +1040,13 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-listitem .bt-menu.bt-cardmenu{top:70%;left:48px}
 .bt-cardmenu .bt-menuitem svg{flex-shrink:0;color:var(--bt-muted)}
 .bt-menuback-item{justify-content:flex-start;gap:6px;color:var(--bt-muted);border-bottom:1px solid var(--bt-line);border-radius:4px 4px 0 0;margin-bottom:3px}
+a.bt-menuitem{text-decoration:none}
+/* Reprocess's small menu, and the question it asks before reading every page by OCR. */
+.bt-boxactions.bt-menuanchor{position:relative}
+.bt-boxactions .bt-menu{left:0;right:auto}
+.bt-dropbutton{padding-left:7px;padding-right:7px}
+.bt-confirmbox{margin-top:10px;padding:10px;border:1px solid var(--bt-line);border-radius:6px;background:var(--bt-panel)}
+.bt-confirmbox .bt-small{margin-top:4px}
+/* Home's Fill in the catalog with AI?, as the Windows app's first-run step. */
+.bt-aistep{background:var(--bt-side);border-radius:6px;padding:18px;margin-top:22px;max-width:620px}
+.bt-aistep .bt-copy{margin:8px 0 14px}
