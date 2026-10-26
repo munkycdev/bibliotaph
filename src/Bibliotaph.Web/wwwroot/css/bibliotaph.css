@@ -1102,7 +1102,7 @@ a.bt-menuitem{text-decoration:none}
 .bt-onlineactions{display:flex;flex-direction:column;align-items:flex-end;gap:8px;flex:none}
 .bt-onlinesummary{display:flex;gap:16px;justify-content:space-between;align-items:center;margin-top:24px}
 .bt-onlinesummary .bt-settingshead{margin:0}
-.bt-onlinecovers{display:flex;gap:16px;justify-content:space-between;align-items:center;margin-top:12px}
+.bt-onlinecovers{margin-top:12px}
 .bt-onlinerows{list-style:none;margin:8px 0 0;padding:0;border-top:1px solid var(--bt-line)}
 .bt-onlinerows li{padding:8px 0;border-bottom:1px solid var(--bt-line);font-size:13px}
 .bt-onlinerows b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1110,7 +1110,7 @@ a.bt-menuitem{text-decoration:none}
 .bt-onlinerows .bt-check{align-items:flex-start}
 .bt-onlinerows .bt-check span{min-width:0}
 .bt-onlinemissing{display:flex;gap:16px;justify-content:space-between;align-items:center}
-@media (max-width:640px){.bt-onlineservice,.bt-onlinesummary,.bt-onlinecovers{flex-direction:column;align-items:stretch}.bt-onlineactions{align-items:flex-start}}
+@media (max-width:640px){.bt-onlineservice,.bt-onlinesummary{flex-direction:column;align-items:stretch}.bt-onlineactions{align-items:flex-start}}
 .bt-passwordbook{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 /* AI reading: the book being read in a panel, as the Windows page has it, then the last books read. */
 .bt-aireading{max-width:860px;margin-top:24px}

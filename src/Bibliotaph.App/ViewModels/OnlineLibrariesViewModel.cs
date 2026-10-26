@@ -74,44 +74,6 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
 
     IReadOnlyList<OnlineImportRow> Chosen => [.. Groups.SelectMany(g => g.Items).Where(i => i.CanChoose && i.IsChosen).Select(i => i.Row)];
 
-    [RelayCommand]
-    Task ImportSavedPageAsync() =>
-        files.OpenFile("Import a library page you saved", "Web pages (*.html;*.htm)|*.html;*.htm") is { } page ? ReadSavedPageAsync(page) : Task.CompletedTask;
-
-    /// <summary>
-    /// Reads a library page saved with Save as, Webpage complete, and shows what importing it does. Its covers are the
-    /// images saved beside it.
-    /// </summary>
-    public async Task ReadSavedPageAsync(string path)
-    {
-        if (IsBusy) return;
-        IsBusy = true;
-        Problem = null;
-        try
-        {
-            var saved = await Task.Run(() => imports.ReadSavedPageAsync(path));
-            if (saved is null)
-            {
-                Problem = OnlineImportText.Unreadable;
-                return;
-            }
-            _page = saved.Page;
-            _fromBrowser = null;
-            _covers = imports.SavedCovers(saved.Images);
-            Undo.Clear();
-            await ShowPlanAsync(saved.Reader, saved.Page);
-        }
-        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
-        {
-            log.LogWarning(ex, "A saved library page couldn't be read");
-            Problem = $"The page couldn't be read: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
     /// <summary>
     /// Opens the service in Bibliotaph's browser at its library page, or at <paramref name="start"/> (the smoke test's
     /// made-up page). Null, with the reason shown, when the browser can't run here.
@@ -120,8 +82,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     {
         if (OnlineBrowsers.RuntimeVersion is null)
         {
-            Problem = "Bibliotaph's browser needs the Microsoft Edge WebView2 Runtime, which Windows 11 includes. Install it from Microsoft, "
-                + "or import a page you saved instead.";
+            Problem = "Bibliotaph's browser needs the Microsoft Edge WebView2 Runtime, which Windows 11 includes. Install it from Microsoft.";
             return null;
         }
         Problem = null;
@@ -372,11 +333,10 @@ public sealed partial class OnlineServiceViewModel(IOnlineLibraryReader reader, 
 
     public string Explanation => Reader.LinkField == MetadataFields.AlsoOwn
         ? $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, open your library and press Read this page. "
-            + "Only books you own are imported, each opening on " + Name + ", and Bibliotaph never sees your password. "
-            + "A page saved with Save page or Save as (Webpage, complete) works too."
+            + "Only books you own are imported, each opening on " + Name + ", and Bibliotaph never sees your password."
         : $"Opens {Name} in Bibliotaph's own browser. Sign in there if it asks, open your library and press Read this page: books you haven't "
-            + $"downloaded become books to get from {Name}. Its own Download buttons save into your downloads folder below, where Bibliotaph reads each file. "
-            + "A saved page works too." + (Reader is DriveThruRpgReader ? " Your DMs Guild books are in the same library." : "");
+            + $"downloaded become books to get from {Name}. Its own Download buttons save into your downloads folder below, where Bibliotaph reads each file."
+            + (Reader is DriveThruRpgReader ? " Your DMs Guild books are in the same library." : "");
 
     [RelayCommand]
     void Open() => page.OpenBrowser(Reader);

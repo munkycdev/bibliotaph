@@ -47,8 +47,8 @@ public sealed record OnlinePage(IReadOnlyList<OnlineBook> Books, int Shared, boo
 }
 
 /// <summary>
-/// Reads one service's library page: the page the in-app browser shows when the user presses Read this page, or a
-/// page they saved with Save as. It reads only the page it is given and fetches nothing. A page it doesn't recognise
+/// Reads one service's library page: the page the in-app browser shows when the user presses Read this page, or the
+/// one Send to Bibliotaph sends from the user's own browser. It reads only the page it is given and fetches nothing. A page it doesn't recognise
 /// gives null, so the user is told plainly rather than importing nothing.
 /// </summary>
 public interface IOnlineLibraryReader
@@ -276,18 +276,4 @@ public sealed partial class DndBeyondReader : IOnlineLibraryReader
 
     [GeneratedRegex("""self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)""", RegexOptions.CultureInvariant)]
     private static partial Regex Push();
-}
-
-/// <summary>
-/// A page from Bibliotaph's browser saved where the user chose (Save page), as the page showed it: the document as drawn,
-/// so a page built by script keeps what it showed. Nothing else on the page (images, scripts) is fetched or saved.
-/// </summary>
-public static class SavedPages
-{
-    public static async Task SaveAsync(string path, string html, CancellationToken ct = default)
-    {
-        var partial = path + ".partial";
-        await File.WriteAllTextAsync(partial, "<!DOCTYPE html>\n" + html, Encoding.UTF8, ct);
-        File.Move(partial, path, overwrite: true);
-    }
 }
