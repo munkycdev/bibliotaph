@@ -7,8 +7,15 @@ namespace Bibliotaph.Api.Contracts;
 public sealed record StorageAccount(string Id, string Provider, string Name, bool NeedsReconnect, DateTimeOffset Added,
     IReadOnlyList<string>? Access = null, string? Scopes = null);
 
-/// <summary>A kind of storage this server can connect: "OneDrive", whose consent screen is "Microsoft"'s.</summary>
-public sealed record StorageProviderInfo(string Id, string Name, string Owner);
+/// <summary>
+/// A kind of storage this server can connect: "OneDrive", whose consent screen is "Microsoft"'s. One that
+/// <see cref="SignsInWithPassword"/> (WebDAV) is connected with an address, user name and password typed in Settings
+/// rather than on its owner's sign-in page.
+/// </summary>
+public sealed record StorageProviderInfo(string Id, string Name, string Owner, bool SignsInWithPassword = false);
+
+/// <summary>A WebDAV folder to connect: its address, and the user name and password that open it.</summary>
+public sealed record WebDavConnect(string Url, string User, string Password);
 
 /// <summary>A folder in connected storage, for picking library folders. <see cref="Path"/> is inside the storage.</summary>
 public sealed record StorageFolder(string Name, string Path, bool InLibrary);

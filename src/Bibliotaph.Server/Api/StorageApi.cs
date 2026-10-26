@@ -21,9 +21,24 @@ public static class StorageApi
         api.MapGet("/storage", async (ClaimsPrincipal principal, StorageConnections connections, CancellationToken ct) =>
             (await connections.ListAsync(principal.UserId()!, ct)).Select(Account));
 
-        // Only providers whose OAuth app this server has can be connected, so Settings offers only those.
+        // Only providers this server can connect (an OAuth one needs its app) are offered in Settings.
         api.MapGet("/storage/providers", (IConfiguration configuration) =>
-            StorageProviders.Configured(configuration).Select(p => new StorageProviderInfo(p.Id, p.Name, p.Owner)));
+            StorageProviders.Configured(configuration).Select(p => new StorageProviderInfo(p.Id, p.Name, p.Owner, p is not OAuthStorageProvider)));
+
+        // Connects a WebDAV folder, or connects one again with a new password: the same address and user name are the same account.
+        api.MapPost("/storage/webdav", async (WebDavConnect request, ClaimsPrincipal principal, IConfiguration configuration, IHttpClientFactory http,
+            StorageConnections connections, DriveTokens tokens, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!StorageProviders.Find(WebDavProvider.Key)!.IsAvailable(configuration)) return Results.NotFound();
+            var found = await WebDavProvider.ConnectAsync(http.CreateClient(WebDavProvider.Key), request.Url, request.User, request.Password, ct);
+            if (found is not { Identity: { } identity, Credential: { } credential })
+                return Results.Problem(found.Problem, statusCode: StatusCodes.Status400BadRequest);
+            var userId = principal.UserId()!;
+            var connection = await connections.SaveAsync(userId, WebDavProvider.Key, identity.AccountId, identity.DisplayName, null, credential.ToJson(), null, ct);
+            tokens.Forget(connection.Id);
+            await libraries.DrivesChangedAsync(userId);
+            return Results.Ok(Account(connection));
+        });
 
         api.MapDelete("/storage/{id}", async (string id, ClaimsPrincipal principal, StorageConnections connections, DriveTokens tokens,
             DriveNotifications notifications, UserLibraries libraries, CancellationToken ct) =>

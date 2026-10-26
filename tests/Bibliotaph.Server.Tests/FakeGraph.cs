@@ -143,11 +143,12 @@ sealed class LibraryFixture : IAsyncDisposable
         Graph = graph ?? new FakeGraph();
         Dropbox = new FakeDropbox();
         Google = new FakeGoogleDrive();
+        WebDav = new FakeWebDav();
         Paths = new ServerPaths(root);
         Accounts = new AccountsDatabase(Paths.Accounts);
         Accounts.MigrateAsync().GetAwaiter().GetResult();
         Connections = new StorageConnections(Accounts, Protection, clock);
-        Http = new FakeHttp(new FakeHosts(Graph, Dropbox, Google));
+        Http = new FakeHttp(new FakeHosts(Graph, Dropbox, Google, WebDav));
         var http = Http;
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
@@ -174,6 +175,7 @@ sealed class LibraryFixture : IAsyncDisposable
     public FakeGraph Graph { get; }
     public FakeDropbox Dropbox { get; }
     public FakeGoogleDrive Google { get; }
+    public FakeWebDav WebDav { get; }
     public FakeHttp Http { get; }
     public ReadLinks ReadLinks => new(Protection, TimeProvider.System);
 
@@ -198,12 +200,18 @@ sealed class LibraryFixture : IAsyncDisposable
     public async Task<(string UserId, ConnectedAccount Drive)> UserWithGoogleDriveAsync() =>
         await UserWithAsync(GoogleDriveProvider.Key, FakeGoogleDrive.PermissionId, "Google Drive · Dana", null, "Dana");
 
-    async Task<(string UserId, ConnectedAccount Drive)> UserWithAsync(string provider, string account, string display, string? kind, string name)
+    /// <summary>Makes a user and connects the fake WebDAV server to them, with the password <paramref name="password"/>.</summary>
+    public async Task<(string UserId, ConnectedAccount Drive)> UserWithWebDavAsync(string password = FakeWebDav.Password) =>
+        await UserWithAsync(WebDavProvider.Key, FakeWebDav.AccountId, "WebDAV · dana on dav.example.com", null, "Dana",
+            new Bibliotaph.Storage.WebDav.WebDavCredential(FakeWebDav.Root, FakeWebDav.User, password).ToJson());
+
+    async Task<(string UserId, ConnectedAccount Drive)> UserWithAsync(string provider, string account, string display, string? kind, string name,
+        string secret = "refresh")
     {
         var accounts = new AccountService(Accounts, TimeProvider.System);
         var (code, _) = await accounts.CreateInviteAsync(null, null, admin: false);
         var user = (await accounts.SignInAsync(new ExternalIdentity("google", Guid.NewGuid().ToString(), name, null), code, null)).User!;
-        var drive = await Connections.SaveAsync(user.Id, provider, account, display, kind, "refresh", null);
+        var drive = await Connections.SaveAsync(user.Id, provider, account, display, kind, secret, null);
         return (user.Id, drive);
     }
 

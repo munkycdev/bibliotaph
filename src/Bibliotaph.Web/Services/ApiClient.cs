@@ -91,6 +91,10 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<StorageProviderInfo>> StorageProvidersAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<StorageProviderInfo>>("api/storage/providers", ct) ?? [];
 
+    /// <summary>Connects a WebDAV folder, or throws <see cref="ApiProblemException"/> saying why it couldn't.</summary>
+    public Task<StorageAccount> ConnectWebDavAsync(WebDavConnect connect, CancellationToken ct = default) =>
+        SendAsync<StorageAccount>(HttpMethod.Post, "api/storage/webdav", connect, ct);
+
     public async Task DisconnectStorageAsync(string id, CancellationToken ct = default)
     {
         using var response = await http.DeleteAsync($"api/storage/{Uri.EscapeDataString(id)}", ct);

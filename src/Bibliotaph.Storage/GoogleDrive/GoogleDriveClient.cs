@@ -141,7 +141,7 @@ public sealed class GoogleDriveClient(HttpClient http, Func<CancellationToken, T
 /// same name in one folder, which a path can't hold: a slash reads as ∕ (U+2215), a backslash as ∖ (U+2216), and the
 /// second and later of a name, oldest first, get " (2)", " (3)" before the extension.
 /// </summary>
-public sealed class GoogleDriveDrive(GoogleDriveClient client, TimeProvider? clock = null) : IStorageDrive
+public sealed class GoogleDriveDrive(GoogleDriveClient client, TimeProvider? clock = null) : IStorageDrive, IStorageChangeLog
 {
     const string Root = "root";
     static readonly TimeSpan Fresh = TimeSpan.FromMinutes(1);
@@ -173,6 +173,10 @@ public sealed class GoogleDriveDrive(GoogleDriveClient client, TimeProvider? clo
     }
 
     public Task<string?> ReadLinkAsync(string path, CancellationToken ct = default) => Task.FromResult<string?>(null);
+
+    public Task<string> StartAsync(CancellationToken ct = default) => client.StartPageTokenAsync(ct);
+
+    public Task<(bool Changed, string Next)> ChangesSinceAsync(string cursor, CancellationToken ct = default) => client.ChangesSinceAsync(cursor, ct);
 
     /// <summary>The ID of the folder at a path, or null when there's no folder there.</summary>
     async Task<string?> FolderIdAsync(string path, CancellationToken ct)

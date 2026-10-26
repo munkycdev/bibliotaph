@@ -106,7 +106,7 @@ public sealed class StorageConnections(AccountsDatabase database, IDataProtectio
         await db.SaveChangesAsync(ct);
     }
 
-    static ConnectedAccount Summary(StorageConnection c) =>
+    public static ConnectedAccount Summary(StorageConnection c) =>
         new(c.Id, c.UserId, c.Provider, c.AccountId, c.DisplayName, c.AccountKind, c.NeedsReconnect, DateTime.SpecifyKind(c.Created, DateTimeKind.Utc),
             c.Scopes);
 }

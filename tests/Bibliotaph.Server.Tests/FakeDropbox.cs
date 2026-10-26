@@ -133,12 +133,14 @@ sealed class FakeDropbox : HttpMessageHandler
 }
 
 /// <summary>Sends each request to the fake that serves its host, as the server's clients reach Graph, Dropbox and Google.</summary>
-sealed class FakeHosts(FakeGraph graph, FakeDropbox dropbox, FakeGoogleDrive? google = null) : HttpMessageHandler
+sealed class FakeHosts(FakeGraph graph, FakeDropbox dropbox, FakeGoogleDrive? google = null, FakeWebDav? webDav = null) : HttpMessageHandler
 {
     readonly HttpMessageInvoker _graph = new(graph, disposeHandler: false);
     readonly HttpMessageInvoker _dropbox = new(dropbox, disposeHandler: false);
     readonly HttpMessageInvoker _google = new(google ?? new FakeGoogleDrive(), disposeHandler: false);
+    readonly HttpMessageInvoker _webDav = new(webDav ?? new FakeWebDav(), disposeHandler: false);
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-        (FakeDropbox.Handles(request.RequestUri!) ? _dropbox : FakeGoogleDrive.Handles(request.RequestUri!) ? _google : _graph).SendAsync(request, cancellationToken);
+        (FakeDropbox.Handles(request.RequestUri!) ? _dropbox : FakeGoogleDrive.Handles(request.RequestUri!) ? _google
+            : FakeWebDav.Handles(request.RequestUri!) ? _webDav : _graph).SendAsync(request, cancellationToken);
 }

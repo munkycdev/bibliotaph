@@ -54,6 +54,19 @@ public interface IStorageDrive
     Task<string?> ReadLinkAsync(string path, CancellationToken ct = default);
 }
 
+/// <summary>
+/// A drive the server asks now and then whether anything changed, where the provider has no notifications to send. The
+/// cursor is the provider's own: a change log's position, or a folder's ETag.
+/// </summary>
+public interface IStorageChangeLog
+{
+    /// <summary>Where the drive stands now, to ask later what changed since.</summary>
+    Task<string> StartAsync(CancellationToken ct = default);
+
+    /// <summary>Whether anything changed since <paramref name="cursor"/>, and the cursor to ask from next time.</summary>
+    Task<(bool Changed, string Next)> ChangesSinceAsync(string cursor, CancellationToken ct = default);
+}
+
 /// <summary>The storage one library can reach: what its owner has connected.</summary>
 public interface IStorageDrives
 {

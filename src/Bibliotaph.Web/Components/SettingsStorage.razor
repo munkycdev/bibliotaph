@@ -1,5 +1,6 @@
 @* Settings › Storage: the drives connected, what each was allowed, connecting another of any kind this server offers,
-   connecting one again when its provider stopped letting Bibliotaph in, and disconnecting. *@
+   connecting one again when its provider stopped letting Bibliotaph in, and disconnecting. WebDAV has no sign-in page
+   of its own, so its address, user name and password are typed here. *@
 @inject ApiClient Api
 @inject LibraryActivity Activity
 
@@ -27,10 +28,14 @@
                     : $"Connected {account.Added:d MMMM yyyy}")</small>
                     @if (account.Access is { Count: > 0 } access)
                     {
-                        <small title="@($"As {StorageOwner(account)} names it: {account.Scopes}")">Allowed to @Sentence(access).</small>
+                        <small title="@(account.Scopes is { } scopes ? $"As {StorageOwner(account)} names it: {scopes}" : null)">Allowed to @Sentence(access).</small>
                     }
                 </div>
-                @if (account.NeedsReconnect)
+                @if (account.NeedsReconnect && SignsInHere(account.Provider))
+                {
+                    <button class="bt-button" @onclick="() => OpenForm(account.Provider)"><Icon Name="RotateCcw" />Connect again</button>
+                }
+                else if (account.NeedsReconnect)
                 {
                     <ServerLink Href="@ConnectLink(account.Provider)"><Icon Name="RotateCcw" />Connect again</ServerLink>
                 }
@@ -50,9 +55,47 @@
             <div class="bt-actions">
                 @foreach (var kind in _providers)
                 {
-                    <ServerLink Href="@ConnectLink(kind.Id)" Class="@(_storage.Count == 0 && kind == _providers[0] ? "bt-button primary" : "bt-button")"><Icon Name="Plus" />Connect @kind.Name</ServerLink>
+                    var look = _storage.Count == 0 && kind == _providers[0] ? "bt-button primary" : "bt-button";
+                    if (kind.SignsInWithPassword)
+                    {
+                        <button class="@look" aria-expanded="@(_form == kind.Id)" @onclick="() => OpenForm(kind.Id)"><Icon Name="Plus" />Connect @kind.Name</button>
+                    }
+                    else
+                    {
+                        <ServerLink Href="@ConnectLink(kind.Id)" Class="@look"><Icon Name="Plus" />Connect @kind.Name</ServerLink>
+                    }
                 }
             </div>
+        }
+        @if (_form is not null)
+        {
+            <form class="bt-webdav" aria-labelledby="webdav-heading" @onsubmit="ConnectWebDavAsync" @onsubmit:preventDefault="true">
+                <h3 class="bt-subheading" id="webdav-heading">Connect WebDAV</h3>
+                <p class="bt-fine">For Nextcloud, ownCloud, a NAS or any WebDAV server on the internet. Give the address of the folder your books
+                    are in, or one above it. Nextcloud and ownCloud show it under Files › Settings › WebDAV, like
+                    https://cloud.example.com/remote.php/dav/files/you/.</p>
+                <label class="bt-field">Address
+                    <input type="url" autocomplete="url" placeholder="https://cloud.example.com/remote.php/dav/files/you/" @bind="_url" @ref="_address" />
+                </label>
+                <label class="bt-field">User name
+                    <input autocomplete="username" @bind="_user" />
+                </label>
+                <label class="bt-field">Password
+                    <input type="password" autocomplete="current-password" @bind="_password" />
+                </label>
+                <p class="bt-fine">Use an app password made for Bibliotaph where your server offers one (in Nextcloud, Personal settings ›
+                    Security › Create new app password), so you can take it back without changing your own. It's kept encrypted on the
+                    server and never shown again.</p>
+                @if (_formProblem is { } problem)
+                {
+                    <p class="bt-problem" role="alert">@problem</p>
+                }
+                <div class="bt-actions">
+                    <button type="submit" class="bt-button primary" disabled="@(_connecting || _url.Trim().Length == 0 || _user.Trim().Length == 0 || _password.Length == 0)">
+                        @(_connecting ? "Connecting…" : "Connect")</button>
+                    <button type="button" class="bt-button" @onclick="CloseForm">Cancel</button>
+                </div>
+            </form>
         }
         <p class="bt-fine">Disconnecting keeps your notes, collections and corrections. Its books come back when you connect it again.</p>
     }
@@ -61,6 +104,14 @@
 @code {
     IReadOnlyList<StorageAccount>? _storage;
     IReadOnlyList<StorageProviderInfo> _providers = [];
+    string? _form;
+    string _url = "", _user = "", _password = "";
+    string? _formProblem;
+    bool _connecting;
+    bool _focusForm;
+    ElementReference _address;
+
+    [CascadingParameter(Name = "ChooseSettingsSection")] public Func<string, Task>? Choose { get; set; }
 
     /// <summary>"storage" when connecting didn't finish, as the provider's callback reports it.</summary>
     [Parameter] public string? Problem { get; set; }
@@ -73,6 +124,8 @@
     // Once connected, the next thing to do is add a folder from it.
     static string ConnectLink(string provider) => $"storage/connect/{Uri.EscapeDataString(provider)}?returnUrl=%2Fsettings%23library";
 
+    bool SignsInHere(string provider) => _providers.FirstOrDefault(p => p.Id == provider)?.SignsInWithPassword == true;
+
     string StorageOwner(StorageAccount account) => _providers.FirstOrDefault(p => p.Id == account.Provider)?.Owner ?? "your storage provider";
 
     /// <summary>"read your files, see your name and keep access".</summary>
@@ -83,6 +136,57 @@
     {
         _providers = await Api.StorageProvidersAsync();
         _storage = await Api.StorageAsync();
+    }
+
+    void OpenForm(string provider)
+    {
+        _form = provider;
+        _formProblem = null;
+        _focusForm = true;
+    }
+
+    void CloseForm()
+    {
+        _form = null;
+        _password = "";
+        _formProblem = null;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusForm) return;
+        _focusForm = false;
+        await _address.FocusAsync();
+    }
+
+    async Task ConnectWebDavAsync()
+    {
+        _connecting = true;
+        _formProblem = null;
+        try
+        {
+            await Api.ConnectWebDavAsync(new WebDavConnect(_url, _user, _password));
+        }
+        catch (ApiProblemException ex)
+        {
+            _formProblem = ex.Message;
+            return;
+        }
+        catch (HttpRequestException)
+        {
+            _formProblem = "Bibliotaph couldn't be reached just now. Try again in a moment.";
+            return;
+        }
+        finally
+        {
+            _connecting = false;
+        }
+        CloseForm();
+        _url = _user = "";
+        _storage = await Api.StorageAsync();
+        Activity.Refresh();
+        // As after any other provider's sign-in, the next thing to do is add a folder from it.
+        if (Choose is not null) await Choose("library");
     }
 
     async Task Disconnect(StorageAccount account)

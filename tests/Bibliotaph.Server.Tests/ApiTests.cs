@@ -1055,8 +1055,10 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         using var connect = await client.GetAsync("/storage/connect/onedrive?returnUrl=%2Fsettings", ct);
         using var unknown = await client.GetAsync("/storage/connect/elsewhere", ct);
 
-        Assert.Empty(unconfigured!);
-        Assert.Equal([new StorageProviderInfo("onedrive", "OneDrive", "Microsoft")], providers);
+        // WebDAV needs no app of its own, so it's always offered.
+        var webDav = new StorageProviderInfo("webdav", "WebDAV", "your server", SignsInWithPassword: true);
+        Assert.Equal([webDav], unconfigured);
+        Assert.Equal([new StorageProviderInfo("onedrive", "OneDrive", "Microsoft"), webDav], providers);
         Assert.Equal(HttpStatusCode.Redirect, connect.StatusCode);
         var authorize = connect.Headers.Location!.ToString();
         Assert.StartsWith("https://login.microsoftonline.com/common/oauth2/v2.0/authorize?", authorize, StringComparison.Ordinal);
@@ -1064,6 +1066,28 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal("offline_access Files.Read", query["scope"].ToString());
         Assert.EndsWith("/storage/callback/onedrive", query["redirect_uri"].ToString(), StringComparison.Ordinal);
         Assert.Equal("/settings?problem=storage", unknown.Headers.Location!.ToString());
+    }
+
+    [Fact]
+    public async Task A_webdav_folder_connects_with_its_password_and_says_why_when_it_cant()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = Client(await AddUserAsync(admin: false));
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+
+        using var refused = await client.PostAsJsonAsync("/api/storage/webdav", new WebDavConnect(FakeWebDav.Root, FakeWebDav.User, "wrong"), ct);
+        using var connected = await client.PostAsJsonAsync("/api/storage/webdav", new WebDavConnect(FakeWebDav.Root, FakeWebDav.User, FakeWebDav.Password), ct);
+        var account = await connected.Content.ReadFromJsonAsync<StorageAccount>(ct);
+        var listed = await client.GetFromJsonAsync<List<StorageAccount>>("/api/storage", ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Contains("didn't accept", await refused.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, connected.StatusCode);
+        Assert.Equal("WebDAV · dana on dav.example.com", account!.Name);
+        Assert.Equal(["read your files with the password you gave", "keep access while you're signed out"], account.Access);
+        Assert.Null(account.Scopes);
+        Assert.Equal(account.Id, Assert.Single(listed!).Id);
+        Assert.DoesNotContain(FakeWebDav.Password, await connected.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
     }
 
     [Fact]

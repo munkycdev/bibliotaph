@@ -23,14 +23,16 @@ public static class StorageSetup
         services.AddSingleton<DriveNotifications>();
         services.AddHostedService(sp => sp.GetRequiredService<DriveNotifications>());
         services.AddHostedService<DriveWatch>();
-        services.AddSingleton<GoogleDriveChanges>();
-        services.AddHostedService(sp => sp.GetRequiredService<GoogleDriveChanges>());
+        services.AddSingleton<PolledDriveChanges>();
+        services.AddHostedService(sp => sp.GetRequiredService<PolledDriveChanges>());
+        // A WebDAV server is wherever the user says, so its calls may only reach the internet.
+        services.AddHttpClient(WebDavProvider.Key).ConfigurePrimaryHttpMessageHandler(PublicNetwork.Handler);
 
-        foreach (var provider in StorageProviders.Configured(configuration)) AddProvider(services, provider, provider.App(configuration)!);
+        foreach (var provider in StorageProviders.Configured(configuration).OfType<OAuthStorageProvider>()) AddProvider(services, provider, provider.App(configuration)!);
         return services;
     }
 
-    static void AddProvider(IServiceCollection services, StorageProvider provider, StorageApp app) =>
+    static void AddProvider(IServiceCollection services, OAuthStorageProvider provider, StorageApp app) =>
         services.AddAuthentication().AddOAuth(provider.Id, provider.Name, options =>
         {
             options.AuthorizationEndpoint = provider.AuthorizationEndpoint;
@@ -60,7 +62,7 @@ public static class StorageSetup
             };
         });
 
-    static async Task SaveConnectionAsync(OAuthCreatingTicketContext context, StorageProvider provider)
+    static async Task SaveConnectionAsync(OAuthCreatingTicketContext context, OAuthStorageProvider provider)
     {
         var services = context.HttpContext.RequestServices;
         // The callback is handled before the request's own user is read, so the session is asked for directly.
@@ -96,7 +98,7 @@ public static class StorageSetup
         DropboxWebhook.Map(storage);
 
         storage.MapGet("/connect/{provider}", (string provider, HttpContext context, string? returnUrl) =>
-            StorageProviders.Find(provider) is { } known && known.App(context.RequestServices.GetRequiredService<IConfiguration>()) is not null
+            StorageProviders.Find(provider) is OAuthStorageProvider known && known.App(context.RequestServices.GetRequiredService<IConfiguration>()) is not null
                 ? Results.Challenge(new AuthenticationProperties { RedirectUri = AuthEndpoints.LocalOrHome(returnUrl ?? "/settings") }, [known.Id])
                 : Results.LocalRedirect("/settings?problem=storage"))
             .RequireAuthorization();
