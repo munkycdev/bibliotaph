@@ -30,6 +30,9 @@
 - **Start on, folder names and folder rules on the web.** Settings › Library has the Windows app's Start on (Home or
   Library), the folder names read as suggestions, each of which can be switched off, and the folder rules answered in
   Needs review, each with its switch. See [Library folders](docs/guide/web.md#library-folders).
+- **Vocabulary on the web.** Settings › Vocabulary has the Windows app's tabs of terms, each renamed, given a short
+  name for covers or other names in place, and Your tags, each found in your books' pages by its words. See
+  [Vocabulary](docs/guide/web.md#vocabulary).
 - **Your books read on the web.** bibliotaph.online reads each book in your library folders as the Windows app does:
   pages, outline, text for search, covers, and hints from file and folder names. A book is downloaded once to be read
   and its copy deleted when it's done. OCR and AI on the web come later.

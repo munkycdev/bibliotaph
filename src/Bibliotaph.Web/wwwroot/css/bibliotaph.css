@@ -972,3 +972,21 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-arrow{color:var(--bt-muted)}
 /* As the Windows app dims a button it can't use yet, such as Add a folder before any storage is connected. */
 .bt-button:disabled,.bt-icon:disabled,.bt-segments button:disabled,.bt-link:disabled{opacity:.5;cursor:default}
+/* Settings › Vocabulary: tabs above a rule, each term or tag a row that opens into its edit panel. */
+.bt-vocabtabs{margin:12px 0;padding-bottom:12px;border-bottom:1px solid var(--bt-line)}
+.bt-inputrow{display:flex;gap:8px;align-items:flex-end}
+.bt-inputrow .bt-input{flex:1}
+.bt-inputrow .bt-field.bt-wide{flex:2}
+.bt-section .bt-field+.bt-inputrow,.bt-editpanel .bt-inputrow{margin-top:10px}
+.bt-section>.bt-field{margin-top:18px}
+.bt-termlist{margin-top:12px}
+.bt-term{padding:12px 0;border-bottom:1px solid var(--bt-line)}
+.bt-termhead{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.bt-term small{display:block;margin-top:4px;font-size:11px;color:var(--bt-muted)}
+.bt-editpanel{background:var(--bt-side);border-radius:6px;padding:15px;margin-top:12px}
+.bt-editpanel>.bt-field:first-child,.bt-editpanel>.bt-inputrow:first-child{margin-top:0}
+.bt-editpanel .bt-actions{margin-top:10px}
+.bt-gap{margin-top:18px;margin-bottom:5px}
+.bt-fine.bt-tight{margin-top:6px}
+.bt-editnote{margin-top:8px;font-size:11px;color:var(--bt-text)}
+@media(max-width:620px){.bt-inputrow{flex-wrap:wrap}.bt-inputrow .bt-field{flex:1 1 100%}}

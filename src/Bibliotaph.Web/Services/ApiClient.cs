@@ -435,6 +435,29 @@ public sealed class ApiClient(HttpClient http)
     public Task<ReviewMode> SetReviewModeAsync(bool all, CancellationToken ct = default) =>
         SendAsync<ReviewMode>(HttpMethod.Put, "api/review/mode", new ReviewMode(all), ct);
 
+    public Task<List<VocabularyTerm>> VocabularyAsync(string vocabulary, CancellationToken ct = default) =>
+        SendAsync<List<VocabularyTerm>>(HttpMethod.Get, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}", null, ct);
+
+    public Task<VocabularyChange> AddTermAsync(string vocabulary, string label, CancellationToken ct = default) =>
+        SendAsync<VocabularyChange>(HttpMethod.Post, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}", new NewTerm(label), ct);
+
+    public Task<VocabularyChange> RenameTermAsync(long id, string label, string? shortLabel, CancellationToken ct = default) =>
+        SendAsync<VocabularyChange>(HttpMethod.Put, $"api/vocabulary/terms/{id}", new TermRename(label, shortLabel), ct);
+
+    public Task<VocabularyChange> AddAliasAsync(long termId, string text, CancellationToken ct = default) =>
+        SendAsync<VocabularyChange>(HttpMethod.Post, $"api/vocabulary/terms/{termId}/aliases", new NewAlias(text), ct);
+
+    public Task RemoveAliasAsync(long aliasId, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Delete, $"api/vocabulary/aliases/{aliasId}", null, ct);
+
+    public Task<List<UserTag>> UserTagsAsync(CancellationToken ct = default) => SendAsync<List<UserTag>>(HttpMethod.Get, "api/tags", null, ct);
+
+    /// <summary>Adds a tag when <paramref name="id"/> is null, otherwise changes it.</summary>
+    public Task<UserTagChange> SaveUserTagAsync(long? id, string name, string words, CancellationToken ct = default) =>
+        SendAsync<UserTagChange>(id is null ? HttpMethod.Post : HttpMethod.Put, id is null ? "api/tags" : $"api/tags/{id}", new UserTagText(name, words), ct);
+
+    public Task DeleteUserTagAsync(long id, CancellationToken ct = default) => SendAsync(HttpMethod.Delete, $"api/tags/{id}", null, ct);
+
     public Task<ReviewSuggestions> ReviewAsync(CancellationToken ct = default) => SendAsync<ReviewSuggestions>(HttpMethod.Get, "api/review", null, ct);
 
     public Task<ActionResult> AcceptSuggestionAsync(ReviewFieldDecision decision, CancellationToken ct = default) =>

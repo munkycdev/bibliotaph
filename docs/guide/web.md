@@ -20,7 +20,7 @@ Without an invitation, signing in with an account Bibliotaph doesn't know shows 
 ## Settings
 
 **Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of
-sections beside the one you're in. **Storage**, **Library**, **Windows PCs**, **AI**, **Backup**, **Appearance**, **Needs review**,
+sections beside the one you're in. **Storage**, **Library**, **Windows PCs**, **Vocabulary**, **AI**, **Backup**, **Appearance**, **Needs review**,
 **Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
 invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
@@ -515,6 +515,20 @@ folders and settings stay on each side. The app keeps working offline and catche
 The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Windows PCs** on the web lists each
 connected PC with when it was connected and last used, and **×** disconnects one: its key stops working straight
 away, and the PC keeps its own books and work. What it already shared stays in your web library. **Disconnect** in the app does the same from the PC.
+
+## Vocabulary
+
+**Settings** › **Vocabulary** holds the game systems, types and other terms your books are filed under, as in the
+Windows app, with a tab for each list. Type in **Add to types** (or whichever list is chosen) and press **Add**, or find
+a term by any of its names. The pencil beside a term opens it: change its **Name** or its **Short name, on covers** and
+**Save name**, and add or remove its **Other names** ("5e" for an edition, say). Folder names, searches and what you type
+all go through these names. Renaming keeps everything filed under the term, and the library catches up a few seconds
+after you stop.
+
+The last tab, **Your tags**, holds tags of your own, each with the words that signal it ("Undead": zombie, lich).
+**Add tag** looks through your books' pages at once and suggests the tag for each book whose pages use the words often
+enough; Needs review and a book's details show it as suggested until you keep it. The pencil changes a tag's name or
+words, and **Delete tag** takes its suggestions away; books where you kept it keep it.
 
 ## Backup and export
 

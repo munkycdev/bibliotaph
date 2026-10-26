@@ -1,0 +1,15 @@
+@* Under an edit in Settings: why it was refused, in the accent colour, or what else it changed. *@
+@if (Problem is not null)
+{
+    <p class="bt-problem" role="alert">@Problem</p>
+}
+@if (Note is not null)
+{
+    <p class="bt-editnote" role="status">@Note</p>
+}
+
+@code {
+    [Parameter] public string? Problem { get; set; }
+
+    [Parameter] public string? Note { get; set; }
+}
