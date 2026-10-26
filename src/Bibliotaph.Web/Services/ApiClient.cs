@@ -26,6 +26,14 @@ public sealed class ApiClient(HttpClient http)
         return await response.Content.ReadFromJsonAsync<CurrentUser>(ct);
     }
 
+    /// <summary>Closes the signed-in account, which the server deletes with everything it keeps for it.</summary>
+    public async Task<SignedOut> CloseAccountAsync(CancellationToken ct = default)
+    {
+        using var response = await http.DeleteAsync("api/me", ct);
+        await EnsureAsync(response, ct);
+        return (await response.Content.ReadFromJsonAsync<SignedOut>(ct))!;
+    }
+
     public async Task<IReadOnlyList<SignInProvider>> ProvidersAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<SignInProvider>>("auth/providers", ct) ?? [];
 

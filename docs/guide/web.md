@@ -27,6 +27,12 @@ To sign in another way as well, such as Google beside Microsoft, choose **Link a
 **Account** and sign in the other way. Either one then opens the same library, and **Account** lists each by name. A
 sign-in that already belongs to another Bibliotaph account can't be linked.
 
+**Close account…** in **Settings** › **Account** closes your account once you confirm. Bibliotaph deletes the account,
+your library (its catalog, index and covers), everything you've done in it, your storage connections and the books
+kept in that browser straight away, and its backups within 30 days, then signs you out everywhere. Nothing in your
+storage is touched. It can't be undone: to come back you need a new invitation. Your sign-in with Google, Microsoft or
+another service is theirs, so it stays.
+
 ## Inviting others
 
 If your account can invite, **Settings** has **Invitations**. Type who it's for (only you see this), tick **Can invite

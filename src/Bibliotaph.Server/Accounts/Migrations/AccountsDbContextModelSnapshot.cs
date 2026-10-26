@@ -15,12 +15,32 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261025175319_StorageConnectionState";
+    public override string LastMigrationId => "20261026003442_ClosedAccounts";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
         modelBuilder.HasAnnotation("ProductVersion", "11.0.0-rc.2.26504.105");
+
+        modelBuilder.Entity("Bibliotaph.Server.Accounts.ClosedAccount", b =>
+            {
+                b.Property<string>("UserId")
+                    .HasMaxLength(32)
+                    .HasColumnType("TEXT")
+                    .HasColumnName("user_id");
+
+                b.Property<DateTime>("Closed")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("closed");
+
+                b.Property<DateTime?>("Purged")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("purged");
+
+                b.HasKey("UserId");
+
+                b.ToTable("closed_accounts");
+            });
 
         modelBuilder.Entity("Bibliotaph.Server.Accounts.Invite", b =>
             {

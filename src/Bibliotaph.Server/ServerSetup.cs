@@ -44,6 +44,17 @@ public static class ServerSetup
         if (options.CoverContainer is { Length: > 0 } covers)
             services.AddSingleton<ICoverStore>(new BlobCoverStore(new BlobContainerClient(new Uri(covers), credential.Value)));
         else services.AddSingleton<ICoverStore, NoCoverStore>();
+        var kept = new List<(BlobContainerClient, string)>();
+        if (options.ReplicaUrl is { Length: > 0 } replicaUrl)
+        {
+            var (replicaContainer, replicaRoot) = BlobUserBlobs.Replica(replicaUrl);
+            kept.Add((new BlobContainerClient(replicaContainer, credential.Value), replicaRoot));
+        }
+        if (options.CoverContainer is { Length: > 0 } coverContainer) kept.Add((new BlobContainerClient(new Uri(coverContainer), credential.Value), ""));
+        if (kept.Count > 0) services.AddSingleton<IUserBlobs>(new BlobUserBlobs(kept));
+        else services.AddSingleton<IUserBlobs, NoUserBlobs>();
+        services.AddSingleton<AccountPurge>();
+        services.AddHostedService(sp => sp.GetRequiredService<AccountPurge>());
 
         var keys = services.AddDataProtection().SetApplicationName("bibliotaph");
         if (options.KeyRingBlob is { Length: > 0 } blob && options.KeyRingKey is { Length: > 0 } key)
@@ -88,6 +99,7 @@ public static class ServerSetup
         });
 
         app.UseAuthentication();
+        app.UseClosedAccountGuard();
         app.UseCrossSiteGuard();
         app.UseAuthorization();
 

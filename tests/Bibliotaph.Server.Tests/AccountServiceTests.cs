@@ -112,4 +112,35 @@ public sealed class AccountServiceTests : IDisposable
         Assert.DoesNotContain(code, stored.CodeHash, StringComparison.Ordinal);
         Assert.Equal(64, stored.CodeHash.Length);
     }
+
+    [Fact]
+    public async Task A_closed_account_is_gone_with_its_sign_ins_and_waits_to_have_its_files_deleted()
+    {
+        var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: true);
+        var user = (await _accounts.SignInAsync(Dana, code, null)).User!;
+        Assert.True(await _accounts.IsOpenAsync(user.Id));
+
+        Assert.True(await _accounts.CloseAsync(user.Id));
+
+        Assert.False(await _accounts.IsOpenAsync(user.Id));
+        Assert.Null(await _accounts.FindUserAsync(user.Id));
+        Assert.Empty(await _accounts.LoginsAsync(user.Id));
+        Assert.Equal(SignInResult.NeedsInvite, (await _accounts.SignInAsync(Dana, null, null)).Result);
+        Assert.Equal(user.Id, Assert.Single(await _accounts.UnpurgedAsync()).UserId);
+        Assert.False(await _accounts.CloseAsync(user.Id));
+
+        await _accounts.MarkPurgedAsync(user.Id);
+        Assert.Empty(await _accounts.UnpurgedAsync());
+    }
+
+    [Theory]
+    [InlineData("abs://stbibliotaph@replica", "https://stbibliotaph.blob.core.windows.net/replica", "")]
+    [InlineData("abs://stbibliotaph@replica/prod/", "https://stbibliotaph.blob.core.windows.net/replica", "prod/")]
+    public void A_replica_address_names_the_container_Litestream_writes_to(string url, string container, string root)
+    {
+        var (uri, path) = BlobUserBlobs.Replica(url);
+
+        Assert.Equal(container, uri.ToString());
+        Assert.Equal(root, path);
+    }
 }

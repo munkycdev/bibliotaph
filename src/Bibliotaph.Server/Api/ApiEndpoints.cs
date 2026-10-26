@@ -3,6 +3,8 @@ using Bibliotaph.Api.Contracts;
 using Bibliotaph.Server.Accounts;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
+using Bibliotaph.Server.Storage;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
@@ -21,6 +23,32 @@ public static class ApiEndpoints
             var logins = await accounts.LoginsAsync(id, ct);
             return Results.Ok(new CurrentUser(user.Id, user.Name, user.Email, user.IsAdmin,
                 [.. logins.Select(l => new LinkedSignIn(Auth0SignIn.Describe(l.Provider, l.Subject), l.Email, Utc(l.Added)))]));
+        });
+
+        // Closing an account deletes it and everything Bibliotaph keeps for it; nothing in the user's storage is touched.
+        api.MapDelete("/me", async (ClaimsPrincipal principal, HttpContext context, AccountService accounts, StorageConnections connections,
+            DriveNotifications notifications, DriveTokens tokens, AccountPurge purge, IConfiguration configuration,
+            IOptions<ServerOptions> options, TimeProvider clock, ILogger<AccountPurge> log, CancellationToken ct) =>
+        {
+            var userId = principal.UserId()!;
+            // Notifications are cancelled while the tokens still work, as when a drive is disconnected.
+            foreach (var account in await connections.ListAsync(userId, ct))
+            {
+                if (await connections.FindAsync(account.Id, ct) is { } connection) await notifications.UnsubscribeAsync(connection, ct);
+                tokens.Forget(account.Id);
+            }
+            if (!await accounts.CloseAsync(userId, ct)) return Results.NotFound();
+            await context.SignOutAsync(AuthSetup.SessionScheme);
+            try
+            {
+                await purge.PurgeAsync(new ClosedAccount { UserId = userId, Closed = clock.GetUtcNow().UtcDateTime }, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                // The account is closed; what's left of it goes at the next hourly purge.
+                log.LogWarning(ex, "Couldn't delete everything kept for closed account {User} yet", userId);
+            }
+            return Results.Ok(AuthEndpoints.AfterSignOut(AuthSetup.Auth0(configuration), options.Value, context.Request));
         });
 
         api.MapGet("/library/summary", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
