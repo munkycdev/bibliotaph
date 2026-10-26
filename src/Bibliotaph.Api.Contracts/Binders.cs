@@ -30,7 +30,22 @@ public sealed record BinderSection(long Id, string Name);
 /// why it can't open or what opening it does differently, and where Move to section can take it.
 /// </summary>
 public sealed record BinderItem(long Id, string Number, string BookTitle, string Label, string Heading, string Where, string Note, BookCard? Cover,
-    string? Reason, bool Dimmed, bool Changed, IReadOnlyList<BinderMove> Moves);
+    string? Reason, bool Dimmed, bool Changed, IReadOnlyList<BinderMove> Moves)
+{
+    /// <summary>The book the item is of, which the binder's reader opens.</summary>
+    public long EntryId { get; init; }
+
+    /// <summary>Its file can be read now; otherwise <see cref="Reason"/> says why not.</summary>
+    public bool CanOpen { get; init; }
+
+    /// <summary>"p. 42–44" or "Whole book", as the binder's reader counts it.</summary>
+    public string Pages { get; init; } = "";
+
+    /// <summary>A page of a book owned online: its address, and the site's name.</summary>
+    public string? OnlineLink { get; init; }
+
+    public string? OnlinePlace { get; init; }
+}
 
 public sealed record BinderMove(long SectionId, string Label);
 
@@ -50,6 +65,15 @@ public sealed record BinderNotes(string? Notes);
 
 /// <summary>A binder made or copied: where it opens.</summary>
 public sealed record BinderCreated(long Id);
+
+/// <summary>
+/// The binder reader's Add this page: the page in view (or the whole picture, <see cref="WholeFile"/>), right after
+/// <see cref="After"/> in its section, or at the end.
+/// </summary>
+public sealed record BinderPageAdd(long DocumentId, int Page, bool WholeFile = false, long? After = null);
+
+/// <summary>The item Add this page made, which the binder's reader opens.</summary>
+public sealed record BinderItemAdded(long Id);
 
 /// <summary>A binder in the picker.</summary>
 public sealed record BinderChoice(long Id, string Title);

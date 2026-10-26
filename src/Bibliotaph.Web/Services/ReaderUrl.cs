@@ -14,9 +14,11 @@ public static class ReaderUrl
     public static string For(BookCard card, PageMatch hit, string? q, bool popout = false) =>
         For(card.EntryId, hit.DocumentId > 0 ? hit.DocumentId : null, hit.PdfPage, q, popout: popout);
 
-    public static string For(long entryId, long? documentId = null, int? page = null, string? q = null, bool keep = false, bool popout = false)
+    public static string For(long entryId, long? documentId = null, int? page = null, string? q = null, bool keep = false, bool popout = false,
+        long? item = null)
     {
         var query = new List<string>();
+        if (item is { } binderItem) query.Add("item=" + binderItem.ToString(CultureInfo.InvariantCulture));
         if (documentId is { } doc) query.Add("doc=" + doc.ToString(CultureInfo.InvariantCulture));
         if (page is { } at) query.Add("page=" + at.ToString(CultureInfo.InvariantCulture));
         if (!string.IsNullOrWhiteSpace(q)) query.Add("q=" + Uri.EscapeDataString(q));

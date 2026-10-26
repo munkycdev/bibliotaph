@@ -1,12 +1,14 @@
-@page "/binders/{Id:long}"
+@page "/binders/{Id:long}/edit"
 @implements IDisposable
 @inject ApiClient Api
 @inject BinderActions Actions
 @inject BinderDialogs Dialogs
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-@* The Windows app's binder page: its date as the eyebrow, its title and actions; the sequence of sections and items,
-   each item's label and note edited in place; and the binder's notes, saved as they're typed. *@
+@* The Windows app's binder list page, from Edit binder: its date as the eyebrow, its title and actions, Done back to
+   the binder's reader; the sequence of sections and items, each item's label and note edited in place and Open at its
+   pages; and the binder's notes, saved as they're typed. *@
 @if (_page is not { } binder)
 {
     <PageTitle>Binder · Bibliotaph</PageTitle>
@@ -30,6 +32,7 @@ else
             <div class="bt-subtitle">@Subtitle</div>
         </div>
         <div class="bt-headingactions">
+            <a class="bt-button primary" href="@($"binders/{Id}")" title="Back to the binder's pages in the reader" @onclick="SaveNotesAsync"><Icon Name="Check" />Done</a>
             <button class="bt-icon" title="Edit title and date" aria-label="Edit title and date" @onclick="EditAsync"><Icon Name="Pencil" /></button>
             <button class="bt-icon" title="Duplicate" aria-label="Duplicate" @onclick="DuplicateAsync"><Icon Name="Copy" /></button>
             <button class="bt-icon" title="Delete (the books stay)" aria-label="Delete binder" @onclick="DeleteAsync"><Icon Name="Trash2" /></button>
@@ -265,8 +268,36 @@ else
         { AltKey: true, Key: "ArrowUp" } => MoveAsync(item, new BinderItemMove(By: -1)),
         { AltKey: true, Key: "ArrowDown" } => MoveAsync(item, new BinderItemMove(By: 1)),
         { Key: "Delete" } => RemoveAsync(item),
+        { Key: "Enter" } => OpenAsync(item, e.ShiftKey),
         _ => Task.CompletedTask,
     };
+
+    /// <summary>Enter opens an item at its pages, Shift+Enter in a new tab; one that can't open says why.</summary>
+    async Task OpenAsync(BinderItem item, bool newTab)
+    {
+        if (item.OnlineLink is null && !item.CanOpen)
+        {
+            _note = new ActionResult(item.Reason ?? "This item can't be opened right now.");
+            return;
+        }
+        var url = item.OnlineLink ?? ReaderUrl.For(item.EntryId, item: item.Id);
+        if (newTab || item.OnlineLink is not null)
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("open", url, "_blank", "noopener");
+            }
+            catch (JSException)
+            {
+                _note = new ActionResult("The browser didn't open a new tab. Allow pop-ups for Bibliotaph, then try again.");
+            }
+        }
+        else
+        {
+            await SaveNotesAsync();
+            Navigation.NavigateTo(url);
+        }
+    }
 
     Task DropOnItemAsync(BinderItem target) => DropAsync(new BinderItemMove(Onto: target.Id));
 
@@ -348,6 +379,16 @@ else
                 }
             </div>
             <div class="bt-binderactions">
+                @if (item.OnlineLink is { } online)
+                {
+                    <a class="bt-icon" href="@online" target="_blank" rel="noopener noreferrer" title="Open" aria-label="Open @item.Heading"><Icon Name="ArrowUpRight" Size="14" /></a>
+                }
+                else if (item.CanOpen)
+                {
+                    <a class="bt-icon" href="@ReaderUrl.For(item.EntryId, item: item.Id)" title="Open (Enter; Ctrl+click opens a new tab)" aria-label="Open @item.Heading">
+                        <Icon Name="ArrowUpRight" Size="14" />
+                    </a>
+                }
                 <button class="bt-icon" title="Move up (Alt+Up)" aria-label="Move @item.Heading up" @onclick="() => MoveAsync(item, new BinderItemMove(By: -1))">
                     <Icon Name="ArrowUp" Size="14" />
                 </button>

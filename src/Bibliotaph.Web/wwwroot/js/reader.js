@@ -325,6 +325,12 @@ class Reader {
     this.thumbnails?.notes(ranges);
   }
 
+  /** A binder item's pages (from 0), which the thumbnails mark; null for none. */
+  itemPages(first, last) {
+    this.item = first == null || last == null ? null : [first, last];
+    this.thumbnails?.itemPages(this.item);
+  }
+
   /** The page the selected text starts on, or -1 when nothing in the pages is selected. */
   selectionPage() {
     const selection = document.getSelection();
@@ -341,6 +347,7 @@ class Reader {
     if (show && !this.thumbnails) {
       this.thumbnails = new Thumbnails(this, this.strip);
       if (this.notes) this.thumbnails.notes(this.notes);
+      this.thumbnails.itemPages(this.item);
       this.thumbnails.current(this.viewer.currentPageNumber - 1);
       if (this.stage.querySelector('canvas')) this.thumbnails.wake();
     }
@@ -564,6 +571,17 @@ class Thumbnails {
       item.querySelector('.bt-thumbnote').hidden = counts[i] === 0;
       this.#describe(i);
     });
+  }
+
+  /** Marks the binder item's pages with a bar, as the Windows strip does, held to the book. */
+  itemPages(range) {
+    const count = this.items.length;
+    let marked = null;
+    if (range && count > 0) {
+      const [from, to] = range[0] <= range[1] ? range : [range[1], range[0]];
+      if (to >= 0 && from < count) marked = [Math.max(0, from), Math.min(count - 1, to)];
+    }
+    this.items.forEach((item, i) => item.classList.toggle('initem', marked != null && i >= marked[0] && i <= marked[1]));
   }
 
   // As the Windows strip names a thumbnail: "Page 12, 2 notes, the page in view".

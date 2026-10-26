@@ -1,0 +1,404 @@
+@page "/binders/{Id:long}"
+@implements IAsyncDisposable
+@inject ApiClient Api
+@inject NavigationManager Navigation
+@inject Pins Pins
+@inject IJSRuntime JS
+
+@* A binder's page, as the Windows app's binder reader: its pages listed down the left, numbered under their sections;
+   the reader for the page in hand, with every other page of the book still reachable; and the binder's notes on the
+   right, folding away. Next and Previous (Ctrl+Right and Ctrl+Left) step through the pages, which are renamed in the
+   list (F2). Edit binder opens the list page, for sections, order and the rest. *@
+@if (_page is not { } binder)
+{
+    <PageTitle>Binder · Bibliotaph</PageTitle>
+    @if (_missing)
+    {
+        <EmptyState Title="This binder isn't there any more." Message="It was deleted. Go back to Binders to pick another." ActionText="All binders"
+                    ActionHref="binders" />
+    }
+    else
+    {
+        <div class="bt-loading">Opening the binder…</div>
+    }
+}
+else
+{
+    var items = Items;
+    var current = Current;
+    var at = current is null ? -1 : items.FindIndex(i => i.Id == current.Id);
+    <PageTitle>@binder.Title · Bibliotaph</PageTitle>
+    <div class="bt-binderreader @(_showNotes ? "" : "nonotes")" @onkeydown="KeyAsync">
+        <div class="bt-binderreaderhead">
+            <div class="bt-binderreadertitles">
+                <span class="bt-eyebrow bt-eyebrow-block">@binder.Eyebrow</span>
+                <div class="bt-binderreaderline">
+                    <h1 class="bt-binderreadertitle" title="@binder.Title">@binder.Title</h1>
+                    @if (current is not null)
+                    {
+                        <span class="bt-small" aria-label="Place in binder">@current.Pages · @((at + 1).ToString("N0", System.Globalization.CultureInfo.CurrentCulture)) of @items.Count.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)</span>
+                    }
+                    @if (_place is { OutsideItem: true })
+                    {
+                        <button class="bt-link" @onclick="BackToItemAsync">Back to this item's pages</button>
+                    }
+                </div>
+            </div>
+            <div class="bt-binderreaderactions">
+                <button class="bt-button" title="Previous page in the binder (Ctrl+Left)" disabled="@(at <= 0)" @onclick="() => StepAsync(-1)"><Icon Name="ChevronLeft" />Previous</button>
+                <button class="bt-button primary" title="Next page in the binder (Ctrl+Right)" disabled="@(at < 0 || at >= items.Count - 1)" @onclick="() => StepAsync(1)">
+                    <Icon Name="ChevronRight" />Next
+                </button>
+                <button class="bt-button" title="Add the page in view to this binder, after the one in hand" disabled="@(!CanAddPage)" @onclick="AddPageAsync"><Icon Name="Plus" />Add this page</button>
+                <button class="bt-button" title="Pinned binders show in the sidebar and on Home" @onclick="() => Pins.ToggleAsync(PinKinds.Binder, Id)"><Icon Name="Pin" />@Pins.PinLabel(PinKinds.Binder, Id)</button>
+                <a class="bt-icon" href="@($"binders/{Id}/edit")" title="Edit binder: sections, order and notes" aria-label="Edit binder"><Icon Name="Pencil" /></a>
+                <button class="bt-icon @(_showNotes ? "on" : "")" title="Show or hide the binder notes" aria-label="Binder notes" aria-pressed="@_showNotes"
+                        @onclick="() => _showNotes = !_showNotes"><Icon Name="PanelRight" /></button>
+            </div>
+        </div>
+
+        <div class="bt-binderreaderbody">
+            <nav class="bt-binderlist" aria-label="Binder items">
+                @foreach (var row in binder.Rows)
+                {
+                    @if (row.Section is { } section)
+                    {
+                        <div class="bt-eyebrow bt-binderlistsection" @key="(section.Id, true)">@section.Name</div>
+                    }
+                    else if (row.Item is { } item)
+                    {
+                        @Row(item, item.Id == current?.Id)
+                    }
+                }
+            </nav>
+
+            <div class="bt-binderreaderview">
+                @if (current is null)
+                {
+                    <EmptyState Title="This binder has nothing in it yet." Message="Add books and pages to it from your library, or use Add page in the reader."
+                                ActionText="Find resources" ActionIcon="LibraryBig" ActionHref="library" />
+                }
+                else if (current.OnlineLink is { } link)
+                {
+                    <EmptyState Title="@($"{current.Heading} is a page on {current.OnlinePlace ?? "the web"}.")" Message="Pages owned online open in a tab of their own.">
+                        <div class="bt-actions centered">
+                            <a class="bt-button primary" href="@link" target="_blank" rel="noopener noreferrer"><Icon Name="ArrowUpRight" />Open it</a>
+                        </div>
+                    </EmptyState>
+                }
+                else if (!current.CanOpen)
+                {
+                    <EmptyState Title="@($"{current.Heading} can't be opened right now.")" Message="@(current.Reason ?? "Its file can't be reached.")"
+                                ActionText="Try again" Action="RetryAsync" />
+                }
+                else
+                {
+                    <ReaderView @ref="_reader" EntryId="current.EntryId" Item="current.Id" InBinder="true" PlaceChanged="PlaceChanged"
+                                NotesChanged="NotesChanged" ItemMoved="LoadAsync" />
+                }
+            </div>
+
+            @if (_showNotes)
+            {
+                <aside class="bt-bindernotespanel" aria-label="Binder notes">
+                    <label class="bt-bindernoteshead" for="binder-reader-notes">Binder notes</label>
+                    <textarea id="binder-reader-notes" class="bt-notebox" title="Saved as you type" value="@_notes" @oninput="NotesTyped" @onblur="SaveNotesAsync"
+                              @onkeydown:stopPropagation="true"></textarea>
+                    @if (ItemNotes is { Count: > 0 } notes)
+                    {
+                        <div class="bt-bindernoteshead">On these pages</div>
+                        <div class="bt-itemnotes" aria-label="Notes on these pages">
+                            @foreach (var note in notes)
+                            {
+                                <div class="bt-readernote" aria-label="@($"{note.Pages}: {note.Text}{(note.Reason is { } why ? ". " + why : "")}")">
+                                    <button class="bt-link" title="Go to these pages" aria-label="@($"Go to {note.Pages}")" @onclick="() => GoToNoteAsync(note)">@note.Pages</button>
+                                    <div class="bt-notetext">@note.Text</div>
+                                    @if (note.Reason is { } reason)
+                                    {
+                                        <div class="bt-notereason @(note.Changed ? "changed" : "")"><Icon Name="TriangleAlert" Size="12" /><span>@reason</span></div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </aside>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public long Id { get; set; }
+
+    /// <summary>The item in hand, so Back and a reload come back to it; the first item without one.</summary>
+    [SupplyParameterFromQuery] public long? Item { get; set; }
+
+    BinderPage? _page;
+    bool _missing;
+    long _shownId;
+    ReaderView? _reader;
+    ReaderView.ReaderPlace? _place;
+    ReaderNotes? _bookNotes;
+    bool _showNotes = true;
+    string _notes = "";
+    CancellationTokenSource? _notesSave;
+    long? _renaming;
+    string _draft = "";
+    bool _focusRename;
+    ElementReference _renameBox;
+    IJSObjectReference? _module;
+
+    List<BinderItem> Items => _page is { } page ? [.. page.Rows.Select(r => r.Item).OfType<BinderItem>()] : [];
+
+    BinderItem? Current => Items is var items && items.Count > 0 ? items.FirstOrDefault(i => i.Id == Item) ?? items[0] : null;
+
+    /// <summary>Add this page needs a file with pages, or a picture, open in the reader.</summary>
+    bool CanAddPage => _place is { Kind: ReaderKinds.Pdf or ReaderKinds.Image };
+
+    /// <summary>The notes on the item in hand: on its pages, or all of the book's for a whole book.</summary>
+    IReadOnlyList<ReaderNote>? ItemNotes =>
+        _bookNotes is not { } notes || _place is not { Item: { } item } ? null
+        : item.WholeBook ? notes.Notes
+        : [.. notes.Notes.Where(n => !n.OtherCopy && n.First <= item.LastPage && n.Last >= item.FirstPage)];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_shownId == Id && _page is not null) return;
+        await SaveNotesAsync();
+        _shownId = Id;
+        _page = null;
+        _missing = false;
+        try
+        {
+            // Opening it makes it the binder Add to binder adds to, as on Windows.
+            Show(await Api.OpenBinderAsync(Id));
+        }
+        catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
+        {
+            _missing = true;
+        }
+    }
+
+    protected override void OnInitialized() => Pins.Changed += OnPinsChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_focusRename && _renaming is not null)
+        {
+            _focusRename = false;
+            await _renameBox.FocusAsync();
+            // The name is ready to type over, as on Windows.
+            try
+            {
+                _module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/reader.js");
+                await _module.InvokeVoidAsync("selectAll", _renameBox);
+            }
+            catch (JSException)
+            {
+                // The box keeps the caret where it is.
+            }
+        }
+    }
+
+    void Show(BinderPage page)
+    {
+        _page = page;
+        // Notes still being typed aren't replaced by what the server had before they were saved.
+        if (_notesSave is null) _notes = page.Notes;
+    }
+
+    /// <summary>The list read again, as after Use this page, keeping the item in hand.</summary>
+    async Task LoadAsync()
+    {
+        try
+        {
+            Show(await Api.BinderAsync(Id));
+        }
+        catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
+        {
+            _page = null;
+            _missing = true;
+        }
+    }
+
+    Task RetryAsync() => LoadAsync();
+
+    void Open(BinderItem item)
+    {
+        if (item.Id == Current?.Id) return;
+        _place = null;
+        _bookNotes = null;
+        Navigation.NavigateTo($"binders/{Id}?item={item.Id}", replace: true);
+    }
+
+    Task StepAsync(int by)
+    {
+        var items = Items;
+        var at = Current is { } current ? items.FindIndex(i => i.Id == current.Id) : -1;
+        if (at + by >= 0 && at + by < items.Count) Open(items[at + by]);
+        return Task.CompletedTask;
+    }
+
+    Task KeyAsync(KeyboardEventArgs e) => e switch
+    {
+        { CtrlKey: true, Key: "ArrowRight" } => StepAsync(1),
+        { CtrlKey: true, Key: "ArrowLeft" } => StepAsync(-1),
+        _ => Task.CompletedTask,
+    };
+
+    Task BackToItemAsync() => _reader?.BackToItemAsync() ?? Task.CompletedTask;
+
+    void PlaceChanged(ReaderView.ReaderPlace place) => _place = place;
+
+    void NotesChanged(ReaderNotes notes) => _bookNotes = notes;
+
+    Task GoToNoteAsync(ReaderNote note) => _reader?.GoToNoteAsync(note) ?? Task.CompletedTask;
+
+    /// <summary>
+    /// Add this page: the page in view, or the whole picture, right after the item in hand, called after the bookmark
+    /// it sits under, with its name ready to type over.
+    /// </summary>
+    async Task AddPageAsync()
+    {
+        if (_place is not { } place) return;
+        BinderItemAdded added;
+        try
+        {
+            added = await Api.AddBinderPageAsync(Id, new BinderPageAdd(place.DocumentId, place.Page, place.Kind == ReaderKinds.Image, Current?.Id));
+        }
+        catch (ApiProblemException)
+        {
+            return;
+        }
+        await LoadAsync();
+        if (Items.FirstOrDefault(i => i.Id == added.Id) is not { } row) return;
+        Open(row);
+        Rename(row);
+    }
+
+    // Rename: F2, a double-click or the pencil puts the name in a box to type over; Enter or leaving it saves, a blank
+    // name shows the book's title again, and Esc keeps it as it was.
+
+    void Rename(BinderItem item)
+    {
+        _renaming = item.Id;
+        _draft = item.Label;
+        _focusRename = true;
+    }
+
+    async Task CommitRenameAsync(BinderItem item)
+    {
+        if (_renaming != item.Id) return;
+        _renaming = null;
+        var label = _draft.Trim();
+        if (label == item.Label) return;
+        try
+        {
+            await Api.SetBinderItemAsync(item.Id, label, item.Note);
+        }
+        catch (ApiProblemException)
+        {
+            // The list read again shows the name it has.
+        }
+        await LoadAsync();
+    }
+
+    async Task RenameKeyAsync(BinderItem item, KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CommitRenameAsync(item);
+        else if (e.Key == "Escape") _renaming = null;
+    }
+
+    void RowKey(BinderItem item, KeyboardEventArgs e)
+    {
+        if (e.Key == "F2") Rename(item);
+    }
+
+    void NotesTyped(ChangeEventArgs e)
+    {
+        _notes = e.Value as string ?? "";
+        _notesSave?.Cancel();
+        var save = _notesSave = new CancellationTokenSource();
+        _ = SaveNotesLaterAsync(save);
+    }
+
+    async Task SaveNotesLaterAsync(CancellationTokenSource save)
+    {
+        try
+        {
+            await Task.Delay(700, save.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        await SaveNotesAsync();
+    }
+
+    async Task SaveNotesAsync()
+    {
+        if (_notesSave is null || _shownId == 0) return;
+        _notesSave.Cancel();
+        _notesSave = null;
+        try
+        {
+            await Api.SetBinderNotesAsync(_shownId, _notes);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // Typing again tries again.
+        }
+    }
+
+    void OnPinsChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Pins.Changed -= OnPinsChanged;
+        await SaveNotesAsync();
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The page is going anyway.
+            }
+        }
+    }
+
+    RenderFragment Row(BinderItem item, bool isCurrent) => __builder =>
+    {
+        <div class="bt-binderrow @(isCurrent ? "current" : "") @(item.Dimmed ? "dimmed" : "")" @key="(item.Id, false)">
+            <button class="bt-binderrowopen" aria-label="@item.Heading" aria-current="@(isCurrent ? "true" : null)" @onclick="() => Open(item)"
+                    @ondblclick="() => Rename(item)" @onkeydown="e => RowKey(item, e)">
+                <span class="bt-bindernumber">@item.Number</span>
+                <span class="bt-binderrowtext">
+                    @if (_renaming == item.Id)
+                    {
+                        <span class="bt-binderrowspace"></span>
+                    }
+                    else
+                    {
+                        <span class="bt-binderrowheading">@item.Heading</span>
+                    }
+                    <span class="bt-small bt-binderwhere">@item.Where</span>
+                    @if (item.Note.Length > 0) { <span class="bt-small">@item.Note</span> }
+                    @if (item.Reason is { } reason) { <span class="bt-small bt-binderrowreason @(item.Changed ? "changed" : "")">@reason</span> }
+                </span>
+            </button>
+            @if (_renaming == item.Id)
+            {
+                <input class="bt-inlinebox bt-binderrename" aria-label="Name of this page" title="Enter saves, Esc cancels; leave it blank for the book's title"
+                       placeholder="@item.BookTitle" @bind="_draft" @bind:event="oninput" @onkeydown="e => RenameKeyAsync(item, e)" @onkeydown:stopPropagation="true"
+                       @onblur="() => CommitRenameAsync(item)" @ref="_renameBox" />
+            }
+            else
+            {
+                <button class="bt-icon bt-binderrowrename" title="Rename (F2)" aria-label="Rename" @onclick="() => Rename(item)"><Icon Name="Pencil" Size="13" /></button>
+            }
+        </div>
+    };
+}
