@@ -309,7 +309,12 @@ server never has a copy. What you've read is kept in your browser, so turning ba
   details, and beside a matching page, opens it in one straight away.
 
 A PDF with a password asks for it each time it opens; the password isn't kept. A book owned elsewhere has nothing to
-open, and a file inside a ZIP opens in the Windows app for now. Pictures, packs and e-books come to the reader next.
+open, and a file inside a ZIP opens in the Windows app for now. E-books come to the reader next.
+
+A picture opens on its own, fitted to the window; the zoom menu, **Ctrl+Plus**, **Ctrl+Minus** and **Ctrl** with the
+mouse wheel show it larger, and **Ctrl+0** fits it again. A pack opens at its first file (or the file you opened), and
+the arrows beside **1 of 6** step through its files: pictures, and PDFs at their first page. In a pack of pictures the
+**Left** and **Right** arrow keys do the same, and each picture shows at the zoom of the one before.
 
 ### Books in this browser
 

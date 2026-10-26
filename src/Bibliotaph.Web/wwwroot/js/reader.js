@@ -524,6 +524,133 @@ function display(index, labels) {
 }
 
 /** Pops the reader out into a window of its own, as the Windows reader's Pop out does. */
+// A picture, as the Windows reader shows one: fitted to the window or at a zoom step, the pack's next and previous on
+// the arrow keys. The whole file is read through the same cache as a PDF's pages.
+const ImageTypes = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+
+/**
+ * @param {HTMLElement} stage .bt-pages, which scrolls the picture
+ * @param {{key: string, size: number, format: string, scale: string, title: string, entryId: number, documentId: number}} book
+ * @param {any} page the Blazor page: ScaleChanged, Opened, Failed, Link, Offline, Step
+ */
+export async function openImage(stage, book, page) {
+  const reader = new ImageReader(stage, book, page);
+  await reader.start();
+  return reader;
+}
+
+class ImageReader {
+  constructor(stage, book, page) {
+    this.stage = stage;
+    this.host = stage.querySelector('.bt-picture');
+    this.book = book;
+    this.page = page;
+    this.scale = book.scale || 'page-fit';
+    this.closed = false;
+    this.listeners = [];
+  }
+
+  async start() {
+    const { title, entryId, documentId } = this.book;
+    this.cache = await BookCache.open(this.book.key, this.book.size, () => this.page.invokeMethodAsync('Link'), { title, entryId, documentId });
+    trim(this.book.key).catch(() => { });
+    let bytes;
+    try {
+      bytes = await this.cache.read(0, this.book.size);
+    } catch (e) {
+      if (!this.closed) this.page.invokeMethodAsync('Failed', e instanceof LinkError ? 'link' : 'other', String(e?.message ?? ''));
+      return;
+    }
+    if (this.closed) return;
+    this.url = URL.createObjectURL(new Blob([bytes], { type: ImageTypes[this.book.format] ?? '' }));
+    const img = new Image();
+    img.alt = title;
+    img.src = this.url;
+    try {
+      await img.decode();
+    } catch {
+      if (!this.closed) this.page.invokeMethodAsync('Failed', 'image', '');
+      return;
+    }
+    if (this.closed) return;
+    this.img = img;
+    this.host.replaceChildren(img);
+    this.#apply();
+    this.#listen(this.stage, 'wheel', e => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      this.zoom(e.deltaY < 0);
+    }, { passive: false });
+    this.#listen(document, 'keydown', e => this.#key(e));
+    const refit = new ResizeObserver(() => { if (this.scale === 'page-fit') this.#apply(); });
+    refit.observe(this.stage);
+    this.listeners.push(() => refit.disconnect());
+    this.page.invokeMethodAsync('Opened', true);
+    this.#offline();
+  }
+
+  #listen(target, type, handler, options) {
+    target.addEventListener(type, handler, options);
+    this.listeners.push(() => target.removeEventListener(type, handler, options));
+  }
+
+  #key(e) {
+    if (document.querySelector('.bt-dialog') || e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
+    const ctrl = (e.ctrlKey || e.metaKey) && !e.altKey;
+    if (ctrl && (e.key === '+' || e.key === '=')) this.zoom(true);
+    else if (ctrl && (e.key === '-' || e.key === '_')) this.zoom(false);
+    else if (ctrl && e.key === '0') this.setScale('page-fit');
+    else if (!ctrl && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) this.page.invokeMethodAsync('Step', e.key === 'ArrowRight' ? 1 : -1);
+    else return;
+    e.preventDefault();
+  }
+
+  // The size on screen: the window's (less a margin) for Fit to window, else the picture's own times the zoom.
+  get #shown() {
+    if (!this.img) return 1;
+    if (this.scale !== 'page-fit') return Number(this.scale) || 1;
+    const room = 32;
+    return Math.min((this.stage.clientWidth - room) / this.img.naturalWidth, (this.stage.clientHeight - room) / this.img.naturalHeight);
+  }
+
+  #apply() {
+    if (!this.img) return;
+    const scale = Math.max(this.#shown, 0.01);
+    this.img.style.width = `${Math.round(this.img.naturalWidth * scale)}px`;
+    this.img.style.height = `${Math.round(this.img.naturalHeight * scale)}px`;
+  }
+
+  /** "page-fit", or a scale where 1 is 100%. */
+  setScale(value) {
+    this.scale = value;
+    this.#apply();
+    this.page.invokeMethodAsync('ScaleChanged', value);
+  }
+
+  zoom(up) {
+    const current = this.#shown;
+    const next = up ? ZoomSteps.find(z => z > current + 0.01) ?? ZoomSteps[ZoomSteps.length - 1]
+      : [...ZoomSteps].reverse().find(z => z < current - 0.01) ?? ZoomSteps[0];
+    this.setScale(String(next));
+  }
+
+  #offline() {
+    if (!this.closed) this.page.invokeMethodAsync('Offline', this.cache.stored, this.cache.kept, this.cache.progress);
+  }
+
+  keepOffline(on) {
+    this.cache.keepOffline(on).then(() => this.#offline());
+  }
+
+  dispose() {
+    this.closed = true;
+    for (const stop of this.listeners) stop();
+    this.cache?.close();
+    this.host.replaceChildren();
+    if (this.url) URL.revokeObjectURL(this.url);
+  }
+}
+
 export function popOut(url) {
   const opened = window.open(url, '_blank', 'popup,width=960,height=900');
   return opened != null;

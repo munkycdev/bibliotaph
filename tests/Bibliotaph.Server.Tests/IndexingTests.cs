@@ -189,6 +189,43 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
     }
 
     [Fact]
+    public async Task A_picture_opens_in_the_picture_reader_and_a_pack_steps_through_its_files()
+    {
+        Fixture.Graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(pdfs.KnownText, Ct));
+        Fixture.Graph.Add("RPG/map.png", Png(1200, 800));
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
+        var library = lease.Library;
+        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        library.Indexing.RequestScan(root.Id);
+        var books = await WaitAsync(async () =>
+        {
+            var results = await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct);
+            return results.Books.Count == 2 && results.Books.All(b => b.Cover is not null) ? results.Books : null;
+        });
+        var map = books.Single(b => b.Meta == "PNG image");
+        var sheet = books.Single(b => b != map);
+
+        var picture = (await ReaderApi.OpenAsync(library, new EntryId(map.EntryId), null, null, null, false, Ct))!;
+        Assert.Equal((ReaderKinds.Image, "png"), (picture.Kind, picture.Format));
+        Assert.StartsWith("PNG image", picture.Subtitle, StringComparison.Ordinal);
+        Assert.Empty(picture.Pack);
+        Assert.Equal(ReaderKinds.Pdf, (await ReaderApi.OpenAsync(library, new EntryId(sheet.EntryId), null, null, null, false, Ct))!.Kind);
+
+        Assert.NotNull(await library.Get<PackService>().PackTogetherAsync([new EntryId(map.EntryId), new EntryId(sheet.EntryId)], "Harbor", Ct));
+        var pack = (await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct)).Books.Single();
+        var first = (await ReaderApi.OpenAsync(library, new EntryId(pack.EntryId), null, null, null, false, Ct))!;
+        Assert.Equal(2, first.Pack.Count);
+        Assert.Equal(first.Pack[0].DocumentId, first.DocumentId);
+        Assert.Equal([true, false], first.Pack.Select(f => f.IsImage).OrderDescending());
+        // The next file opens from the same card, in the same pack, in its own reader.
+        var next = first.Pack.Single(f => f.DocumentId != first.DocumentId);
+        var stepped = (await ReaderApi.OpenAsync(library, new EntryId(pack.EntryId), next.DocumentId, null, null, false, Ct))!;
+        Assert.Equal((next.DocumentId, next.IsImage ? ReaderKinds.Image : ReaderKinds.Pdf, 2), (stepped.DocumentId, stepped.Kind, stepped.Pack.Count));
+        Assert.Contains(" in Harbor", stepped.Subtitle, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task A_chosen_cover_is_back_on_disk_before_the_library_opens_and_forgotten_once_removed()
     {
         var (userId, _) = await Fixture.UserWithDriveAsync();

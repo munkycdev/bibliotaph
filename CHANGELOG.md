@@ -63,6 +63,9 @@
 - **Keep books offline in your browser.** The reader's Keep offline button downloads a whole book to the browser, so
   it opens without waiting on the network, and Settings › Books in this browser shows the books kept there, sets how
   much room the others may take, and lets them go. See [Books in this browser](docs/guide/web.md#books-in-this-browser).
+- **Pictures and packs in the web reader.** A picture opens fitted to the window, with the Windows reader's zoom, and a
+  pack steps through its pictures and PDFs from the toolbar or with the arrow keys. See
+  [Reading a book](docs/guide/web.md#reading-a-book).
 
 ## 1.3 · 19 October 2026
 
