@@ -2,10 +2,15 @@
 
 ## Unreleased
 
+- **A new home page for bibliotaph.online.** It shows what Bibliotaph does, with examples of search, the catalog,
+  binders and online libraries, the Windows app and the web side by side, and answers to common questions. See
+  [The site](docs/guide/web.md#the-site).
 - **Saved pages are no longer imported.** **Import a saved page…** and **Save page…** are gone from the Windows app,
   and **Import a saved page…** and **Choose pictures…** from the web: Bibliotaph's browser reads the page on Windows,
   and **Send to Bibliotaph** brings it, covers included, on the web. See
   [Online libraries](docs/guide/online-libraries.md#without-bibliotaphs-browser).
+- **PDFs with copy or print restrictions open on the web again.** The reader failed on them. When a book can't be
+  opened for a reason Bibliotaph doesn't recognise, it now says so plainly instead of showing the technical error.
 - **The web library answers first.** Reading books in the background, scanned pages most of all, now steps aside while
   you're using the library, and a library opens faster after an update. See [Processing](docs/guide/web.md#processing).
 

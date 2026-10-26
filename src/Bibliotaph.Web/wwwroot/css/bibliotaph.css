@@ -1168,29 +1168,144 @@ a.bt-menuitem{text-decoration:none}
 .bt-lede,.bt-policy .bt-lede{font-size:16px;line-height:1.6;color:var(--bt-muted);margin-top:14px}
 .bt-site .bt-eyebrow{display:block;margin-bottom:10px}
 .bt-policy h3{font-size:15px;font-weight:600;margin:24px 0 6px}
-.bt-policy code,.bt-sitegrid code{font-family:ui-monospace,Consolas,monospace;font-size:.92em;background:var(--bt-side);padding:1px 4px;border-radius:3px}
+.bt-policy code{font-family:ui-monospace,Consolas,monospace;font-size:.92em;background:var(--bt-side);padding:1px 4px;border-radius:3px}
 .bt-tablewrap{overflow-x:auto;margin-top:14px}
 .bt-tablewrap .bt-table{margin-top:0}
 .bt-policy .bt-table td{padding:8px 10px 8px 0;vertical-align:top;border-bottom:1px solid var(--bt-line);overflow-wrap:anywhere}
 .bt-quote{border-left:3px solid var(--bt-line);padding-left:16px}
 .bt-columns{columns:2 220px}
 .bt-licences{max-width:900px}
-.bt-hero{max-width:780px;margin:0 auto;padding:56px 24px 32px;text-align:center}
-.bt-hero h1{font-size:48px;margin-top:12px}
-.bt-hero .bt-lede{max-width:640px;margin:18px auto 0}
-.bt-hero .bt-actions{justify-content:center}
-.bt-hero .bt-button{padding:11px 18px;font-size:13px}
-.bt-hero .bt-fine{margin-top:14px}
-.bt-shot{max-width:1080px;margin:16px auto 0;padding:0 24px}
-.bt-shot img{display:block;width:100%;height:auto;border:1px solid var(--bt-line);border-radius:12px;box-shadow:0 20px 60px #00000018}
-.bt-shot figcaption{font-size:11px;color:var(--bt-muted);text-align:center;margin-top:10px}
-.bt-shot a,.bt-sitecta a{color:var(--bt-accent)}
-.bt-sitegrid{max-width:1080px;margin:0 auto;padding:56px 24px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px 32px}
-.bt-sitegrid h2{font:22px 'Libre Caslon Display',Georgia,serif;font-weight:400;margin-bottom:8px}
-.bt-sitegrid p{font-size:13px;line-height:1.7;color:var(--bt-muted)}
-.bt-sitecta{max-width:780px;margin:0 auto;padding:32px 24px 64px;text-align:center}
-.bt-sitecta h2{font:26px 'Libre Caslon Display',Georgia,serif;font-weight:400;margin-bottom:8px}
 .bt-sitefoot{border-top:1px solid var(--bt-line);margin-top:24px;padding:24px;font-size:12px;color:var(--bt-muted);text-align:center}
 .bt-sitefoot nav{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 20px;margin-bottom:12px}
 .bt-sitefoot .bt-tagline{display:block;margin-bottom:14px;font-size:16px}
-@media(max-width:620px){.bt-hero{padding-top:28px}.bt-hero h1{font-size:34px}.bt-sitenav{gap:14px}.bt-sitehead{padding:16px}}
+@media(max-width:620px){.bt-sitenav{gap:14px}.bt-sitehead{padding:16px}}
+/* The landing page: what Bibliotaph is, shown with small made-up pieces of the app beside the real screenshot. */
+.bt-ico{width:1em;height:1em;stroke-width:1.8;vertical-align:-.14em;flex-shrink:0}
+.bt-land{overflow-x:clip;background:radial-gradient(1100px 560px at 50% -120px,var(--bt-soft),transparent 72%) no-repeat}
+.bt-land a:not(.bt-button){color:var(--bt-accent)}
+.bt-land mark{background:var(--bt-warm);color:inherit;border-radius:3px;padding:0 2px}
+.bt-land code{font-family:ui-monospace,Consolas,monospace;font-size:.92em;background:var(--bt-side);padding:1px 4px;border-radius:3px}
+.bt-land .bt-eyebrow{display:inline-flex;align-items:center;gap:6px;color:var(--bt-accent);font-size:11px;letter-spacing:1.6px}
+.bt-land h2{font:400 40px/1.12 'Libre Caslon Display',Georgia,serif;letter-spacing:-.6px;max-width:740px;margin:0 auto;text-wrap:balance}
+.bt-land h3{font-size:15px;font-weight:600}
+.bt-land .bt-actions{justify-content:center;margin-top:30px;gap:10px}
+.bt-land .bt-actions .bt-button,.bt-land-plans .bt-button{padding:12px 20px;font-size:14px;border-radius:8px}
+.bt-land .bt-button .bt-ico{font-size:16px}
+.bt-land-hero{max-width:920px;margin:0 auto;padding:72px 24px 44px;text-align:center}
+.bt-land-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border:1px solid var(--bt-line);border-radius:999px;background:var(--bt-panel);font-size:12px;color:var(--bt-muted)}
+.bt-land-pill .bt-ico{color:var(--bt-accent)}
+.bt-land-hero h1{font:400 64px/1.04 'Libre Caslon Display',Georgia,serif;letter-spacing:-1.6px;margin-top:22px;text-wrap:balance}
+.bt-land-hero h1 em{display:block;font-style:normal;color:var(--bt-accent)}
+.bt-land-hero .bt-lede{font-size:18px;max-width:660px;margin:22px auto 0}
+.bt-land-proof{list-style:none;padding:0;margin:22px 0 0;display:flex;justify-content:center;flex-wrap:wrap;gap:8px 24px;font-size:12px;color:var(--bt-muted)}
+.bt-land-proof li{display:flex;align-items:center;gap:6px}
+.bt-land-proof .bt-ico,.bt-land-ticks .bt-ico{color:var(--bt-accent)}
+.bt-land-stage{position:relative;max-width:1120px;margin:0 auto;padding:0 24px}
+.bt-land-window{margin:0;border:1px solid var(--bt-line);border-radius:14px;overflow:hidden;background:var(--bt-panel);box-shadow:0 34px 90px -24px #00000045,0 10px 28px -14px #0000002e}
+.bt-land-chrome{display:flex;align-items:center;gap:7px;padding:10px 14px;border-bottom:1px solid var(--bt-line);background:var(--bt-side)}
+.bt-land-chrome span{width:10px;height:10px;border-radius:50%;background:var(--bt-line)}
+.bt-land-chrome b{margin:0 auto;transform:translateX(-25px);font-weight:500;font-size:11px;color:var(--bt-muted);background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:6px;padding:3px 48px}
+.bt-land-window img{display:block;width:100%;height:auto}
+.bt-land-float{position:absolute;background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:12px;box-shadow:0 22px 56px -14px #00000048;padding:14px;font-size:12px}
+.bt-land-float-search{left:0;bottom:-40px;width:350px}
+.bt-land-float-ai{right:0;top:96px;width:256px}
+.bt-land-query{display:flex;align-items:center;gap:8px;border:1px solid var(--bt-line);border-radius:8px;padding:8px 10px;background:var(--bt-bg);font-family:ui-monospace,Consolas,monospace;font-size:11.5px}
+.bt-land-query .bt-ico{color:var(--bt-muted)}
+.bt-land-query i{font-style:normal;color:var(--bt-accent)}
+.bt-land-hit{padding-top:10px}
+.bt-land-hit+.bt-land-hit{border-top:1px solid var(--bt-line);margin-top:10px}
+.bt-land-hit b{display:block;font-weight:600}
+.bt-land-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--bt-accent);background:var(--bt-soft);border-radius:999px;padding:3px 10px}
+.bt-land-float dl{display:grid;grid-template-columns:auto 1fr;gap:5px 14px;margin:12px 0}
+.bt-land-float dt,.bt-land-fields dt{color:var(--bt-muted)}
+.bt-land-float dd,.bt-land-fields dd{margin:0;font-weight:600}
+.bt-land-float q{display:block;font:15px/1.35 'Libre Caslon Display',Georgia,serif;border-left:2px solid var(--bt-accent);padding-left:10px}
+.bt-land-float q+small{margin:6px 0 0 12px}
+.bt-land-caption{text-align:center;font-size:11px;color:var(--bt-muted);margin:60px 24px 0}
+.bt-land-where{max-width:1000px;margin:52px auto 0;padding:0 24px;text-align:center}
+.bt-land .bt-land-where h2{font:600 12px/1.4 'DM Sans',sans-serif;letter-spacing:1.4px;text-transform:uppercase;color:var(--bt-muted)}
+.bt-land-where ul{list-style:none;padding:0;margin:18px 0 0;display:flex;justify-content:center;flex-wrap:wrap;gap:10px}
+.bt-land-where li{display:flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--bt-line);border-radius:999px;background:var(--bt-panel);font-size:13px}
+.bt-land-where .bt-ico{color:var(--bt-muted)}
+.bt-land-section{max-width:1080px;margin:0 auto;padding:110px 24px 0;text-align:center}
+.bt-land-section>.bt-eyebrow{margin-bottom:12px}
+.bt-land-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;margin-top:42px;text-align:left}
+.bt-land-cards figure{margin:0;padding:26px;border:1px solid var(--bt-line);border-radius:14px;background:var(--bt-panel)}
+.bt-land-cards blockquote{margin:0;font:21px/1.3 'Libre Caslon Display',Georgia,serif}
+.bt-land-cards figcaption{margin-top:16px;font-size:13.5px;line-height:1.6;color:var(--bt-muted)}
+.bt-land-feature{max-width:1080px;margin:0 auto;padding:120px 24px 0;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:64px;align-items:center}
+.bt-land-feature.flip .bt-land-copy{order:2}
+.bt-land-copy .bt-eyebrow{margin-bottom:12px}
+.bt-land-copy h2{margin:0;text-align:left}
+.bt-land-copy p{font-size:15px;line-height:1.7;color:var(--bt-muted);margin-top:16px}
+.bt-land-ticks{list-style:none;padding:0;margin:20px 0 0}
+.bt-land-ticks li{display:flex;gap:10px;align-items:baseline;font-size:14px;line-height:1.5;margin:9px 0}
+.bt-land-art{padding:30px;border-radius:20px;background:linear-gradient(145deg,var(--bt-soft),var(--bt-warm))}
+.bt-land-panel{background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:12px;padding:16px;box-shadow:0 22px 50px -22px #00000045;font-size:12px}
+.bt-land-panel b{font-weight:600}
+.bt-land-tabs{display:flex;gap:18px;margin:14px 0 2px;border-bottom:1px solid var(--bt-line);font-size:11px;color:var(--bt-muted)}
+.bt-land-tabs b,.bt-land-tabs span{padding-bottom:8px}
+.bt-land-tabs b{color:var(--bt-text);border-bottom:2px solid var(--bt-accent)}
+.bt-land-result{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--bt-line)}
+.bt-land-result:last-child{border-bottom:0;padding-bottom:0}
+.bt-land-result p{margin-top:5px;color:var(--bt-muted);font-size:11.5px}
+.bt-land-cover{width:42px;height:56px;border-radius:2px 5px 5px 2px;flex-shrink:0;box-shadow:inset 3px 0 0 #00000030,inset 0 0 0 1px #0000001f;position:relative}
+.bt-land-cover::after{content:'';position:absolute;left:9px;right:7px;top:12px;height:10px;border-top:1px solid #ffffff70;border-bottom:1px solid #ffffff45}
+.bt-land-cover.c1{background:linear-gradient(160deg,#8a4232,#2e1814)}
+.bt-land-cover.c2{background:linear-gradient(160deg,#2f6170,#13262c)}
+.bt-land-cover.c3{background:linear-gradient(160deg,#66783f,#232a19)}
+.bt-land-book{display:flex;gap:12px;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--bt-line)}
+.bt-land-fields{display:grid;grid-template-columns:104px minmax(0,1fr);gap:12px 14px;margin:16px 0}
+.bt-land-fields small{font-weight:400;margin-top:2px}
+.bt-land-review{display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:8px;background:var(--bt-soft);font-size:11.5px;color:var(--bt-muted);margin-top:12px}
+.bt-land-review>.bt-ico{color:var(--bt-accent);font-size:16px}
+.bt-land-review b{display:block;color:var(--bt-text)}
+.bt-land-binderhead{padding-bottom:12px;border-bottom:1px solid var(--bt-line)}
+.bt-land-binderhead b{display:block;font:400 19px/1.25 'Libre Caslon Display',Georgia,serif}
+.bt-land-binderhead small{display:flex;align-items:center;gap:6px;margin-top:4px}
+.bt-land-binder{list-style:none;padding:0;margin:10px 0 0}
+.bt-land-binder li{display:flex;gap:12px;align-items:center;padding:8px 10px;border-radius:8px}
+.bt-land-binder li.on{background:var(--bt-soft)}
+.bt-land-binder li>span{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--bt-side);font-size:10px;font-weight:600;flex-shrink:0}
+.bt-land-binder li.on>span{background:var(--bt-accent);color:var(--bt-accent-text)}
+.bt-land-note{display:flex;gap:8px;align-items:center;margin-top:10px;padding:10px 12px;border-radius:8px;background:var(--bt-warm);font-size:11.5px}
+.bt-land-services{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.bt-land-services div{padding:14px;border:1px solid var(--bt-line);border-radius:10px;background:var(--bt-bg)}
+.bt-land-services b{display:block;font-size:13px}
+.bt-land-steps{list-style:none;padding:0;margin:42px 0 0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;text-align:left}
+.bt-land-steps li{padding:24px 26px 26px;border:1px solid var(--bt-line);border-top:3px solid var(--bt-accent);border-radius:4px 4px 14px 14px;background:var(--bt-panel)}
+.bt-land-steps span{font:400 34px/1 'Libre Caslon Display',Georgia,serif;color:var(--bt-accent)}
+.bt-land-steps h3{margin:14px 0 6px;font-size:16px}
+.bt-land-steps p,.bt-land-trust p{font-size:13.5px;line-height:1.6;color:var(--bt-muted)}
+.bt-land-plans{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;max-width:880px;margin:42px auto 0;text-align:left}
+.bt-land-plans article{display:flex;flex-direction:column;padding:30px;border:1px solid var(--bt-line);border-radius:16px;background:var(--bt-panel)}
+.bt-land-plans article.featured{border-color:var(--bt-accent);box-shadow:0 0 0 1px var(--bt-accent),0 24px 60px -30px #00000050}
+.bt-land-plans h3{display:flex;align-items:center;gap:8px}
+.bt-land-plans h3 .bt-ico{color:var(--bt-accent);font-size:18px}
+.bt-land-price{font:400 40px/1.05 'Libre Caslon Display',Georgia,serif;margin-top:18px}
+.bt-land-price small{font:400 12px 'DM Sans',sans-serif;margin-top:6px}
+.bt-land-plans .bt-land-ticks{flex:1;margin-bottom:26px}
+.bt-land-plans .bt-fine{text-align:center}
+.bt-land-trust{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:20px;margin-top:42px;text-align:left}
+.bt-land-trust div{padding:24px;border:1px solid var(--bt-line);border-radius:14px;background:var(--bt-panel)}
+.bt-land-trust div>.bt-ico{font-size:22px;color:var(--bt-accent)}
+.bt-land-trust h3{margin:14px 0 6px}
+.bt-land-faq{max-width:780px}
+.bt-land-faq h2{margin-bottom:30px}
+.bt-land-faq details{border-bottom:1px solid var(--bt-line);text-align:left;padding:18px 4px}
+.bt-land-faq details:first-of-type{border-top:1px solid var(--bt-line)}
+.bt-land-faq summary{display:flex;justify-content:space-between;gap:16px;cursor:pointer;list-style:none;font-size:16px;font-weight:600}
+.bt-land-faq summary::-webkit-details-marker{display:none}
+.bt-land-faq summary::after{content:'+';color:var(--bt-accent);font-size:20px;line-height:1}
+.bt-land-faq details[open] summary::after{content:'\2212'}
+.bt-land-faq summary:focus-visible{outline:2px solid var(--bt-accent);outline-offset:3px}
+.bt-land-faq details p{margin-top:10px;font-size:14px;line-height:1.7;color:var(--bt-muted)}
+.bt-land-final{max-width:1032px;margin:120px auto 32px;padding:68px 24px;text-align:center;border-radius:24px;background:var(--bt-accent);color:var(--bt-accent-text)}
+.bt-land-final h2{font-size:44px}
+.bt-land-final p{margin-top:12px;font-size:17px;opacity:.85}
+.bt-land-final .bt-button.primary{background:var(--bt-accent-text);color:var(--bt-accent);border-color:transparent}
+.bt-land-final .bt-button:not(.primary){background:transparent;color:var(--bt-accent-text);border-color:color-mix(in srgb,var(--bt-accent-text) 45%,transparent)}
+.bt-land-final .bt-button:not(.primary):hover{background:color-mix(in srgb,var(--bt-accent-text) 12%,transparent)}
+@media(max-width:1080px){.bt-land-final{margin-left:16px;margin-right:16px}.bt-land-float{display:none}.bt-land-caption{margin-top:14px}}
+@media(max-width:880px){.bt-land-hero h1{font-size:48px}.bt-land h2{font-size:32px}.bt-land-feature{grid-template-columns:minmax(0,1fr);gap:32px;padding-top:80px}.bt-land-feature.flip .bt-land-copy{order:0}.bt-land-cards,.bt-land-steps,.bt-land-plans{grid-template-columns:minmax(0,1fr)}.bt-land-trust{grid-template-columns:repeat(2,minmax(0,1fr))}.bt-land-section{padding-top:80px}}
+@media(max-width:560px){.bt-land-hero{padding:40px 16px 32px}.bt-land-hero h1{font-size:38px;letter-spacing:-.8px}.bt-land-hero .bt-lede{font-size:16px}.bt-land h2,.bt-land-final h2{font-size:28px}.bt-land-stage,.bt-land-where,.bt-land-section,.bt-land-feature{padding-left:16px;padding-right:16px}.bt-land-trust{grid-template-columns:minmax(0,1fr)}.bt-land-art{padding:14px}.bt-land-chrome b{display:none}.bt-land-fields{grid-template-columns:86px minmax(0,1fr)}.bt-land-services{grid-template-columns:minmax(0,1fr)}.bt-land .bt-actions .bt-button{width:100%}}

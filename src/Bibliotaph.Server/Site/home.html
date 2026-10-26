@@ -1,47 +1,220 @@
-    <section class="bt-hero">
-      <span class="bt-eyebrow">FOR GAME MASTERS</span>
-      <h1>Find the right book, and the right page, in the RPG library you already have.</h1>
-      <p class="bt-lede">Bibliotaph catalogs the PDFs, e-books, maps and handouts in your own folders and cloud storage, right where they are. Search every page of every book, filter by game system, type and level, and open a book at the page you need.</p>
+    <div class="bt-land">
+    <section class="bt-land-hero">
+      <span class="bt-land-pill">{{icon:Sparkles}} For game masters, on Windows and the web</span>
+      <h1>Every RPG book you own. <em>The exact page you need.</em></h1>
+      <p class="bt-lede">Bibliotaph turns the PDFs, e-books, maps and handouts scattered across your drives and cloud storage into one library you can search page by page. Prep takes minutes, not an evening of opening files.</p>
       <div class="bt-actions">
-        <a class="bt-button primary" href="/signin">Sign in</a>
-        <a class="bt-button" href="https://github.com/munkycdev/bibliotaph/releases/latest">Get the Windows app</a>
+        <a class="bt-button primary" href="https://github.com/munkycdev/bibliotaph/releases/latest">{{icon:Monitor}} Get the Windows app, free</a>
+        <a class="bt-button" href="/signin">Sign in to the web app {{icon:ArrowRight}}</a>
       </div>
-      <p class="bt-fine">The web version is invite-only for now. The Windows app is free, and needs no account.</p>
+      <ul class="bt-land-proof" aria-label="In short">
+        <li>{{icon:Check}} No account needed on Windows</li>
+        <li>{{icon:Check}} Your files never move</li>
+        <li>{{icon:Check}} No ads, no tracking</li>
+      </ul>
     </section>
 
-    <figure class="bt-shot">
-      <img src="/site/library.png" width="1782" height="1078" alt="The library: a grid of book covers with a search box, filters and the sidebar" />
-      <figcaption>The books in these pictures are public-domain scans from the <a href="https://archive.org">Internet Archive</a>.</figcaption>
-    </figure>
+    <div class="bt-land-stage">
+      <figure class="bt-land-window">
+        <div class="bt-land-chrome" aria-hidden="true"><span></span><span></span><span></span><b>bibliotaph.online/library</b></div>
+        <img src="/site/library.png" width="1782" height="1078" alt="The library: a grid of book covers with a search box, filters and the sidebar" />
+      </figure>
+      <div class="bt-land-float bt-land-float-search" aria-hidden="true">
+        <div class="bt-land-query">{{icon:Search}}<span>type:adventure level:3 <i>"flooded crypt"</i></span></div>
+        <div class="bt-land-hit"><b>The Ember Vault</b><small>Page 14 · …the stairs end in a <mark>flooded crypt</mark>, where the water…</small></div>
+        <div class="bt-land-hit"><b>Gloomwater Keep</b><small>Page 31 · …beneath the chapel lies a <mark>flooded crypt</mark> sealed by…</small></div>
+      </div>
+      <div class="bt-land-float bt-land-float-ai" aria-hidden="true">
+        <span class="bt-land-tag">{{icon:Sparkles}} Filled in for you</span>
+        <dl><dt>Type</dt><dd>Adventure</dd><dt>Levels</dt><dd>3 to 5</dd><dt>Players</dt><dd>4 to 6</dd></dl>
+        <q>For four to six characters of 3rd to 5th level.</q><small>Quoted from page 2</small>
+      </div>
+    </div>
+    <p class="bt-land-caption">The covers in this picture are public-domain books from the <a href="https://archive.org">Internet Archive</a>.</p>
 
-    <section class="bt-sitegrid" aria-label="What Bibliotaph does">
-      <div>
-        <h2>Your files stay put</h2>
-        <p>Bibliotaph never moves, renames, edits or deletes your books. It only reads them, in your folders, OneDrive, Google Drive, Dropbox, Box or a WebDAV server.</p>
-      </div>
-      <div>
-        <h2>Search inside every book</h2>
-        <p>Words, phrases and fields such as <code>type:adventure level:3</code>, across the text of every page, scanned pages included. A result opens at its page.</p>
-      </div>
-      <div>
-        <h2>A catalog that fills itself in</h2>
-        <p>Game system, type, levels, players and setting, from the file's name and, if you like, an AI that quotes the page it found each one on. You check the exceptions, not every book.</p>
-      </div>
-      <div>
-        <h2>Ready for the table</h2>
-        <p>Collections for a campaign, binders with the pages for a session and your notes, and a reader that steps through them.</p>
-      </div>
-      <div>
-        <h2>Online libraries too</h2>
-        <p>Books you own on D&amp;D Beyond, Demiplane, Humble Bundle or DriveThruRPG join the library beside your files, with a link to where you read or download them.</p>
-      </div>
-      <div>
-        <h2>On your PC and on the web</h2>
-        <p>The Windows app works offline with nothing sent anywhere. Connect it to the web version, and your work and what the AI read follow you to every device.</p>
+    <section class="bt-land-where" aria-labelledby="where-heading">
+      <h2 id="where-heading">Reads your books right where they are</h2>
+      <ul>
+        <li>{{icon:Folder}} Windows folders</li>
+        <li>{{icon:HardDrive}} External drives</li>
+        <li>{{icon:Cloud}} OneDrive</li>
+        <li>{{icon:Cloud}} Google Drive</li>
+        <li>{{icon:Cloud}} Dropbox</li>
+        <li>{{icon:Cloud}} Box</li>
+        <li>{{icon:Cloud}} WebDAV and Nextcloud</li>
+      </ul>
+    </section>
+
+    <section class="bt-land-section bt-land-pains" aria-labelledby="pains-heading">
+      <span class="bt-eyebrow">SOUND FAMILIAR?</span>
+      <h2 id="pains-heading">A great library is only great if you can find things in it.</h2>
+      <div class="bt-land-cards">
+        <figure><blockquote>“I know that table is in one of these PDFs.”</blockquote><figcaption>Search the text of every page, scanned ones included, and open the book right at it.</figcaption></figure>
+        <figure><blockquote>“We just bought the bundle. Which of these do I already own?”</blockquote><figcaption>Check a download tells you before you copy anything: new, owned, or a newer version.</figcaption></figure>
+        <figure><blockquote>“Session starts in an hour, and the map is… somewhere.”</blockquote><figcaption>Gather the pages for a session in a binder, with your notes, and step through them at the table.</figcaption></figure>
       </div>
     </section>
 
-    <section class="bt-sitecta">
-      <h2>See everything it does</h2>
-      <p><a href="/features">Features</a> lists it all, and the <a href="/changelog">change log</a> says what's new.</p>
+    <section class="bt-land-feature" aria-labelledby="search-heading">
+      <div class="bt-land-copy">
+        <span class="bt-eyebrow">{{icon:TextSearch}} SEARCH</span>
+        <h2 id="search-heading">Search inside every page you own.</h2>
+        <p>Words, quoted phrases and fields such as <code>type:adventure level:3</code>, across the text of every book, every e-book and every scanned page. Results show the books and the pages inside them, with your words highlighted, one click from the page itself.</p>
+        <ul class="bt-land-ticks">
+          <li>{{icon:Check}} Filters for game system, type, character level and players</li>
+          <li>{{icon:Check}} A field guide under the search box with every value you have</li>
+          <li>{{icon:Check}} Ask in plain English, with answers that cite the book and page</li>
+        </ul>
+      </div>
+      <div class="bt-land-art" aria-hidden="true">
+        <div class="bt-land-panel">
+          <div class="bt-land-query">{{icon:Search}}<span>level:3 <i>"rival cult"</i></span></div>
+          <div class="bt-land-tabs"><b>Documents · 4</b><span>Inside documents · 27</span></div>
+          <div class="bt-land-result"><span class="bt-land-cover c1"></span><div><b>The Ember Vault</b><small>Adventure · 5e · Levels 3 to 5</small><p>p. 9 · the <mark>rival cult</mark> has already reached the vault…</p></div></div>
+          <div class="bt-land-result"><span class="bt-land-cover c2"></span><div><b>Ashes over Hollowmere</b><small>Adventure · PF2e · Levels 2 to 4</small><p>p. 22 · a <mark>rival cult</mark> of the drowned god…</p></div></div>
+          <div class="bt-land-result"><span class="bt-land-cover c3"></span><div><b>Bestiary of the Hollow Hills</b><small>Bestiary · 5e</small><p>p. 88 · cultists of a <mark>rival cult</mark> use these stats…</p></div></div>
+        </div>
+      </div>
     </section>
+
+    <section class="bt-land-feature flip" aria-labelledby="catalog-heading">
+      <div class="bt-land-copy">
+        <span class="bt-eyebrow">{{icon:Sparkles}} CATALOG</span>
+        <h2 id="catalog-heading">A catalog that fills itself in.</h2>
+        <p>Game system, type, levels, players, setting and more, from file and folder names, the book's own details and its text. Switch on AI, running on your own PC or with your own key, and it reads each book and quotes the page it found every value on. Anything it can't quote, it throws away.</p>
+        <ul class="bt-land-ticks">
+          <li>{{icon:Check}} You check the exceptions, not every book</li>
+          <li>{{icon:Check}} Your corrections always win, and survive a reread</li>
+          <li>{{icon:Check}} Adventures inside a compilation found with their own pages</li>
+        </ul>
+      </div>
+      <div class="bt-land-art" aria-hidden="true">
+        <div class="bt-land-panel">
+          <div class="bt-land-book"><span class="bt-land-cover c1"></span><div><b>The Ember Vault</b><small>Gilded Press · PDF · 64 pages</small></div></div>
+          <dl class="bt-land-fields">
+            <dt>Game system</dt><dd>D&amp;D 5e<small>From the folder name</small></dd>
+            <dt>Type</dt><dd>Adventure<small>From page 1</small></dd>
+            <dt>Levels</dt><dd>3 to 5<small>“…characters of 3rd to 5th level”, page 2</small></dd>
+            <dt>Setting</dt><dd>Hollowmere<small>“…the marsh town of Hollowmere”, page 4</small></dd>
+          </dl>
+          <div class="bt-land-review">{{icon:Inbox}} <span><b>Needs review · 3</b> Only what Bibliotaph wasn't sure of</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bt-land-feature" aria-labelledby="table-heading">
+      <div class="bt-land-copy">
+        <span class="bt-eyebrow">{{icon:NotebookTabs}} AT THE TABLE</span>
+        <h2 id="table-heading">Friday's session, in one binder.</h2>
+        <p>Pull the pages you need from any book into a binder for the session, in order, with your notes beside them. At the table, step from the crypt map to the bog hag's stats to the abbot's letter without hunting through files.</p>
+        <ul class="bt-land-ticks">
+          <li>{{icon:Check}} A reader for PDFs and e-books, with page numbers that match the printed ones</li>
+          <li>{{icon:Check}} Notes on any page, found again when a new printing arrives</li>
+          <li>{{icon:Check}} Collections for a campaign, favorites and pins for what you use most</li>
+        </ul>
+      </div>
+      <div class="bt-land-art" aria-hidden="true">
+        <div class="bt-land-panel">
+          <div class="bt-land-binderhead"><b>Session 12: The flooded crypt</b><small>{{icon:CalendarDays}} Friday, 7 pm · 5 items</small></div>
+          <ol class="bt-land-binder">
+            <li><span>1</span><div><b>Arrival at Hollowmere</b><small>The Ember Vault · pages 6 to 8</small></div></li>
+            <li class="on"><span>2</span><div><b>Crypt map</b><small>The Ember Vault · page 14</small></div></li>
+            <li><span>3</span><div><b>Bog hag</b><small>Bestiary of the Hollow Hills · page 88</small></div></li>
+            <li><span>4</span><div><b>The abbot's letter</b><small>Handout · picture</small></div></li>
+            <li><span>5</span><div><b>Treasure</b><small>The Ember Vault · page 19</small></div></li>
+          </ol>
+          <p class="bt-land-note">{{icon:NotebookPen}} If they skip the chapel, the hag finds them at the ford.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="bt-land-feature flip" aria-labelledby="online-heading">
+      <div class="bt-land-copy">
+        <span class="bt-eyebrow">{{icon:Cloud}} ONLINE LIBRARIES</span>
+        <h2 id="online-heading">The books you own online, beside your files.</h2>
+        <p>Books on D&amp;D Beyond and Demiplane join your library with a link to read them there. Purchases on Humble Bundle and DriveThruRPG are listed with where to download them, until the file is in your library. One click on your library page brings them in, with covers. Bibliotaph never sees your passwords.</p>
+      </div>
+      <div class="bt-land-art" aria-hidden="true">
+        <div class="bt-land-panel">
+          <div class="bt-land-services">
+            <div><b>D&amp;D Beyond</b><small>42 books · read there</small></div>
+            <div><b>Demiplane</b><small>17 books · read there</small></div>
+            <div><b>Humble Bundle</b><small>128 books · 9 to download</small></div>
+            <div><b>DriveThruRPG</b><small>211 books · 14 to download</small></div>
+          </div>
+          <div class="bt-land-review">{{icon:Check}} <span><b>Imported 23 new books</b> Undo is one click away</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bt-land-section" aria-labelledby="how-heading">
+      <span class="bt-eyebrow">HOW IT WORKS</span>
+      <h2 id="how-heading">Ready in three steps.</h2>
+      <ol class="bt-land-steps">
+        <li><span>1</span><h3>Point it at your books</h3><p>Choose your folders, drives or cloud storage. Nothing is copied, moved or renamed.</p></li>
+        <li><span>2</span><h3>Let it read</h3><p>Bibliotaph reads every page, recognises scans, joins duplicate copies and fills in the catalog.</p></li>
+        <li><span>3</span><h3>Find anything</h3><p>Search, filter and open books at the right page, and build binders for the table.</p></li>
+      </ol>
+    </section>
+
+    <section class="bt-land-section" aria-labelledby="plans-heading">
+      <span class="bt-eyebrow">TWO WAYS TO USE IT</span>
+      <h2 id="plans-heading">On your PC, on the web, or both.</h2>
+      <div class="bt-land-plans">
+        <article>
+          <h3>{{icon:Monitor}} Windows app</h3>
+          <p class="bt-land-price">Free<small>Open source, no account</small></p>
+          <ul class="bt-land-ticks">
+            <li>{{icon:Check}} Works offline, with nothing sent anywhere</li>
+            <li>{{icon:Check}} Built-in AI that runs on your own graphics card</li>
+            <li>{{icon:Check}} Any folder, external drives and OneDrive's online-only files</li>
+            <li>{{icon:Check}} Connects to your web library, so your work follows you</li>
+          </ul>
+          <a class="bt-button primary" href="https://github.com/munkycdev/bibliotaph/releases/latest">Download for Windows 10 and 11</a>
+        </article>
+        <article class="featured">
+          <h3>{{icon:Cloud}} Bibliotaph on the web</h3>
+          <p class="bt-land-price">By invitation<small>While it settles in</small></p>
+          <ul class="bt-land-ticks">
+            <li>{{icon:Check}} Your library in any browser, and as an app on a tablet or phone</li>
+            <li>{{icon:Check}} OneDrive, Google Drive, Dropbox, Box and WebDAV</li>
+            <li>{{icon:Check}} Each book read once on the server, which keeps no copy</li>
+            <li>{{icon:Check}} Your Windows PCs' work and AI results, everywhere</li>
+          </ul>
+          <a class="bt-button" href="/signin">Sign in</a>
+          <p class="bt-fine">No invitation yet? <a href="/contact">Ask for one</a>.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="bt-land-section" aria-labelledby="trust-heading">
+      <span class="bt-eyebrow">BUILT TO BE TRUSTED</span>
+      <h2 id="trust-heading">Your books, your rules.</h2>
+      <div class="bt-land-trust">
+        <div>{{icon:Lock}}<h3>Only ever read</h3><p>Bibliotaph never moves, renames, edits or deletes a file, and knows each by its contents, so a moved book keeps everything.</p></div>
+        <div>{{icon:ShieldCheck}}<h3>Private by design</h3><p>No ads, no tracking, nothing sold. The web version keeps your catalog, never a copy of your books.</p></div>
+        <div>{{icon:Sparkle}}<h3>AI is optional</h3><p>Everything works without it. When it's on, it runs on your PC or with your own key, and it shows its sources.</p></div>
+        <div>{{icon:BookOpen}}<h3>Open source</h3><p>Free software under the GNU GPL. Read the code, build it yourself, or <a href="https://github.com/munkycdev/bibliotaph">follow along on GitHub</a>.</p></div>
+      </div>
+    </section>
+
+    <section class="bt-land-section bt-land-faq" aria-labelledby="faq-heading">
+      <span class="bt-eyebrow">QUESTIONS</span>
+      <h2 id="faq-heading">Good to know.</h2>
+      <details><summary>Does Bibliotaph change my files?</summary><p>Never. It only reads them, wherever they are. Your corrections, notes, collections and binders live in Bibliotaph's own catalog, which you can back up and export.</p></details>
+      <details><summary>Which games does it work with?</summary><p>Any. D&amp;D, Pathfinder, Call of Cthulhu, indie zines, maps and handouts: if it's a PDF, an EPUB, a Kindle book or a picture, Bibliotaph reads it, ZIPs included.</p></details>
+      <details><summary>Do I need AI?</summary><p>No. Search, filters, binders and the catalog all work without it. AI fills in details faster, and on Windows it can run entirely on your own computer.</p></details>
+      <details><summary>What does it cost?</summary><p>The Windows app is free and open source. The web version is free while it's open by invitation.</p></details>
+      <details><summary>Can it open protected PDFs?</summary><p>A PDF with a password asks for it, and Bibliotaph respects a book's copy restrictions. It never guesses passwords or removes DRM.</p></details>
+      <details><summary>Will my work follow me between computers?</summary><p>Yes. Connect the Windows app to your web library, and your corrections, notes, collections and binders merge both ways, on every PC and browser you use.</p></details>
+    </section>
+
+    <section class="bt-land-final">
+      <h2>Your next session is already in your library.</h2>
+      <p>Bibliotaph finds it.</p>
+      <div class="bt-actions">
+        <a class="bt-button primary" href="https://github.com/munkycdev/bibliotaph/releases/latest">{{icon:Monitor}} Get the Windows app, free</a>
+        <a class="bt-button" href="/features">See every feature</a>
+      </div>
+    </section>
+    </div>
