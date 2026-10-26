@@ -778,6 +778,8 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-reviewfound li svg{flex-shrink:0;color:var(--bt-muted)}
 .bt-reviewfoundmore{margin-left:17px}
 .bt-reviewchoices{margin-top:16px;flex-wrap:wrap}
+/* A choice can name a long file, which wraps rather than pushing the card wider than a phone. */
+.bt-reviewchoices .bt-button{white-space:normal;overflow-wrap:anywhere;text-align:left;max-width:100%}
 .bt-reviewparts{list-style:none;padding:0;margin:12px 0 0}
 .bt-reviewparts li{display:flex;align-items:flex-start;gap:10px;margin-bottom:8px}
 .bt-reviewparts li>input{width:auto;margin-top:3px;accent-color:var(--bt-accent)}

@@ -27,13 +27,24 @@ public sealed record VersionCardText(VersionItem Item)
 {
     public const string Chip = "New version?";
 
-    // Neither file is the likelier current one, so no choice stands out: a dark first button read as already chosen.
-    public static IReadOnlyList<ReviewChoiceText> Choices { get; } =
+    // Neither file is the likelier current one, so no choice stands out (a dark first button read as already chosen),
+    // and each names its file, since "this file" and "the book's file" left which was which to guess.
+    public IReadOnlyList<ReviewChoiceText> Choices =>
     [
-        new("current", "This file is current", "One card for both files, opening this one from now on. Your work on both cards is kept."),
-        new("copy", "The book's file is current", "One card for both files, still opening the one it opens now. This one is kept as another version."),
-        new("separate", "Separate book", "Two cards, as now. Bibliotaph won't ask about these two files again."),
+        new("current", MakeCurrentLabel, MakeCurrentHint),
+        new("copy", KeepAsCopyLabel, KeepAsCopyHint),
+        new("separate", "Separate book", SeparateHint),
     ];
+
+    public string MakeCurrentLabel => $"{ThisFile} is current";
+
+    public string MakeCurrentHint => $"One card for both files, opening {ThisFile} from now on. Your work on both cards is kept.";
+
+    public string KeepAsCopyLabel => $"{BookFile} is current";
+
+    public string KeepAsCopyHint => $"One card for both files, still opening {BookFile}. {ThisFile} is kept as another version.";
+
+    public const string SeparateHint = "Two cards, as now. Bibliotaph won't ask about these two files again.";
 
     PendingVersion Version => Item.Version;
 
@@ -44,14 +55,35 @@ public sealed record VersionCardText(VersionItem Item)
         : "It has the book's title and publisher.";
 
     public string Detail =>
-        $"This file: {FileName(Item.Path, Item.Title)}, {Pages(Version.PageCount)}. The book's file: {FileName(Item.BookPath, Item.BookTitle)}, {Pages(Version.MatchedPageCount)}.";
+        $"This file: {ThisFile}, {Pages(Version.PageCount)}. The book's file: {BookFile}, {Pages(Version.MatchedPageCount)}.";
 
-    public string MadeCurrent => $"{Item.BookTitle} now opens {FileName(Item.Path, Item.Title)}.";
+    public string MadeCurrent => $"{Item.BookTitle} now opens {ThisFile}.";
 
-    public string KeptAsCopy => $"{Item.BookTitle} still opens {FileName(Item.BookPath, Item.BookTitle)}, with {FileName(Item.Path, Item.Title)} kept as another version.";
+    public string KeptAsCopy => $"{Item.BookTitle} still opens {BookFile}, with {ThisFile} kept as another version.";
 
-    /// <summary>The two files often share a title, so the card tells them apart by their names.</summary>
-    static string FileName(string? path, string title) => path is null ? title : System.IO.Path.GetFileName(path.TrimEnd('/', '\\')) is { Length: > 0 } name ? name : title;
+    string ThisFile => Names.This;
+
+    string BookFile => Names.Book;
+
+    /// <summary>
+    /// The two files often share a title, so the card tells them apart by their names, or, when those match too, by the
+    /// folder each is in.
+    /// </summary>
+    (string This, string Book) Names
+    {
+        get
+        {
+            var (mine, book) = (FileName(Item.Path, Item.Title), FileName(Item.BookPath, Item.BookTitle));
+            return string.Equals(mine, book, StringComparison.OrdinalIgnoreCase) ? (InFolder(Item.Path, mine), InFolder(Item.BookPath, book)) : (mine, book);
+        }
+    }
+
+    // Split by hand: the server runs on Linux, where Path.GetFileName leaves a Windows PC's path whole.
+    static string FileName(string? path, string title) => Parts(path) is { Length: >= 1 } parts ? parts[^1] : title;
+
+    static string InFolder(string? path, string name) => Parts(path) is { Length: >= 2 } parts ? $"{parts[^2]}/{parts[^1]}" : name;
+
+    static string[] Parts(string? path) => path?.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries) ?? [];
 
     public string KeptSeparate => $"Kept {Item.Title} as a separate book.";
 

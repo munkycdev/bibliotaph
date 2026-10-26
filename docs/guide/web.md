@@ -393,9 +393,9 @@ while you work, a line offers **Show the new list**.
 The cards that ask one question come between the new terms and the field suggestions, as in the Windows app:
 
 - **New version?**: a file that shares most of its pages, or its title and publisher, with a book you have. The card
-  names both files with their pages, and you choose which the book opens: **This file is current** or **The book's file
-  is current**, either way one card for both. **Separate book** keeps them apart. Nothing is picked until you click
-  one. **Open the book** shows the book it
+  names both files with their pages, and you choose which the book opens: each button names its file, such as
+  **Handbook_v2.pdf is current**, either way one card for both. **Separate book** keeps them apart. Nothing is picked
+  until you click one. **Open the book** shows the book it
   was matched with.
 - **Image pack?**: a folder of images, with the first few shown. **Make a pack** or **Keep separate**.
 - **Owned elsewhere**: a new file with the title of a book you own elsewhere. **Same book** puts the file on that

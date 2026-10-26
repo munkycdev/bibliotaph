@@ -246,13 +246,11 @@
               </StackPanel>
             </DockPanel>
             <WrapPanel Margin="0,16,0,0">
-              <!-- Neither file is the likelier current one, so no choice stands out: a dark first button read as already chosen. -->
-              <Button Content="This file is current" Command="{Binding MakeCurrentCommand}" Margin="0,0,8,8"
-                      ToolTip="One card for both files, opening this one from now on. Your work on both cards is kept." />
-              <Button Content="The book's file is current" Command="{Binding KeepAsCopyCommand}" Margin="0,0,8,8"
-                      ToolTip="One card for both files, still opening the one it opens now. This one is kept as another version." />
-              <Button Content="Separate book" Command="{Binding SeparateBookCommand}" Margin="0,0,8,8"
-                      ToolTip="Two cards, as now. Bibliotaph won't ask about these two files again." />
+              <!-- Neither file is the likelier current one, so no choice stands out (a dark first button read as already chosen),
+                   and each names its file. -->
+              <Button Content="{Binding MakeCurrentLabel}" Command="{Binding MakeCurrentCommand}" Margin="0,0,8,8" ToolTip="{Binding MakeCurrentHint}" />
+              <Button Content="{Binding KeepAsCopyLabel}" Command="{Binding KeepAsCopyCommand}" Margin="0,0,8,8" ToolTip="{Binding KeepAsCopyHint}" />
+              <Button Content="Separate book" Command="{Binding SeparateBookCommand}" Margin="0,0,8,8" ToolTip="{x:Static p:VersionCardText.SeparateHint}" />
             </WrapPanel>
           </StackPanel>
         </Grid>
