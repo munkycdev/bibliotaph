@@ -961,3 +961,12 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-settingshead{font-size:12px;font-weight:400;color:var(--bt-text);border-top:1px solid var(--bt-line);margin-top:30px;padding-top:20px}
 .bt-settingshead+.bt-fine{margin-top:5px}
 .bt-fine .bt-link{padding:0;font-size:inherit}
+.bt-settingsrule-above{border-top:1px solid var(--bt-line);margin-top:30px}
+.bt-settingsheadrow{display:flex;justify-content:space-between;align-items:center}
+.bt-settingsheadrow .bt-link{padding:0}
+.bt-switchrow{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--bt-line);font-size:12px;cursor:pointer}
+.bt-switchrow input{margin-top:2px;flex:0 0 auto}
+.bt-switchrow strong{font-weight:600}
+.bt-switchrow small{margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bt-switchrow>span{min-width:0}
+.bt-arrow{color:var(--bt-muted)}

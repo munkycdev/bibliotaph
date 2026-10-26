@@ -1115,6 +1115,33 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Settings_library_chooses_the_start_page_and_switches_a_folder_name_off()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Adventures/IMG_0042.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 1 } one ? one : null, ct);
+
+        var before = (await client.GetFromJsonAsync<LibraryPreferences>("/api/settings/library", ct))!;
+        using (await client.PutAsJsonAsync("/api/settings/start", new StartPageChoice(true), ct)) { }
+        var label = before.FolderNames.Single(l => l.Folder == "Adventures");
+        using var switched = await client.PutAsJsonAsync("/api/settings/folder-names", new FolderNameSwitch(label.Folder, label.Vocabulary, label.Term, false), ct);
+        var after = (await switched.Content.ReadFromJsonAsync<LibraryPreferences>(ct))!;
+
+        Assert.False(before.StartOnLibrary);
+        Assert.Equal(("Type: Adventure", "1 document under a folder with this name", true), (label.Meaning, label.Detail, label.Enabled));
+        Assert.True((await client.GetFromJsonAsync<StartPageChoice>("/api/settings/start", ct))!.Library);
+        Assert.True(after.StartOnLibrary);
+        Assert.False(after.FolderNames.Single(l => l.Folder == "Adventures").Enabled);
+        Assert.Empty(after.FolderRules);
+    }
+
+    [Fact]
     public async Task Settings_lists_what_each_connection_was_granted_in_plain_words()
     {
         var ct = TestContext.Current.CancellationToken;

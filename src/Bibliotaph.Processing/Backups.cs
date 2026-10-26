@@ -126,13 +126,13 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
     }
 
     /// <summary>
-    /// A backup to download, as the web's Settings › Backup gives one: made in <paramref name="folder"/> and deleted
-    /// when the stream is closed.
+    /// A backup to download, as the web's Settings › Backup gives one: made in the backups folder and deleted when the
+    /// stream is closed.
     /// </summary>
-    public async Task<Stream> BackUpForDownloadAsync(string folder, CancellationToken ct = default)
+    public async Task<Stream> BackUpForDownloadAsync(CancellationToken ct = default)
     {
-        Directory.CreateDirectory(folder);
-        var target = Path.Combine(folder, $"backup-{Guid.NewGuid():N}.zip");
+        Directory.CreateDirectory(paths.Backups);
+        var target = Path.Combine(paths.Backups, $"download-{Guid.NewGuid():N}.zip");
         try
         {
             await BackUpAsync(target, ct);

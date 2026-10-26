@@ -18,12 +18,11 @@ public static class BackupApi
     public static void MapBackupApi(this RouteGroupBuilder api)
     {
         // The browser says what day it is where the user is, so the file is named as the Windows app would name it there.
-        api.MapGet("/library/backup", async (string? today, ClaimsPrincipal principal, UserLibraries libraries, ServerPaths paths, TimeProvider clock,
-            CancellationToken ct) =>
+        api.MapGet("/library/backup", async (string? today, ClaimsPrincipal principal, UserLibraries libraries, TimeProvider clock, CancellationToken ct) =>
         {
             Stream file;
             await using (var lease = await libraries.OpenAsync(principal.UserId()!, ct))
-                file = await lease.Library.Get<BackupService>().BackUpForDownloadAsync(paths.Downloads, ct);
+                file = await lease.Library.Get<BackupService>().BackUpForDownloadAsync(ct);
             return Results.File(file, "application/zip", $"Bibliotaph backup {Day(today, clock)}.zip");
         });
 
