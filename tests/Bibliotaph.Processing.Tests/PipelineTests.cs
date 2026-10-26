@@ -73,6 +73,8 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
     ChapterScanStore _chapterScans = null!;
     ChapterProjection _chapterProjection = null!;
     ChapterScanService _chapterService = null!;
+    readonly FakeHub _hub = new();
+    SharedResults _shared = null!;
     UserTagService _userTags = null!;
     FolderCollectionStore _folderCollectionStore = null!;
     CollectionsService _collectionsService = null!;
@@ -143,8 +145,10 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _chapterProjection = new ChapterProjection(_chapterScans, index, new ChapterQueries(_index), library);
         var chapters = new ChapterScanStage(_ai, library, _queries, _chapterScans, _chapterProjection, vocabulary);
         _userTags = new UserTagService(new UserTagStore(contexts), _metadataStore, new UserTagQueries(_index), projector);
+        _shared = new SharedResults(_runs, _chapterScans, _metadataStore, vocabulary, entries, library, projector, _chapterProjection, new ChapterQueries(_index),
+            new SharedResultCache(_index, _writer), _ai, _hub);
         var classify = new ClassifyStage(_ai, library, _queries, Inputs(), _runs,
-            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), _aiReading, _parts, _proposals);
+            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), _aiReading, _parts, _proposals, shared: _shared);
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
         _packs = new PackService(packStore, projector, hints, _metadataStore);
         _folderCollectionStore = new FolderCollectionStore(contexts);
@@ -186,6 +190,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         await _service.StopAsync(CancellationToken.None);
         _service.Dispose();
         _elsewhere.Dispose();
+        _shared.Dispose();
         _userTags.Dispose();
         _activity.Dispose();
         await _writer.StopAsync(CancellationToken.None);

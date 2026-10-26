@@ -139,6 +139,10 @@ public static class LibraryServices
         services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(), paths,
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySync>>(),
             SyncFiles.WebMachine, [sp.GetRequiredService<ServerSyncChannel>()]));
+        // What the AI worked out about files, shared with the user's PCs by content through sync.db.
+        services.AddSingleton<SharedResultCache>();
+        services.AddSingleton<IResultChannel, ServerResultChannel>();
+        services.AddSingleton<SharedResults>();
 
         // What the details change: the Windows inspector's services.
         services.AddSingleton(sp => new ChapterScanStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), host.Clock));

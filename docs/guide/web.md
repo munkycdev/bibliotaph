@@ -596,6 +596,14 @@ reaches the app within a minute or so; where both changed the same thing, the ne
 folders and settings stay on each side. The app keeps working offline and catches up when it's back, and its
 **Settings > Web library** says when it last merged. A PC can sync with a folder too: everything meets in the middle.
 
+What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
+with the built-in AI on its graphics card. The same file in your OneDrive and on the PC is the same book, matched by
+its contents, so when the PC's AI has read it, the web library has its suggestions within a minute or so, for you to
+check in Needs review, without an AI key of its own. It works the other way as well: a book the web library's AI read,
+or another connected PC's, isn't sent to this PC's AI. The chapters a whole-book scan found are shared the same way. A
+file in a folder you keep from AI gets no suggestions from elsewhere. If two devices read the same book, the newest
+reading wins; your answers about its suggestions travel with the rest of your work.
+
 The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Windows PCs** on the web lists each
 connected PC with when it was connected and last used, and **×** disconnects one: its key stops working straight
 away, and the PC keeps its own books and work. What it already shared stays in your web library. **Disconnect** in the app does the same from the PC.

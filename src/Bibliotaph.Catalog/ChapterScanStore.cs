@@ -23,7 +23,8 @@ public sealed record ChapterScanRecord(string ContentHash, string Provider, stri
 /// <summary>
 /// Whole-book scans in catalog.db, by the content hash of the copy they read, so what the AI found in each chapter
 /// outlives an index.db rebuild and the same file is never read twice. They describe the file rather than anything the
-/// user decided, so they aren't part of library sync; another PC scans its own copies.
+/// user decided, so they aren't part of library sync; a device connected to the web library shares its finished scans
+/// there instead, by content, and takes the others' (<see cref="ClassificationStore.Shared"/>).
 /// </summary>
 public sealed class ChapterScanStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -79,6 +80,40 @@ public sealed class ChapterScanStore(IDbContextFactory<CatalogDbContext> context
         row.StartedUtc = startedUtc;
         row.FinishedUtc = finished ? _clock.GetUtcNow().UtcDateTime : null;
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>This device's own finished scans that finished after <paramref name="since"/>, oldest first, to share with its other devices.</summary>
+    public async Task<IReadOnlyList<ChapterScanRecord>> GetFinishedAsync(DateTime? since, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var finished = db.ChapterScans.AsNoTracking().Where(s => s.FinishedUtc != null && s.Provider != ClassificationStore.Shared);
+        if (since is { } after) finished = finished.Where(s => s.FinishedUtc > after);
+        return [.. (await finished.OrderBy(s => s.FinishedUtc).ToListAsync(ct)).Select(ToRecord)];
+    }
+
+    /// <summary>
+    /// Keeps a finished scan another device made, as it was made, in place of an unfinished or older one here. Returns
+    /// false when this device already has it or a newer one.
+    /// </summary>
+    public async Task<bool> SaveSharedAsync(ChapterScanRecord scan, CancellationToken ct = default)
+    {
+        if (scan.FinishedUtc is not { } finished) return false;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var row = await db.ChapterScans.SingleOrDefaultAsync(s => s.ContentHash == scan.ContentHash, ct);
+        if (row is { FinishedUtc: { } held } && (row.PromptVersion > scan.PromptVersion || (row.PromptVersion == scan.PromptVersion && held >= finished))) return false;
+        if (row is null)
+        {
+            row = new ChapterScan { ContentHash = scan.ContentHash, Provider = ClassificationStore.Shared, Model = scan.Model, ChaptersJson = "[]" };
+            db.ChapterScans.Add(row);
+        }
+        row.Provider = ClassificationStore.Shared;
+        row.Model = scan.Model;
+        row.PromptVersion = scan.PromptVersion;
+        row.ChaptersJson = JsonSerializer.Serialize(scan.Chapters, Json);
+        row.StartedUtc = scan.StartedUtc;
+        row.FinishedUtc = finished;
+        await db.SaveChangesAsync(ct);
+        return true;
     }
 
     /// <summary>

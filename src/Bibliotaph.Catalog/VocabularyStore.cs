@@ -107,6 +107,17 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
     }
 
     /// <summary>
+    /// Every term's label by its vocabulary and key, pending and rejected ones too: what a suggestion names, in words
+    /// another device can resolve to its own key for the term.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<(string Vocabulary, string Key), string>> GetLabelsAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return (await db.VocabularyTerms.AsNoTracking().Select(t => new { t.Vocabulary, t.Key, t.Label }).ToListAsync(ct))
+            .ToDictionary(t => (t.Vocabulary, t.Key), t => t.Label);
+    }
+
+    /// <summary>
     /// The term <paramref name="label"/> names in <paramref name="vocabulary"/>, adding it as the user's own term when
     /// nothing matches. Its key is made from the label and never changes after.
     /// </summary>

@@ -48,9 +48,10 @@ public enum WebConnectOutcome
 /// This PC's connection to the user's library at bibliotaph.online. Connecting works as a TV signs in: the app asks,
 /// opens the approval page in the browser, where the user is signed in, and asks again until the user answers. The
 /// PC then has a key of its own, kept in Credential Manager, which the web can disconnect at any time. While connected,
-/// it is also library sync's way to the web library: this PC's sync file goes up, and the web library's comes down.
+/// it is also library sync's way to the web library: this PC's sync file goes up, and the web library's comes down; and
+/// what the AI worked out about the PC's files goes up, and the user's other devices' comes down (<see cref="SharedResults"/>).
 /// </summary>
-public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStore settings, TimeProvider clock, ILogger<WebLibrary> log) : ISyncChannel
+public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStore settings, TimeProvider clock, ILogger<WebLibrary> log) : ISyncChannel, IResultChannel
 {
     /// <summary>The other devices' files as last fetched, by device, so an unchanged one isn't fetched again.</summary>
     readonly ConcurrentDictionary<string, (long Version, SyncFileContent Content)> _peers = new(StringComparer.Ordinal);
@@ -261,6 +262,39 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         var (files, _) = await ListAsync(ct);
         return files is not null
             && (files.Count != _peers.Count || files.Any(f => !_peers.TryGetValue(f.Device, out var known) || known.Version != f.Version));
+    }
+
+    public async Task<SharedResultPage?> ReadResultsAsync(long after, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, $"api/results?after={after.ToString(System.Globalization.CultureInfo.InvariantCulture)}", null,
+                withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.IsSuccessStatusCode) return await response.Content.ReadFromJsonAsync<SharedResultPage>(ct);
+            log.LogWarning("Asking the web library for shared results got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library for shared results");
+        }
+        return null;
+    }
+
+    public async Task<bool> WriteResultsAsync(IReadOnlyList<SharedResult> results, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Post, "api/results", new SharedResultUpload(results), withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.IsSuccessStatusCode) return true;
+            log.LogWarning("Sending results to the web library got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library to share results");
+        }
+        return false;
     }
 
     /// <summary>No answer, or none in time; the caller cancelling is not one of these.</summary>
