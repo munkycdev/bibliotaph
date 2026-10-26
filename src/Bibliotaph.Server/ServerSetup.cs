@@ -60,6 +60,7 @@ public static class ServerSetup
         services.AddSingleton<AccountPurge>();
         services.AddHostedService(sp => sp.GetRequiredService<AccountPurge>());
         services.AddSingleton<AccountClosing>();
+        services.AddSingleton<DeviceService>();
 
         var keys = services.AddDataProtection().SetApplicationName("bibliotaph");
         if (options.KeyRingBlob is { Length: > 0 } blob && options.KeyRingKey is { Length: > 0 } key)
@@ -107,6 +108,7 @@ public static class ServerSetup
         app.UseClosedAccountGuard();
         app.UseCrossSiteGuard();
         app.UseAuthorization();
+        app.UseRateLimiter();
 
         app.MapGet("/healthz", () => Results.Text("ok"));
         app.MapAuth(AuthSetup.Auth0(app.Configuration),

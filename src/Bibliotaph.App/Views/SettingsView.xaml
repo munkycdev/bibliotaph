@@ -150,6 +150,38 @@
       </StackPanel>
     </DataTemplate>
 
+    <DataTemplate DataType="{x:Type vm:WebLibrarySectionViewModel}">
+      <StackPanel>
+        <TextBlock Text="Web library" Style="{StaticResource Text.H2}" />
+        <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
+                   Text="Use your library at bibliotaph.online from this PC. Connect opens the website in your browser, where you sign in and approve this PC. The PC gets a key of its own, kept in Windows Credential Manager, and you can disconnect it here or in Settings on the web." />
+        <TextBlock x:Name="WebLibraryStatus" Text="{Binding StatusLine}" Style="{StaticResource Text.Row}" Margin="0,12,0,12" TextWrapping="Wrap"
+                   Visibility="{Binding IsWaiting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+        <StackPanel Visibility="{Binding IsWaiting, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,12,0,12">
+          <TextBlock Text="Approve this PC in your browser." Style="{StaticResource Text.Row}" />
+          <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap">
+            <Run Text="Check that the page shows the code " /><Run Text="{Binding Code, Mode=OneWay}" FontWeight="SemiBold" /><Run Text=". Bibliotaph waits here until you answer." />
+          </TextBlock>
+        </StackPanel>
+        <WrapPanel>
+          <Button x:Name="ConnectWebLibrary" Style="{StaticResource Bt.Button.Primary}" Content="Connect…" c:Ui.Icon="{StaticResource Icon.Cloud}"
+                  Margin="0,0,8,0" Command="{Binding ConnectCommand}" AutomationProperties.Name="Connect to your web library"
+                  Visibility="{Binding CanConnect, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button Content="Open the page again" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,0"
+                  Command="{Binding OpenPageCommand}" AutomationProperties.Name="Open the approval page again"
+                  Visibility="{Binding IsWaiting, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button Style="{StaticResource Bt.Link}" Content="Cancel" VerticalAlignment="Center" Command="{Binding CancelCommand}"
+                  AutomationProperties.Name="Stop waiting for approval"
+                  Visibility="{Binding IsWaiting, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button x:Name="DisconnectWebLibrary" Style="{StaticResource Bt.Link}" Content="Disconnect" VerticalAlignment="Center"
+                  Command="{Binding DisconnectCommand}" AutomationProperties.Name="Disconnect from your web library"
+                  Visibility="{Binding IsConnected, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        </WrapPanel>
+        <TextBlock Text="{Binding Note}" Style="{StaticResource Text.Small}" Margin="0,10,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding Note, Converter={StaticResource Bt.VisibleWhenSet}}" />
+      </StackPanel>
+    </DataTemplate>
+
     <DataTemplate DataType="{x:Type vm:StartOverSectionViewModel}">
       <StackPanel>
         <TextBlock Text="DEVELOPMENT AID" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,8" />

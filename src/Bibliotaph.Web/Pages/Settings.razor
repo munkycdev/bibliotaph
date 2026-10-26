@@ -144,6 +144,25 @@ else if (Problem == "storage")
 
     <AiSection />
 
+    <section class="bt-section" id="devices" aria-labelledby="devices-heading">
+        <h2 id="devices-heading">Windows PCs</h2>
+        <p class="bt-copy">The Windows app can use this library too: in its Settings, choose Connect under Web library, then approve
+            the PC in your browser.</p>
+        @foreach (var device in _devices)
+        {
+            <div class="bt-source bt-sourcerow">
+                <Icon Name="Monitor" />
+                <div>@device.Name<small>Connected @device.Connected.ToString("d MMMM yyyy")@(device.LastUsed is { } used ? $" · last used {used:d MMMM yyyy}" : "")</small></div>
+                <button class="bt-icon" title="Disconnect" aria-label="@($"Disconnect {device.Name}")" @onclick="() => DisconnectDevice(device)"><Icon Name="X" /></button>
+            </div>
+        }
+        @if (_devices.Count == 0)
+        {
+            <p class="bt-sample">No PCs connected yet.</p>
+        }
+        <p class="bt-sample">Disconnecting a PC stops it reaching this library. The PC keeps its own books and work.</p>
+    </section>
+
     @if (_picking)
     {
         <FolderPicker Storage="_storage" Picked="Picked" Cancelled="() => _picking = false" />
@@ -242,6 +261,7 @@ else if (Problem == "storage")
     bool _admin;
     IReadOnlyList<StorageAccount> _storage = [];
     IReadOnlyList<LibraryFolder> _folders = [];
+    IReadOnlyList<ConnectedDevice> _devices = [];
     PickedFolder? _pending;
     string? _folderProblem;
     bool _picking;
@@ -264,6 +284,7 @@ else if (Problem == "storage")
         _providers = await Api.ProvidersAsync();
         _storage = await Api.StorageAsync();
         _folders = await Api.LibraryFoldersAsync();
+        _devices = await Api.DevicesAsync();
         if (_me?.IsAdmin == true)
         {
             _invites = await Api.InvitesAsync();
@@ -336,6 +357,12 @@ else if (Problem == "storage")
         _storage = await Api.StorageAsync();
         _folders = await Api.LibraryFoldersAsync();
         Activity.Refresh();
+    }
+
+    async Task DisconnectDevice(ConnectedDevice device)
+    {
+        await Api.DisconnectDeviceAsync(device.Id);
+        _devices = await Api.DevicesAsync();
     }
 
     async Task CloseAccount()

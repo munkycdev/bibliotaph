@@ -1,0 +1,77 @@
+@page "/connect"
+@* Where the Windows app sends the browser when it connects to the library: /connect?code=<the code the PC shows>. *@
+@inject ApiClient Api
+@inject NavigationManager Navigation
+
+<PageHeading Title="Connect a PC" />
+
+<section class="bt-section" aria-labelledby="connect-heading">
+    <h2 id="connect-heading">Windows app</h2>
+    @if (_loading)
+    {
+        <p class="bt-copy">Loading…</p>
+    }
+    else if (_done is { } done)
+    {
+        <div class="bt-message" role="status">@done</div>
+        <div class="bt-actions"><a class="bt-button" href="settings#devices">Go to Settings</a></div>
+    }
+    else if (_request is null)
+    {
+        <p class="bt-copy">That request has expired or was already answered. In the Windows app, choose Connect again in Settings.</p>
+        <div class="bt-actions"><a class="bt-button" href="settings#devices">Go to Settings</a></div>
+    }
+    else
+    {
+        <div class="bt-source bt-pending" role="alertdialog" aria-labelledby="connect-name" aria-describedby="connect-detail">
+            <div class="bt-sourcerow">
+                <Icon Name="Monitor" />
+                <div id="connect-name">Connect @_request.Name to your library?<small id="connect-detail">Check that the Windows app shows
+                    the code <strong class="bt-devicecode">@_request.Code</strong>. Only connect a PC you just asked to connect: it will
+                    read and change your library as you can. You can disconnect it in Settings at any time.</small></div>
+            </div>
+            @if (_problem is not null)
+            {
+                <div class="bt-message" role="alert">@_problem</div>
+            }
+            <div class="bt-actions">
+                <button class="bt-button primary" disabled="@_answering" @onclick="Approve"><Icon Name="Check" />Connect</button>
+                <button class="bt-button" disabled="@_answering" @onclick="Decline">Don't connect</button>
+            </div>
+        </div>
+    }
+</section>
+
+@code {
+    [SupplyParameterFromQuery(Name = "code")] public string? Code { get; set; }
+
+    bool _loading = true, _answering;
+    DeviceConnectRequest? _request;
+    string? _done, _problem;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(Code)) _request = await Api.DeviceRequestAsync(Code);
+        _loading = false;
+    }
+
+    async Task Approve() => await AnswerAsync(() => Api.ApproveDeviceAsync(_request!.Code), $"{_request!.Name} is connected. You can go back to the Windows app.");
+
+    async Task Decline() => await AnswerAsync(() => Api.DeclineDeviceAsync(_request!.Code), $"{_request!.Name} wasn't connected.");
+
+    async Task AnswerAsync(Func<Task> answer, string done)
+    {
+        _answering = true;
+        _problem = null;
+        try
+        {
+            await answer();
+            _done = done;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _problem = ex is ApiProblemException problem ? problem.Message : "That didn't go through just now. Try again in a moment.";
+        }
+        _answering = false;
+    }
+}

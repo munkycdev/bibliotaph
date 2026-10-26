@@ -17,6 +17,9 @@ public static class SettingKeys
     /// <summary>"True" when backups take the search index (index.db) too.</summary>
     public const string BackupIncludeIndex = "backup.include-index";
 
+    /// <summary>The web library's address, when it isn't bibliotaph.online: only a developer sets it.</summary>
+    public const string WebAddress = "web.address";
+
     /// <summary>The model server's address, as "http://localhost:11434". No AI runs until there is one.</summary>
     public const string AiEndpoint = "ai.endpoint";
 

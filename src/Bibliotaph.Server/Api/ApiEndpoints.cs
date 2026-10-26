@@ -15,6 +15,9 @@ public static class ApiEndpoints
 {
     public static void MapApi(this IEndpointRouteBuilder app)
     {
+        // Connecting a PC: partly without a session, and partly with the PC's own key instead.
+        app.MapDevicesApi();
+
         var api = app.MapGroup("/api").RequireAuthorization();
 
         api.MapGet("/me", async (ClaimsPrincipal principal, AccountService accounts, CancellationToken ct) =>

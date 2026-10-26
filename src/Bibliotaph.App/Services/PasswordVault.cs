@@ -163,6 +163,32 @@ public sealed class ApiKeyVault(ILogger<ApiKeyVault> log) : IApiKeyStore
     static string Target(string endpoint) => TargetPrefix + (Bibliotaph.Classification.LocalModelClient.Tidy(endpoint) ?? endpoint);
 }
 
+/// <summary>This PC's key to the web library, in Windows Credential Manager under this Windows account. Never in catalog.db or the logs.</summary>
+public sealed class WebLibraryKeyVault(ILogger<WebLibraryKeyVault> log) : IWebLibraryKey
+{
+    const string Target = "Bibliotaph:web:device";
+
+    public string? Find()
+    {
+        var (secret, error) = WindowsCredentials.Read(Target);
+        if (error is not null) log.LogWarning("Reading the web library key failed: {Error}", error);
+        return secret;
+    }
+
+    public bool Remember(string key)
+    {
+        var error = WindowsCredentials.Write(Target, key, "This PC's key to your web library, saved by Bibliotaph");
+        if (error is null) return true;
+        log.LogWarning("Saving the web library key failed: {Error}", error);
+        return false;
+    }
+
+    public void Forget()
+    {
+        if (WindowsCredentials.Delete(Target) is { } error) log.LogWarning("Forgetting the web library key failed: {Error}", error);
+    }
+}
+
 /// <summary>Generic credentials in Windows Credential Manager, local to this machine. Errors come back as text for the log.</summary>
 static class WindowsCredentials
 {

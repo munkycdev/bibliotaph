@@ -469,6 +469,20 @@ your library find pages by meaning as well as by words. It's off until you tick 
 request on your key; it goes slowly, pauses while you're using the AI, carries on where it was, and Settings says how
 far it has got.
 
+## Connecting a Windows PC
+
+The Windows app can connect to your web library, the way a TV signs in to a streaming service:
+
+1. In the Windows app, open **Settings > Web library** and click **Connect…**. Your browser opens bibliotaph.online's
+   **Connect a PC** page, and the app shows a code such as K7XQ-M2PD.
+2. Sign in if asked, check the page shows the same code, and click **Connect**. Only connect a PC you just asked to
+   connect. **Don't connect** turns it away.
+3. The app says whose library it's connected to. It has a key of its own, kept in Windows Credential Manager on that PC.
+
+The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Windows PCs** on the web lists each
+connected PC with when it was connected and last used, and **×** disconnects one: its key stops working straight
+away, and the PC keeps its own books and work. **Disconnect** in the app does the same from the PC.
+
 ## Your theme
 
 The button at the top right cycles between your device's theme, light and dark, as in the Windows app. The browser

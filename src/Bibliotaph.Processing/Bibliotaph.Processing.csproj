@@ -6,6 +6,7 @@
     <AllowFileWrites>true</AllowFileWrites>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Api.Contracts\Bibliotaph.Api.Contracts.csproj" />
     <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
     <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
     <ProjectReference Include="..\Bibliotaph.Classification\Bibliotaph.Classification.csproj" />

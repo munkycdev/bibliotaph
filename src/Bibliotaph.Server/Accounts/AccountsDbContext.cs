@@ -13,6 +13,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<Invite> Invites => Set<Invite>();
     public DbSet<StorageConnection> StorageConnections => Set<StorageConnection>();
     public DbSet<ClosedAccount> ClosedAccounts => Set<ClosedAccount>();
+    public DbSet<Device> Devices => Set<Device>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +42,15 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
             e.HasKey(c => c.Id);
             e.HasOne<User>().WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(c => new { c.UserId, c.Provider, c.AccountId }).IsUnique();
+        });
+
+        modelBuilder.Entity<Device>(e =>
+        {
+            e.ToTable("devices");
+            e.HasKey(d => d.Id);
+            e.HasOne<User>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => d.KeyHash).IsUnique();
+            e.HasIndex(d => d.UserId);
         });
 
         modelBuilder.Entity<ClosedAccount>(e =>
@@ -111,6 +121,23 @@ public sealed class Invite
     public DateTime Expires { get; set; }
     public DateTime? Redeemed { get; set; }
     public string? RedeemedBy { get; set; }
+}
+
+/// <summary>
+/// A Windows PC connected to the user's library: it calls the API with its own key, of which only the SHA-256 is kept.
+/// Disconnecting it deletes the row, and the key stops working at once.
+/// </summary>
+public sealed class Device
+{
+    public required string Id { get; set; }
+    public required string UserId { get; set; }
+
+    /// <summary>The PC's name, as it gave it when it asked to connect.</summary>
+    public required string Name { get; set; }
+
+    public required string KeyHash { get; set; }
+    public DateTime Created { get; set; }
+    public DateTime? LastUsed { get; set; }
 }
 
 /// <summary>A storage service the user connected, such as their OneDrive. Separate from sign-in on purpose.</summary>

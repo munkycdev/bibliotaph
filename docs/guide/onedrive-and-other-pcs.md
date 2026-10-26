@@ -99,6 +99,12 @@ the same book.
 
 **Stop syncing** ends it on that PC. Only the sync files go in that folder, never Bibliotaph's catalog itself.
 
+## Your web library
+
+If you use [Bibliotaph on the web](web.md), connect this PC to it in **Settings > Web library**: **Connect…** opens
+bibliotaph.online in your browser, where you sign in, check the code the app shows and approve this PC. The app then
+says whose library it's connected to, and **Disconnect** ends it. See [Connecting a Windows PC](web.md#connecting-a-windows-pc).
+
 ---
 
 Previous: [AI](ai.md) · Next: [Questions and answers](faq.md)

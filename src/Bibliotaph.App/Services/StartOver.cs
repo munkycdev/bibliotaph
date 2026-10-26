@@ -18,16 +18,16 @@ public sealed class DevMode(bool on)
 
 /// <summary>
 /// Settings > Start over, shown only with --dev, as a development aid. Forgets
-/// remembered PDF passwords and saved endpoint keys at once, then restarts; the new process waits for this one to exit and deletes the
+/// remembered PDF passwords, saved endpoint keys and the web library key at once, then restarts; the new process waits for this one to exit and deletes the
 /// library data (<see cref="DataPurge"/>) before it opens anything.
 /// </summary>
-public sealed class StartOver(AppPaths paths, IPasswordVault vault, ApiKeyVault keys, ILogger<StartOver> log)
+public sealed class StartOver(AppPaths paths, IPasswordVault vault, ApiKeyVault keys, IWebLibraryKey webKey, ILogger<StartOver> log)
 {
     /// <summary><c>--wait-for &lt;process id&gt;</c>: the app that asked to start over, which must exit first.</summary>
     public const string WaitForArgument = "--wait-for";
 
     public static bool Confirm(IUserPrompts prompts) => prompts.Confirm(
-        "Bibliotaph will forget your library folders, its index, covers, settings, remembered PDF passwords and AI keys, " +
+        "Bibliotaph will forget your library folders, its index, covers, settings, remembered PDF passwords, AI keys and its web library connection, " +
         "then restart as if newly installed.\n\nYour books and other files are not touched.",
         "Start over?", PromptKind.Warning, okByDefault: false);
 
@@ -35,6 +35,7 @@ public sealed class StartOver(AppPaths paths, IPasswordVault vault, ApiKeyVault 
     {
         var forgotten = vault.ForgetAll();
         keys.ForgetAll();
+        webKey.Forget();
         DataPurge.Request(paths);
         log.LogInformation("Starting over: forgot {Count} remembered passwords; restarting to delete the library data", forgotten);
 
