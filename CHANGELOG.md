@@ -45,6 +45,8 @@
 - **Sign in to the web through Auth0.** bibliotaph.online's sign-in page has one Continue button, which offers Google,
   Microsoft or your email address, with Apple to come. Link another sign-in in Settings adds another way into the same
   account, and Sign out signs you out of the sign-in page too. The privacy policy names Auth0.
+- **Discord sign-ins named in Settings.** A sign-in through Discord, or another of Auth0's custom social connections, is
+  listed under its own name rather than as "Oauth2".
 - **Books you own elsewhere on the web.** The Library's Add menu has Add a book I own elsewhere…, as in the Windows
   app, with a cover picture of your own; its details have Choose a cover image…, Remove the cover and Remove from
   library with Undo. See [Bibliotaph on the web](docs/guide/web.md#books-you-own-elsewhere).
@@ -65,6 +67,9 @@
   much room the others may take, and lets them go. See [Books in this browser](docs/guide/web.md#books-in-this-browser).
 - **Pictures and packs in the web reader.** A picture opens fitted to the window, with the Windows reader's zoom, and a
   pack steps through its pictures and PDFs from the toolbar or with the arrow keys. See
+  [Reading a book](docs/guide/web.md#reading-a-book).
+- **E-books in the web reader.** EPUB and Kindle books open in the browser as in the Windows reader, in the same pages
+  search found, with Find, zoom, links and fixed-layout books; the server never sees the book. See
   [Reading a book](docs/guide/web.md#reading-a-book).
 - **Close your account on the web.** Settings › Account › Close account… deletes your account, library, covers, storage
   connections and the books kept in that browser, and its backups within 30 days. Nothing in your storage is touched.

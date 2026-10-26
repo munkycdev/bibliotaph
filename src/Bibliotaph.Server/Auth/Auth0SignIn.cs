@@ -62,7 +62,9 @@ public static class Auth0SignIn
     public static string Describe(string provider, string subject)
     {
         if (provider != Id) return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(provider);
-        var connection = subject.Split('|')[0];
+        var parts = subject.Split('|');
+        // A custom social connection, such as Discord's, puts its own name second: "oauth2|discord|1234".
+        var connection = parts is ["oauth2", { Length: > 0 } named, _, ..] ? named : parts[0];
         return connection switch
         {
             "google-oauth2" => "Google",

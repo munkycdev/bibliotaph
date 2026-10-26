@@ -106,8 +106,6 @@ public static partial class ReaderApi
 
         var problem = source.InArchive
             ? new ReaderProblem("This file is inside a ZIP.", "Bibliotaph on the web can't open a file inside a ZIP yet. The Windows app can.")
-            : readerKind == ReaderKinds.Ebook
-            ? new ReaderProblem("E-books don't open on the web yet.", "Bibliotaph on the web opens PDFs and pictures for now. The Windows app can open this one.")
             : null;
         return new ReaderBook(entryId.Value, documentId, title, subtitle, format, source.ContentHash, size, labels, pageCount, start, part, marks,
             favorite, problem, notice)

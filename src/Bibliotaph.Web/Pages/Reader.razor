@@ -170,18 +170,23 @@ else
                     </nav>
                 }
                 <div class="bt-pagescolumn">
-                    <div class="bt-pages" @ref="_stage" tabindex="0" aria-label="@(IsPdf ? "Pages" : "Picture")">
-                        @if (IsPdf) { <div class="pdfViewer"></div> } else { <div class="bt-picture"></div> }
+                    <div class="bt-pages" @ref="_stage" tabindex="0" aria-label="@(HasPages ? "Pages" : "Picture")">
+                        @if (IsPdf) { <div class="pdfViewer"></div> }
+                        else if (book.Kind == ReaderKinds.Ebook) { <div class="bt-ebook"></div> }
+                        else { <div class="bt-picture"></div> }
                     </div>
                     @if (!_opened) { <div class="bt-small bt-opening">Opening…</div> }
                     @if (_notice is { } notice) { <div class="bt-notice" role="status">@notice</div> }
                 </div>
                 <div class="bt-strip" @ref="_strip" aria-label="Page thumbnails"></div>
             </div>
-            <div class="bt-reader-foot">
-                <span>@PositionText</span>
-                @if (!_canCopy) { <span>This PDF doesn't allow copying its text.</span> }
-            </div>
+            @if (IsPdf)
+            {
+                <div class="bt-reader-foot">
+                    <span>@PositionText</span>
+                    @if (!_canCopy) { <span>This PDF doesn't allow copying its text.</span> }
+                </div>
+            }
         }
     </div>
 }
@@ -217,7 +222,15 @@ else
 
     static readonly (string Value, string Label)[] ImageZooms = [("page-fit", "Fit to window"), .. Steps];
 
-    (string Value, string Label)[] Zooms => IsPdf ? PageZooms : ImageZooms;
+    // A flowing e-book's text fills the reading column at any size; only a fixed-layout one's pages are fitted.
+    static readonly (string Value, string Label)[] FlowingZooms = [("page-width", "Usual size"), .. Steps];
+
+    (string Value, string Label)[] Zooms => _book?.Kind switch
+    {
+        ReaderKinds.Image => ImageZooms,
+        ReaderKinds.Ebook when _ebook is { FixedLayout: false } => FlowingZooms,
+        _ => PageZooms,
+    };
 
     bool IsPdf => _book?.Kind == ReaderKinds.Pdf;
 
@@ -354,9 +367,12 @@ else
                 key = book.ContentHash, size = book.Size, start = book.StartPage, labels = book.Labels, marks = book.Marks,
                 title = book.Title, entryId = book.EntryId, documentId = book.DocumentId, format = book.Format, scale = _scale,
             };
-            reader = book.Kind == ReaderKinds.Image
-                ? await _module.InvokeAsync<IJSObjectReference>("openImage", _stage, options, _self)
-                : await _module.InvokeAsync<IJSObjectReference>("open", _stage, _strip, options, _self);
+            reader = book.Kind switch
+            {
+                ReaderKinds.Image => await _module.InvokeAsync<IJSObjectReference>("openImage", _stage, options, _self),
+                ReaderKinds.Ebook => await _module.InvokeAsync<IJSObjectReference>("openEbook", _stage, options, _self),
+                _ => await _module.InvokeAsync<IJSObjectReference>("open", _stage, _strip, options, _self),
+            };
         }
         catch (JSException e)
         {
@@ -369,10 +385,12 @@ else
             return;
         }
         _reader = reader;
-        if (book.Kind != ReaderKinds.Pdf) return;
-        _showStrip = await ModuleAsync<bool>("stripShown");
-        if (_showStrip) await CallAsync("showStrip", true);
-        if (book.Marks.Count > 0) await CallAsync("markTerms", book.Marks, book.StartPage);
+        if (book.Kind == ReaderKinds.Pdf)
+        {
+            _showStrip = await ModuleAsync<bool>("stripShown");
+            if (_showStrip) await CallAsync("showStrip", true);
+        }
+        if (book.Kind != ReaderKinds.Image && book.Marks.Count > 0) await CallAsync("markTerms", book.Marks, book.StartPage);
     }
 
     /// <summary>The pages, told to do something; nothing while they aren't open.</summary>
@@ -613,6 +631,57 @@ else
         }
     }
 
+    Services.OpenEbook? _ebook;
+
+    /// <summary>
+    /// Cuts the e-book's bytes into the pages indexing cut it into and builds its reader page; null, with the reason
+    /// shown, when it can't be read here.
+    /// </summary>
+    [JSInvokable]
+    public async Task<EbookBuilt?> OpenEbook(byte[] bytes, string resources)
+    {
+        // Lets "Opening…" show before the book is cut, which takes a moment for a long one.
+        await Task.Yield();
+        Services.OpenEbook book;
+        try
+        {
+            book = Services.OpenEbook.Open(bytes, resources);
+        }
+        catch (Exception e) when (e is Bibliotaph.Ebooks.EbookException or InvalidDataException or IOException)
+        {
+            ShowProblem(new ReaderProblem("This e-book could not be opened.", e.Message), "Try again");
+            return null;
+        }
+        if (book.IsProtected || book.PageCount == 0)
+        {
+            var isProtected = book.IsProtected;
+            book.Dispose();
+            ShowProblem(isProtected
+                ? new ReaderProblem("This e-book is protected.", "It has DRM, which Bibliotaph can't open. Its pages can't be searched or read here; open it in the app it came with.")
+                : new ReaderProblem("This e-book has no pages.", "There's nothing in it to read. Open it in your e-book app to see what it holds."), null);
+            return null;
+        }
+        _ebook?.Dispose();
+        _ebook = book;
+        StateHasChanged();
+        return new EbookBuilt(book.Page, book.Nonce, book.FixedLayout);
+    }
+
+    /// <summary>A file of the open e-book its page asks for, or null for one it may not have.</summary>
+    [JSInvokable]
+    public EbookFileFound? EbookFile(string path) =>
+        _ebook?.Read(path) is { } file ? new EbookFileFound(file.Bytes, file.MediaType) : null;
+
+    public sealed record EbookBuilt(string Page, string Nonce, bool FixedLayout);
+
+    public sealed record EbookFileFound(byte[] Bytes, string MediaType);
+
+    void ShowProblem(ReaderProblem problem, string? action)
+    {
+        (_problem, _problemAction) = (problem, action);
+        StateHasChanged();
+    }
+
     /// <summary>The pack's file <paramref name="by"/> places on, at its first page, in the same window.</summary>
     [JSInvokable]
     public void Step(int by) => StepPack(by);
@@ -808,6 +877,8 @@ else
             _reader = null;
             await DisposeReaderAsync(reader);
         }
+        _ebook?.Dispose();
+        _ebook = null;
     }
 
     void OnPinsChanged() => InvokeAsync(StateHasChanged);

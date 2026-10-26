@@ -651,6 +651,319 @@ class ImageReader {
   }
 }
 
+// An e-book, as the Windows reader shows one: the page that reader shows, built by the same .NET code in the browser,
+// in a frame whose every request ebook-sw.js brings back here to answer from the book. The frame is same-origin so
+// the reader can call the page's script directly (bt.goTo, bt.find); what keeps the book's content from running is
+// the page's own policy, a nonce for the reader's style and script and nothing else, as in the Windows reader.
+const EbookScope = '/ebook-res/';
+const ThemeSlot = '<!--bt-theme-->';
+const ThemeTokens = ['--bt-bg', '--bt-side', '--bt-text', '--bt-muted', '--bt-line', '--bt-accent', '--bt-accent-text'];
+const ebooks = new Map();
+let ebookWorker = null;
+
+/**
+ * @param {HTMLElement} stage .bt-pages, which holds the frame
+ * @param {{key: string, size: number, start: number, scale: string, title: string, entryId: number, documentId: number}} book
+ * @param {any} page the Blazor page: OpenEbook, EbookFile, PageChanged, ScaleChanged, Opened, Failed, Link, LinkFollowed,
+ *   FindKey, Offline
+ */
+export async function openEbook(stage, book, page) {
+  const reader = new EbookReader(stage, book, page);
+  await reader.start();
+  return reader;
+}
+
+async function workerReady() {
+  if (!('serviceWorker' in navigator)) throw new Error("This browser doesn't let Bibliotaph show e-books.");
+  ebookWorker ??= (async () => {
+    navigator.serviceWorker.addEventListener('message', event => {
+      if (event.data?.t !== 'bibliotaph-ebook') return;
+      const port = event.ports[0];
+      const reader = ebooks.get(event.data.session);
+      if (!port) return;
+      if (!reader) {
+        port.postMessage(null);
+        return;
+      }
+      reader.answer(String(event.data.path)).then(found => port.postMessage(found), () => port.postMessage(null));
+    });
+    navigator.serviceWorker.startMessages();
+    const registration = await navigator.serviceWorker.register(new URL('../ebook-sw.js', import.meta.url), { scope: EbookScope });
+    if (registration.active) return;
+    const installing = registration.installing ?? registration.waiting;
+    await new Promise((resolve, reject) => installing.addEventListener('statechange', () => {
+      if (installing.state === 'activated') resolve();
+      else if (installing.state === 'redundant') reject(new Error("The browser didn't start the e-book reader."));
+    }));
+  })();
+  try {
+    await ebookWorker;
+  } catch (e) {
+    ebookWorker = null;
+    throw e;
+  }
+}
+
+class EbookReader {
+  constructor(stage, book, page) {
+    this.stage = stage;
+    this.host = stage.querySelector('.bt-ebook');
+    this.book = book;
+    this.page = page;
+    this.session = crypto.randomUUID();
+    this.base = `${EbookScope}${this.session}/`;
+    this.current = book.start;
+    this.scale = book.scale || 'page-width';
+    this.version = 0;
+    this.closed = false;
+    this.listeners = [];
+    this.found = null;
+  }
+
+  async start() {
+    const { title, entryId, documentId } = this.book;
+    this.cache = await BookCache.open(this.book.key, this.book.size, () => this.page.invokeMethodAsync('Link'), { title, entryId, documentId });
+    trim(this.book.key).catch(() => { });
+    let bytes;
+    try {
+      bytes = await this.cache.read(0, this.book.size);
+      await workerReady();
+    } catch (e) {
+      if (!this.closed) this.page.invokeMethodAsync('Failed', e instanceof LinkError ? 'link' : 'other', String(e?.message ?? ''));
+      return;
+    }
+    if (this.closed) return;
+    // Null when the book can't be shown, which the page has said why.
+    const built = await this.page.invokeMethodAsync('OpenEbook', bytes, this.base + 'res/');
+    if (!built || this.closed) return;
+    this.html = built.page;
+    this.nonce = built.nonce;
+    this.fixed = built.fixedLayout;
+    ebooks.set(this.session, this);
+    this.#listen(window, 'message', e => this.#message(e));
+    this.#listen(document, 'keydown', e => this.#key(e));
+    // The page follows the theme, as the Windows reader's does.
+    const dark = matchMedia('(prefers-color-scheme: dark)');
+    this.#listen(dark, 'change', () => this.#reload());
+    const theme = new MutationObserver(() => this.#reload());
+    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    this.listeners.push(() => theme.disconnect());
+    this.frame = document.createElement('iframe');
+    this.frame.className = 'bt-ebookframe';
+    this.frame.title = title;
+    this.host.replaceChildren(this.frame);
+    this.#show();
+    this.page.invokeMethodAsync('Opened', true);
+    this.#offline();
+  }
+
+  #listen(target, type, handler, options) {
+    target.addEventListener(type, handler, options);
+    this.listeners.push(() => target.removeEventListener(type, handler, options));
+  }
+
+  #show() {
+    this.ready = false;
+    this.frame.src = `${this.base}book.html?v=${++this.version}`;
+  }
+
+  #reload() {
+    if (this.frame) this.#show();
+  }
+
+  get #bt() {
+    try {
+      return this.ready ? this.frame.contentWindow.bt : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** What the frame asks for: its page, or a file of the book, with the policy the Windows reader gives each. */
+  async answer(path) {
+    const origin = location.origin;
+    const files = `${origin}${this.base}res/`;
+    if (path === 'book.html') {
+      return {
+        bytes: new TextEncoder().encode(this.html.replace(ThemeSlot, `<style nonce="${this.nonce}">${themeCss()}</style>`)),
+        type: 'text/html; charset=utf-8',
+        csp: `default-src 'none'; script-src 'nonce-${this.nonce}'; style-src 'nonce-${this.nonce}'; img-src ${files}; font-src ${files}; `
+          + `frame-src ${files}; media-src 'none'; base-uri 'none'; form-action 'none'`,
+      };
+    }
+    if (!path.startsWith('res/')) return null;
+    let name;
+    try {
+      name = path.slice(4).split('/').map(decodeURIComponent).join('/');
+    } catch {
+      return null;
+    }
+    const found = await this.page.invokeMethodAsync('EbookFile', name);
+    if (!found || this.closed) return null;
+    const html = found.mediaType === 'text/html';
+    return {
+      bytes: found.bytes,
+      type: html ? 'text/html; charset=utf-8' : found.mediaType,
+      csp: html
+        ? `default-src 'none'; style-src ${files} 'unsafe-inline'; img-src ${files}; font-src ${files}; base-uri 'none'; form-action 'none'`
+        : `default-src 'none'; style-src 'unsafe-inline'; img-src ${files}`,
+    };
+  }
+
+  // The reader's keys while the toolbar has the keyboard; the book's page sends the same ones itself.
+  #key(e) {
+    if (document.querySelector('.bt-dialog')) return;
+    const ctrl = (e.ctrlKey || e.metaKey) && !e.altKey;
+    if (e.key === 'F3') this.page.invokeMethodAsync('FindKey', e.shiftKey);
+    else if (ctrl && (e.key === 'f' || e.key === 'F')) {
+      const box = document.querySelector('.bt-findbox');
+      if (!box) return;
+      box.focus();
+      box.select();
+    } else if (ctrl && (e.key === '+' || e.key === '=')) this.zoom(true);
+    else if (ctrl && (e.key === '-' || e.key === '_')) this.zoom(false);
+    else if (ctrl && e.key === '0') this.setScale('page-width');
+    else return;
+    e.preventDefault();
+  }
+
+  // The page script's messages, as the Windows reader takes them: only from this frame's page.
+  #message(e) {
+    if (e.origin !== location.origin || !this.frame || e.source !== this.frame.contentWindow) return;
+    const message = e.data;
+    if (!message || typeof message !== 'object') return;
+    switch (message.t) {
+      case 'ready':
+        this.ready = true;
+        this.#zoomFrame();
+        this.#bt?.setFit(this.scale === 'page-fit' ? 'page' : 'width');
+        this.#bt?.start(this.current);
+        if (this.terms) this.markTerms(...this.terms);
+        break;
+      case 'page':
+        if (Number.isInteger(message.page) && message.page >= 0) {
+          this.current = message.page;
+          this.page.invokeMethodAsync('PageChanged', message.page);
+        }
+        break;
+      case 'linked':
+        if (Number.isInteger(message.from) && message.from >= 0) this.page.invokeMethodAsync('LinkFollowed', message.from);
+        break;
+      case 'web':
+        if (typeof message.url === 'string' && /^(https?|mailto):/i.test(message.url)) window.open(message.url, '_blank', 'noopener,noreferrer');
+        break;
+      case 'find': {
+        const box = document.querySelector('.bt-findbox');
+        box?.focus();
+        box?.select();
+        break;
+      }
+      case 'next':
+      case 'previous':
+        this.page.invokeMethodAsync('FindKey', message.t === 'previous');
+        break;
+      case 'zoom':
+        if (message.step === 0) this.setScale('page-width');
+        else this.zoom(message.step > 0);
+        break;
+    }
+  }
+
+  /** Goes to a page (from 0). */
+  goTo(index) {
+    this.current = index;
+    this.#bt?.goTo(index);
+  }
+
+  // A zoom step is the page's own zoom, as the Windows reader's is the browser's; a fitted size is 100%.
+  #zoomFrame() {
+    try {
+      const root = this.frame.contentDocument?.documentElement;
+      if (root) root.style.zoom = this.scale.startsWith('page-') ? '' : String(Number(this.scale) || 1);
+    } catch {
+      // The frame is between pages.
+    }
+  }
+
+  /** "page-width" (fit width, or a flowing book's usual size), "page-fit", or a scale where 1 is 100%. */
+  setScale(value) {
+    this.scale = value;
+    this.#zoomFrame();
+    if (value.startsWith('page-')) this.#bt?.setFit(value === 'page-fit' ? 'page' : 'width');
+    this.page.invokeMethodAsync('ScaleChanged', value);
+  }
+
+  zoom(up) {
+    const current = this.scale.startsWith('page-') ? 1 : Number(this.scale) || 1;
+    const next = up ? ZoomSteps.find(z => z > current + 0.01) ?? ZoomSteps[ZoomSteps.length - 1]
+      : [...ZoomSteps].reverse().find(z => z < current - 0.01) ?? ZoomSteps[0];
+    this.setScale(String(next));
+  }
+
+  /** The words of the search the book was opened from, marked on the page it opened at; the first brought into view. */
+  markTerms(terms, pageIndex) {
+    this.terms = [terms, pageIndex];
+    const bt = this.#bt;
+    if (!bt || this.fixed) return;
+    if (bt.terms(terms, pageIndex).length > 0) bt.show('terms', 0);
+  }
+
+  /** What Find found on that page: every match marked, the nth on the page standing out and in view. */
+  showMatch(phrase, pageIndex, nth) {
+    const bt = this.#bt;
+    if (!bt) return;
+    if (this.fixed) {
+      this.goTo(pageIndex);
+      return;
+    }
+    if (this.found?.phrase !== phrase) this.found = { phrase, pages: bt.find(phrase, 2000) };
+    let at = -1;
+    for (let i = 0, seen = 0; i < this.found.pages.length; i++) {
+      if (this.found.pages[i] !== pageIndex) continue;
+      if (seen++ === nth) {
+        at = i;
+        break;
+      }
+    }
+    if (at >= 0) bt.show('find', at);
+    else this.goTo(pageIndex);
+  }
+
+  /** Find cleared: the search's own words again. */
+  clearFind() {
+    this.found = null;
+    const bt = this.#bt;
+    if (!bt) return;
+    if (this.terms && !this.fixed) bt.show('terms', -1);
+    else bt.show(null, -1);
+  }
+
+  #offline() {
+    if (!this.closed) this.page.invokeMethodAsync('Offline', this.cache.stored, this.cache.kept, this.cache.progress);
+  }
+
+  keepOffline(on) {
+    this.cache.keepOffline(on).then(() => this.#offline());
+  }
+
+  dispose() {
+    this.closed = true;
+    ebooks.delete(this.session);
+    for (const stop of this.listeners) stop();
+    this.cache?.close();
+    this.host.replaceChildren();
+  }
+}
+
+/** The theme's colours for the book's page, as the Windows reader gives its own: the app's tokens and its scheme. */
+function themeCss() {
+  const root = document.documentElement;
+  const style = getComputedStyle(root);
+  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  const tokens = ThemeTokens.map(name => `${name}:${style.getPropertyValue(name).trim()}`).join(';');
+  return `:root{color-scheme:${dark ? 'dark' : 'light'};${tokens};--bt-hit:color-mix(in srgb,var(--bt-accent) 40%,transparent)}`;
+}
+
 export function popOut(url) {
   const opened = window.open(url, '_blank', 'popup,width=960,height=900');
   return opened != null;
