@@ -12,6 +12,9 @@
 - **Dropbox on the web.** Connect one or more Dropbox accounts in Settings › Storage beside OneDrive, including a team's
   space, and add library folders from them. Changes in your Dropbox are noticed within minutes, and books open in the
   reader as they do from OneDrive.
+- **Google Drive on the web.** Connect one or more Google Drives in Settings › Storage and add library folders from
+  them. Google Docs and Sheets are left out, two files of one name are told apart, and changes are noticed within five
+  minutes.
 - **Your books read on the web.** bibliotaph.online reads each book in your library folders as the Windows app does:
   pages, outline, text for search, covers, and hints from file and folder names. A book is downloaded once to be read
   and its copy deleted when it's done. OCR and AI on the web come later.

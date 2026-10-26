@@ -23,6 +23,8 @@ public static class StorageSetup
         services.AddSingleton<DriveNotifications>();
         services.AddHostedService(sp => sp.GetRequiredService<DriveNotifications>());
         services.AddHostedService<DriveWatch>();
+        services.AddSingleton<GoogleDriveChanges>();
+        services.AddHostedService(sp => sp.GetRequiredService<GoogleDriveChanges>());
 
         foreach (var provider in StorageProviders.Configured(configuration)) AddProvider(services, provider, provider.App(configuration)!);
         return services;

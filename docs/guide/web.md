@@ -4,7 +4,7 @@
 
 Bibliotaph is coming to the browser at [bibliotaph.online](https://bibliotaph.online), for game masters whose books
 live in cloud storage. It looks and works like the Windows app. It's being built in steps and is invite-only: today you
-can accept an invitation, sign in, invite others, connect your OneDrive or Dropbox and add library folders from it. Seeing and
+can accept an invitation, sign in, invite others, connect your OneDrive, Dropbox or Google Drive and add library folders from it. Seeing and
 reading your books in the browser comes next.
 
 ## Join with an invitation
@@ -47,11 +47,16 @@ storage is touched. It can't be undone. Your own account isn't deleted here: use
 ## Connecting your storage
 
 Bibliotaph reads your books where they are, so first it needs your storage. In **Settings** › **Storage**, choose
-**Connect OneDrive** or **Connect Dropbox** and sign in with the account that holds your books (it doesn't have to be the
-one you sign in to Bibliotaph with). Microsoft or Dropbox asks you to let Bibliotaph read your files and keep access
-while you're away; Bibliotaph can't change, move or delete any of them. On OneDrive it can also write to a folder of its
-own, which is where books you import will go. A Dropbox that's part of a team shows the team's folders as well as your
-own.
+**Connect OneDrive**, **Connect Dropbox** or **Connect Google Drive** and sign in with the account that holds your books
+(it doesn't have to be the one you sign in to Bibliotaph with). Microsoft, Dropbox or Google asks you to let Bibliotaph
+read your files and keep access while you're away; Bibliotaph can't change, move or delete any of them. On OneDrive it
+can also write to a folder of its own, which is where books you import will go. A Dropbox that's part of a team shows
+the team's folders as well as your own. Google may warn that it hasn't verified Bibliotaph yet: choose **Advanced**,
+then go on to bibliotaph.online.
+
+Google Drive lets two files in one folder have the same name, and a name have a slash in it; Bibliotaph shows the
+second of a name as "Handbook (2).pdf", and a slash as ∕. Google Docs, Sheets and shortcuts aren't books, so they're
+left out.
 
 You can connect more than one account, of either kind. If one stops letting Bibliotaph in, for example after you change
 your password or remove its access, it shows **Needs connecting again** with a **Connect again** button. Its books stay
@@ -70,7 +75,7 @@ Bibliotaph looks through a new folder straight away, then reads each new file to
 copied: each is downloaded only while it's being read and deleted straight after. The line at the bottom of the sidebar
 says what it's doing, such as **Reading 120 new files** or **Up to date**.
 
-Changes in your storage (books added, moved or deleted) are picked up within a few minutes, whether or not you have
+Changes in your storage (books added, moved or deleted) are picked up within a few minutes (Google Drive's within five), whether or not you have
 Bibliotaph open, and twice a day it looks through every folder anyway. **Look for changes** looks straight away.
 
 Each book is then read as the Windows app reads it: its pages, outline and text for search, its cover, and hints from
@@ -332,7 +337,7 @@ the search's words marked. A book opened from the Library opens where you left i
 file opens at its own first page and shows where you are in it ("page 3 of 19 of this adventure").
 
 The pages are read from your storage a piece at a time, so a big book shows its first page in a moment: straight from
-OneDrive, and through the server from Dropbox, which passes each piece on without keeping it. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
+OneDrive, and through the server from Dropbox and Google Drive, which passes each piece on without keeping it. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
 
 - **Page box**: type a printed page number or a PDF page number, and press **Enter**. **Previous** and **Next** turn a
   page; the line under the pages says which printed and PDF page you're on.
