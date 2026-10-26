@@ -55,7 +55,7 @@ public abstract class StorageProvider
 /// <summary>Every storage provider the server knows, whether or not its OAuth app is configured here.</summary>
 public static class StorageProviders
 {
-    public static readonly IReadOnlyList<StorageProvider> All = [new OneDriveProvider(), new DropboxProvider()];
+    public static readonly IReadOnlyList<StorageProvider> All = [new OneDriveProvider(), new DropboxProvider(), new GoogleDriveProvider()];
 
     public static StorageProvider? Find(string id) => All.FirstOrDefault(p => p.Id == id);
 

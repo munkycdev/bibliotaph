@@ -132,12 +132,13 @@ sealed class FakeDropbox : HttpMessageHandler
         new(HttpStatusCode.Conflict) { Content = new StringContent("""{"error_summary":"path/not_found/..","error":{".tag":"path","path":{".tag":"not_found"}}}""") };
 }
 
-/// <summary>Sends each request to the fake that serves its host, as the server's clients reach Graph and Dropbox.</summary>
-sealed class FakeHosts(FakeGraph graph, FakeDropbox dropbox) : HttpMessageHandler
+/// <summary>Sends each request to the fake that serves its host, as the server's clients reach Graph, Dropbox and Google.</summary>
+sealed class FakeHosts(FakeGraph graph, FakeDropbox dropbox, FakeGoogleDrive? google = null) : HttpMessageHandler
 {
     readonly HttpMessageInvoker _graph = new(graph, disposeHandler: false);
     readonly HttpMessageInvoker _dropbox = new(dropbox, disposeHandler: false);
+    readonly HttpMessageInvoker _google = new(google ?? new FakeGoogleDrive(), disposeHandler: false);
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-        (FakeDropbox.Handles(request.RequestUri!) ? _dropbox : _graph).SendAsync(request, cancellationToken);
+        (FakeDropbox.Handles(request.RequestUri!) ? _dropbox : FakeGoogleDrive.Handles(request.RequestUri!) ? _google : _graph).SendAsync(request, cancellationToken);
 }

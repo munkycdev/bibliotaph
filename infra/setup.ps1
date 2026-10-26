@@ -55,6 +55,10 @@ param(
     # in Key Vault. Once set, a later run without it keeps it.
     [string] $DropboxAppKey,
 
+    # The Google Cloud OAuth client's Client ID (a Web application client). Its client secret is asked for once and kept
+    # in Key Vault. Once set, a later run without it keeps it.
+    [string] $GoogleClientId,
+
     # Adds the domain and www to the app and issues managed certificates. Needs the DNS records in place first.
     [switch] $BindDomain
 )
@@ -220,6 +224,13 @@ if (-not (StorageApp 'Dropbox' 'Dropbox' $DropboxAppKey "App secret for Dropbox 
 }
 Write-Host "  In Dropbox's App Console: Scoped access, Full Dropbox; permissions account_info.read, files.metadata.read, files.content.read"
 Write-Host "  Redirect URI https://$Domain/storage/callback/dropbox, Webhook URI https://$Domain/storage/notifications/dropbox"
+
+Step 'Google Drive'
+if (-not (StorageApp 'GoogleDrive' 'GoogleDrive' $GoogleClientId "Client secret for Google OAuth client $GoogleClientId")) {
+    Write-Host '  Google Drive can be connected once this runs with -GoogleClientId.' -ForegroundColor Yellow
+}
+Write-Host "  In Google Cloud: enable the Google Drive API; OAuth consent screen with the scope .../auth/drive.readonly, published"
+Write-Host "  (In production), since a Testing app's sign-ins lapse after 7 days. Web client redirect URI https://$Domain/storage/callback/googledrive"
 
 $settings = @(
     "REPLICA_URL=abs://$StorageAccount@replica"

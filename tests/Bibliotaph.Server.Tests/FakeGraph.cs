@@ -142,17 +142,21 @@ sealed class LibraryFixture : IAsyncDisposable
     {
         Graph = graph ?? new FakeGraph();
         Dropbox = new FakeDropbox();
+        Google = new FakeGoogleDrive();
         Paths = new ServerPaths(root);
         Accounts = new AccountsDatabase(Paths.Accounts);
         Accounts.MigrateAsync().GetAwaiter().GetResult();
         Connections = new StorageConnections(Accounts, Protection, clock);
-        var http = new FakeHttp(new FakeHosts(Graph, Dropbox));
+        Http = new FakeHttp(new FakeHosts(Graph, Dropbox, Google));
+        var http = Http;
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Storage:OneDrive:ClientId"] = "client",
             ["Storage:OneDrive:ClientSecret"] = "secret",
             ["Storage:Dropbox:ClientId"] = "dropbox-client",
             ["Storage:Dropbox:ClientSecret"] = "dropbox-secret",
+            ["Storage:GoogleDrive:ClientId"] = "google-client",
+            ["Storage:GoogleDrive:ClientSecret"] = "google-secret",
         }).Build();
         Tokens = new DriveTokens(http, configuration, Connections, clock, NullLogger<DriveTokens>.Instance);
         Drives = new UserDriveFactory(Connections, Tokens, http, clock);
@@ -169,6 +173,8 @@ sealed class LibraryFixture : IAsyncDisposable
 
     public FakeGraph Graph { get; }
     public FakeDropbox Dropbox { get; }
+    public FakeGoogleDrive Google { get; }
+    public FakeHttp Http { get; }
     public ReadLinks ReadLinks => new(Protection, TimeProvider.System);
 
     public MemoryCoverStore Covers { get; } = new();
@@ -188,7 +194,11 @@ sealed class LibraryFixture : IAsyncDisposable
     public async Task<(string UserId, ConnectedAccount Drive)> UserWithDropboxAsync(string kind = "personal") =>
         await UserWithAsync(DropboxProvider.Key, FakeDropbox.AccountId, "Dropbox · Dana", kind, "Dana");
 
-    async Task<(string UserId, ConnectedAccount Drive)> UserWithAsync(string provider, string account, string display, string kind, string name)
+    /// <summary>Makes a user and connects the fake Google Drive to them.</summary>
+    public async Task<(string UserId, ConnectedAccount Drive)> UserWithGoogleDriveAsync() =>
+        await UserWithAsync(GoogleDriveProvider.Key, FakeGoogleDrive.PermissionId, "Google Drive · Dana", null, "Dana");
+
+    async Task<(string UserId, ConnectedAccount Drive)> UserWithAsync(string provider, string account, string display, string? kind, string name)
     {
         var accounts = new AccountService(Accounts, TimeProvider.System);
         var (code, _) = await accounts.CreateInviteAsync(null, null, admin: false);
