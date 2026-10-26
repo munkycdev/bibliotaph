@@ -22,7 +22,7 @@ public sealed class Theme(IJSRuntime js)
         }
     }
 
-    /// <summary>Raised with the new mode, so the top bar's button and Settings › Appearance agree.</summary>
+    /// <summary>Raised with the new mode, so the top bar's button and Settings › Preferences agree.</summary>
     public event Action<string>? Changed;
 
     /// <summary>Moves to the next mode and returns it.</summary>

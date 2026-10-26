@@ -6,6 +6,10 @@
   and **Import a saved page…** and **Choose pictures…** from the web: Bibliotaph's browser reads the page on Windows,
   and **Send to Bibliotaph** brings it, covers included, on the web. See
   [Online libraries](docs/guide/online-libraries.md#without-bibliotaphs-browser).
+- **Fewer, clearer Settings on the web.** Storage is now at the top of **Library**, above the folders you add from it;
+  **Devices** holds your Windows PCs and the books kept in this browser; **Preferences** holds light or dark, **Start
+  on** and what waits for review; and **Members** holds invitations and accounts for those who can invite. Old links,
+  such as settings#storage, open the section that holds it now. See [Settings](docs/guide/web.md#settings).
 
 ## 1.3 · 19 October 2026
 
