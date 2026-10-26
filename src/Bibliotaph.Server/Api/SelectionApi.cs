@@ -113,12 +113,7 @@ public static class SelectionApi
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var library = lease.Library;
             var rows = await library.Get<ExportService>().GetCsvRowsAsync([.. books.EntryIds.Select(id => new EntryId(id))], ct);
-            var drives = library.Get<UserDrives>();
-            var csv = new StringBuilder();
-            csv.Append(Csv.Row(ExportService.CsvHeader)).Append("\r\n");
-            foreach (var row in rows)
-                csv.Append(Csv.Row(row.Select((value, i) => i == row.Count - 1 && value is not null ? FolderText.Location(value, drives) : value))).Append("\r\n");
-            return new ExportedCsv(SelectionRules.ExportName, csv.ToString(), SelectionRules.Exported(rows.Count, SelectionRules.ExportName));
+            return new ExportedCsv(SelectionRules.ExportName, CsvText(rows, library.Get<UserDrives>()), SelectionRules.Exported(rows.Count, SelectionRules.ExportName));
         });
 
         selection.MapPost("/edit", async (SelectedBooks books, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
@@ -261,4 +256,14 @@ public static class SelectionApi
     static string FileName(string path) => StoragePath.TryParse(path, out var at) ? at.Path[(at.Path.LastIndexOf('/') + 1)..] : Path.GetFileName(path);
 
     static IResult Gone(string message) => Results.Problem(message, statusCode: StatusCodes.Status409Conflict);
+
+    /// <summary>The export's CSV, with each file's place named as Settings names it ("OneDrive · Dana › RPG") rather than by its path.</summary>
+    internal static string CsvText(IReadOnlyList<IReadOnlyList<string?>> rows, UserDrives drives)
+    {
+        var csv = new StringBuilder();
+        csv.Append(Csv.Row(ExportService.CsvHeader)).Append("\r\n");
+        foreach (var row in rows)
+            csv.Append(Csv.Row(row.Select((value, i) => i == row.Count - 1 && value is not null ? FolderText.Location(value, drives) : value))).Append("\r\n");
+        return csv.ToString();
+    }
 }

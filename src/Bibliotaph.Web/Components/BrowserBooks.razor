@@ -8,7 +8,7 @@
         offline is kept whole; the others are let go, those read longest ago first, once they take more than the room below.</p>
     @if (_books is null)
     {
-        <p class="bt-note">@(_unavailable ? "This browser can't keep books, as in a private window: each page downloads as you read it." : "Looking…")</p>
+        <p class="bt-fine">@(_unavailable ? "This browser can't keep books, as in a private window: each page downloads as you read it." : "Looking…")</p>
     }
     else
     {
@@ -31,7 +31,7 @@
         }
         @if (_books.Count == 0)
         {
-            <p class="bt-note">No books yet. Open one and its pages are kept here as you read.</p>
+            <p class="bt-fine">No books yet. Open one and its pages are kept here as you read.</p>
         }
         else
         {
@@ -39,7 +39,7 @@
                 <button class="bt-button" disabled="@(!_books.Any(b => !b.Keep))" @onclick="ClearAsync"><Icon Name="Trash2" />Let go of books not kept offline</button>
             </div>
         }
-        <p class="bt-note">Letting a book go here never touches its file or anything you've written about it.@(_persisted ? "" : " The browser may also let books go when the computer runs short of space.")</p>
+        <p class="bt-fine">Letting a book go here never touches its file or anything you've written about it.@(_persisted ? "" : " The browser may also let books go when the computer runs short of space.")</p>
     }
 </section>
 

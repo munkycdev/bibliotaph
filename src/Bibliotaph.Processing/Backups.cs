@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -124,6 +125,27 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
         }
     }
 
+    /// <summary>
+    /// A backup to download, as the web's Settings › Backup gives one: made in <paramref name="folder"/> and deleted
+    /// when the stream is closed.
+    /// </summary>
+    public async Task<Stream> BackUpForDownloadAsync(string folder, CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(folder);
+        var target = Path.Combine(folder, $"backup-{Guid.NewGuid():N}.zip");
+        try
+        {
+            await BackUpAsync(target, ct);
+        }
+        catch
+        {
+            if (File.Exists(target)) File.Delete(target);
+            throw;
+        }
+        return new FileStream(target, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 81920,
+            FileOptions.Asynchronous | FileOptions.DeleteOnClose);
+    }
+
     /// <summary>The automatic backups in the backups folder, newest first.</summary>
     public IReadOnlyList<BackupFile> ListAutomatic()
     {
@@ -189,6 +211,8 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
             var catalogCopy = Path.Combine(work, CatalogEntry);
             await catalog.CopyToAsync(catalogCopy, ct);
             var copy = new CatalogFile(catalogCopy);
+            await using (var db = copy.CreateDbContext())
+                await db.Settings.Where(s => SettingKeys.Private.Contains(s.Key)).ExecuteDeleteAsync(ct);
             var manifest = new BackupManifest
             {
                 App = AppVersion,

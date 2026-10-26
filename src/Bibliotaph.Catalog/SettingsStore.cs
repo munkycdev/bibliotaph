@@ -11,6 +11,15 @@ public static class SettingKeys
     /// <summary>Where the last pop-out reader window was: a <c>WindowPlacement</c> in pixels.</summary>
     public const string ReaderWindow = "reader-window";
 
+    /// <summary>
+    /// The web server's keys for model services, sealed with the server's own keys, which nothing but that server can
+    /// open. Private: never in a backup or an export.
+    /// </summary>
+    public const string ServerAiKeys = "server.ai-keys";
+
+    /// <summary>Settings left out of backups and the JSON export, as they're only any use where they were made.</summary>
+    public static IReadOnlySet<string> Private { get; } = new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys };
+
     /// <summary>"True" when every suggestion goes to Needs review, not only conflicts and missing titles.</summary>
     public const string ReviewAll = "review.all";
 

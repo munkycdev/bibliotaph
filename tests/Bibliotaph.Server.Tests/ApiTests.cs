@@ -1083,6 +1083,38 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task A_backup_and_both_exports_download_named_for_the_users_day_without_the_servers_sealed_keys()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+            await lease.Library.Get<SettingsStore>().SetAsync(SettingKeys.ServerAiKeys, "{\"https://api.example.com/v1\":\"CfDJ8-sealed-key\"}", ct);
+        var client = Client(user);
+
+        using var backup = await client.GetAsync("/api/library/backup?today=2026-10-26", ct);
+        using var csv = await client.GetAsync("/api/library/export/csv?today=2026-10-26", ct);
+        using var json = await client.GetAsync("/api/library/export/json", ct);
+
+        Assert.Equal("Bibliotaph backup 2026-10-26.zip", backup.Content.Headers.ContentDisposition!.FileNameStar);
+        using var folder = new TempFolder();
+        await using (var zipped = await backup.Content.ReadAsStreamAsync(ct))
+            System.IO.Compression.ZipFile.ExtractToDirectory(zipped, folder.Path);
+        Assert.True(File.Exists(Path.Combine(folder.Path, "manifest.json")));
+        await using (var catalog = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(folder.Path, "catalog.db")};Pooling=False"))
+        {
+            await catalog.OpenAsync(ct);
+            await using var count = catalog.CreateCommand();
+            count.CommandText = "SELECT COUNT(*) FROM setting WHERE key = 'server.ai-keys'";
+            Assert.Equal(0L, (long)(await count.ExecuteScalarAsync(ct))!);
+        }
+        Assert.Equal("Bibliotaph library 2026-10-26.csv", csv.Content.Headers.ContentDisposition!.FileNameStar);
+        Assert.StartsWith("Title,", (await csv.Content.ReadAsStringAsync(ct)).TrimStart('\uFEFF'), StringComparison.Ordinal);
+        var exported = await json.Content.ReadAsStringAsync(ct);
+        Assert.Contains("\"format\": \"bibliotaph-catalog\"", exported, StringComparison.Ordinal);
+        Assert.DoesNotContain("CfDJ8-sealed-key", exported, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Settings_lists_what_each_connection_was_granted_in_plain_words()
     {
         var ct = TestContext.Current.CancellationToken;

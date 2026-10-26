@@ -20,7 +20,7 @@ Without an invitation, signing in with an account Bibliotaph doesn't know shows 
 ## Settings
 
 **Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of
-sections beside the one you're in. **Storage**, **Library**, **Windows PCs**, **AI**, **Appearance**, **Needs review**,
+sections beside the one you're in. **Storage**, **Library**, **Windows PCs**, **AI**, **Backup**, **Appearance**, **Needs review**,
 **Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
 invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
@@ -506,6 +506,17 @@ folders and settings stay on each side. The app keeps working offline and catche
 The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Windows PCs** on the web lists each
 connected PC with when it was connected and last used, and **×** disconnects one: its key stops working straight
 away, and the PC keeps its own books and work. What it already shared stays in your web library. **Disconnect** in the app does the same from the PC.
+
+## Backup and export
+
+**Settings** › **Backup** › **Download a backup** saves a backup of your catalog (folders, corrections, collections,
+binders and notes, but not your books) as the Windows app's **Back up now…** does, named for the day, such as
+"Bibliotaph backup 2026-10-26.zip". The Windows app restores it from its own **Settings** › **Backup**, asking where
+each folder is on that PC. AI keys are never in a backup. The web can't restore a backup itself: to bring the Windows
+app's work here, connect the PC under **Windows PCs**.
+
+**Export CSV** saves a row per book (title, system, type, levels, publisher, tags, collections and where its file is)
+for a spreadsheet, and **Export JSON** everything in your catalog, for other programs, as in the Windows app.
 
 ## Your theme
 

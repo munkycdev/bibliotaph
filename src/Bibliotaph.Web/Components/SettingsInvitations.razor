@@ -17,7 +17,7 @@
             <span>@_created.Link</span>
             <button class="bt-button" @onclick="CopyAsync"><Icon Name="@(_copied ? "Check" : "Copy")" />@(_copied ? "Copied" : "Copy link")</button>
         </div>
-        <p class="bt-note">Copy it now: it's shown only once.</p>
+        <p class="bt-fine">Copy it now: it's shown only once.</p>
     }
     @if (_invites is { Count: > 0 })
     {

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -43,7 +44,7 @@ public sealed class CatalogExport(IDbContextFactory<CatalogDbContext> contexts)
         ("pins", "pin is the sidebar's Pinned group in position order. Its kind says which of entry_id, collection_id, pack_id and smart_view_id it points at; the Favorites pin points at none."),
         ("sync", "sync_id names a row the user made (a collection, a binder, a saved search, a book owned elsewhere) in the library sync file, the same on every PC it reaches; sync_state is what this PC last knew of each record of that file, with each field's change time."),
         ("values", "Times are UTC in ISO 8601. Choices such as kind, state and origin are stored by name."),
-        ("left out", "Passwords and AI keys are never in Bibliotaph's database, so never here. Left out as particular to one computer: " + string.Join(", ", ExcludedColumns.Order(StringComparer.Ordinal)) + "."),
+        ("left out", "Passwords and AI keys are never here: the Windows app keeps them in Windows Credential Manager, and the web server's sealed keys (" + string.Join(", ", SettingKeys.Private.Order(StringComparer.Ordinal)) + ") are left out. Left out as particular to one computer: " + string.Join(", ", ExcludedColumns.Order(StringComparer.Ordinal)) + "."),
     ];
 
     /// <summary>Every table of the catalog's model, by table name: what the JSON export holds.</summary>
@@ -83,7 +84,22 @@ public sealed class CatalogExport(IDbContextFactory<CatalogDbContext> contexts)
             var key = table.FindPrimaryKey()!.Properties.Select(p => Quote(p.GetColumnName()));
             await using var command = connection.CreateCommand();
             command.Transaction = transaction.GetDbTransaction();
-            command.CommandText = $"SELECT {string.Join(", ", columns.Select(c => Quote(c.Column)))} FROM {Quote(name)} ORDER BY {string.Join(", ", key)}";
+            var where = "";
+            if (table.ClrType == typeof(Setting))
+            {
+                // Private settings, such as the web server's sealed keys, stay where they were made.
+                var keyColumn = Quote(table.FindProperty(nameof(Setting.Key))!.GetColumnName());
+                var names = SettingKeys.Private.Select((privateKey, i) => (Name: $"$private{i}", Value: privateKey)).ToList();
+                foreach (var (parameter, value) in names)
+                {
+                    var added = command.CreateParameter();
+                    added.ParameterName = parameter;
+                    added.Value = value;
+                    command.Parameters.Add(added);
+                }
+                where = $" WHERE {keyColumn} NOT IN ({string.Join(", ", names.Select(n => n.Name))})";
+            }
+            command.CommandText = $"SELECT {string.Join(", ", columns.Select(c => Quote(c.Column)))} FROM {Quote(name)}{where} ORDER BY {string.Join(", ", key)}";
 
             json.WriteStartArray(name);
             await using var reader = await command.ExecuteReaderAsync(ct);

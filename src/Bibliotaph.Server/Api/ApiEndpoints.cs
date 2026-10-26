@@ -55,6 +55,7 @@ public static class ApiEndpoints
         api.MapSelectionApi();
         api.MapBindersApi();
         api.MapReviewApi();
+        api.MapBackupApi();
         api.MapElsewhereApi();
         api.MapReaderApi();
         api.MapPageNotesApi();

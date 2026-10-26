@@ -16,11 +16,11 @@
     }
     @if (_folders.Count == 0 && _pending is null && _storage is not null)
     {
-        <p class="bt-note">
+        <p class="bt-fine">
             No folders yet.
             @if (_storage.Count == 0)
             {
-                <a class="bt-link" href="settings#storage">Connect your storage first.</a>
+                <SettingsLink To="storage">Connect your storage first.</SettingsLink>
             }
         </p>
     }
@@ -49,7 +49,7 @@
             <button class="bt-button" @onclick="Rescan"><Icon Name="RotateCcw" />Look for changes</button>
         }
     </div>
-    <p class="bt-note">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
+    <p class="bt-fine">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
 </section>
 
 @if (_picking && _storage is not null)

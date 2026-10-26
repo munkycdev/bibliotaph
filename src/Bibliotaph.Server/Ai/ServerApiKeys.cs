@@ -14,7 +14,7 @@ namespace Bibliotaph.Server.Ai;
 /// </summary>
 public sealed class ServerApiKeys(SettingsStore settings, IDataProtector protector) : IApiKeyStore
 {
-    const string Setting = "server.ai-keys";
+    const string Setting = SettingKeys.ServerAiKeys;
 
     readonly ConcurrentDictionary<string, string> _sealed = new(StringComparer.Ordinal);
 

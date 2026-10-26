@@ -1,0 +1,31 @@
+@* Settings › Backup, as the Windows app's where the web can do the same: a backup to download, which the Windows app
+   restores, and the library exported as CSV or JSON. Each is a plain download, so the browser saves it as it saves
+   anything else. *@
+
+<section class="bt-section" aria-labelledby="backup-heading">
+    <h2 id="backup-heading">Backup</h2>
+    <p class="bt-copy">A backup holds your catalog: folders, corrections, collections, binders and notes. Your books aren't in it;
+        they stay where they are.</p>
+    <div class="bt-actions">
+        <a class="bt-button primary" href="@Download("api/library/backup")" download><Icon Name="HardDrive" />Download a backup</a>
+    </div>
+    <p class="bt-fine">The Windows app restores it from its own Settings › Backup, and asks where each folder is on that PC.
+        AI keys aren't in backups.</p>
+
+    <h3 class="bt-settingshead">Restore</h3>
+    <p class="bt-fine">To bring your work from the Windows app here, connect the PC under <SettingsLink To="devices">Windows PCs</SettingsLink>:
+        its corrections, hearts, notes, collections, binders, saved searches and pins are merged with this library's.</p>
+
+    <h3 class="bt-settingshead">Export</h3>
+    <p class="bt-fine">CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON
+        has everything in the catalog, for other programs.</p>
+    <div class="bt-actions">
+        <a class="bt-button" href="@Download("api/library/export/csv")" download><Icon Name="SquareArrowOutUpRight" />Export CSV</a>
+        <a class="bt-button" href="@Download("api/library/export/json")" download><Icon Name="SquareArrowOutUpRight" />Export JSON</a>
+    </div>
+</section>
+
+@code {
+    // The file is named for the day where the user is, as the Windows app names it.
+    static string Download(string path) => $"{path}?today={DateTime.Now:yyyy-MM-dd}";
+}

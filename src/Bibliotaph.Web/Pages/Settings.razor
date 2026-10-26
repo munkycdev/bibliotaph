@@ -21,12 +21,14 @@
             <button class="bt-settingsentry" @onclick="() => _about = true">About Bibliotaph</button>
         </nav>
         <div class="bt-settingsbody">
+            <CascadingValue Name="ChooseSettingsSection" Value="_choose" IsFixed="true">
             @switch (_selected)
             {
                 case "storage": <SettingsStorage Problem="@Problem" ProblemProvider="@ProblemProvider" /> break;
                 case "library": <SettingsLibrary /> break;
                 case "devices": <SettingsDevices /> break;
                 case "ai": <AiSection /> break;
+                case "backup": <SettingsBackup /> break;
                 case "browser": <BrowserBooks /> break;
                 case "appearance": <SettingsAppearance /> break;
                 case "review": <SettingsReview /> break;
@@ -34,6 +36,7 @@
                 case "invitations": <SettingsInvitations /> break;
                 case "accounts": <SettingsAccounts /> break;
             }
+            </CascadingValue>
         </div>
     </div>
 }
@@ -46,6 +49,7 @@
 @code {
     CurrentUser? _me;
     string _selected = "storage";
+    Func<string, Task> _choose = null!;
     bool _about;
 
     [SupplyParameterFromQuery(Name = "problem")] public string? Problem { get; set; }
@@ -65,6 +69,7 @@
             yield return ("library", "Library");
             yield return ("devices", "Windows PCs");
             yield return ("ai", "AI");
+            yield return ("backup", "Backup");
             yield return ("appearance", "Appearance");
             yield return ("review", "Needs review");
             yield return ("browser", "Books in this browser");
@@ -77,6 +82,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        _choose = ChooseAsync;
         Navigation.LocationChanged += OnLocationChanged;
         _me = await Session.MeAsync();
         _selected = Chosen(Navigation.Uri);
