@@ -9,6 +9,10 @@
   and **Import a saved page…** and **Choose pictures…** from the web: Bibliotaph's browser reads the page on Windows,
   and **Send to Bibliotaph** brings it, covers included, on the web. See
   [Online libraries](docs/guide/online-libraries.md#without-bibliotaphs-browser).
+## Unreleased
+
+- **PDFs with copy or print restrictions open on the web again.** The reader failed on them. When a book can't be
+  opened for a reason Bibliotaph doesn't recognise, it now says so plainly instead of showing the technical error.
 - **Fewer, clearer Settings on the web.** Storage is now at the top of **Library**, above the folders you add from it;
   **Devices** holds your Windows PCs and the books kept in this browser; **Preferences** holds light or dark, **Start
   on** and what waits for review; and **Members** holds invitations and accounts for those who can invite. Old links,
