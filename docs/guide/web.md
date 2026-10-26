@@ -221,15 +221,16 @@ file.
 ### Online libraries
 
 The books you own on D&D Beyond or Demiplane, and those you bought on Humble Bundle or DriveThruRPG, can come in all
-at once. **Add ▾** › **Import from an online library…** in the Library opens **Settings** › **Online libraries**.
-The quickest way is the **Send to Bibliotaph** bookmark at the top of that section: drag it to your browser's bookmarks
-bar once. Then choose **Open D&D Beyond** (or another service) to open your library there in a new tab, sign in if it
+at once. **Add ▾** › **Import from an online library…** in the Library opens **Settings** › **Online libraries**,
+which says how books come in from outside and lists the services in two groups: **Books you read online** and **PDFs
+you bought from stores**. The quickest way is the **Send to Bibliotaph** bookmark under **How they come in**, always
+there whether or not you have the extension: drag it to your browser's bookmarks bar once. Then choose **Open D&D Beyond** (or another service) to open your library there in a new tab, sign in if it
 asks, and click **Send to Bibliotaph** on that page. Bibliotaph opens in a new tab, reads the page as it shows, fetches
 the new books' covers from the service's page, and shows the preview in **Online libraries**. If your browser blocks
 the new tab, allow pop-ups from the service; if the service's site won't let the page reach Bibliotaph, the bookmark
 says so. The **Send to Bibliotaph** extension for Chrome and Edge does the same from a button in the browser's toolbar,
 and can fetch covers the services keep on other sites, which the bookmark sometimes can't; once it is in your browser,
-Settings says so in place of the bookmark. Bibliotaph on the web never visits the
+Settings says so beside the bookmark. Bibliotaph on the web never visits the
 service itself and never sees your password; the Windows app does the same with a browser of its own.
 
 Bibliotaph shows what importing does before anything changes, as the Windows app does: **New** books become books owned

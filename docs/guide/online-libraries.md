@@ -18,6 +18,9 @@ library as books owned elsewhere, so they turn up in searches, collections and b
 
 ## The services
 
+**Settings > Online libraries** lists them in two groups: **Books you read online** and **PDFs you bought from
+stores**.
+
 | Service | What you get |
 | --- | --- |
 | **D&D Beyond**, **Demiplane** | Books you read online. Each becomes a book owned elsewhere, with the service and the book's link under **Also own**, and opens in Bibliotaph's online reader. |

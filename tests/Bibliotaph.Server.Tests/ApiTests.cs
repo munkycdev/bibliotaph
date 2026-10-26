@@ -896,7 +896,9 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         using var gone = await client.GetAsync("/api/online/pages/0123456789abcdef0123456789abcdef", ct);
 
         Assert.Equal(["D&D Beyond", "Demiplane", "Humble Bundle", "DriveThruRPG"], services.Select(s => s.Name));
-        Assert.Contains("Send to Bibliotaph", services[0].Explanation, StringComparison.Ordinal);
+        // Read on the service's own site, or bought from it as files: Settings groups them so.
+        Assert.Equal([true, true, false, false], services.Select(s => s.ReadOnline));
+        Assert.Contains("Only books you own are imported", services[0].Explanation, StringComparison.Ordinal);
         Assert.Null(read.Problem);
         Assert.Equal(("D&D Beyond", "Your D&D Beyond library: 2 books. 1 book shared with you was left out."), (preview.Service, preview.Summary));
         Assert.Equal(["New · 2"], preview.Groups.Select(g => g.Heading));
