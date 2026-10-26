@@ -32,6 +32,22 @@ else
     <span class="bt-eyebrow bt-eyebrow-block">YOUR NEXT GOOD STORY</span>
     <h1 tabindex="-1">Welcome back.</h1>
     <div class="bt-subtitle">A familiar shelf. A few places you haven't been.</div>
+    @if (_shelves is { AskAboutAi: true } && !_aiLater)
+    {
+        @* The Windows app's first run, once folders are in: AI now or later. Everything works without it. *@
+        <div class="bt-aistep">
+            <div class="bt-row">Fill in the catalog with AI?</div>
+            <p class="bt-copy">
+                A model service of your own can suggest each book's system, type, levels and more, quoting the page it found
+                them on: any service that speaks the OpenAI chat API, with your key. You review the suggestions. It is off until
+                you set it up, and you can do that later in Settings.
+            </p>
+            <div class="bt-actions">
+                <a class="bt-button primary" href="settings#ai">Set up AI</a>
+                <button class="bt-button" @onclick="AiLaterAsync">Not now</button>
+            </div>
+        </div>
+    }
     @if (_note is not null)
     {
         <div class="bt-librarynote bt-pagenote">
@@ -96,6 +112,20 @@ else
     ActionResult? _note;
     bool _wasBusy;
     DateTime _loaded;
+    bool _aiLater;
+
+    async Task AiLaterAsync()
+    {
+        _aiLater = true;
+        try
+        {
+            await Api.AiLaterAsync();
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // Hidden for now; it asks again next time.
+        }
+    }
 
     bool HasLibrary => _summary is { Folders: > 0 } or { Books: > 0 };
 

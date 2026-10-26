@@ -240,6 +240,35 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Forget_its_text_takes_what_reading_made_and_read_it_again_brings_it_back()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/harbor.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.SingleOrDefault(b => b.Cover is not null), ct);
+        var path = $"/api/library/books/{book.EntryId}";
+        Assert.True(book.CanForgetText);
+        Assert.False(book.CanReadAgain);
+
+        using var forgot = await client.PostAsync($"{path}/forget-text", null, ct);
+        var forgotten = await client.GetFromJsonAsync<BookDetails>(path, ct);
+        using var again = await client.PostAsync($"{path}/read-again", null, ct);
+        var back = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.SingleOrDefault(b => b.Cover is not null), ct);
+
+        Assert.Equal("Its text is forgotten. Read it again brings it back.", (await forgot.Content.ReadFromJsonAsync<ActionResult>(ct))!.Message);
+        Assert.Null(forgotten!.Card.Cover);
+        Assert.True(forgotten.Card.CanReadAgain);
+        Assert.False(forgotten.Card.CanForgetText);
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        Assert.True(back.CanForgetText);
+    }
+
+    [Fact]
     public async Task Collections_are_made_filled_and_changed_as_the_windows_app_changes_them()
     {
         var ct = TestContext.Current.CancellationToken;

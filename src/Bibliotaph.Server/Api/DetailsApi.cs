@@ -137,7 +137,10 @@ public static class DetailsApi
             await ChaptersAsync(library, entry, labels, ct),
             library.Get<AskService>().IsOn && !entry.IsElsewhere && !entry.IsPack && SourceFormats.HasPages(entry.Format)
                 && entry.TextAccess == TextAccess.Readable,
-            entry.IsElsewhere && await library.Get<ChosenCovers>().HasChosenAsync(entryId, ct));
+            entry.IsElsewhere && await library.Get<ChosenCovers>().HasChosenAsync(entryId, ct),
+            // Asked before every page is read by OCR, so a long book's wait is known; only for a file with pages.
+            !entry.IsElsewhere && !entry.IsPack && entry.PageCount is int pages and > 0
+                ? DetailsText.OcrEveryPageQuestion(entry.Title, pages) + " " + DetailsText.OcrEveryPageNote : null);
     }
 
     /// <summary>What the AI found reading the book chapter by chapter; an adventure inside a file shows only its own chapters.</summary>

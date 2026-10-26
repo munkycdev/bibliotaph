@@ -177,6 +177,10 @@
 - **Needs review forgets a removed folder's books.** Removing a library folder, on the web or in the Windows app, left
   its books' suggestions, new terms and failed files in Needs review and the sidebar's count; now only the books in the
   library's folders count.
+- **More of the Windows app's book actions on the web.** A book's menu and details have Open on the online library you
+  own it on, Ask this book, Forget its text and Read it again, and Download the file for one whose protection Bibliotaph
+  can't open. Reprocess has Reprocess with OCR on every page…, a book owned only online opens its page there, and Home
+  offers to set up AI as the Windows app does.
 
 ## 1.3 · 19 October 2026
 

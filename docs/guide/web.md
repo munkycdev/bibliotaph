@@ -129,9 +129,18 @@ menu beside **Filters**: **Recently added**, **Recently opened**, **Title A–Z*
 remembers the layout, the order and the pack view.
 
 Right-click a book (or press and hold it on a touch screen) for the Windows app's menu: **Open**, **Open in new
-window**, **Details**, **Add to favorites**, **Pin**, **Cataloged wrong…**, **Add to collection** and **Add to binder**,
-each with the list to choose from, and **Remove from library** for a book owned elsewhere. **Open in new window**
-opens the book in a reader window of its own, as Shift+Enter on a book or a middle-click does.
+window**, **Open on D&D Beyond** (or wherever else you own it online, with a link), **Details**, **Ask this book** while
+AI is set up, **Add to favorites**, **Pin**, **Cataloged wrong…**, **Download the file** for a file whose protection
+Bibliotaph can't open, **Forget its text** or **Read it again**, **Add to collection** and **Add to binder**, each with
+the list to choose from, and **Remove from library** for a book owned elsewhere. **Open in new window** opens the book
+in a reader window of its own, as Shift+Enter on a book or a middle-click does. A double-click on a book you own only
+online opens its page on that site in a new tab.
+
+**Forget its text** removes what reading the book made (its pages and their search text, its cover, the AI's results,
+what it found in each chapter and Ask this book's conversation) and stops reading it; the file and your work on the
+book stay. **Read it again** reads it from the start. **Download the file** opens it from your storage in a new tab,
+where the browser shows it or saves it for an app that can read it, as **Open in another app** does in the Windows
+app.
 
 **Filters** opens the Windows app's filter panel: game system, type, character level (with **Include unknown levels**)
 and players, then under **More filters** the style and length of an adventure, the book's setting, themes,
@@ -155,7 +164,8 @@ a file or the file an adventure is in, a pack's files, **About the file**, **Whe
 Dropbox, then the account and its folders), its copies when it has more than one, each with its service too, and how far reading it has got. **Esc**, the **×** or a click outside closes them.
 
 **Home** greets you with the books you opened last and those added last, a cover each; a click opens the book's details
-in the Library, and a right-click has the same menu as in the Library.
+in the Library, and a right-click has the same menu as in the Library. Until AI is set up, Home asks **Fill in the
+catalog with AI?** once your folders are in: **Set up AI** goes to Settings › AI, and **Not now** stops asking.
 
 Covers are kept with your account, so they don't need drawing again when the server restarts.
 
@@ -178,7 +188,10 @@ The details change a book as the Windows app's do:
 - **Adventures in this file**: **Add** gives pages of a PDF a card of their own, typed as the file numbers them; each
   has **Edit range** and **Remove**, with **Undo**. An adventure's own details have **Show the file**, **Edit range** and
   **Remove adventure**.
-- **Reprocess**, under **Where it is**, reads the file again; what you added stays.
+- **Reprocess**, under **Where it is**, reads the file again; what you added stays. The arrow beside it has **Reprocess
+  with OCR on every page…**, for a scan whose own text is poor: it says how long that takes and asks first.
+- **Open on D&D Beyond** (or wherever you own the book online) opens its page there, **Ask this book** opens it with
+  the Ask panel, and **Download the file** is there for a file whose protection Bibliotaph can't open.
 - A pack's files: click one for **Use as the pack's cover**, or **Use the mosaic**; **Split into separate images** (or
   files) gives each its own card, with **Undo**.
 - A book in more than one file: **Make current** chooses which copy opens, and **Not the same book** gives a file its own

@@ -113,6 +113,9 @@ public static class LibraryServices
             sp.GetRequiredService<SettingsStore>(), host.Clock, sp.GetRequiredService<ILogger<BackupService>>()));
         services.AddSingleton<CoverCache>();
         services.AddSingleton(sp => new CoverMirror(userId, sp.GetRequiredService<CoverCache>(), host.Covers, sp.GetRequiredService<ILogger<CoverMirror>>()));
+        // The reader draws its thumbnails in the browser, so this folder stays empty; Forget its text clears it all the same.
+        services.AddSingleton(sp => new PageThumbnailCache(paths));
+        services.AddSingleton<ForgetText>();
         services.AddSingleton<FileHasher>();
         services.AddSingleton<ArchiveReader>();
         services.AddSingleton(sp => new SourceFiles(paths, sp.GetRequiredService<ArchiveReader>(), sp.GetRequiredService<IDiskSpace>(),
