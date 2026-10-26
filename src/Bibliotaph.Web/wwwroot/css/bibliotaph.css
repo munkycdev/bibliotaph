@@ -277,6 +277,20 @@ body{font-family:'DM Sans',sans-serif;color:var(--bt-text);font-size:13px;line-h
 a{color:var(--bt-accent)}
 .bt-shell{min-height:100vh;border:0;border-radius:0}
 .bt-sidebar{position:sticky;top:0;height:100vh;overflow:auto}
+/* The footer sits at the foot of the window on a short page and after the page on a long one; the readers fill the
+   window, so they go without it. */
+.bt-workarea{display:flex;flex-direction:column}
+#bt-main{flex:1 0 auto}
+.bt-appfoot{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;padding:14px 30px 18px;border-top:1px solid var(--bt-line);font-size:11px;color:var(--bt-muted)}
+.bt-appfoot nav{display:flex;flex-wrap:wrap;gap:4px 14px;margin-left:auto}
+.bt-appfoot a{color:var(--bt-muted);text-decoration:none}
+.bt-appfoot a:hover{color:var(--bt-text);text-decoration:underline;text-underline-offset:3px}
+.bt-appfoot a:focus-visible{outline:2px solid var(--bt-accent);outline-offset:2px}
+.bt-tagline{font-family:'Libre Caslon Display',Georgia,serif;font-style:italic;font-size:14px;color:var(--bt-text)}
+#bt-main:has(.bt-reader,.bt-binderreader)+.bt-appfoot{display:none}
+@media(min-width:1250px){.bt-appfoot{padding:14px 42px 18px}}
+@media(max-width:850px){.bt-appfoot{padding:14px 22px 18px}}
+@media(max-width:620px){.bt-appfoot{padding:14px 18px 18px}.bt-appfoot nav{margin-left:0}}
 .bt-nav,.bt-button,.bt-icon,.bt-brand,.bt-tab{cursor:pointer;text-decoration:none;color:inherit}
 .bt-nav{color:var(--bt-muted)}
 .bt-nav.active,.bt-nav:hover{color:var(--bt-text)}
@@ -1178,4 +1192,5 @@ a.bt-menuitem{text-decoration:none}
 .bt-sitecta h2{font:26px 'Libre Caslon Display',Georgia,serif;font-weight:400;margin-bottom:8px}
 .bt-sitefoot{border-top:1px solid var(--bt-line);margin-top:24px;padding:24px;font-size:12px;color:var(--bt-muted);text-align:center}
 .bt-sitefoot nav{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 20px;margin-bottom:12px}
+.bt-sitefoot .bt-tagline{display:block;margin-bottom:14px;font-size:16px}
 @media(max-width:620px){.bt-hero{padding-top:28px}.bt-hero h1{font-size:34px}.bt-sitenav{gap:14px}.bt-sitehead{padding:16px}}

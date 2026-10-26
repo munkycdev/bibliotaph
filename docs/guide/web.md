@@ -682,3 +682,6 @@ the [Change log](https://bibliotaph.online/changelog), [Contact us](https://bibl
 [Terms](https://bibliotaph.online/terms), [Privacy](https://bibliotaph.online/privacy) and
 [Licences](https://bibliotaph.online/licences), which has Bibliotaph's licence and every component's. Signed in, the same
 address opens your library, and the site's pages offer **Open your library** in place of **Sign in**.
+
+The same links are under every page of the app too, except the readers, with the version that's running and a tagline,
+a different one each time the page loads. They open in a new tab, so whatever you had open stays as it was.
