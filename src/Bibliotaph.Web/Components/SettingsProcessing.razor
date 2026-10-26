@@ -1,0 +1,185 @@
+@* Settings › Processing, as the Windows app's: indexing step by step with the time left, what each part is on now, and
+   pause and resume for each lane. It asks the server again every couple of seconds while it shows. *@
+@using Bibliotaph.Core.Progress
+@implements IDisposable
+@inject ApiClient Api
+@inject LibraryActivity Activity
+
+<section class="bt-section" aria-labelledby="processing-heading">
+    <h2 id="processing-heading">Processing</h2>
+    <p class="bt-copy">Bibliotaph's server reads your books, so this carries on with the page closed.</p>
+    @if (_state is null)
+    {
+        <p class="bt-fine">Looking…</p>
+    }
+    else if (!_state.HasFolders)
+    {
+        <p class="bt-fine">Nothing to process until you add a folder.</p>
+        <div class="bt-actions"><SettingsLink To="library" Class="bt-button">Add a folder in Library</SettingsLink></div>
+    }
+    else
+    {
+        <div class="bt-row bt-processingsummary" role="status">@_state.Summary</div>
+        @if (_timeLeft.Length > 0)
+        {
+            <p class="bt-fine bt-tight">@_timeLeft</p>
+        }
+        <div class="bt-phases">
+            @foreach (var phase in _phases)
+            {
+                <div class="bt-phase" aria-label="@phase.Label" title="@phase.Status">
+                    <div class="bt-phasename"><strong>@phase.Label</strong><small>@phase.Detail</small></div>
+                    @* A progress element, not a styled width: the page's security policy refuses inline styles. *@
+                    @if (phase.IsIndeterminate)
+                    {
+                        <progress class="bt-bar" aria-label="@phase.Label"></progress>
+                    }
+                    else
+                    {
+                        <progress class="bt-bar @Bar(phase)" aria-label="@phase.Label" max="100" value="@phase.Percent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)"></progress>
+                    }
+                    <small class="bt-phasestatus">@phase.Status</small>
+                </div>
+            }
+        </div>
+        @if (_state.Now.Count > 0)
+        {
+            <div class="bt-now">
+                <span class="bt-eyebrow">NOW</span>
+                @foreach (var line in _state.Now)
+                {
+                    <small>@line</small>
+                }
+            </div>
+        }
+        @if (_state.Attention > 0)
+        {
+            <p class="bt-fine">@_state.Attention.ToString("N0") @(_state.Attention == 1 ? "file needs" : "files need") attention ·
+                <a class="bt-link" href="review?tab=files">See the files that need attention</a></p>
+        }
+        @if (_state is { AiOn: true, AiWaiting: { } waiting })
+        {
+            <p class="bt-fine">Cataloguing with AI is waiting: @waiting</p>
+        }
+        <div class="bt-actions">
+            @if (HasIndexWork || _state.Paused.Indexing)
+            {
+                <button class="bt-button" disabled="@_saving" @onclick="() => PauseAsync(_state.Paused with { Indexing = !_state.Paused.Indexing })">
+                    <Icon Name="@(_state.Paused.Indexing ? "Play" : "Pause")" />@(_state.Paused.Indexing ? "Resume indexing" : "Pause indexing")</button>
+            }
+            @if (_state.OcrPages > _state.OcrPagesDone || _state.Paused.Scans)
+            {
+                <button class="bt-button" disabled="@_saving" @onclick="() => PauseAsync(_state.Paused with { Scans = !_state.Paused.Scans })">
+                    <Icon Name="@(_state.Paused.Scans ? "Play" : "Pause")" />@(_state.Paused.Scans ? "Resume reading scans" : "Pause reading scans")</button>
+            }
+            @if (_state.AiOn && _state.ToClassify > 0 || _state.Paused.Ai)
+            {
+                <button class="bt-button" disabled="@_saving" @onclick="() => PauseAsync(_state.Paused with { Ai = !_state.Paused.Ai })">
+                    <Icon Name="@(_state.Paused.Ai ? "Play" : "Pause")" />@(_state.Paused.Ai ? "Resume AI" : "Pause AI")</button>
+            }
+        </div>
+        <p class="bt-fine">A pause holds until you resume, even after you sign out. Pausing the AI stops requests on your key.</p>
+    }
+</section>
+
+@code {
+    static readonly TimeSpan Poll = TimeSpan.FromSeconds(2);
+
+    readonly ProcessingPhase _finding = new("Finding files", "Looking through your folders");
+    readonly ProcessingPhase _reading = new("Reading files", "Each file is downloaded once to be read");
+    readonly ProcessingPhase _making = new("Making searchable", "Text and covers");
+    readonly ProcessingPhase _scans = new("Reading scans", "Text from scanned pages, by OCR", "pages");
+    readonly ProcessingPhase _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page");
+    readonly CancellationTokenSource _stop = new();
+    ProcessingPhase[] _phases = [];
+    ProcessingState? _state;
+    string _timeLeft = "";
+    bool _saving;
+
+    bool HasIndexWork => _state is { } s && (s.Scanning || s.ToRead > 0 || s.Queued > s.Indexed);
+
+    protected override async Task OnInitializedAsync()
+    {
+        _phases = [_finding, _reading, _making, _scans, _classifying];
+        await RefreshAsync();
+        _ = PollAsync();
+    }
+
+    async Task PollAsync()
+    {
+        using var timer = new PeriodicTimer(Poll);
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_stop.Token))
+            {
+                await RefreshAsync();
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Another section was chosen.
+        }
+    }
+
+    async Task RefreshAsync()
+    {
+        try
+        {
+            Show(await Api.ProcessingAsync(_stop.Token));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            // The next poll tries again; the last counts stay up meanwhile.
+        }
+    }
+
+    async Task PauseAsync(ProcessingPauses paused)
+    {
+        _saving = true;
+        try
+        {
+            Show(await Api.PauseLanesAsync(paused, _stop.Token));
+            Activity.Refresh();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            // The buttons still show the lanes as they were.
+        }
+        _saving = false;
+    }
+
+    void Show(ProcessingState state)
+    {
+        _state = state;
+        var now = DateTimeOffset.UtcNow;
+        if (state.Scanning) _finding.Show(PhaseState.Running, "Looking through your folders…");
+        else _finding.Show(PhaseState.Done, $"{state.Files:N0} {(state.Files == 1 ? "file" : "files")}", state.Files, state.Files);
+        _reading.Count(now, state.Files - state.ToRead, state.Files, state.Paused.Indexing);
+        _making.Count(now, state.Indexed, state.Queued, state.Paused.Indexing);
+        _scans.Count(now, state.OcrPagesDone, state.OcrPages, state.Paused.Scans);
+        // AI cataloguing is optional and off until set up, so "Off" rather than a count that never moves.
+        if (!state.AiOn) _classifying.Show(PhaseState.Waiting, state.ToClassify > 0 ? $"Off · {state.ToClassify:N0} waiting" : "Off");
+        else _classifying.Count(now, state.Classified, state.Classified + state.ToClassify, state.Paused.Ai, state.AiWaiting);
+
+        var running = _phases.Where(p => p.State == PhaseState.Running).ToList();
+        _timeLeft = state.Scanning ? "Working out what there is to do"
+            : running.Count == 0 ? _phases.Any(p => p.State == PhaseState.Paused) ? "Paused" : ""
+            // The steps run side by side, so the slowest one says when everything is done.
+            : running.Any(p => p.Left is null) ? "Working out how long this will take"
+            : $"About {TimeLeft.Describe(running.Max(p => p.Left!.Value))} left";
+    }
+
+    static string Bar(ProcessingPhase phase) => phase.State switch
+    {
+        PhaseState.Done => "done",
+        PhaseState.Paused => "paused",
+        _ => "",
+    };
+
+    public void Dispose()
+    {
+        _stop.Cancel();
+        _stop.Dispose();
+    }
+}

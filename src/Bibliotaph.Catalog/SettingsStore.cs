@@ -13,12 +13,15 @@ public static class SettingKeys
 
     /// <summary>
     /// The web server's keys for model services, sealed with the server's own keys, which nothing but that server can
-    /// open. Private: never in a backup or an export.
+    /// open.
     /// </summary>
     public const string ServerAiKeys = "server.ai-keys";
 
+    /// <summary>The indexing lanes paused in Settings › Processing on the web, by name, separated by commas.</summary>
+    public const string ServerPausedLanes = "server.paused-lanes";
+
     /// <summary>Settings left out of backups and the JSON export, as they're only any use where they were made.</summary>
-    public static IReadOnlySet<string> Private { get; } = new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys };
+    public static IReadOnlySet<string> Private { get; } = new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys, ServerPausedLanes };
 
     /// <summary>"True" when every suggestion goes to Needs review, not only conflicts and missing titles.</summary>
     public const string ReviewAll = "review.all";

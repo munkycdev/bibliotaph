@@ -20,7 +20,7 @@ Without an invitation, signing in with an account Bibliotaph doesn't know shows 
 ## Settings
 
 **Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of
-sections beside the one you're in. **Storage**, **Library**, **Windows PCs**, **Vocabulary**, **AI**, **Backup**, **Appearance**, **Needs review**,
+sections beside the one you're in, in the Windows app's order. **Storage**, **Library**, **Windows PCs**, **Processing**, **Appearance**, **Needs review**, **Vocabulary**, **AI**, **Backup**,
 **Books in this browser** and **Account** are there for everyone, and **Invitations** and **Accounts** for those who can
 invite. The address names the section, such as bibliotaph.online/settings#storage, so Back returns to the last one.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports and
@@ -515,6 +515,14 @@ folders and settings stay on each side. The app keeps working offline and catche
 The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Windows PCs** on the web lists each
 connected PC with when it was connected and last used, and **×** disconnects one: its key stops working straight
 away, and the PC keeps its own books and work. What it already shared stays in your web library. **Disconnect** in the app does the same from the PC.
+
+## Processing
+
+**Settings** › **Processing** shows what Bibliotaph is doing with your library, as the Windows app's does: a bar for each
+step (finding files, reading them, making them searchable, reading scans and cataloguing with AI) with how far it has
+got and the time left, what each part is working on now, and how many files need attention, with a link to them. The
+server does the work, so it carries on with the page closed. **Pause indexing**, **Pause reading scans** and **Pause
+AI** each stop one step until you resume it, even after you sign out; pausing the AI stops its requests on your key.
 
 ## Vocabulary
 

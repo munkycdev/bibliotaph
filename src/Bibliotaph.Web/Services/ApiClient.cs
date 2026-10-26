@@ -435,6 +435,11 @@ public sealed class ApiClient(HttpClient http)
     public Task<ReviewMode> SetReviewModeAsync(bool all, CancellationToken ct = default) =>
         SendAsync<ReviewMode>(HttpMethod.Put, "api/review/mode", new ReviewMode(all), ct);
 
+    public Task<ProcessingState> ProcessingAsync(CancellationToken ct = default) => SendAsync<ProcessingState>(HttpMethod.Get, "api/processing", null, ct);
+
+    public Task<ProcessingState> PauseLanesAsync(ProcessingPauses paused, CancellationToken ct = default) =>
+        SendAsync<ProcessingState>(HttpMethod.Put, "api/processing/paused", paused, ct);
+
     public Task<List<VocabularyTerm>> VocabularyAsync(string vocabulary, CancellationToken ct = default) =>
         SendAsync<List<VocabularyTerm>>(HttpMethod.Get, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}", null, ct);
 

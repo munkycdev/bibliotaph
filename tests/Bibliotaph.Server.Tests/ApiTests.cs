@@ -1179,6 +1179,27 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Settings_processing_pauses_a_lane_and_keeps_it_paused_when_the_library_opens_again()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var libraries = _factory.Services.GetRequiredService<UserLibraries>();
+
+        var before = (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))!;
+        using var paused = await client.PutAsJsonAsync("/api/processing/paused", new ProcessingPauses(false, false, true), ct);
+        var after = (await paused.Content.ReadFromJsonAsync<ProcessingState>(ct))!;
+        await libraries.CloseIdleAsync(TimeSpan.Zero);
+        var reopened = (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))!;
+
+        Assert.Equal(("Nothing to process", false, new ProcessingPauses(false, false, false)), (before.Summary, before.HasFolders, before.Paused));
+        Assert.Equal(new ProcessingPauses(false, false, true), after.Paused);
+        Assert.Equal(new ProcessingPauses(false, false, true), reopened.Paused);
+        Assert.Empty(reopened.Now);
+    }
+
+    [Fact]
     public async Task Settings_lists_what_each_connection_was_granted_in_plain_words()
     {
         var ct = TestContext.Current.CancellationToken;
