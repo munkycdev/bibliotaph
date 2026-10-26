@@ -37,6 +37,8 @@
 - **Keyboard shortcuts on the web.** Ctrl+K, or /, goes to the search box from anywhere, Ctrl+/ lists every shortcut
   that works on the web (also under Settings), and Shift+Enter or a middle-click on a book opens it in a reader window
   of its own, as in the Windows app. Home's covers have the book's right-click menu too.
+- **Install the web version as an app.** bibliotaph.online installs from Chrome, Edge or Safari with its own icon and a
+  window without the address bar, handy on a tablet at the table.
 - **Processing on the web.** Settings › Processing shows each step of reading your library with its bar and the time
   left, and what is being read now, as in the Windows app, with Pause indexing, Pause reading scans and Pause AI, each
   kept until you resume it. Settings' sections now follow the Windows app's order. See

@@ -562,6 +562,13 @@ for a spreadsheet, and **Export JSON** everything in your catalog, for other pro
 app. The button at the top right cycles through the same three. The browser remembers your choice, so another browser
 or computer keeps its own.
 
+## Installing it as an app
+
+bibliotaph.online can be installed like an app, with its own icon and a window without the browser's address bar,
+which suits a tablet at the table. In Chrome or Edge on a PC, choose **Install** at the right of the address bar; on
+Android, **Add to home screen** in the browser's menu; on an iPad or iPhone, **Share** › **Add to Home Screen** in
+Safari. It is the same site, signed in the same way, so nothing else changes.
+
 ## Privacy
 
 Your books stay in your own storage. Bibliotaph keeps your account, your storage connections (encrypted), an index of your
