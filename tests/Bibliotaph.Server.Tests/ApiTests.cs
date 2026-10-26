@@ -94,10 +94,13 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         using var oldPrivacy = await Client().GetAsync("/privacy.html", ct);
         using var picture = await Client().GetAsync("/site/library.png", ct);
 
-        Assert.Contains("Find the right book, and the right page", landing, StringComparison.Ordinal);
+        Assert.Contains("The exact page you need.", landing, StringComparison.Ordinal);
         Assert.Contains("""href="/signin">Sign in""", landing, StringComparison.Ordinal);
+        // Its icons are drawn in place, none left as a placeholder.
+        Assert.Contains("""<svg class="bt-ico" """, landing, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{", landing, StringComparison.Ordinal);
         // Signed in, the root is the app's, not the landing page.
-        Assert.DoesNotContain("Find the right book, and the right page", await signedIn.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
+        Assert.DoesNotContain("The exact page you need.", await signedIn.Content.ReadAsStringAsync(ct), StringComparison.Ordinal);
         Assert.Contains("Open your library", openLibrary, StringComparison.Ordinal);
         Assert.All(pages.Values, html => Assert.Contains("""<a href="/terms""", html, StringComparison.Ordinal));
         Assert.Contains("""<a href="/terms" aria-current="page">""", pages["/terms"], StringComparison.Ordinal);
