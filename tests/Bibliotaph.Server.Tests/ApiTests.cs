@@ -1060,6 +1060,8 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
         using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        // Every file read to the end first, so a suggestion made meanwhile can't change the counts compared below.
+        await WaitAsync(async () => (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))! is { Files: 2, ToRead: 0, Queued: 2, Indexed: 2 } done ? done : null, ct);
         var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
         var book = books.OrderBy(b => b.Title, StringComparer.Ordinal).First();
 
