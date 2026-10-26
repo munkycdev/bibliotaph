@@ -16,4 +16,12 @@ public sealed class Session(ApiClient api)
         _me = Task.FromResult<CurrentUser?>(null);
         return signedOut.Next;
     }
+
+    /// <summary>Closes the account and signs out, saying where the page goes next as <see cref="SignOutAsync"/> does.</summary>
+    public async Task<string> CloseAccountAsync()
+    {
+        var signedOut = await api.CloseAccountAsync();
+        _me = Task.FromResult<CurrentUser?>(null);
+        return signedOut.Next;
+    }
 }

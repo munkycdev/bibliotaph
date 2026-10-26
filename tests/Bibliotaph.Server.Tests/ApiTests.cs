@@ -71,6 +71,28 @@ public sealed class ApiTests : IDisposable
     }
 
     [Fact]
+    public async Task Closing_an_account_deletes_its_library_and_ends_its_sessions()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        (await client.GetAsync("/api/library/summary", ct)).EnsureSuccessStatusCode();
+        var folder = _factory.Services.GetRequiredService<ServerPaths>().UserRoot(user.Id);
+        Assert.True(Directory.Exists(folder));
+
+        using var closed = await client.DeleteAsync("/api/me", ct);
+
+        closed.EnsureSuccessStatusCode();
+        Assert.Equal("/", (await closed.Content.ReadFromJsonAsync<SignedOut>(ct))!.Next);
+        Assert.False(Directory.Exists(folder));
+        Assert.Equal(0, _factory.Services.GetRequiredService<UserLibraries>().OpenCount);
+        using var after = await client.GetAsync("/api/library/summary", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, after.StatusCode);
+        Assert.False(Directory.Exists(folder));
+    }
+
+    [Fact]
     public async Task Me_describes_the_signed_in_user()
     {
         var user = await AddUserAsync(admin: false);

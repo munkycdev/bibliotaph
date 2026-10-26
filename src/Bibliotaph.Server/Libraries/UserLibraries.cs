@@ -260,6 +260,40 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         }
     }
 
+    /// <summary>
+    /// A closed account's library: closed if it's open, even in use, and its folder and backups deleted. Its account
+    /// is gone by now, so nothing opens it again.
+    /// </summary>
+    public async Task DeleteAsync(string userId)
+    {
+        UserIds.Require(userId);
+        while (_slots.TryGetValue(userId, out var slot))
+        {
+            Task? closing;
+            lock (slot) closing = slot.Closed;
+            if (closing is not null)
+            {
+                await closing;
+                continue;
+            }
+            try
+            {
+                await slot.Opening.Value;
+            }
+            catch
+            {
+                // It never opened, so there is nothing to close; the failed slot is let go on its own.
+                _slots.TryRemove(new KeyValuePair<string, Slot>(userId, slot));
+                continue;
+            }
+            if (TryBeginClose(slot, _ => true, out var done)) await CloseAsync(userId, slot, done);
+        }
+#pragma warning disable RS0030 // The server's own copies of a closed account's library; books are never local files here.
+        foreach (var folder in new[] { paths.UserRoot(userId), paths.UserBackups(userId) })
+            if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+#pragma warning restore RS0030
+    }
+
     /// <summary>The books fetched from drives to be read: none outlives the library being open.</summary>
     static void DeleteFetched(AppPaths paths)
     {
