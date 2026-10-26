@@ -1,8 +1,8 @@
 namespace Bibliotaph.Api.Contracts;
 
 /// <summary>
-/// Settings › Library below the folders, as the Windows app's: where Bibliotaph starts, the folder names read as labels,
-/// and the folder rules answered in Needs review, each with its switch.
+/// Settings › Library below the folders, as the Windows app's: the folder names read as labels and the folder rules
+/// answered in Needs review, each with its switch, and where Bibliotaph starts, which Preferences shows.
 /// </summary>
 public sealed record LibraryPreferences(bool StartOnLibrary, IReadOnlyList<FolderNameLabel> FolderNames, IReadOnlyList<FolderRuleSwitch> FolderRules);
 
