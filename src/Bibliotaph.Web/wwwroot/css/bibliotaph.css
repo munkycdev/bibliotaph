@@ -435,6 +435,8 @@ a{color:var(--bt-accent)}
 .bt-chapterline{font-size:12px;color:var(--bt-text);margin-top:2px}
 .bt-chapterhead+.bt-chapterline{margin-top:4px}
 .bt-detailbox .bt-path{margin-top:6px}
+.bt-service{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;margin-top:6px}
+.bt-service svg{color:var(--bt-accent)}
 .bt-boxactions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 .bt-titlelink{font:inherit;color:var(--bt-text);text-align:left;padding:0;cursor:pointer}
 .bt-titlelink:hover{color:var(--bt-accent)}

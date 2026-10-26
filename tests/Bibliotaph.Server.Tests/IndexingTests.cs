@@ -153,6 +153,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
         Assert.Equal("ABOUT THE FILE", details.FactsHeading);
         var location = Assert.Single(details.Locations);
         Assert.EndsWith("RPG › known.pdf", location.Path, StringComparison.Ordinal);
+        Assert.Equal("OneDrive", location.Service);
         Assert.Contains(details.Stages, s => s.Value == "Done");
         Assert.Empty(details.Copies);
         Assert.Null(await DetailsApi.DetailsAsync(library, new EntryId(long.MaxValue), Ct));
