@@ -1,5 +1,11 @@
 # Changes
 
+## Unreleased
+
+- **The logo in large format.** bibliotaph.online/brand/ has the logo and the **b.** monogram as SVG and PNG, for light
+  and dark backgrounds, drawn from the same type and shapes as the app's sidebar, for the sign-in page and anywhere
+  else the name appears.
+
 ## 1.3 · 19 October 2026
 
 New in 1.3.877 (26 October 2026):
