@@ -1,5 +1,11 @@
 # Changes
 
+## Unreleased
+
+- **Choose which file is the current version.** A New version? card names both files with their pages, and asks
+  which one the book opens: **This file is current** or **The book's file is current**. See
+  [Needs review](docs/guide/cataloging.md#needs-review).
+
 ## 1.3 · 19 October 2026
 
 New in 1.3.815 (26 October 2026):
