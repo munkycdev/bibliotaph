@@ -114,8 +114,7 @@ public sealed class UserDriveFactory(StorageConnections connections, DriveTokens
 
     /// <summary>A connection's drive, or null for a provider this server doesn't know.</summary>
     public IStorageDrive? Drive(ConnectedAccount account) =>
-        StorageProviders.Find(account.Provider)?.Drive(http.CreateClient(account.Provider), account.AccountId,
-            c => tokens.AccessTokenAsync(account.Id, c), clock);
+        StorageProviders.Find(account.Provider)?.Drive(http.CreateClient(account.Provider), account, c => tokens.AccessTokenAsync(account.Id, c), clock);
 
     /// <summary>The HTTP client a provider's calls go through, as while an account is being connected.</summary>
     public HttpClient Http(StorageProvider provider) => http.CreateClient(provider.Id);

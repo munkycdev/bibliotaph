@@ -39,10 +39,10 @@ public static partial class ReaderApi
         var document = api.MapGroup("/library/documents/{documentId:long}");
 
         // Asked for when the book opens and again whenever the link has expired, which takes about an hour.
-        document.MapGet("/link", async (long documentId, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        document.MapGet("/link", async (long documentId, ClaimsPrincipal principal, UserLibraries libraries, ReadLinks links, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
-            return await LinkAsync(lease.Library, documentId, ct);
+            return await LinkAsync(lease.Library, links, documentId, ct);
         });
 
         document.MapGet("/find", async (long documentId, string q, int? from, int? to, ClaimsPrincipal principal, UserLibraries libraries,
@@ -260,7 +260,7 @@ public static partial class ReaderApi
     static ReaderBook Unreadable(LibraryEntry entry, bool favorite, ReaderProblem problem) =>
         new(entry.EntryId.Value, 0, entry.Title, "", "", "", 0, [], 0, 0, null, [], favorite, problem);
 
-    internal static async Task<ReaderLink> LinkAsync(UserLibrary library, long documentId, CancellationToken ct)
+    internal static async Task<ReaderLink> LinkAsync(UserLibrary library, ReadLinks links, long documentId, CancellationToken ct)
     {
         if (await library.Get<LibraryStore>().GetSourceAsync(documentId, ct) is not { } source)
             return new ReaderLink(null, new ReaderProblem("This book isn't in your library any more.", "It may have been removed since the page opened."));
@@ -270,7 +270,12 @@ public static partial class ReaderApi
             var (drive, at) = found;
             try
             {
-                if (await drive.ReadLinkAsync(at.Path, ct) is { } url) return new ReaderLink(url);
+                if (drive.HasReadLinks)
+                {
+                    if (await drive.ReadLinkAsync(at.Path, ct) is { } url) return new ReaderLink(url);
+                }
+                // No link a page here can read: the server reads it, once it knows the file is there.
+                else if (await drive.ItemAsync(at.Path, ct) is { IsFolder: false }) return new ReaderLink(links.For(library.Drives.UserId, path));
             }
             catch (StorageException)
             {

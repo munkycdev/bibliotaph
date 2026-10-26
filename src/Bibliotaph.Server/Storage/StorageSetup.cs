@@ -19,6 +19,7 @@ public static class StorageSetup
         services.AddSingleton<StorageConnections>();
         services.AddSingleton<DriveTokens>();
         services.AddSingleton<UserDriveFactory>();
+        services.AddSingleton<ReadLinks>();
         services.AddSingleton<DriveNotifications>();
         services.AddHostedService(sp => sp.GetRequiredService<DriveNotifications>());
         services.AddHostedService<DriveWatch>();
@@ -81,6 +82,8 @@ public static class StorageSetup
     public static void MapStorage(this IEndpointRouteBuilder app)
     {
         var storage = app.MapGroup("/storage");
+        ReadLinks.Map(storage);
+        DropboxWebhook.Map(storage);
 
         storage.MapGet("/connect/{provider}", (string provider, HttpContext context, string? returnUrl) =>
             StorageProviders.Find(provider) is { } known && known.App(context.RequestServices.GetRequiredService<IConfiguration>()) is not null

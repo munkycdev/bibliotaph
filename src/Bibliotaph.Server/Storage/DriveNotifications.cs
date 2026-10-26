@@ -25,6 +25,12 @@ public sealed class DriveNotifications(StorageConnections connections, UserDrive
     /// <summary>Asks for change notifications on a newly connected drive, in the background.</summary>
     public void Subscribe(string connectionId) => _work.Writer.TryWrite(new SubscribeTo(connectionId));
 
+    /// <summary>Something changed in a connected account, as its provider said: that user's folders there are scanned.</summary>
+    public void ChangedIn(StorageConnection connection)
+    {
+        if (!connection.NeedsReconnect) _work.Writer.TryWrite(new Changed(connection.UserId, connection.Provider, connection.AccountId));
+    }
+
     /// <summary>Reads Graph's notification body: each entry names its subscription and carries the connection's secret.</summary>
     public async Task ReceiveAsync(Stream body, CancellationToken ct)
     {

@@ -49,13 +49,13 @@ public abstract class StorageProvider
     /// <summary>The account an access token from connecting belongs to.</summary>
     public abstract Task<StorageIdentity> IdentifyAsync(HttpClient http, string accessToken, CancellationToken ct);
 
-    public abstract IStorageDrive Drive(HttpClient http, string accountId, Func<CancellationToken, Task<string>> accessToken, TimeProvider clock);
+    public abstract IStorageDrive Drive(HttpClient http, ConnectedAccount account, Func<CancellationToken, Task<string>> accessToken, TimeProvider clock);
 }
 
 /// <summary>Every storage provider the server knows, whether or not its OAuth app is configured here.</summary>
 public static class StorageProviders
 {
-    public static readonly IReadOnlyList<StorageProvider> All = [new OneDriveProvider()];
+    public static readonly IReadOnlyList<StorageProvider> All = [new OneDriveProvider(), new DropboxProvider()];
 
     public static StorageProvider? Find(string id) => All.FirstOrDefault(p => p.Id == id);
 

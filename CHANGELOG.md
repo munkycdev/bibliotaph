@@ -9,6 +9,9 @@
 - **OneDrive on the web.** Connect one or more OneDrives in Settings › Storage, then add library folders from them as in
   the Windows app. Bibliotaph looks through them, reads each new file once without keeping a copy, and notices changes
   in your OneDrive within minutes. The sidebar says what it's doing.
+- **Dropbox on the web.** Connect one or more Dropbox accounts in Settings › Storage beside OneDrive, including a team's
+  space, and add library folders from them. Changes in your Dropbox are noticed within minutes, and books open in the
+  reader as they do from OneDrive.
 - **Your books read on the web.** bibliotaph.online reads each book in your library folders as the Windows app does:
   pages, outline, text for search, covers, and hints from file and folder names. A book is downloaded once to be read
   and its copy deleted when it's done. OCR and AI on the web come later.

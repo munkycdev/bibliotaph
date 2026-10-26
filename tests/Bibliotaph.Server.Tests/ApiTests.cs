@@ -28,6 +28,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
 {
     readonly TempFolder _folder = new();
     readonly FakeGraph _graph = new();
+    readonly FakeDropbox _dropbox = new();
     readonly FakeModelService _models = new();
     readonly SyntheticPdfs _pdfs;
     readonly WebApplicationFactory<Program> _factory;
@@ -39,7 +40,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         {
             host.UseEnvironment("Testing");
             host.UseSetting("Server:DataRoot", _folder.Path);
-            host.ConfigureServices(services => services.AddSingleton<IHttpClientFactory>(new FakeHttp(_graph)));
+            host.ConfigureServices(services => services.AddSingleton<IHttpClientFactory>(new FakeHttp(new FakeHosts(_graph, _dropbox))));
             host.ConfigureServices(services => services.AddSingleton(new ModelClientFactory(_models.ClientFor, TimeSpan.FromMilliseconds(50))));
             host.ConfigureServices(services => services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestSession>(AuthSetup.SessionScheme + "-test", _ => { }));
@@ -1063,6 +1064,99 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal("offline_access Files.Read Files.ReadWrite.AppFolder", query["scope"].ToString());
         Assert.EndsWith("/storage/callback/onedrive", query["redirect_uri"].ToString(), StringComparison.Ordinal);
         Assert.Equal("/settings?problem=storage", unknown.Headers.Location!.ToString());
+    }
+
+    [Fact]
+    public async Task A_book_on_dropbox_is_read_through_the_server_by_a_link_that_says_whose_it_is()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, DropboxProvider.Key, FakeDropbox.AccountId, "Dropbox · Dana", "personal", "refresh", null, ct);
+        _dropbox.Add("RPG/one.pdf", System.Text.Encoding.ASCII.GetBytes("0123456789"));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var documentId = await FirstDocumentAsync(user.Id, ct);
+
+        var link = (await client.GetFromJsonAsync<ReaderLink>($"/api/library/documents/{documentId}/link", ct))!;
+        var anonymous = Client();
+        using var ranged = new HttpRequestMessage(HttpMethod.Get, link.Url);
+        ranged.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(2, 5);
+        using var read = await anonymous.SendAsync(ranged, ct);
+        using var whole = await anonymous.GetAsync(link.Url, ct);
+        using var forged = await anonymous.GetAsync("/storage/read/not-a-link", ct);
+
+        Assert.StartsWith("/storage/read/", link.Url, StringComparison.Ordinal);
+        Assert.DoesNotContain("RPG", link.Url, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.PartialContent, read.StatusCode);
+        Assert.Equal("2345", await read.Content.ReadAsStringAsync(ct));
+        Assert.Equal(HttpStatusCode.RequestedRangeNotSatisfiable, whole.StatusCode);
+        Assert.Equal(HttpStatusCode.Gone, forged.StatusCode);
+    }
+
+    [Fact]
+    public async Task Dropboxs_webhook_is_answered_and_a_signed_notice_finds_whats_new()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var factory = _factory.WithWebHostBuilder(host =>
+        {
+            host.UseSetting("Storage:Dropbox:ClientId", "dropbox-client");
+            host.UseSetting("Storage:Dropbox:ClientSecret", "dropbox-secret");
+        });
+        var accounts = factory.Services.GetRequiredService<AccountService>();
+        var (code, _) = await accounts.CreateInviteAsync(null, null, admin: false);
+        var user = (await accounts.SignInAsync(new ExternalIdentity("google", Guid.NewGuid().ToString(), "Dana", null), code, null, ct)).User!;
+        var drive = await factory.Services.GetRequiredService<StorageConnections>()
+            .SaveAsync(user.Id, DropboxProvider.Key, FakeDropbox.AccountId, "Dropbox · Dana", "personal", "refresh", null, ct);
+        _dropbox.Add("RPG/one.pdf", [1, 2, 3]);
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add(TestSession.Header, $"{user.Id};{user.Name};{user.IsAdmin}");
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var libraries = factory.Services.GetRequiredService<UserLibraries>();
+        await WaitForFilesAsync(libraries, user.Id, 1, ct);
+        _dropbox.Add("RPG/two.pdf", [4, 5, 6]);
+        var body = System.Text.Encoding.UTF8.GetBytes($$$"""{"list_folder":{"accounts":["{{{FakeDropbox.AccountId}}}"]}}""");
+        var signature = Convert.ToHexStringLower(System.Security.Cryptography.HMACSHA256.HashData("dropbox-secret"u8, body));
+        var webhook = factory.CreateClient();
+
+        var challenge = await webhook.GetStringAsync("/storage/notifications/dropbox?challenge=echo-me", ct);
+        using var unsigned = await webhook.PostAsync("/storage/notifications/dropbox", new ByteArrayContent(body), ct);
+        using var signedNotice = new HttpRequestMessage(HttpMethod.Post, "/storage/notifications/dropbox") { Content = new ByteArrayContent(body) };
+        signedNotice.Headers.Add("X-Dropbox-Signature", signature);
+        using var signed = await webhook.SendAsync(signedNotice, ct);
+
+        Assert.Equal("echo-me", challenge);
+        Assert.Equal(HttpStatusCode.Forbidden, unsigned.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, signed.StatusCode);
+        await WaitForFilesAsync(libraries, user.Id, 2, ct);
+    }
+
+    static async Task WaitForFilesAsync(UserLibraries libraries, string userId, int files, CancellationToken ct)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        while (true)
+        {
+            await using (var lease = await libraries.OpenAsync(userId, timeout.Token))
+                if ((await lease.Library.Get<LibraryStore>().GetCountsAsync(timeout.Token)).Files >= files) return;
+            await Task.Delay(50, timeout.Token);
+        }
+    }
+
+    async Task<long> FirstDocumentAsync(string userId, CancellationToken ct)
+    {
+        var libraries = _factory.Services.GetRequiredService<UserLibraries>();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        while (true)
+        {
+            await using (var lease = await libraries.OpenAsync(userId, timeout.Token))
+                if (await lease.Library.Get<LibraryStore>().GetRelativePathsAsync(timeout.Token) is [var first, ..])
+                    return first.DocumentId;
+            await Task.Delay(50, timeout.Token);
+        }
     }
 
     [Fact]

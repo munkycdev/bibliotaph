@@ -4,7 +4,7 @@
 
 Bibliotaph is coming to the browser at [bibliotaph.online](https://bibliotaph.online), for game masters whose books
 live in cloud storage. It looks and works like the Windows app. It's being built in steps and is invite-only: today you
-can accept an invitation, sign in, invite others, connect your OneDrive and add library folders from it. Seeing and
+can accept an invitation, sign in, invite others, connect your OneDrive or Dropbox and add library folders from it. Seeing and
 reading your books in the browser comes next.
 
 ## Join with an invitation
@@ -44,17 +44,18 @@ signed in. The bin beside an account deletes it once you confirm: it's the same 
 account…**, so their library and everything done in it go, they're signed out in every browser, and nothing in their
 storage is touched. It can't be undone. Your own account isn't deleted here: use **Close account…**.
 
-## Connecting your OneDrive
+## Connecting your storage
 
 Bibliotaph reads your books where they are, so first it needs your storage. In **Settings** › **Storage**, choose
-**Connect OneDrive** and sign in to Microsoft with the account whose OneDrive holds your books (it doesn't have to be the
-one you sign in to Bibliotaph with). Microsoft asks you to let Bibliotaph read your files and keep access while you're
-away; Bibliotaph can't change, move or delete any of them. It can write only to a folder of its own in your OneDrive,
-which is where books you import will go.
+**Connect OneDrive** or **Connect Dropbox** and sign in with the account that holds your books (it doesn't have to be the
+one you sign in to Bibliotaph with). Microsoft or Dropbox asks you to let Bibliotaph read your files and keep access
+while you're away; Bibliotaph can't change, move or delete any of them. On OneDrive it can also write to a folder of its
+own, which is where books you import will go. A Dropbox that's part of a team shows the team's folders as well as your
+own.
 
-You can connect more than one OneDrive. If Microsoft stops letting Bibliotaph in, for example after you change your
-password or remove its access, the drive shows **Needs connecting again** with a **Connect again** button. Its books stay
-in your library meanwhile. The **×** beside a drive disconnects it: Bibliotaph forgets its access, and your notes,
+You can connect more than one account, of either kind. If one stops letting Bibliotaph in, for example after you change
+your password or remove its access, it shows **Needs connecting again** with a **Connect again** button. Its books stay
+in your library meanwhile. The **×** beside an account disconnects it: Bibliotaph forgets its access, and your notes,
 collections and corrections stay for when you connect it again.
 
 ## Library folders
@@ -69,7 +70,7 @@ Bibliotaph looks through a new folder straight away, then reads each new file to
 copied: each is downloaded only while it's being read and deleted straight after. The line at the bottom of the sidebar
 says what it's doing, such as **Reading 120 new files** or **Up to date**.
 
-Changes in your OneDrive (books added, moved or deleted) are picked up within a few minutes, whether or not you have
+Changes in your storage (books added, moved or deleted) are picked up within a few minutes, whether or not you have
 Bibliotaph open, and twice a day it looks through every folder anyway. **Look for changes** looks straight away.
 
 Each book is then read as the Windows app reads it: its pages, outline and text for search, its cover, and hints from
@@ -330,8 +331,8 @@ in its details. A matching page under **Inside documents** has **Open page**, wh
 the search's words marked. A book opened from the Library opens where you left it, and says so; an adventure inside a
 file opens at its own first page and shows where you are in it ("page 3 of 19 of this adventure").
 
-The pages are read straight from your OneDrive, a piece at a time, so a big book shows its first page in a moment; the
-server never has a copy. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
+The pages are read from your storage a piece at a time, so a big book shows its first page in a moment: straight from
+OneDrive, and through the server from Dropbox, which passes each piece on without keeping it. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
 
 - **Page box**: type a printed page number or a PDF page number, and press **Enter**. **Previous** and **Next** turn a
   page; the line under the pages says which printed and PDF page you're on.

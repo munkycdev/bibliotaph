@@ -141,15 +141,18 @@ sealed class LibraryFixture : IAsyncDisposable
     public LibraryFixture(string root, TimeProvider clock, FakeGraph? graph = null)
     {
         Graph = graph ?? new FakeGraph();
+        Dropbox = new FakeDropbox();
         Paths = new ServerPaths(root);
         Accounts = new AccountsDatabase(Paths.Accounts);
         Accounts.MigrateAsync().GetAwaiter().GetResult();
         Connections = new StorageConnections(Accounts, Protection, clock);
-        var http = new FakeHttp(Graph);
+        var http = new FakeHttp(new FakeHosts(Graph, Dropbox));
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Storage:OneDrive:ClientId"] = "client",
             ["Storage:OneDrive:ClientSecret"] = "secret",
+            ["Storage:Dropbox:ClientId"] = "dropbox-client",
+            ["Storage:Dropbox:ClientSecret"] = "dropbox-secret",
         }).Build();
         Tokens = new DriveTokens(http, configuration, Connections, clock, NullLogger<DriveTokens>.Instance);
         Drives = new UserDriveFactory(Connections, Tokens, http, clock);
@@ -165,6 +168,8 @@ sealed class LibraryFixture : IAsyncDisposable
     public FakeModelService Models { get; } = new();
 
     public FakeGraph Graph { get; }
+    public FakeDropbox Dropbox { get; }
+    public ReadLinks ReadLinks => new(Protection, TimeProvider.System);
 
     public MemoryCoverStore Covers { get; } = new();
     public ServerPaths Paths { get; }
@@ -176,12 +181,19 @@ sealed class LibraryFixture : IAsyncDisposable
     public PdfWorkerPool Pdf { get; }
 
     /// <summary>Makes a user and connects the fake drive to them, as the OAuth callback does.</summary>
-    public async Task<(string UserId, ConnectedAccount Drive)> UserWithDriveAsync(string name = "Dana")
+    public async Task<(string UserId, ConnectedAccount Drive)> UserWithDriveAsync(string name = "Dana") =>
+        await UserWithAsync(OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", name);
+
+    /// <summary>Makes a user and connects the fake Dropbox to them.</summary>
+    public async Task<(string UserId, ConnectedAccount Drive)> UserWithDropboxAsync(string kind = "personal") =>
+        await UserWithAsync(DropboxProvider.Key, FakeDropbox.AccountId, "Dropbox · Dana", kind, "Dana");
+
+    async Task<(string UserId, ConnectedAccount Drive)> UserWithAsync(string provider, string account, string display, string kind, string name)
     {
         var accounts = new AccountService(Accounts, TimeProvider.System);
         var (code, _) = await accounts.CreateInviteAsync(null, null, admin: false);
         var user = (await accounts.SignInAsync(new ExternalIdentity("google", Guid.NewGuid().ToString(), name, null), code, null)).User!;
-        var drive = await Connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null);
+        var drive = await Connections.SaveAsync(user.Id, provider, account, display, kind, "refresh", null);
         return (user.Id, drive);
     }
 
