@@ -7,6 +7,9 @@ const base = new URL('../lib/pdfjs/', import.meta.url).href;
 const ZoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 const ThumbnailHeight = 96;
 
+// Lucide's notebook-pen, as the Windows strip's note badge.
+const NoteIcon = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M 13.4 2 H 6 a 2 2 0 0 0 -2 2 v 16 a 2 2 0 0 0 2 2 h 12 a 2 2 0 0 0 2 -2 v -7.4 M 2 6 h 4 M 2 10 h 4 M 2 14 h 4 M 2 18 h 4 M 21.378 5.626 a 1 1 0 1 0 -3.004 -3.004 l -5.01 5.012 a 2 2 0 0 0 -0.506 0.854 l -0.837 2.87 a 0.5 0.5 0 0 0 0.62 0.62 l 2.87 -0.837 a 2 2 0 0 0 0.854 -0.506 Z"/></svg>';
+
 let pdfjs = null, viewers = null;
 
 // pdf_viewer.mjs reads PDF.js from globalThis as it loads. One worker serves every book, so a second book opens at once.
@@ -272,11 +275,28 @@ class Reader {
   /** Find cleared: the search's own words again. */
   clearFind() { this.marks.find(null); }
 
+  /** The open book's page notes, as [first, last] pages (from 0), which the thumbnails badge. */
+  setNotes(ranges) {
+    this.notes = ranges;
+    this.thumbnails?.notes(ranges);
+  }
+
+  /** The page the selected text starts on, or -1 when nothing in the pages is selected. */
+  selectionPage() {
+    const selection = document.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return -1;
+    let node = selection.getRangeAt(0).startContainer;
+    if (node.nodeType !== Node.ELEMENT_NODE) node = node.parentElement;
+    const page = node?.closest('.page[data-page-number]');
+    return page && this.stage.contains(page) ? Number(page.dataset.pageNumber) - 1 : -1;
+  }
+
   /** Shows or hides the thumbnails, which are drawn only while they show. */
   showStrip(show) {
     if (!this.doc) return;
     if (show && !this.thumbnails) {
       this.thumbnails = new Thumbnails(this, this.strip);
+      if (this.notes) this.thumbnails.notes(this.notes);
       this.thumbnails.current(this.viewer.currentPageNumber - 1);
       if (this.stage.querySelector('canvas')) this.thumbnails.wake();
     }
@@ -430,7 +450,8 @@ class Thumbnails {
       item.className = 'bt-thumbnail';
       item.title = `Page ${label}`;
       item.setAttribute('aria-label', `Page ${label}`);
-      item.innerHTML = '<span class="bt-thumbframe"><span class="bt-small"></span></span><span class="bt-thumbnumber"></span>';
+      item.innerHTML = '<span class="bt-thumbframe"><span class="bt-small"></span></span><span class="bt-thumbnumber"></span>'
+        + `<span class="bt-thumbnote" hidden>${NoteIcon}</span>`;
       item.querySelector('.bt-small').textContent = label;
       item.querySelector('.bt-thumbnumber').textContent = label;
       item.addEventListener('click', () => reader.goTo(i));
@@ -465,14 +486,39 @@ class Thumbnails {
   }
 
   current(index) {
-    const before = this.items[this.currentIndex];
-    if (before) { before.classList.remove('current'); before.setAttribute('aria-label', before.title); }
+    const before = this.currentIndex;
     this.currentIndex = index;
+    this.items[before]?.classList.remove('current');
+    this.#describe(before);
     const now = this.items[index];
     if (!now) return;
     now.classList.add('current');
-    now.setAttribute('aria-label', `${now.title}, the page in view`);
+    this.#describe(index);
     if (!this.strip.hidden) now.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  /** Badges the pages with notes on them, as the Windows strip does. */
+  notes(ranges) {
+    const counts = new Array(this.items.length).fill(0);
+    for (const [first, last] of ranges) {
+      for (let i = Math.max(0, Math.min(first, last)); i <= Math.min(counts.length - 1, Math.max(first, last)); i++) counts[i]++;
+    }
+    this.counts = counts;
+    this.items.forEach((item, i) => {
+      item.querySelector('.bt-thumbnote').hidden = counts[i] === 0;
+      this.#describe(i);
+    });
+  }
+
+  // As the Windows strip names a thumbnail: "Page 12, 2 notes, the page in view".
+  #describe(i) {
+    const item = this.items[i];
+    if (!item) return;
+    const parts = [item.title];
+    const notes = this.counts?.[i] ?? 0;
+    if (notes > 0) parts.push(notes === 1 ? '1 note' : `${notes.toLocaleString()} notes`);
+    if (i === this.currentIndex) parts.push('the page in view');
+    item.setAttribute('aria-label', parts.join(', '));
   }
 
   async #pump() {
@@ -849,6 +895,9 @@ class EbookReader {
       case 'linked':
         if (Number.isInteger(message.from) && message.from >= 0) this.page.invokeMethodAsync('LinkFollowed', message.from);
         break;
+      case 'selection':
+        this.selected = Number.isInteger(message.page) ? message.page : -1;
+        break;
       case 'web':
         if (typeof message.url === 'string' && /^(https?|mailto):/i.test(message.url)) window.open(message.url, '_blank', 'noopener,noreferrer');
         break;
@@ -868,6 +917,9 @@ class EbookReader {
         break;
     }
   }
+
+  /** The page the selected text starts on, or -1 when nothing is selected. */
+  selectionPage() { return this.selected ?? -1; }
 
   /** Goes to a page (from 0). */
   goTo(index) {

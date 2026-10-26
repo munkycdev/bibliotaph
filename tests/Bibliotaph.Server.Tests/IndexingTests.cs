@@ -189,6 +189,45 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticP
     }
 
     [Fact]
+    public async Task Notes_on_a_books_pages_are_added_changed_and_deleted_with_Undo_in_the_reader()
+    {
+        Fixture.Graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(pdfs.KnownText, Ct));
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        await using var lease = await Fixture.Libraries.OpenAsync(userId, Ct);
+        var library = lease.Library;
+        var root = await library.Get<SourceRootStore>().AddAsync(DrivePath.Of(FakeGraph.DriveId, "RPG"), Ct);
+        library.Indexing.RequestScan(root.Id);
+        var card = await WaitAsync(async () =>
+            (await LibraryApi.ResultsAsync(library, new LibraryQuery(), Ct)).Books is [{ Cover: not null } only] ? only : null);
+        var document = card.DocumentId;
+        var none = (await PageNotesApi.ListAsync(library, document, Ct))!;
+        Assert.Equal(("Notes", 0), (none.Label, none.Notes.Count));
+        Assert.Null(await PageNotesApi.ListAsync(library, long.MaxValue, Ct));
+
+        var added = (await PageNotesApi.AddAsync(library, document, new PageNoteEdit(1, 2, " Ambush "), Ct))!;
+        var note = Assert.Single(added.Notes.Notes);
+        Assert.Equal(("Ambush", 1, 2, false, null), (note.Text, note.First, note.Last, note.OtherCopy, note.Reason));
+        Assert.Equal($"Saved the note on {note.Pages}.", added.Done.Message);
+        Assert.Equal("Notes (1)", added.Notes.Label);
+        // The Notes tab of the details lists it too.
+        Assert.Equal("Ambush", Assert.Single((await library.Get<NotesService>().GetPageNotesAsync(new EntryId(card.EntryId), Ct))).Text);
+
+        var changed = (await PageNotesApi.UpdateAsync(library, document, note.Id, new PageNoteEdit(1, 2, "Ambush at the ford"), Ct))!;
+        Assert.Equal(("Ambush at the ford", 1, 2), (changed.Notes.Notes[0].Text, changed.Notes.Notes[0].First, changed.Notes.Notes[0].Last));
+        Assert.Equal("", changed.Done.Message);
+        var moved = (await PageNotesApi.UpdateAsync(library, document, note.Id, new PageNoteEdit(0, 0, "Ambush at the ford"), Ct))!;
+        Assert.Equal((0, 0), (moved.Notes.Notes[0].First, moved.Notes.Notes[0].Last));
+
+        var deleted = (await PageNotesApi.DeleteAsync(library, document, note.Id, Ct))!;
+        Assert.Empty(deleted.Notes.Notes);
+        Assert.Equal($"Deleted the note on {moved.Notes.Notes[0].Pages}.", deleted.Done.Message);
+        Assert.Equal("That note isn't there any more.", (await PageNotesApi.DeleteAsync(library, document, note.Id, Ct))!.Done.Message);
+        var undo = library.Get<HeldActions>().Take(deleted.Done.Undo!)!;
+        await undo(Ct);
+        Assert.Equal("Ambush at the ford", Assert.Single((await PageNotesApi.ListAsync(library, document, Ct))!.Notes).Text);
+    }
+
+    [Fact]
     public async Task A_picture_opens_in_the_picture_reader_and_a_pack_steps_through_its_files()
     {
         Fixture.Graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(pdfs.KnownText, Ct));

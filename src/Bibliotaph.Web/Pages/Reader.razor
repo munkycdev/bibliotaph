@@ -31,6 +31,12 @@ else
                 <h1 class="bt-reader-title" title="@book.Title">@book.Title</h1>
                 @if (book.Subtitle.Length > 0) { <div class="bt-small bt-reader-subtitle" title="@book.Subtitle">@book.Subtitle</div> }
             </div>
+            @if (problem is null && HasPages)
+            {
+                <div class="bt-reader-actions">
+                    <button class="bt-button" title="Add a note on the page in view" aria-label="Add a note on this page" @onclick="AddNoteAsync"><Icon Name="Pencil" />Note</button>
+                </div>
+            }
         </div>
 
         @if (problem is not null)
@@ -73,6 +79,11 @@ else
                             <Icon Name="Undo2" Size="14" />Back to page @ReaderPageNumbers.Display(back, book.Labels)
                         </button>
                     }
+                    <span class="bt-tooldivider"></span>
+                </div>
+                <div class="bt-toolgroup">
+                    <button class="bt-link bt-iconlink bt-notestoggle @(_showNotes ? "on" : "")" title="Show or hide the notes on this book's pages" aria-pressed="@_showNotes"
+                            @onclick="() => _showNotes = !_showNotes"><Icon Name="NotebookPen" Size="14" />@(_notes?.Label ?? "Notes")</button>
                     <span class="bt-tooldivider"></span>
                 </div>
                 }
@@ -179,6 +190,37 @@ else
                     @if (_notice is { } notice) { <div class="bt-notice" role="status">@notice</div> }
                 </div>
                 <div class="bt-strip" @ref="_strip" aria-label="Page thumbnails"></div>
+                @if (_showNotes && HasPages)
+                {
+                    <aside class="bt-notespanel" aria-label="Notes">
+                        <span class="bt-eyebrow">NOTES</span>
+                        <DoneNote Result="_noteDone" UndoName="Undo the note change" Dismissed="() => _noteDone = null" Undone="ReloadNotesAsync" />
+                        @if (_notes is { Notes.Count: > 0 } notes)
+                        {
+                            <div aria-label="Notes on its pages">
+                                @foreach (var note in notes.Notes)
+                                {
+                                    <div class="bt-readernote" aria-label="@($"{note.Pages}: {note.Text}{(note.Reason is { } why ? ". " + why : "")}")">
+                                        <div class="bt-readernotehead">
+                                            <button class="bt-link" title="Go to these pages" aria-label="@($"Go to {note.Pages}")" @onclick="() => GoToNoteAsync(note)">@note.Pages</button>
+                                            <button class="bt-icon" title="Change this note" aria-label="Change this note" @onclick="() => EditNote(note)"><Icon Name="Pencil" Size="13" /></button>
+                                            <button class="bt-icon" title="Delete this note" aria-label="Delete this note" @onclick="() => DeleteNoteAsync(note)"><Icon Name="Trash2" Size="13" /></button>
+                                        </div>
+                                        <div class="bt-notetext">@note.Text</div>
+                                        @if (note.Reason is { } reason)
+                                        {
+                                            <div class="bt-notereason @(note.Changed ? "changed" : "")"><Icon Name="TriangleAlert" Size="12" /><span>@reason</span></div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="bt-small">No notes yet. Note adds one on the page in view.</div>
+                        }
+                    </aside>
+                }
             </div>
             @if (IsPdf)
             {
@@ -188,6 +230,33 @@ else
                 </div>
             }
         }
+    </div>
+}
+
+@if (_noteDialog is { } dialog)
+{
+    <div class="bt-backdrop fixed bt-dialogback" @onclick="() => _noteDialog = null"></div>
+    <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@dialog.Heading" @onkeydown="NoteDialogKeyAsync">
+        <div class="bt-drawer-head bt-dialoghead">
+            <div>
+                <span class="bt-eyebrow bt-eyebrow-block">PAGE NOTE</span>
+                <h2 class="bt-dialogtitle">@dialog.Heading</h2>
+            </div>
+            <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="() => _noteDialog = null"><Icon Name="X" /></button>
+        </div>
+        <div class="bt-inline bt-notepagefields">
+            <label class="bt-field">From page<input aria-label="From page" @bind="dialog.From" @bind:event="oninput" /></label>
+            <label class="bt-field">To page (optional)<input aria-label="To page" @bind="dialog.To" @bind:event="oninput" /></label>
+        </div>
+        @if (NoteRange(dialog) is null)
+        {
+            <div class="bt-small bt-notepageproblem">Type pages as the book numbers them, or PDF page numbers.</div>
+        }
+        <label class="bt-field bt-notefield">Note<textarea aria-label="Note" title="Ctrl+Enter saves" rows="6" @bind="dialog.Text" @bind:event="oninput" @ref="_noteBox"></textarea></label>
+        <div class="bt-boxactions end bt-dialogactions">
+            <button class="bt-button" @onclick="() => _noteDialog = null">Cancel</button>
+            <button class="bt-button primary" disabled="@(!CanSaveNote(dialog))" @onclick="SaveNoteAsync">Save note</button>
+        </div>
     </div>
 }
 
@@ -273,6 +342,23 @@ else
     List<(int Page, int Nth)> _hits = [];
     int _hitIndex = -1;
 
+    ReaderNotes? _notes;
+    bool _showNotes;
+    ActionResult? _noteDone;
+    NoteDialog? _noteDialog;
+    ElementReference _noteBox;
+    bool _focusNote;
+
+    /// <summary>Adding or changing a page note: From and To as the reader names pages, To left blank for one page.</summary>
+    sealed class NoteDialog
+    {
+        public required string Heading { get; init; }
+        public string From { get; set; } = "";
+        public string To { get; set; } = "";
+        public string Text { get; set; } = "";
+        public ReaderNote? Editing { get; init; }
+    }
+
     (bool Retry, TaskCompletionSource<string?> Answer)? _password;
     string _passwordText = "";
     bool _focusPassword;
@@ -325,7 +411,11 @@ else
         _canCopy = true;
         _stored = _kept = false;
         ClearFindState();
+        _notes = null;
+        _noteDone = null;
+        _noteDialog = null;
         if (_book.Notice is { } notice) ShowNotice(notice);
+        if (HasPages) _ = LoadNotesAsync(_book);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -335,6 +425,11 @@ else
         {
             _focusPassword = false;
             await _passwordBox.FocusAsync();
+        }
+        if (_focusNote && _noteDialog is not null)
+        {
+            _focusNote = false;
+            await _noteBox.FocusAsync();
         }
         if (_starting) return;
         _starting = true;
@@ -391,6 +486,7 @@ else
             if (_showStrip) await CallAsync("showStrip", true);
         }
         if (book.Kind != ReaderKinds.Image && book.Marks.Count > 0) await CallAsync("markTerms", book.Marks, book.StartPage);
+        await MarkNotesAsync();
     }
 
     /// <summary>The pages, told to do something; nothing while they aren't open.</summary>
@@ -431,6 +527,137 @@ else
         {
             // The page is going anyway.
         }
+    }
+
+    // The Notes panel and Note, as the Windows reader's.
+
+    async Task LoadNotesAsync(ReaderBook book)
+    {
+        ReaderNotes notes;
+        try
+        {
+            notes = await Api.ReaderNotesAsync(book.DocumentId);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            return;
+        }
+        if (_book != book) return;
+        _notes = notes;
+        await MarkNotesAsync();
+        StateHasChanged();
+    }
+
+    Task ReloadNotesAsync() => _book is { } book ? LoadNotesAsync(book) : Task.CompletedTask;
+
+    /// <summary>The thumbnails badge the pages with notes on them in this copy.</summary>
+    Task MarkNotesAsync() => IsPdf && _notes is { } notes
+        ? CallAsync("setNotes", (object)notes.Notes.Where(n => !n.OtherCopy).Select(n => new[] { n.First, n.Last }).ToArray())
+        : Task.CompletedTask;
+
+    /// <summary>Note: a note on the page with selected text, or else the page in view, which the dialog can widen to a range.</summary>
+    async Task AddNoteAsync()
+    {
+        if (_book is not { } book) return;
+        var selected = -1;
+        if (_reader is { } reader)
+        {
+            try
+            {
+                selected = await reader.InvokeAsync<int>("selectionPage");
+            }
+            catch (Exception e) when (e is JSException or JSDisconnectedException)
+            {
+                // Nothing selected that the pages can say.
+            }
+        }
+        var page = Math.Clamp(selected >= 0 ? selected : _page, 0, Math.Max(0, book.PageCount - 1));
+        var shown = ReaderPageNumbers.Display(page, book.Labels);
+        _noteDialog = new NoteDialog { Heading = $"A note on page {shown}", From = shown };
+        _focusNote = true;
+    }
+
+    /// <summary>Changes a note's text or pages, shown as they are in the copy open here.</summary>
+    void EditNote(ReaderNote note)
+    {
+        if (_book is not { } book) return;
+        _noteDialog = new NoteDialog
+        {
+            Heading = $"The note on {note.Pages}",
+            From = ReaderPageNumbers.Display(note.First, book.Labels),
+            To = note.First == note.Last ? "" : ReaderPageNumbers.Display(note.Last, book.Labels),
+            Text = note.Text,
+            Editing = note,
+        };
+        _focusNote = true;
+    }
+
+    (int First, int Last)? NoteRange(NoteDialog dialog)
+    {
+        if (_book is not { } book || ReaderPageNumbers.Find(dialog.From, book.Labels, book.PageCount) is not { } first) return null;
+        var last = dialog.To.Trim().Length == 0 ? first : ReaderPageNumbers.Find(dialog.To, book.Labels, book.PageCount);
+        return last is { } l ? (Math.Min(first, l), Math.Max(first, l)) : null;
+    }
+
+    bool CanSaveNote(NoteDialog dialog) => dialog.Text.Trim().Length > 0 && NoteRange(dialog) is not null;
+
+    async Task SaveNoteAsync()
+    {
+        if (_book is not { } book || _noteDialog is not { } dialog || !CanSaveNote(dialog) || NoteRange(dialog) is not { } range) return;
+        _noteDialog = null;
+        var edit = new PageNoteEdit(range.First, range.Last, dialog.Text.Trim());
+        try
+        {
+            var changed = dialog.Editing is { } note
+                ? await Api.UpdatePageNoteAsync(book.DocumentId, note.Id, edit)
+                : await Api.AddPageNoteAsync(book.DocumentId, edit);
+            if (_book != book) return;
+            _notes = changed.Notes;
+            if (changed.Done.Message.Length > 0) _noteDone = changed.Done;
+            if (dialog.Editing is null) _showNotes = true;
+            await MarkNotesAsync();
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _noteDone = new ActionResult("The note couldn't be saved. Try again in a moment.");
+            _showNotes = true;
+        }
+    }
+
+    /// <summary>Deletes a page note, with Undo until the next change.</summary>
+    async Task DeleteNoteAsync(ReaderNote note)
+    {
+        if (_book is not { } book) return;
+        try
+        {
+            var changed = await Api.DeletePageNoteAsync(book.DocumentId, note.Id);
+            if (_book != book) return;
+            _notes = changed.Notes;
+            _noteDone = changed.Done;
+            await MarkNotesAsync();
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _noteDone = new ActionResult("The note couldn't be deleted. Try again in a moment.");
+        }
+    }
+
+    /// <summary>
+    /// Goes to a note's first page here. One whose pages may not be where they were says why; one made in another copy
+    /// whose pages weren't found here says its page may differ.
+    /// </summary>
+    async Task GoToNoteAsync(ReaderNote note)
+    {
+        if (_book is not { } book) return;
+        await GoToAsync(Math.Clamp(note.First, 0, Math.Max(0, book.PageCount - 1)));
+        if (note.Reason is { } reason) ShowNotice(reason);
+        else if (note.OtherCopy) ShowNotice("This note was made in another copy of the book, so its page may be a little different here.");
+    }
+
+    async Task NoteDialogKeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _noteDialog = null;
+        else if (e.Key == "Enter" && e.CtrlKey) await SaveNoteAsync();
     }
 
     [JSInvokable]
