@@ -14,9 +14,9 @@ sealed class TempFolder : IDisposable
         {
             Directory.Delete(Path, recursive: true);
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // A file still open on Windows; the temp folder is cleaned up eventually.
+            // A file still open on Windows, which may say so as access denied; the temp folder is cleaned up eventually.
         }
     }
 }

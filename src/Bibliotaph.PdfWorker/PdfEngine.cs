@@ -18,7 +18,7 @@ sealed class PdfEngine(IntPtr shared, long sharedSize)
 
     public Response Handle(Request r) => r.Op switch
     {
-        Op.Ping => Response.Success(r.Id),
+        Op.Ping => Response.Success(r.Id) with { Message = Confinement.Status },
         Op.Open => Open(r),
         Op.Close => Close(r),
         Op.Render => WithDoc(r, doc => Render(r, doc)),
