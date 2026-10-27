@@ -6,6 +6,9 @@
   are already taking the memory it sets aside, rather than running out for everyone. Sign-up can be opened without
   invitations, up to a set number of accounts; it stays invite-only for now. See
   [Bibliotaph on the web](docs/guide/web.md#join-with-an-invitation).
+- **Read links are yours alone.** On bibliotaph.online, a book from Dropbox, Google Drive, Box or WebDAV is read
+  through the server only by your own sign-in, so a link copied out of the reader is no use to anyone else. Each user
+  reads up to 10 GB a day through the server. See [Bibliotaph on the web](docs/guide/web.md#reading-a-book).
 - **Books read on the web are read shut in.** On bibliotaph.online, the process that reads PDFs can open only the
   books being read, can't start programs or reach the network, and never sees the server's keys, so a booby-trapped
   PDF in anyone's storage can't reach other people's libraries. The server's diagnostics port is off. See
@@ -154,17 +157,17 @@ open by invitation while it settles:
   and its copy deleted when it's done. OCR and AI on the web come later.
 - **Your library in the browser.** bibliotaph.online's Library shows your books with their covers or as a list, with the
   Windows app's filters, orders and Packs or Each file, and the search box finds books and the pages inside them. See
-  [Your library and search](docs/guide/web.md#your-library-and-search).
+  [Your library and search](docs/guide/web.md#reading-a-book).
 - **Book details and Home on the web.** A click on a book opens its details as in the Windows app: its fields with
   where each value came from, its adventures or pack files, its file, where it is, its copies and how far reading it has
   got. Home shows the books opened and added last. Covers are kept with your account across server restarts. See
-  [Your library and search](docs/guide/web.md#your-library-and-search).
+  [Your library and search](docs/guide/web.md#reading-a-book).
 - **Change a book's details on the web.** As in the Windows app: edit fields and choose between suggestions, Cataloged
   wrong… and the offer to correct look-alikes, favorites, notes, adventures inside a PDF, Reprocess, a pack's cover and
   split, and copies, with Undo. See [Changing a book's details](docs/guide/web.md#changing-a-books-details).
 - **Type to filter on the web.** More filters has the Windows app's boxes for setting, themes, environments, publisher
   and edition: type, pick from the matching values with their counts, and each pick becomes a chip. See
-  [Your library and search](docs/guide/web.md#your-library-and-search).
+  [Your library and search](docs/guide/web.md#reading-a-book).
 - **Collections on the web.** Make, open, rename, move and delete collections, and add books to them or take them out
   from a book's details, as in the Windows app, with Undo. See [Collections](docs/guide/web.md#collections).
 - **Favorites, saved searches and pins on the web.** Favorites shows the books with a heart. Save search keeps a search,

@@ -70,6 +70,10 @@ public static class AuthSetup
             limits.AddPolicy(ConnectLimit, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+            // Reading a book through the server: by the signed-in user, or by address for a read that isn't signed in.
+            limits.AddPolicy(Storage.ReadLinks.ReadLimit, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.User.UserId() ?? context.Connection.RemoteIpAddress?.ToString() ?? "",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 300, Window = TimeSpan.FromMinutes(1) }));
         });
         return services;
     }

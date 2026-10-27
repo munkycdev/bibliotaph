@@ -17,6 +17,7 @@ using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
 using Bibliotaph.Web.Services;
+using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -1592,7 +1593,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
-    public async Task A_book_on_dropbox_is_read_through_the_server_by_a_link_that_says_whose_it_is()
+    public async Task A_book_on_dropbox_is_read_through_the_server_by_a_link_only_its_owner_can_follow()
     {
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
@@ -1605,19 +1606,44 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var documentId = await FirstDocumentAsync(user.Id, ct);
 
         var link = (await client.GetFromJsonAsync<ReaderLink>($"/api/library/documents/{documentId}/link", ct))!;
-        var anonymous = Client();
-        using var ranged = new HttpRequestMessage(HttpMethod.Get, link.Url);
-        ranged.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(2, 5);
-        using var read = await anonymous.SendAsync(ranged, ct);
-        using var whole = await anonymous.GetAsync(link.Url, ct);
-        using var forged = await anonymous.GetAsync("/storage/read/not-a-link", ct);
+        HttpRequestMessage Range(long from, long to)
+        {
+            var ranged = new HttpRequestMessage(HttpMethod.Get, link.Url);
+            ranged.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(from, to);
+            return ranged;
+        }
+        using var read = await client.SendAsync(Range(2, 5), ct);
+        using var anonymous = await Client().SendAsync(Range(2, 5), ct);
+        using var someoneElse = await Client(await AddUserAsync(admin: false)).SendAsync(Range(2, 5), ct);
+        using var whole = await client.GetAsync(link.Url, ct);
+        using var tooMuch = await client.SendAsync(Range(0, ReadLinks.MostBytesARead), ct);
+        using var forged = await client.GetAsync("/storage/read/not-a-link", ct);
 
         Assert.StartsWith("/storage/read/", link.Url, StringComparison.Ordinal);
         Assert.DoesNotContain("RPG", link.Url, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.PartialContent, read.StatusCode);
         Assert.Equal("2345", await read.Content.ReadAsStringAsync(ct));
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, someoneElse.StatusCode);
         Assert.Equal(HttpStatusCode.RequestedRangeNotSatisfiable, whole.StatusCode);
+        Assert.Equal(HttpStatusCode.RequestedRangeNotSatisfiable, tooMuch.StatusCode);
         Assert.Equal(HttpStatusCode.Gone, forged.StatusCode);
+    }
+
+    [Fact]
+    public void A_users_reads_through_the_server_stop_at_the_days_limit()
+    {
+        var clock = new ManualClock(new DateTimeOffset(2026, 10, 27, 23, 0, 0, TimeSpan.Zero));
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Storage:ReadBytesPerDay"] = "100" }).Build();
+        var links = new ReadLinks(_factory.Services.GetRequiredService<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(), clock, configuration);
+
+        Assert.True(links.TryRead("a", 60));
+        Assert.False(links.TryRead("a", 41));
+        Assert.True(links.TryRead("b", 100));
+        Assert.True(links.TryRead("a", 40));
+        clock.Advance(TimeSpan.FromHours(2));
+        Assert.True(links.TryRead("a", 100));
     }
 
     [Fact]
