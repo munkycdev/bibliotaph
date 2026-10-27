@@ -29,7 +29,9 @@
     ./infra/setup.ps1 -Environment <environment> -EnvironmentResourceGroup <environment's group> -BindDomain
 #>
 #Requires -Version 7.3
-[CmdletBinding()]
+# Every setting is named, so a stray word, such as a ">>" pasted from a continued prompt, which PowerShell reads as a
+# redirection, stops the script rather than becoming the next setting.
+[CmdletBinding(PositionalBinding = $false)]
 param(
     # The existing Container Apps environment, and its resource group.
     [Parameter(Mandatory)] [string] $Environment,
