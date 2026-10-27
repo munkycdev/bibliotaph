@@ -437,7 +437,7 @@ open, the screen stays on, so a tablet at the table doesn't dim between glances;
 book or switch away.
 
 The pages are read from your storage a piece at a time, so a big book shows its first page in a moment: straight from
-OneDrive, and through the server from Dropbox, Google Drive, Box and WebDAV, which passes each piece on without keeping it. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
+OneDrive, and through the server from Dropbox, Google Drive, Box and WebDAV, which passes each piece on without keeping it. The link the reader uses for those works only while you're signed in, and only for you. Through the server, each account reads up to 10 GB a day, many big books' worth; past that, books you've read already still open from your browser. What you've read is kept in your browser, so turning back to a page doesn't fetch it again.
 
 - **Page box**: type a printed page number or a PDF page number, and press **Enter**. **Previous** and **Next** turn a
   page; the line under the pages says which printed and PDF page you're on.

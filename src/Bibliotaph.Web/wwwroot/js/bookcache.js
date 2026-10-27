@@ -7,6 +7,8 @@
 // Books not kept offline are let go, least recently read first, once all of them take more than the limit Settings sets
 // for this browser.
 export const ChunkSize = 1 << 20;
+// The most chunks one read asks for; the server refuses a read of more than 16 MB.
+const MostChunksARead = 8;
 
 const LimitKey = 'bibliotaph.reader.cacheLimit';
 export const DefaultLimit = 2 * 1024 ** 3;
@@ -59,7 +61,8 @@ export class BookCache {
     const first = Math.floor(begin / ChunkSize), last = Math.floor((end - 1) / ChunkSize);
     const missing = [];
     for (let i = first; i <= last; i++) if (!this.#held(i) && !this.inflight.has(i)) missing.push(i);
-    for (const run of runs(missing)) this.#fetchRun(run[0], run[run.length - 1]);
+    for (const run of runs(missing))
+      for (let i = 0; i < run.length; i += MostChunksARead) this.#fetchRun(run[i], run[Math.min(i + MostChunksARead, run.length) - 1]);
     for (let i = first; i <= last; i++) this.#promote(i);
     const parts = [];
     for (let i = first; i <= last; i++) parts.push(await this.#chunk(i));
@@ -143,7 +146,8 @@ export class BookCache {
         if (!this.url) throw new LinkError();
       }
       try {
-        const response = await fetch(this.url, { headers: { range: `bytes=${start}-${end}` }, credentials: 'omit' });
+        // A link through bibliotaph.online reads only with this user's own sign-in; a provider's link gets no cookie.
+        const response = await fetch(this.url, { headers: { range: `bytes=${start}-${end}` }, credentials: 'same-origin' });
         if (response.status === 206) return new Uint8Array(await response.arrayBuffer());
         await response.body?.cancel();
         if (attempt > 0) throw new Error(`range read returned ${response.status}`);
@@ -189,8 +193,8 @@ export class BookCache {
     const missing = [];
     for (let i = 0; i < this.chunkCount; i++) if (!this.have.has(i) && !this.inflight.has(i)) missing.push(i);
     for (const run of runs(missing))
-      for (let i = 0; i < run.length; i += 8) {
-        const batch = run.slice(i, i + 8);
+      for (let i = 0; i < run.length; i += MostChunksARead) {
+        const batch = run.slice(i, i + MostChunksARead);
         this.#fetchRun(batch[0], batch[batch.length - 1], true);
       }
     const waiting = [...this.inflight.values()];
