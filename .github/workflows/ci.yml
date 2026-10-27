@@ -102,6 +102,11 @@ jobs:
           docker logs server
           exit 1
 
+      # The image's own PDF worker, shut in with Landlock: reads a made-up book's text and OCR, and can't open a file in
+      # the users folder.
+      - name: PDF worker is confined
+        run: docker run --rm bibliotaph-server worker-check
+
       - name: Push
         if: env.PUSH == 'true'
         env:

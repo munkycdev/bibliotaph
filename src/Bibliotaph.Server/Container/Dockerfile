@@ -34,7 +34,10 @@ RUN mkdir /data && chown app:app /data
 
 USER app
 WORKDIR /app
+# No diagnostics port: the PDF worker reads books anyone may have shared, and a port would let it ask the server's
+# runtime for a dump of its memory, secrets and all.
 ENV ASPNETCORE_HTTP_PORTS=8080 \
+    DOTNET_EnableDiagnostics=0 \
     OMP_THREAD_LIMIT=1 \
     Server__DataRoot=/data \
     Server__LitestreamPath=/usr/local/bin/litestream

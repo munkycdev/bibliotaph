@@ -1,3 +1,5 @@
+using Bibliotaph.Core;
+
 namespace Bibliotaph.Server;
 
 /// <summary>The "Server" configuration section. In the container these come from environment variables (Server__DataRoot).</summary>
@@ -82,6 +84,15 @@ public sealed record ServerPaths(string Root)
     /// a crash mid-read leaves nothing behind.
     /// </summary>
     public string Downloads => Path.Combine(Root, "downloads");
+
+    /// <summary>
+    /// Files from inside each user's ZIPs while they are read, one folder per user. Outside <see cref="Users"/>, with
+    /// <see cref="Downloads"/>, as the only folders the PDF worker may read books from.
+    /// </summary>
+    public string Extracts => Path.Combine(Root, "extract");
+
+    /// <summary>A user's library files: their folder, with ZIPs extracted to their own folder under <see cref="Extracts"/>.</summary>
+    public AppPaths Library(string userId) => new(UserRoot(userId)) { Extract = Path.Combine(Extracts, UserIds.Require(userId)) };
 }
 
 /// <summary>

@@ -14,6 +14,9 @@ public sealed record PdfWorkerPoolOptions
 
     /// <summary>The main reader and two pop-outs get a worker each; more readers share. Three at the cap is about 4.5 GB.</summary>
     public int MaxViewerWorkers { get; init; } = 3;
+
+    /// <summary>Every worker's <see cref="WorkerOptions.ConfinedTo"/>.</summary>
+    public IReadOnlyList<string>? ConfinedTo { get; init; }
 }
 
 /// <summary>
@@ -50,6 +53,7 @@ public sealed class PdfWorkerPool(PdfWorkerPoolOptions options, ILoggerFactory? 
                     WorkerPath = options.WorkerPath,
                     DefaultTimeout = options.DefaultTimeout,
                     MemoryLimitBytes = options.IndexMemoryLimitBytes,
+                    ConfinedTo = options.ConfinedTo,
                 }, Poison, _loggers.CreateLogger<WorkerClient>());
             }
         }
@@ -79,6 +83,7 @@ public sealed class PdfWorkerPool(PdfWorkerPoolOptions options, ILoggerFactory? 
                 WorkerPath = options.WorkerPath,
                 DefaultTimeout = options.DefaultTimeout,
                 MemoryLimitBytes = options.ViewerMemoryLimitBytes,
+                ConfinedTo = options.ConfinedTo,
             }, Poison, _loggers.CreateLogger<WorkerClient>()));
             return new ViewerLease(this, worker);
         }
