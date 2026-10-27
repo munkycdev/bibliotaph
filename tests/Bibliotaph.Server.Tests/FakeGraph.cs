@@ -181,7 +181,7 @@ sealed class LibraryFixture : IAsyncDisposable
     public FakeWebDav WebDav { get; }
     public FakeBox Box { get; }
     public FakeHttp Http { get; }
-    public ReadLinks ReadLinks => new(Protection, TimeProvider.System);
+    public ReadLinks ReadLinks => new(Protection, TimeProvider.System, new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
 
     public MemoryCoverStore Covers { get; } = new();
     public ServerPaths Paths { get; }
