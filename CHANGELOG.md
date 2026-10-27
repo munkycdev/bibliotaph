@@ -5,6 +5,10 @@
 - **Read links are yours alone.** On bibliotaph.online, a book from Dropbox, Google Drive, Box or WebDAV is read
   through the server only by your own sign-in, so a link copied out of the reader is no use to anyone else. Each user
   reads up to 10 GB a day through the server. See [Bibliotaph on the web](docs/guide/web.md#reading-a-book).
+- **Books read on the web are read shut in.** On bibliotaph.online, the process that reads PDFs can open only the
+  books being read, can't start programs or reach the network, and never sees the server's keys, so a booby-trapped
+  PDF in anyone's storage can't reach other people's libraries. The server's diagnostics port is off. See
+  [Bibliotaph on the web](docs/guide/web.md).
 - **The logo in large format.** bibliotaph.online/brand/ has the logo and the **b.** monogram as SVG and PNG, for light
   and dark backgrounds, drawn from the same type and shapes as the app's sidebar, for the sign-in page and anywhere
   else the name appears.

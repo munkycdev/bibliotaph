@@ -29,8 +29,11 @@ public sealed record AppPaths(string Root)
     /// </summary>
     public string Covers => Path.Combine(Root, "covers");
 
-    /// <summary>Files from inside ZIPs, extracted while they are processed or viewed. Kept to a size limit.</summary>
-    public string Extract => Path.Combine(Cache, "extract");
+    /// <summary>
+    /// Files from inside ZIPs, extracted while they are processed or viewed. Kept to a size limit. The web server keeps
+    /// them apart from the user's data, in a folder its confined PDF worker may read.
+    /// </summary>
+    public string Extract { get; init; } = Path.Combine(Root, "cache", "extract");
 
     /// <summary>
     /// The model pilot's book list, proposals, answers and report. Never part of a backup or the repo.

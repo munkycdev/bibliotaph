@@ -32,8 +32,10 @@ public static class ServerSetup
         services.AddSingleton<AccountService>();
         if (string.IsNullOrEmpty(options.ReplicaUrl)) services.AddSingleton<IDatabaseRestore, NoRestore>();
         else services.AddSingleton<IDatabaseRestore, LitestreamRestore>();
-        // One PDF worker reads for every library in turn, within the container's memory.
-        services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions(), sp.GetRequiredService<ILoggerFactory>()));
+        // One PDF worker reads for every library in turn, within the container's memory. The books are anyone's, so it
+        // may read only the books being read, never a library or the server's secrets.
+        services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions { ConfinedTo = [paths.Downloads, paths.Extracts] },
+            sp.GetRequiredService<ILoggerFactory>()));
         services.AddSingleton(sp => new LibraryHost(sp.GetRequiredService<ILoggerFactory>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<UserDriveFactory>(), paths.Downloads, new WorkerPdfEngine(sp.GetRequiredService<PdfWorkerPool>()),
             new SkiaImageCodec(), sp.GetRequiredService<ICoverStore>(), sp.GetRequiredService<IDataProtectionProvider>(),

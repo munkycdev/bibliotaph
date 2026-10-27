@@ -12,6 +12,9 @@ using PDFiumCore;
 // Used by the child-process isolation test: a harmless process to try to start.
 if (args is ["--exit"]) return 0;
 
+args = Confinement.Enter(args);
+if (Confinement.Status is { } confinement) Console.Error.WriteLine(confinement);
+
 string? pipeName = null, sharedPath = null;
 long sharedSize = 0;
 for (var i = 0; i < args.Length - 1; i++)
