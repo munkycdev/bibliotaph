@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
@@ -94,6 +95,8 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
 {
     readonly ConcurrentDictionary<string, Slot> _slots = new();
     readonly ConcurrentDictionary<string, Lazy<Task<SyncFiles>>> _syncFiles = new();
+    readonly ConcurrentDictionary<string, (string Step, long Started)> _steps = new();
+    readonly ConcurrentDictionary<string, DateTimeOffset> _failed = new();
     readonly ILogger _log = host.Logs.CreateLogger<UserLibraries>();
     readonly TimeProvider clock = host.Clock;
 
@@ -131,6 +134,46 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
                 if (slot.Opening.Value.IsFaulted) _slots.TryRemove(new KeyValuePair<string, Slot>(userId, slot));
                 throw;
             }
+        }
+    }
+
+    /// <summary>
+    /// How far the user's library is from open, starting it opening if nothing is. Never waits: a page asks this until
+    /// the library is ready, because after a deploy the opening can outlast any one request. A failed opening is tried
+    /// again only after <see cref="RetryFailed"/>, so a page asking every few seconds doesn't start one each time.
+    /// </summary>
+    public LibraryOpening BeginOpening(string userId)
+    {
+        UserIds.Require(userId);
+        if (_slots.TryGetValue(userId, out var slot) && slot.Opening.IsValueCreated && slot.Opening.Value.IsCompletedSuccessfully)
+        {
+            lock (slot)
+                if (slot.Closed is null) return new LibraryOpening(true);
+        }
+        if (_steps.TryGetValue(userId, out var step))
+            return new LibraryOpening(false, step.Step, (int)Stopwatch.GetElapsedTime(step.Started).TotalSeconds);
+        if (_failed.TryGetValue(userId, out var failed) && clock.GetUtcNow() - failed < RetryFailed)
+            return new LibraryOpening(false, "failed");
+
+        _failed.TryRemove(userId, out _);
+        _ = OpenInBackgroundAsync(userId);
+        return new LibraryOpening(false);
+    }
+
+    /// <summary>How long a library that failed to open is left before a page's asking opens it again.</summary>
+    public static readonly TimeSpan RetryFailed = TimeSpan.FromSeconds(30);
+
+    async Task OpenInBackgroundAsync(string userId)
+    {
+        try
+        {
+            // Released at once, which counts as a use, so the library isn't closed as idle before the page asks for it.
+            await using var lease = await OpenAsync(userId);
+        }
+        catch (Exception ex)
+        {
+            _failed[userId] = clock.GetUtcNow();
+            _log.LogError(ex, "Opening the library of {User} failed", userId);
         }
     }
 
@@ -301,6 +344,18 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
 
     async Task<UserLibrary> OpenLibraryAsync(string userId)
     {
+        try
+        {
+            return await OpenLibraryStepsAsync(userId);
+        }
+        finally
+        {
+            _steps.TryRemove(userId, out _);
+        }
+    }
+
+    async Task<UserLibrary> OpenLibraryStepsAsync(string userId)
+    {
         var root = paths.UserRoot(userId);
         Directory.CreateDirectory(root);
         var appPaths = paths.Library(userId);
@@ -308,12 +363,14 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         DeleteFetched(appPaths);
         // After a deploy every database comes back from Blob storage, and the first page waits on all of them.
         var started = Stopwatch.GetTimestamp();
+        _steps[userId] = ("restoring", started);
         var syncFiles = SyncFilesAsync(userId);
         await Task.WhenAll(
             restore.RestoreAsync($"users/{userId}/catalog.db", appPaths.CatalogDatabase, CancellationToken.None),
             restore.RestoreAsync($"users/{userId}/index.db", appPaths.IndexDatabase, CancellationToken.None));
         var sync = await syncFiles;
         var restored = Stopwatch.GetElapsedTime(started);
+        _steps[userId] = ("starting", started);
 
         var services = LibraryServices.Build(userId, appPaths, paths.UserBackups(userId), host, sync);
         try

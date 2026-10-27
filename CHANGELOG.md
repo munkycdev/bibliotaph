@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **No blank page after an update.** On bibliotaph.online, while your library comes back from storage after an update
+  or a restart, the page says so with how long it has taken, and opens your library when it's back, rather than
+  staying empty for minutes. The server also starts bringing back the libraries of people who signed in lately as soon
+  as it safely can. See [Bibliotaph on the web](docs/guide/web.md#signing-in-and-out).
 - **Room for everyone on the web.** bibliotaph.online turns an upload away for a minute when other people's uploads
   are already taking the memory it sets aside, rather than running out for everyone. Sign-up can be opened without
   invitations, up to a set number of accounts; it stays invite-only for now. See

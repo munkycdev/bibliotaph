@@ -1,3 +1,4 @@
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Server.Libraries;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,79 @@ public sealed class UserLibrariesTests : IDisposable
         Assert.True(File.Exists(Path.Combine(_folder.Path, "users", Alice, "index.db")));
         await using var db = lease.Library.Catalog.CreateContext();
         Assert.Equal(0, await db.Entries.CountAsync(TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task A_library_coming_back_from_storage_says_so_until_it_is_open()
+    {
+        var restore = new HeldRestore();
+        await using var fixture = new LibraryFixture(Path.Combine(_folder.Path, "held"), _clock, restore: restore);
+
+        Assert.Equal(new LibraryOpening(false), fixture.Libraries.BeginOpening(Alice));
+        await restore.Started.Task.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+        var restoring = fixture.Libraries.BeginOpening(Alice);
+        restore.Release.SetResult();
+        var opening = await UntilAsync(() => fixture.Libraries.BeginOpening(Alice), o => o.Ready);
+
+        Assert.Equal((false, "restoring"), (restoring.Ready, restoring.Step));
+        Assert.Equal(new LibraryOpening(true), opening);
+        Assert.Equal(1, fixture.Libraries.OpenCount);
+    }
+
+    [Fact]
+    public async Task A_library_that_failed_to_open_is_left_a_while_before_another_try()
+    {
+        var restore = new FailingRestore();
+        await using var fixture = new LibraryFixture(Path.Combine(_folder.Path, "failing"), _clock, restore: restore);
+
+        fixture.Libraries.BeginOpening(Alice);
+        var failed = await UntilAsync(() => fixture.Libraries.BeginOpening(Alice), o => o.Step == "failed");
+        var tries = restore.Tries;
+        _clock.Advance(UserLibraries.RetryFailed);
+        var again = fixture.Libraries.BeginOpening(Alice);
+
+        Assert.False(failed.Ready);
+        Assert.Equal(new LibraryOpening(false), again);
+        await UntilAsync(() => restore.Tries, t => t > tries);
+    }
+
+    static async Task<T> UntilAsync<T>(Func<T> read, Func<T, bool> done)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        var value = read();
+        while (!done(value))
+        {
+            Assert.True(DateTime.UtcNow < deadline, $"Still {value} after 30 s");
+            await Task.Delay(20, TestContext.Current.CancellationToken);
+            value = read();
+        }
+        return value;
+    }
+
+    /// <summary>A restore that takes as long as the test says, as a large one does after a deploy.</summary>
+    sealed class HeldRestore : IDatabaseRestore
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task RestoreAsync(string relativePath, string target, CancellationToken ct)
+        {
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(ct);
+        }
+    }
+
+    sealed class FailingRestore : IDatabaseRestore
+    {
+        int _tries;
+
+        public int Tries => Volatile.Read(ref _tries);
+
+        public Task RestoreAsync(string relativePath, string target, CancellationToken ct)
+        {
+            if (relativePath.EndsWith("/catalog.db", StringComparison.Ordinal)) Interlocked.Increment(ref _tries);
+            return Task.FromException(new InvalidOperationException("The replica can't be reached."));
+        }
     }
 
     [Fact]

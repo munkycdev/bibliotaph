@@ -144,6 +144,15 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadFromJsonAsync<List<LibraryFolder>>(ct))!;
     }
 
+    /// <summary>How far the library is from open; null when signed out. Answers at once, however long the opening takes.</summary>
+    public async Task<LibraryOpening?> LibraryOpeningAsync(CancellationToken ct = default)
+    {
+        using var response = await http.GetAsync("api/library/opening", ct);
+        if (response.StatusCode == HttpStatusCode.Unauthorized) return null;
+        await EnsureAsync(response, ct);
+        return await response.Content.ReadFromJsonAsync<LibraryOpening>(ct);
+    }
+
     public async Task<LibraryStatus?> LibraryStatusAsync(CancellationToken ct = default)
     {
         using var response = await http.GetAsync("api/library/status", ct);

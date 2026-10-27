@@ -120,6 +120,10 @@ public static class StorageApi
             return await StatusAsync(lease.Library, ct);
         }).WatchesBackgroundWork();
 
+        // Never waits on the library, unlike every other call: the page asks this until it's open.
+        api.MapGet("/library/opening", (ClaimsPrincipal principal, UserLibraries libraries) => libraries.BeginOpening(principal.UserId()!))
+            .WatchesBackgroundWork();
+
         api.MapPost("/library/rescan", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);

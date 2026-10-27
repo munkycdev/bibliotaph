@@ -138,7 +138,7 @@ sealed class FakeHttp(HttpMessageHandler handler) : IHttpClientFactory
 /// <summary>A library host with accounts.db and OneDrive wired to a <see cref="FakeGraph"/>, without the web host.</summary>
 sealed class LibraryFixture : IAsyncDisposable
 {
-    public LibraryFixture(string root, TimeProvider clock, FakeGraph? graph = null)
+    public LibraryFixture(string root, TimeProvider clock, FakeGraph? graph = null, IDatabaseRestore? restore = null)
     {
         Graph = graph ?? new FakeGraph();
         Dropbox = new FakeDropbox();
@@ -165,7 +165,7 @@ sealed class LibraryFixture : IAsyncDisposable
         Tokens = new DriveTokens(http, configuration, Connections, clock, NullLogger<DriveTokens>.Instance);
         Drives = new UserDriveFactory(Connections, Tokens, http, clock);
         Pdf = new PdfWorkerPool(new PdfWorkerPoolOptions());
-        Libraries = new UserLibraries(Paths, new NoRestore(), new LibraryHost(NullLoggerFactory.Instance, clock, Drives, Paths.Downloads,
+        Libraries = new UserLibraries(Paths, restore ?? new NoRestore(), new LibraryHost(NullLoggerFactory.Instance, clock, Drives, Paths.Downloads,
             new WorkerPdfEngine(Pdf), new SkiaImageCodec(), Covers, Protection, new ModelClientFactory(Models.ClientFor)));
     }
 
