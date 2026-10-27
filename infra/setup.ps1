@@ -45,8 +45,8 @@ param(
     # The image CI pushes to GitHub's container registry, without its tag.
     [string] $Image = 'ghcr.io/munkycdev/bibliotaph-server',
 
-    # The Auth0 tenant's domain (its custom domain, such as auth.bibliotaph.online, once that is verified, or else
-    # bibliotaph.us.auth0.com) and its Regular Web Application's client ID, from the application's Settings in Auth0's
+    # The Auth0 tenant's domain (its custom domain, auth.munkyc.dev, once that is verified, or else the tenant's own,
+    # such as munkyc.us.auth0.com) and its Regular Web Application's client ID, from the application's Settings in Auth0's
     # dashboard. Its client secret is asked for once and kept in Key Vault, and asked for again when the client ID
     # changes. Once set, a later run without them keeps them.
     [string] $Auth0Domain,
@@ -197,7 +197,7 @@ if ($Auth0Domain -or $Auth0ClientId) {
     $Auth0Domain = $Auth0Domain -replace '^https://', '' -replace '/+$', ''
     $knownClient = @(Find containerapp show -n $App -g $ResourceGroup --query 'properties.template.containers[0].env' -o json |
         Where-Object name -eq 'Auth__auth0__ClientId').value
-    # A different application, as when sign-in moves to another tenant, has its own secret.
+    # A different application, such as one in another tenant, has its own secret.
     if (-not (SecretExists 'auth0') -or ($knownClient -and $knownClient -ne $Auth0ClientId)) {
         $secret = Read-Host "  Client secret for $Auth0ClientId" -AsSecureString
         # The app would pick up a new version by itself only within half an hour, after the new client ID is already in

@@ -59,9 +59,8 @@ public static class Auth0SignIn
 
     /// <summary>
     /// The same person's sub under the other kind of connection. A custom social connection wraps its own
-    /// ("oauth2|discord|1234") where Auth0's built-in one for the same provider doesn't ("discord|1234"), so moving to a
-    /// tenant that uses the other kind keeps the provider's ID but changes the sub. Google's, Microsoft's and Discord's
-    /// IDs don't depend on the tenant or the app, so the rest of the sub carries across tenants as it is.
+    /// ("oauth2|discord|1234") where Auth0's built-in one for the same provider doesn't ("discord|1234"), so swapping one
+    /// kind of connection for the other keeps the provider's ID but changes the sub.
     /// </summary>
     internal static IReadOnlyList<string> FormerSubjects(string sub) =>
         sub.Split('|') switch

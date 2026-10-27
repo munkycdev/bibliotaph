@@ -13,8 +13,9 @@
   books being read, can't start programs or reach the network, and never sees the server's keys, so a booby-trapped
   PDF in anyone's storage can't reach other people's libraries. The server's diagnostics port is off. See
   [Bibliotaph on the web](docs/guide/web.md).
-- **Sign-in at auth.bibliotaph.online.** bibliotaph.online's sign-in page moves to Bibliotaph's own address, with
-  Google, Microsoft and Discord. Your account, library and linked sign-ins stay as they are. See
+- **Sign-in at auth.munkyc.dev.** bibliotaph.online's sign-in page moves to auth.munkyc.dev, the MunkyC sign-in
+  shared by Bibliotaph and its maker's other apps, with Google, Microsoft and Discord. Your account, library and
+  linked sign-ins stay as they are. See
   [Bibliotaph on the web](docs/guide/web.md#join-with-an-invitation).
 - **The logo in large format.** bibliotaph.online/brand/ has the logo and the **b.** monogram as SVG and PNG, for light
   and dark backgrounds, drawn from the same type and shapes as the app's sidebar, for the sign-in page and anywhere
