@@ -52,6 +52,12 @@ public sealed class ServerOptions
 
     public TimeSpan WeeklyBackupEvery { get; set; } = TimeSpan.FromHours(1);
 
+    /// <summary>
+    /// How much memory everyone's uploads may take at once (<see cref="UploadMemory"/>): a quarter of the container's
+    /// 2 GB, beside the libraries and the PDF worker.
+    /// </summary>
+    public long UploadMemoryBytes { get; set; } = 512L * 1024 * 1024;
+
     /// <summary>The user-assigned managed identity that reaches Blob storage and Key Vault.</summary>
     public string? ManagedIdentityClientId { get; set; }
 }

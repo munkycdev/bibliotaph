@@ -16,6 +16,8 @@ makes your Bibliotaph account; the link can't be used again. Bibliotaph receives
 account ID, and never sees your password.
 
 Without an invitation, signing in with an account Bibliotaph doesn't know shows **Bibliotaph is invite-only for now.**
+If the service opens sign-up later, signing in makes your account straight away, until it has as many people as it
+can take; then it shows **Bibliotaph is full for now.**, and an invitation still works.
 
 ## Settings
 

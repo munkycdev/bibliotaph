@@ -38,6 +38,8 @@ public static class SyncApi
         sync.MapPut("/mine", async (HttpRequest request, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             if (request.ContentLength > MaxFile) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            // Read into memory and copied once to be kept.
+            if (!UploadMemory.ReserveFor(request.HttpContext, MaxFile, copies: 2)) return UploadMemory.BusyResult(request.HttpContext);
             // Above the server's usual limit for a request, which a big library's file may pass.
             if (request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = MaxFile;
             using var buffer = new MemoryStream();

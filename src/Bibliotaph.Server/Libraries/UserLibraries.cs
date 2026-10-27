@@ -452,13 +452,42 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
     }
 }
 
-/// <summary>Closes idle libraries once a minute.</summary>
-public sealed class IdleLibraries(UserLibraries libraries, Microsoft.Extensions.Options.IOptions<ServerOptions> options, TimeProvider clock) : BackgroundService
+/// <summary>
+/// Closes idle libraries once a minute, and warns once an hour while the data disk is nearly full. Every library opened
+/// since the server started stays on that disk: Litestream stops replicating a database whose file is deleted and
+/// doesn't take it back when it returns, so a closed library's files can't be cleared away while the server runs.
+/// </summary>
+public sealed class IdleLibraries(UserLibraries libraries, Microsoft.Extensions.Options.IOptions<ServerOptions> options, ServerPaths paths,
+    TimeProvider clock, ILogger<IdleLibraries> log) : BackgroundService
 {
+    /// <summary>The free share of the data disk below which the log warns.</summary>
+    const double LowDisk = 0.15;
+
+    DateTimeOffset _warned = DateTimeOffset.MinValue;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         using var timer = new PeriodicTimer(TimeSpan.FromMinutes(1), clock);
         while (await timer.WaitForNextTickAsync(stoppingToken))
+        {
             await libraries.CloseIdleAsync(options.Value.LibraryIdle);
+            WarnIfDiskLow();
+        }
+    }
+
+    void WarnIfDiskLow()
+    {
+        try
+        {
+            var disk = new DriveInfo(paths.Root);
+            if (disk.TotalSize == 0 || (double)disk.AvailableFreeSpace / disk.TotalSize >= LowDisk || clock.GetUtcNow() - _warned < TimeSpan.FromHours(1)) return;
+            _warned = clock.GetUtcNow();
+            log.LogWarning("The data disk is nearly full: {Free:N0} MB free of {Total:N0} MB, with {Libraries} libraries open",
+                disk.AvailableFreeSpace / 1048576, disk.TotalSize / 1048576, libraries.OpenCount);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            // No reading of the disk, so no warning; the libraries are closed all the same.
+        }
     }
 }

@@ -29,13 +29,35 @@ public enum SignInResult
 
     /// <summary>Linking was asked for, but this sign-in already belongs to another account.</summary>
     BelongsToSomeoneElse,
+
+    /// <summary>Sign-up is open, but Bibliotaph has as many accounts as it takes; an invitation still makes one.</summary>
+    Full,
+}
+
+/// <summary>
+/// The "Accounts:SignUp" section: whether anyone who signs in gets an account without an invitation, and how many
+/// accounts there may be before only invitations make more. Closed unless set, as the service is invite-only.
+/// </summary>
+public sealed record SignUpOptions
+{
+    public const string Section = "Accounts:SignUp";
+
+    public bool Open { get; init; }
+
+    /// <summary>Accounts in all, invited ones included, past which sign-up without an invitation stops.</summary>
+    public int MostAccounts { get; init; } = 50;
 }
 
 public sealed record SignInOutcome(SignInResult Result, User? User);
 
-/// <summary>Accounts, sign-ins and invitations. Bibliotaph is invite-only: an account starts from a one-time link.</summary>
-public sealed class AccountService(AccountsDatabase database, TimeProvider clock)
+/// <summary>
+/// Accounts, sign-ins and invitations. An account starts from a one-time link, or, when sign-up is open
+/// (<see cref="SignUpOptions"/>), from signing in, until there are as many accounts as the server takes.
+/// </summary>
+public sealed class AccountService(AccountsDatabase database, TimeProvider clock, SignUpOptions? signUp = null)
 {
+    readonly SignUpOptions _signUp = signUp ?? new SignUpOptions();
+
     public static readonly TimeSpan InviteLifetime = TimeSpan.FromDays(14);
 
     /// <summary>How long an account found open is taken to be open, so every request doesn't look it up.</summary>
@@ -72,24 +94,35 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
             return new(SignInResult.Linked, current);
         }
 
-        if (string.IsNullOrEmpty(inviteCode)) return new(SignInResult.NeedsInvite, null);
-        var hash = Hash(inviteCode);
-        var invite = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
-        if (invite is null || invite.Redeemed is not null || invite.Expires <= Now) return new(SignInResult.InviteNotValid, null);
+        Invite? invite = null;
+        if (string.IsNullOrEmpty(inviteCode))
+        {
+            if (!_signUp.Open) return new(SignInResult.NeedsInvite, null);
+            if (await db.Users.CountAsync(ct) >= _signUp.MostAccounts) return new(SignInResult.Full, null);
+        }
+        else
+        {
+            var hash = Hash(inviteCode);
+            invite = await db.Invites.SingleOrDefaultAsync(i => i.CodeHash == hash, ct);
+            if (invite is null || invite.Redeemed is not null || invite.Expires <= Now) return new(SignInResult.InviteNotValid, null);
+        }
 
         var user = new User
         {
             Id = UserIds.New(),
             Name = string.IsNullOrWhiteSpace(identity.Name) ? identity.Email ?? "Reader" : identity.Name.Trim(),
             Email = identity.Email,
-            IsAdmin = invite.Admin,
+            IsAdmin = invite?.Admin == true,
             Created = Now,
             LastSignIn = Now,
         };
         db.Users.Add(user);
         db.Logins.Add(NewLogin(identity, user.Id));
-        invite.Redeemed = Now;
-        invite.RedeemedBy = user.Id;
+        if (invite is not null)
+        {
+            invite.Redeemed = Now;
+            invite.RedeemedBy = user.Id;
+        }
         await db.SaveChangesAsync(ct);
         return new(SignInResult.Created, user);
     }

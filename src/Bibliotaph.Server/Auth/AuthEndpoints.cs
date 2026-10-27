@@ -66,6 +66,8 @@ public static class AuthEndpoints
                     return Results.LocalRedirect("/invite-only");
                 case SignInResult.InviteNotValid:
                     return Results.LocalRedirect("/invite-only?problem=invite");
+                case SignInResult.Full:
+                    return Results.LocalRedirect("/invite-only?problem=full");
                 default:
                     return Results.LocalRedirect("/settings?problem=taken");
             }

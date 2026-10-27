@@ -5,11 +5,17 @@
 <div class="bt-signin">
     <div class="bt-signin-card">
         <div class="bt-brand"><span class="bt-monogram">b.</span><span>Bibliotaph</span></div>
-        <h1 tabindex="-1">@(Problem == "invite" ? "That invitation can't be used." : "Bibliotaph is invite-only for now.")</h1>
+        <h1 tabindex="-1">@(Problem switch { "invite" => "That invitation can't be used.", "full" => "Bibliotaph is full for now.", _ => "Bibliotaph is invite-only for now." })</h1>
         <p class="bt-copy">
             @if (Problem == "invite")
             {
                 <text>It has been used already, or it has expired. Ask whoever sent it for a new one.</text>
+            }
+            else if (Problem == "full")
+            {
+                <text>It has as many people as it can take at the moment, so new accounts wait for room. If you have an
+                invitation link, open it to start your library. If you already have an account, sign in the way you did
+                before.</text>
             }
             else
             {

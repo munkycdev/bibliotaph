@@ -88,6 +88,7 @@ public static class ElsewhereApi
     {
         if (context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = ChosenCovers.MaxBytes;
         if (context.Request.ContentLength > ChosenCovers.MaxBytes) return (null, ChosenCovers.TooBig);
+        if (!UploadMemory.ReserveFor(context, ChosenCovers.MaxBytes)) return (null, UploadMemory.Busy);
         var body = new MemoryStream();
         try
         {

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Room for everyone on the web.** bibliotaph.online turns an upload away for a minute when other people's uploads
+  are already taking the memory it sets aside, rather than running out for everyone. Sign-up can be opened without
+  invitations, up to a set number of accounts; it stays invite-only for now. See
+  [Bibliotaph on the web](docs/guide/web.md#join-with-an-invitation).
 - **The logo in large format.** bibliotaph.online/brand/ has the logo and the **b.** monogram as SVG and PNG, for light
   and dark backgrounds, drawn from the same type and shapes as the app's sidebar, for the sign-in page and anywhere
   else the name appears.
