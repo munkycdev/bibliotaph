@@ -30,6 +30,7 @@ public static class OnlineApi
 
         api.MapPost("/online/pages", async (HttpContext context, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
+            if (!UploadMemory.ReserveFor(context, MostPageBytes)) return new OnlinePageRead(null, UploadMemory.Busy);
             var body = await ReadAsync(context, MostPageBytes, ct);
             if (body is null) return new OnlinePageRead(null, "That file is too big to be a library page.");
             var html = Encoding.UTF8.GetString(body);
@@ -53,9 +54,11 @@ public static class OnlineApi
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             if (lease.Library.Get<HeldOnlinePages>().Find(token) is not { } held) return Gone();
+            if (!UploadMemory.ReserveFor(context, MostImageBytes)) return UploadMemory.BusyResult(context);
             var body = await ReadAsync(context, MostImageBytes, ct);
-            if (body is not null && !held.AddImage(name, body))
-                return Results.Problem("That's as many pictures as one page keeps.", statusCode: StatusCodes.Status400BadRequest);
+            if (body is not null && held.AddImage(name, body) is { } problem)
+                return problem == UploadMemory.Busy ? UploadMemory.BusyResult(context)
+                    : Results.Problem(problem, statusCode: StatusCodes.Status400BadRequest);
             return Results.Ok(await PreviewAsync(lease.Library, token, held, ct));
         });
 

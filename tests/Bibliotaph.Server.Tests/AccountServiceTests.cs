@@ -143,4 +143,25 @@ public sealed class AccountServiceTests : IDisposable
         Assert.Equal(container, uri.ToString());
         Assert.Equal(root, path);
     }
+
+    [Fact]
+    public async Task Open_sign_up_makes_accounts_without_an_invitation_until_the_server_is_full()
+    {
+        var open = new AccountService(_database, _clock, new SignUpOptions { Open = true, MostAccounts = 2 });
+        var (code, _) = await open.CreateInviteAsync(null, null, admin: true);
+
+        var first = await open.SignInAsync(Dana, null, null);
+        var second = await open.SignInAsync(new ExternalIdentity("google", "sub-2", "Ana", null), null, null);
+        var full = await open.SignInAsync(new ExternalIdentity("google", "sub-3", "Dale", null), null, null);
+        var invited = await open.SignInAsync(new ExternalIdentity("google", "sub-4", "Sam", null), code, null);
+
+        Assert.Equal(SignInResult.Created, first.Result);
+        Assert.False(first.User!.IsAdmin);
+        Assert.Equal(SignInResult.Created, second.Result);
+        Assert.Equal(SignInResult.Full, full.Result);
+        // An invitation makes an account however full sign-up is.
+        Assert.Equal(SignInResult.Created, invited.Result);
+        Assert.True(invited.User!.IsAdmin);
+        Assert.Equal(SignInResult.NeedsInvite, (await _accounts.SignInAsync(new ExternalIdentity("google", "sub-5", "Lee", null), null, null)).Result);
+    }
 }

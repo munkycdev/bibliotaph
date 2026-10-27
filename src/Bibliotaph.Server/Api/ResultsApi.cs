@@ -35,6 +35,8 @@ public static class ResultsApi
         results.MapPost("/", async (HttpRequest request, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             if (request.ContentLength > MaxUpload) return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+            // Read as JSON into results about as big again.
+            if (!UploadMemory.ReserveFor(request.HttpContext, MaxUpload, copies: 2)) return UploadMemory.BusyResult(request.HttpContext);
             if (request.HttpContext.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } limit) limit.MaxRequestBodySize = MaxUpload;
             var upload = await request.ReadFromJsonAsync<SharedResultUpload>(ct);
             if (upload?.Results is not { } sent || sent.Any(r => r is null || string.IsNullOrEmpty(r.ContentHash) || string.IsNullOrEmpty(r.Kind) || string.IsNullOrEmpty(r.Id)))

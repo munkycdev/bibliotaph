@@ -29,7 +29,9 @@ public static class ServerSetup
         services.AddSingleton(paths);
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(new AccountsDatabase(paths.Accounts));
-        services.AddSingleton<AccountService>();
+        // Invite-only unless Accounts:SignUp:Open is set; then anyone who signs in, up to Accounts:SignUp:MostAccounts.
+        var signUp = configuration.GetSection(SignUpOptions.Section).Get<SignUpOptions>() ?? new SignUpOptions();
+        services.AddSingleton(sp => new AccountService(sp.GetRequiredService<AccountsDatabase>(), sp.GetRequiredService<TimeProvider>(), signUp));
         if (string.IsNullOrEmpty(options.ReplicaUrl)) services.AddSingleton<IDatabaseRestore, NoRestore>();
         else services.AddSingleton<IDatabaseRestore, LitestreamRestore>();
         // One PDF worker reads for every library in turn, within the container's memory. The books are anyone's, so it
@@ -39,7 +41,8 @@ public static class ServerSetup
         services.AddSingleton(sp => new LibraryHost(sp.GetRequiredService<ILoggerFactory>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<UserDriveFactory>(), paths.Downloads, new WorkerPdfEngine(sp.GetRequiredService<PdfWorkerPool>()),
             new SkiaImageCodec(), sp.GetRequiredService<ICoverStore>(), sp.GetRequiredService<IDataProtectionProvider>(),
-            sp.GetRequiredService<ModelClientFactory>(), sp.GetRequiredService<ForegroundActivity>()));
+            sp.GetRequiredService<ModelClientFactory>(), sp.GetRequiredService<ForegroundActivity>(), sp.GetRequiredService<UploadMemory>()));
+        services.AddSingleton(sp => new UploadMemory(sp.GetRequiredService<TimeProvider>(), options.UploadMemoryBytes));
         // Every library's reading steps aside for anyone's request: they share the one CPU.
         services.AddSingleton(sp => new ForegroundActivity(sp.GetRequiredService<TimeProvider>()));
         // Model services only on the internet, over https; tests put a stand-in here.

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Room for everyone on the web.** bibliotaph.online turns an upload away for a minute when other people's uploads
+  are already taking the memory it sets aside, rather than running out for everyone. Sign-up can be opened without
+  invitations, up to a set number of accounts; it stays invite-only for now. See
+  [Bibliotaph on the web](docs/guide/web.md#join-with-an-invitation).
 - **Read links are yours alone.** On bibliotaph.online, a book from Dropbox, Google Drive, Box or WebDAV is read
   through the server only by your own sign-in, so a link copied out of the reader is no use to anyone else. Each user
   reads up to 10 GB a day through the server. See [Bibliotaph on the web](docs/guide/web.md#reading-a-book).
