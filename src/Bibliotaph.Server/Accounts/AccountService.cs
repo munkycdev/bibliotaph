@@ -7,9 +7,13 @@ namespace Bibliotaph.Server.Accounts;
 
 /// <summary>
 /// Who a sign-in provider says someone is, after the provider-specific claims are read. <see cref="Subject"/> is the
-/// provider's stable ID for the person, never their email address.
+/// provider's stable ID for the person, never their email address. <see cref="FormerSubjects"/> are other spellings the
+/// provider has given the same person, which a sign-in saved under one of them is moved from.
 /// </summary>
-public sealed record ExternalIdentity(string Provider, string Subject, string? Name, string? Email);
+public sealed record ExternalIdentity(string Provider, string Subject, string? Name, string? Email)
+{
+    public IReadOnlyList<string> FormerSubjects { get; init; } = [];
+}
 
 public enum SignInResult
 {
@@ -74,7 +78,7 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
     public async Task<SignInOutcome> SignInAsync(ExternalIdentity identity, string? inviteCode, string? currentUserId, CancellationToken ct = default)
     {
         await using var db = database.CreateContext();
-        var login = await db.Logins.FindAsync([identity.Provider, identity.Subject], ct);
+        var login = await db.Logins.FindAsync([identity.Provider, identity.Subject], ct) ?? await MoveFormerAsync(db, identity, ct);
         if (login is not null)
         {
             if (currentUserId is not null && currentUserId != login.UserId) return new(SignInResult.BelongsToSomeoneElse, null);
@@ -125,6 +129,21 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
         }
         await db.SaveChangesAsync(ct);
         return new(SignInResult.Created, user);
+    }
+
+    /// <summary>A sign-in saved under one of the person's former subjects, moved to the one the provider gives now.</summary>
+    static async Task<Login?> MoveFormerAsync(AccountsDbContext db, ExternalIdentity identity, CancellationToken ct)
+    {
+        foreach (var former in identity.FormerSubjects)
+        {
+            if (await db.Logins.FindAsync([identity.Provider, former], ct) is not { } old) continue;
+            // The subject is part of the key, so the row is replaced rather than changed.
+            db.Logins.Remove(old);
+            var moved = new Login { Provider = old.Provider, Subject = identity.Subject, UserId = old.UserId, Email = old.Email, Added = old.Added };
+            db.Logins.Add(moved);
+            return moved;
+        }
+        return null;
     }
 
     Login NewLogin(ExternalIdentity identity, string userId) =>

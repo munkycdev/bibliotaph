@@ -10,8 +10,8 @@ reading your books in the browser comes next.
 ## Join with an invitation
 
 An invitation is a one-time link that expires after 14 days. Open it and choose **Continue**. Bibliotaph's sign-in
-page, run by Auth0, offers the sign-ins it has switched on, such as Google, Microsoft, Discord or your email address;
-sign in with the one you'll use each time. That
+page, at auth.bibliotaph.online and run by Auth0, offers the sign-ins it has switched on, such as Google, Microsoft,
+Discord or your email address; sign in with the one you'll use each time. That
 makes your Bibliotaph account; the link can't be used again. Bibliotaph receives only your name, email address and an
 account ID, and never sees your password.
 

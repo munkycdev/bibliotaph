@@ -45,9 +45,10 @@ param(
     # The image CI pushes to GitHub's container registry, without its tag.
     [string] $Image = 'ghcr.io/munkycdev/bibliotaph-server',
 
-    # The Auth0 tenant's domain (such as bibliotaph.us.auth0.com) and its Regular Web Application's client ID, from
-    # the application's Settings in Auth0's dashboard. Its client secret is asked for once and kept in Key Vault.
-    # Once set, a later run without them keeps them.
+    # The Auth0 tenant's domain (its custom domain, such as auth.bibliotaph.online, once that is verified, or else
+    # bibliotaph.us.auth0.com) and its Regular Web Application's client ID, from the application's Settings in Auth0's
+    # dashboard. Its client secret is asked for once and kept in Key Vault, and asked for again when the client ID
+    # changes. Once set, a later run without them keeps them.
     [string] $Auth0Domain,
     [string] $Auth0ClientId,
 
@@ -190,17 +191,24 @@ $providers = @("Storage__OneDrive__ClientId=$($signIn.appId)", 'Storage__OneDriv
 $secrets = @("auth-microsoft=keyvaultref:https://$KeyVault.vault.azure.net/secrets/auth-microsoft,identityref:$($id.id)")
 
 Step 'Auth0 sign-in'
+$auth0Secret = $null
 if ($Auth0Domain -or $Auth0ClientId) {
     if (-not ($Auth0Domain -and $Auth0ClientId)) { throw 'Give both -Auth0Domain and -Auth0ClientId.' }
     $Auth0Domain = $Auth0Domain -replace '^https://', '' -replace '/+$', ''
-    if (-not (SecretExists 'auth0')) {
+    $knownClient = @(Find containerapp show -n $App -g $ResourceGroup --query 'properties.template.containers[0].env' -o json |
+        Where-Object name -eq 'Auth__auth0__ClientId').value
+    # A different application, as when sign-in moves to another tenant, has its own secret.
+    if (-not (SecretExists 'auth0') -or ($knownClient -and $knownClient -ne $Auth0ClientId)) {
         $secret = Read-Host "  Client secret for $Auth0ClientId" -AsSecureString
-        az keyvault secret set --vault-name $KeyVault -n auth0 --value ([System.Net.NetworkCredential]::new('', $secret).Password) -o none
+        # The app would pick up a new version by itself only within half an hour, after the new client ID is already in
+        # use, so this run points it at the version just written.
+        $auth0Secret = az keyvault secret set --vault-name $KeyVault -n auth0 --value ([System.Net.NetworkCredential]::new('', $secret).Password) --query id -o tsv
     }
     $providers += "Auth__auth0__Domain=$Auth0Domain", "Auth__auth0__ClientId=$Auth0ClientId", 'Auth__auth0__ClientSecret=secretref:auth0'
 }
 # The secret reference stays while the app's settings name it, which a run without the switches leaves as they were.
-if (SecretExists 'auth0') { $secrets += "auth0=keyvaultref:https://$KeyVault.vault.azure.net/secrets/auth0,identityref:$($id.id)" }
+if (-not $auth0Secret -and (SecretExists 'auth0')) { $auth0Secret = "https://$KeyVault.vault.azure.net/secrets/auth0" }
+if ($auth0Secret) { $secrets += "auth0=keyvaultref:$auth0Secret,identityref:$($id.id)" }
 Write-Host "  In Auth0, the application's Allowed Callback URLs: https://$Domain/auth/callback/auth0, https://localhost:5179/auth/callback/auth0"
 Write-Host "  Allowed Logout URLs: https://$Domain/, https://localhost:5179/"
 if (-not $Auth0Domain -and -not (SecretExists 'auth0')) {

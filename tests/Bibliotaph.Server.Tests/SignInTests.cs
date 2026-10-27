@@ -13,7 +13,9 @@ public sealed class SignInTests
     {
         var identity = Auth0SignIn.Identify(Principal(("sub", "google-oauth2|1234"), ("name", "Dana"), ("email", "dana@example.org"), ("email_verified", "true")));
 
-        Assert.Equal(new Bibliotaph.Server.Accounts.ExternalIdentity("auth0", "google-oauth2|1234", "Dana", "dana@example.org"), identity);
+        Assert.Equal(new Bibliotaph.Server.Accounts.ExternalIdentity("auth0", "google-oauth2|1234", "Dana", "dana@example.org"),
+            identity! with { FormerSubjects = [] });
+        Assert.Equal(["oauth2|google-oauth2|1234"], identity.FormerSubjects);
     }
 
     [Fact]
@@ -28,12 +30,23 @@ public sealed class SignInTests
     [InlineData("auth0", "google-oauth2|1234", "Google")]
     [InlineData("auth0", "windowslive|abc", "Microsoft")]
     [InlineData("auth0", "oauth2|discord|5678", "Discord")]
+    [InlineData("auth0", "discord|5678", "Discord")]
     [InlineData("auth0", "apple|001", "Apple")]
     [InlineData("auth0", "auth0|65f0", "Email")]
     [InlineData("auth0", "github|9", "Github")]
     [InlineData("developer", "local", "Developer")]
     public void Settings_names_a_sign_in_by_the_connection_it_came_through(string provider, string subject, string expected) =>
         Assert.Equal(expected, Auth0SignIn.Describe(provider, subject));
+
+    [Theory]
+    [InlineData("oauth2|discord|5678", "discord|5678")]
+    [InlineData("discord|5678", "oauth2|discord|5678")]
+    [InlineData("google-oauth2|1234", "oauth2|google-oauth2|1234")]
+    [InlineData("auth0|65f0", null)]
+    [InlineData("email|65f0", null)]
+    [InlineData("oddly|shaped|sub|here", null)]
+    public void A_sub_from_the_other_kind_of_connection_is_the_same_person(string sub, string? former) =>
+        Assert.Equal(former is null ? [] : [former], Auth0SignIn.FormerSubjects(sub));
 
     [Fact]
     public void Signing_out_ends_the_Auth0_session_and_comes_back_home() =>

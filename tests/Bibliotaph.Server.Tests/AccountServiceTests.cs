@@ -104,6 +104,24 @@ public sealed class AccountServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_sign_in_saved_under_a_former_subject_moves_to_the_new_one()
+    {
+        var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
+        var before = new ExternalIdentity("auth0", "oauth2|discord|5678", "Dana", null);
+        var user = (await _accounts.SignInAsync(before, code, null)).User!;
+        var after = new ExternalIdentity("auth0", "discord|5678", "Dana", null) { FormerSubjects = ["oauth2|discord|5678"] };
+
+        var moved = await _accounts.SignInAsync(after, null, null);
+        var again = await _accounts.SignInAsync(after, null, null);
+
+        Assert.Equal(SignInResult.SignedIn, moved.Result);
+        Assert.Equal(user.Id, moved.User!.Id);
+        Assert.Equal(user.Id, again.User!.Id);
+        Assert.Equal("discord|5678", Assert.Single(await _accounts.LoginsAsync(user.Id)).Subject);
+        Assert.Equal(SignInResult.NeedsInvite, (await _accounts.SignInAsync(before, null, null)).Result);
+    }
+
+    [Fact]
     public async Task Only_a_hash_of_the_code_is_kept()
     {
         var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
