@@ -110,9 +110,10 @@ public static class LibraryServices
         services.AddSingleton<NoteStore>();
         services.AddSingleton<CatalogExport>();
         services.AddSingleton<ExportService>();
-        // A backup is made to download: its working copy of catalog.db goes with the books being read, outside the
-        // users folder, where Litestream would take any database for one to replicate.
-        services.AddSingleton(sp => new BackupService(new AppPaths(Path.Combine(host.TemporaryFolder, "backups-" + Guid.NewGuid().ToString("N"))),
+        // A backup is made to download: its working copy of catalog.db goes with the user's other backups, outside the
+        // users folder, where Litestream would take any database for one to replicate, and outside the books being read,
+        // which the PDF worker may read.
+        services.AddSingleton(sp => new BackupService(new AppPaths(Path.Combine(backups, "making-" + Guid.NewGuid().ToString("N"))),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<IndexDatabase>(),
             sp.GetRequiredService<SettingsStore>(), host.Clock, sp.GetRequiredService<ILogger<BackupService>>()));
         services.AddSingleton<HeldRestore>();

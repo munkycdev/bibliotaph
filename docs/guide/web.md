@@ -102,7 +102,8 @@ added and what it holds, such as "488 PDFs, 12 e-books, 120 images · 15 other f
 from your library without touching its files, and its books' cards leave Needs review and its count with them.
 
 Bibliotaph looks through a new folder straight away, then reads each new file to recognise it. Your books aren't
-copied: each is downloaded only while it's being read and deleted straight after. The line at the bottom of the sidebar
+copied: each is downloaded only while it's being read and deleted straight after. The part of the server that reads
+them is shut in with the books being read, so a damaged or booby-trapped file can't reach anyone's library. The line at the bottom of the sidebar
 says what it's doing, such as **Reading 120 new files** or **Up to date**.
 
 Changes in your storage (books added, moved or deleted) are picked up within a few minutes (Google Drive's, Box's and WebDAV's within five), whether or not you have

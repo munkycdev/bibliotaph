@@ -184,7 +184,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         }
         try
         {
-            await replace(new AppPaths(paths.UserRoot(userId)));
+            await replace(paths.Library(userId));
         }
         finally
         {
@@ -303,7 +303,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
     {
         var root = paths.UserRoot(userId);
         Directory.CreateDirectory(root);
-        var appPaths = new AppPaths(root);
+        var appPaths = paths.Library(userId);
         // Copies of books left by a server that stopped mid-read.
         DeleteFetched(appPaths);
         // After a deploy every database comes back from Blob storage, and the first page waits on all of them.
@@ -385,7 +385,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         }
         _syncFiles.TryRemove(userId, out _);
 #pragma warning disable RS0030 // The server's own copies of a closed account's library; books are never local files here.
-        foreach (var folder in new[] { paths.UserRoot(userId), paths.UserBackups(userId) })
+        foreach (var folder in new[] { paths.UserRoot(userId), paths.UserBackups(userId), paths.Library(userId).Extract })
             if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
 #pragma warning restore RS0030
     }

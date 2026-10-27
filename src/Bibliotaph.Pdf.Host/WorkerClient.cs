@@ -28,6 +28,14 @@ public sealed record WorkerOptions
     /// </summary>
     public bool Background { get; init; }
 
+    /// <summary>
+    /// On Linux, the only folders the worker may read books from: it is shut in with Landlock to its own program, the
+    /// system's libraries and these, and starts with none of the host's environment but what the runtime needs, so the
+    /// host's secrets never reach it. For the web server, where the books are anyone's. Null leaves the worker as it is,
+    /// as on Windows, where the job object contains it.
+    /// </summary>
+    public IReadOnlyList<string>? ConfinedTo { get; init; }
+
     public static string DefaultWorkerPath =>
         Path.Combine(AppContext.BaseDirectory, "pdfworker", OperatingSystem.IsWindows() ? "Bibliotaph.PdfWorker.exe" : "Bibliotaph.PdfWorker");
 }
@@ -240,6 +248,7 @@ public sealed class WorkerClient : IAsyncDisposable
         psi.ArgumentList.Add(_sharedPath);
         psi.ArgumentList.Add("--shared-size");
         psi.ArgumentList.Add(Options.SharedBufferBytes.ToString(CultureInfo.InvariantCulture));
+        if (Options.ConfinedTo is { } folders && OperatingSystem.IsLinux()) Confine(psi, folders);
 
         _stderr.Clear();
         _openDocs.Clear();
@@ -248,6 +257,11 @@ public sealed class WorkerClient : IAsyncDisposable
         _process.ErrorDataReceived += (_, e) =>
         {
             if (string.IsNullOrWhiteSpace(e.Data)) return;
+            // The worker's first line says whether it was confined, as asked.
+            if (Options.ConfinedTo is not null && e.Data.StartsWith(ConfinedLine, StringComparison.Ordinal))
+                _log.LogInformation("PDF {Worker}: {Confinement}", Options.Name, e.Data);
+            else if (Options.ConfinedTo is not null && e.Data.StartsWith(NotConfinedLine, StringComparison.Ordinal))
+                _log.LogWarning("PDF {Worker}: {Confinement}", Options.Name, e.Data);
             _stderr.Enqueue(e.Data.Trim());
             while (_stderr.Count > 6) _stderr.TryDequeue(out string? _);
         };
@@ -290,6 +304,27 @@ public sealed class WorkerClient : IAsyncDisposable
         Generation++;
         _log.LogInformation("PDF {Worker} started (pid {Pid}, generation {Generation}, cap {CapMb} MB)",
             Options.Name, _process.Id, Generation, Options.MemoryLimitBytes / (1024 * 1024));
+    }
+
+    const string ConfinedLine = "Confined", NotConfinedLine = "Not confined";
+
+    /// <summary>The environment the runtime needs, and nothing else of the host's: its secrets are in its environment.</summary>
+    static readonly string[] KeptVariables = ["PATH", "HOME", "LANG", "LANGUAGE", "LC_ALL", "LC_CTYPE", "TZ", "TMPDIR", "OMP_THREAD_LIMIT", "TESSDATA_PREFIX"];
+
+    static void Confine(ProcessStartInfo psi, IReadOnlyList<string> folders)
+    {
+        var kept = psi.Environment.Where(v => KeptVariables.Contains(v.Key) || v.Key.StartsWith("DOTNET_", StringComparison.Ordinal)).ToList();
+        psi.Environment.Clear();
+        foreach (var (key, value) in kept) psi.Environment[key] = value;
+        // The diagnostics port would let the worker ask the runtime of any .NET process here to dump its memory.
+        psi.Environment["DOTNET_EnableDiagnostics"] = "0";
+        foreach (var folder in folders)
+        {
+            // A rule holds the folder there is when the worker starts, so it must be there already.
+            Directory.CreateDirectory(folder);
+            psi.ArgumentList.Add("--confine");
+            psi.ArgumentList.Add(folder);
+        }
     }
 
     void Kill()
