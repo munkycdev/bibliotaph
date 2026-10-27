@@ -52,7 +52,23 @@ public static class Auth0SignIn
     public static ExternalIdentity? Identify(ClaimsPrincipal principal) =>
         Claim(principal, "sub") is { } sub
             ? new ExternalIdentity(Id, sub, Claim(principal, "name"), Claim(principal, "email_verified") == "true" ? Claim(principal, "email") : null)
+            {
+                FormerSubjects = FormerSubjects(sub),
+            }
             : null;
+
+    /// <summary>
+    /// The same person's sub under the other kind of connection. A custom social connection wraps its own
+    /// ("oauth2|discord|1234") where Auth0's built-in one for the same provider doesn't ("discord|1234"), so swapping one
+    /// kind of connection for the other keeps the provider's ID but changes the sub.
+    /// </summary>
+    internal static IReadOnlyList<string> FormerSubjects(string sub) =>
+        sub.Split('|') switch
+        {
+            ["oauth2", { Length: > 0 } connection, { Length: > 0 } person] => [$"{connection}|{person}"],
+            [{ Length: > 0 } connection, { Length: > 0 }] when connection is not ("auth0" or "email" or "oauth2") => [$"oauth2|{sub}"],
+            _ => [],
+        };
 
     /// <summary>Where signing out ends the Auth0 session too, so the next sign-in asks again rather than going straight back in.</summary>
     public static string LogoutUrl(Auth0Client client, string returnTo) =>
