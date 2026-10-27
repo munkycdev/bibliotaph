@@ -77,12 +77,13 @@ function Json { $args[0] | ConvertFrom-Json }
 
 # az prints "not found" errors for things that don't exist yet; those return $null here instead of stopping the script.
 # Any other failure stops it with az's own message, since taking it for "not there" would go on to create something
-# that is.
+# that is. The output is always JSON: a default set with az config (core.output none or table) would otherwise turn a
+# resource that exists into nothing.
 function Find {
     $PSNativeCommandUseErrorActionPreference = $false
     $errors = (New-TemporaryFile).FullName
     try {
-        $result = az @args 2>$errors
+        $result = az @args -o json 2>$errors
         $message = Get-Content $errors -Raw
     }
     finally { Remove-Item $errors }
