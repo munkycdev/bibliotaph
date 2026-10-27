@@ -76,10 +76,21 @@ function Step([string] $text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 function Json { $args[0] | ConvertFrom-Json }
 
 # az prints "not found" errors for things that don't exist yet; those return $null here instead of stopping the script.
+# Any other failure stops it with az's own message, since taking it for "not there" would go on to create something
+# that is.
 function Find {
     $PSNativeCommandUseErrorActionPreference = $false
-    $result = az @args 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not $result) { return $null }
+    $errors = (New-TemporaryFile).FullName
+    try {
+        $result = az @args 2>$errors
+        $message = Get-Content $errors -Raw
+    }
+    finally { Remove-Item $errors }
+    if ($LASTEXITCODE -ne 0) {
+        if ($message -match 'NotFound|not found|does not exist') { return $null }
+        throw "az $($args -join ' ') failed: $message"
+    }
+    if (-not $result) { return $null }
     $result | ConvertFrom-Json
 }
 
@@ -130,7 +141,7 @@ Step 'Identity the app runs as'
 $id = Json (az identity create -n $Identity -g $ResourceGroup -l $location --query '{id:id, clientId:clientId, principalId:principalId}' -o json)
 
 Step 'Storage: database replicas, the key ring, covers and backups'
-if (-not (Find storage account show -n $StorageAccount -g $ResourceGroup)) {
+if (-not (Find storage account show -n $StorageAccount -g $ResourceGroup --query id)) {
     az storage account create -n $StorageAccount -g $ResourceGroup -l $location --sku Standard_LRS --kind StorageV2 `
         --min-tls-version TLS1_2 --allow-blob-public-access false --allow-shared-key-access false -o none
 }
@@ -141,7 +152,7 @@ foreach ($container in 'replica', 'keys', 'covers', 'backups') {
 Grant $id.principalId ServicePrincipal 'Storage Blob Data Contributor' $storageId
 
 Step 'Key Vault: the key-ring key and sign-in secrets'
-if (-not (Find keyvault show -n $KeyVault -g $ResourceGroup)) {
+if (-not (Find keyvault show -n $KeyVault -g $ResourceGroup --query id)) {
     az keyvault create -n $KeyVault -g $ResourceGroup -l $location --enable-rbac-authorization true -o none
 }
 $vaultId = az keyvault show -n $KeyVault -g $ResourceGroup --query id -o tsv
