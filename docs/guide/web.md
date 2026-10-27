@@ -43,6 +43,11 @@ Sign in at [bibliotaph.online](https://bibliotaph.online) with **Continue** and 
 signed in on that browser for two weeks after you last used it. **Settings** › **Sign out** ends it, and signs you out
 of the sign-in page too, so the next person on that browser has to sign in themselves.
 
+After Bibliotaph is updated or the server restarts, your library comes back from storage before it opens, which can
+take a few minutes for a large one. The page says so while it waits, with how long it has taken, and opens your
+library by itself when it's back. The server starts on the libraries of people who signed in lately a couple of
+minutes after it starts, so yours is often back before you look.
+
 To sign in another way as well, such as Google beside Microsoft, choose **Link another sign-in** in **Settings** ›
 **Account** and sign in the other way. Either one then opens the same library, and **Account** lists each by name. A
 sign-in that already belongs to another Bibliotaph account can't be linked.

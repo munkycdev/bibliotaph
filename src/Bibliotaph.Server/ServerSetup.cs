@@ -49,6 +49,8 @@ public static class ServerSetup
         services.AddSingleton(new ModelClientFactory(ModelServices.ClientFor));
         services.AddSingleton<UserLibraries>();
         services.AddHostedService<IdleLibraries>();
+        // Only where the libraries come back from Blob storage after a deploy; on a developer's disk they're already there.
+        if (!string.IsNullOrEmpty(options.ReplicaUrl)) services.AddHostedService<LibraryWarmup>();
         services.AddBibliotaphStorage(configuration);
 
         var credential = new Lazy<ManagedIdentityCredential>(() => new ManagedIdentityCredential(options.ManagedIdentityClientId is { Length: > 0 } clientId

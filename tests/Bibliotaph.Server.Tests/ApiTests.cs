@@ -129,6 +129,24 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Asking_whether_the_library_is_open_opens_it_without_waiting()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = Client(await AddUserAsync(admin: false));
+
+        var opening = (await client.GetFromJsonAsync<LibraryOpening>("/api/library/opening", ct))!;
+        while (!opening.Ready)
+        {
+            await Task.Delay(50, ct);
+            opening = (await client.GetFromJsonAsync<LibraryOpening>("/api/library/opening", ct))!;
+        }
+
+        Assert.Null(opening.Step);
+        using var signedOut = await Client().GetAsync("/api/library/opening", ct);
+        Assert.Equal(HttpStatusCode.Unauthorized, signedOut.StatusCode);
+    }
+
+    [Fact]
     public async Task Closing_an_account_deletes_its_library_and_ends_its_sessions()
     {
         var ct = TestContext.Current.CancellationToken;

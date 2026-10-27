@@ -12,7 +12,22 @@
 @inject SearchGuideModel Guide
 @using Bibliotaph.Core.Search
 
-@if (_loading)
+@if (_loading && _opening is { Step: not null } opening)
+{
+    <div class="bt-signin" role="status" aria-live="polite">
+        <div class="bt-signin-card bt-opening">
+            <div class="bt-brand"><span class="bt-monogram">b.</span><span>Bibliotaph</span></div>
+            <h1>@OpeningHeading(opening)</h1>
+            <p class="bt-copy">@OpeningText(opening)</p>
+            <div class="bt-opening-bar" aria-hidden="true"><span></span></div>
+            @if (opening.Seconds >= 5)
+            {
+                <p class="bt-opening-time">@Elapsed(opening.Seconds) so far</p>
+            }
+        </div>
+    </div>
+}
+else if (_loading)
 {
     <div class="bt-loading">Opening Bibliotaph…</div>
 }
@@ -239,6 +254,7 @@ else
         _me = await Session.MeAsync();
         if (_me is not null)
         {
+            await WaitForLibraryAsync();
             Activity.Changed += OnActivityChanged;
             Activity.Start();
             Pins.Changed += OnPinsChanged;
@@ -252,6 +268,49 @@ else
         Guide.Changed += OnGuideChanged;
         _loading = false;
     }
+
+    LibraryOpening? _opening;
+
+    static readonly TimeSpan OpeningPoll = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// After an update or a restart the server brings the library back from storage before it can answer anything, which
+    /// can take minutes: longer than the browser waits on one call. So the page asks how that's going, which never waits,
+    /// and only then loads what needs the library.
+    /// </summary>
+    async Task WaitForLibraryAsync()
+    {
+        while (true)
+        {
+            try
+            {
+                if (await Api.LibraryOpeningAsync() is not { Ready: false } opening) return;
+                _opening = opening;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or ApiProblemException or TaskCanceledException)
+            {
+                // The server itself is still starting; ask again.
+            }
+            StateHasChanged();
+            await Task.Delay(OpeningPoll);
+        }
+    }
+
+    static string OpeningHeading(LibraryOpening opening) => opening.Step switch
+    {
+        "restoring" => "Bringing your library back",
+        "failed" => "Your library didn't open",
+        _ => "Opening your library",
+    };
+
+    static string OpeningText(LibraryOpening opening) => opening.Step switch
+    {
+        "restoring" => "Bibliotaph was updated or restarted, so your library is coming back from storage before it opens. This can take a few minutes. The page carries on by itself.",
+        "failed" => "Something went wrong opening it. Bibliotaph will try again in a moment.",
+        _ => "Your library is back, and Bibliotaph is starting it.",
+    };
+
+    static string Elapsed(int seconds) => seconds < 60 ? $"{seconds} s" : $"{seconds / 60} min {seconds % 60} s";
 
     async Task CycleTheme() => _theme = await Theme.CycleAsync();
 
