@@ -61,8 +61,10 @@ another service is theirs, so it stays.
 ## Inviting others
 
 If your account can invite, **Settings** has **Members**. Type who it's for (only you see this), tick **Can invite
-others** if they should be able to invite too, and choose **New invitation**. Copy the link straight away and send it
-yourself: it's shown only once. The list below shows each invitation and whether it has been used.
+others** if they should be able to invite too, and choose **New invitation**. Copy the link and send it yourself. The
+list below shows each invitation and whether it has been used: the copy button beside an open one puts its link on
+the clipboard again, and the bin deletes an invitation. Deleting an open one makes its link stop working straight
+away, so it asks first; deleting a used one only tidies the list, and the account made from it stays.
 
 Under the invitations, **Accounts** lists everyone who has joined, with their email address, when they joined and when they last
 signed in. The bin beside an account deletes it once you confirm: it's the same as its owner choosing **Close
