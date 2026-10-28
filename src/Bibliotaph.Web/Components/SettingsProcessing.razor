@@ -1,5 +1,5 @@
 @* Settings › Processing, as the Windows app's: indexing step by step with the time left, what each part is on now, and
-   pause and resume for each lane, and whether books are looked up online. It asks the server again every couple of seconds while it shows. *@
+   pause and resume for each lane. It asks the server again every couple of seconds while it shows. *@
 @using Bibliotaph.Core.Progress
 @implements IDisposable
 @inject ApiClient Api
@@ -80,15 +80,9 @@
             }
         </div>
         <p class="bt-fine">A pause holds until you resume, even after you sign out. Pausing the AI stops requests on your key.</p>
-    }
-    @if (_lookups is { } lookups)
-    {
-        <div class="bt-scanwhole">
-            <label class="bt-check"><input type="checkbox" checked="@lookups.On" disabled="@_saving" aria-label="Look up books online by their ISBN"
-                       @onchange="e => LookUpAsync(e.Value is true)" />Look up books online by their ISBN</label>
-            <p class="bt-fine">Asks @(lookups.Sources ?? "Open Library") about the ISBNs your books print, and nothing else, to fill in their title, authors,
-                publisher and year. A record is used only when its title is printed in the book, and the AI's guesses give way to it.</p>
-        </div>
+        <h3 class="bt-settingshead">Looking up online</h3>
+        <p class="bt-fine">Asks @(_state.LookupCatalogues ?? "Open Library") about the ISBNs your books print, and nothing else, to fill in their title,
+            authors, publisher and year. A record is used only when its title is printed in the book, and the AI's guesses give way to it.</p>
     }
 </section>
 
@@ -104,7 +98,6 @@
     readonly CancellationTokenSource _stop = new();
     ProcessingPhase[] _phases = [];
     ProcessingState? _state;
-    LookupSetting? _lookups;
     string _timeLeft = "";
     bool _saving;
 
@@ -114,14 +107,6 @@
     {
         _phases = [_finding, _reading, _making, _scans, _lookingUp, _classifying];
         await RefreshAsync();
-        try
-        {
-            _lookups = await Api.LookupsAsync(_stop.Token);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
-        {
-            // Without it the setting isn't shown, rather than shown wrong.
-        }
         _ = PollAsync();
     }
 
@@ -169,21 +154,6 @@
         _saving = false;
     }
 
-    async Task LookUpAsync(bool on)
-    {
-        _saving = true;
-        try
-        {
-            _lookups = await Api.SetLookupsAsync(on, _stop.Token);
-            Show(await Api.ProcessingAsync(_stop.Token));
-        }
-        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
-        {
-            // The box still shows the setting as it was.
-        }
-        _saving = false;
-    }
-
     void Show(ProcessingState state)
     {
         _state = state;
@@ -193,9 +163,8 @@
         _reading.Count(now, state.Files - state.ToRead, state.Files, state.Paused.Indexing);
         _making.Count(now, state.Indexed, state.Queued, state.Paused.Indexing);
         _scans.Count(now, state.OcrPagesDone, state.OcrPages, state.Paused.Scans);
-        // Lookups and AI cataloguing are optional and off until switched on, so "Off" rather than a count that never moves.
-        if (!state.LookupsOn) _lookingUp.Show(PhaseState.Waiting, state.ToLookUp > 0 ? $"Off · {state.ToLookUp:N0} waiting" : "Off");
-        else _lookingUp.Count(now, state.LookedUp, state.LookedUp + state.ToLookUp, paused: false, state.LookupWaiting);
+        _lookingUp.Count(now, state.LookedUp, state.LookedUp + state.ToLookUp, paused: false, state.LookupWaiting);
+        // AI cataloguing is off until set up, so "Off" rather than a count that never moves.
         if (!state.AiOn) _classifying.Show(PhaseState.Waiting, state.ToClassify > 0 ? $"Off · {state.ToClassify:N0} waiting" : "Off");
         else _classifying.Count(now, state.Classified, state.Classified + state.ToClassify, state.Paused.Ai, state.AiWaiting);
 

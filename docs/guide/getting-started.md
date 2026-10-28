@@ -52,7 +52,8 @@ Own books on D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG? They can join
 
 Folder names like "D&D 5e", "Adventures" or "Maps" are read as suggestions for the books inside. You don't have to
 reorganize anything first, but a tidy folder or two helps. If a folder name means something else in your library,
-switch it off under **Folder names** in **Settings > Library**.
+fix the books it misled as you come to them: after you correct one, Bibliotaph offers to fix the same guess on the
+folder's other books (see [Cataloging](cataloging.md#cataloged-wrong)).
 
 ## While it reads your books
 

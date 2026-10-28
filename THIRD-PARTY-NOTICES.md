@@ -79,8 +79,8 @@ the fonts and the icons; everything else runs only on the server.
 
 ## Book data from online catalogues
 
-Used only when **Look up books online by their ISBN** is on. Each catalogue is sent a book's ISBNs and nothing else,
-and each suggestion it gives names it as its source ("Open Library's record for ISBN …").
+Each catalogue is sent a book's ISBNs and nothing else, and each suggestion it gives names it as its source ("Open
+Library's record for ISBN …"). Settings > Processing says where a book's ISBNs go.
 
 | Catalogue | Asked by | Terms of its data | Site |
 | --- | --- | --- | --- |

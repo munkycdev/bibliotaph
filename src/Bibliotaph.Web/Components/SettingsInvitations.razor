@@ -1,5 +1,5 @@
-@* Settings › Members, for admins: making a one-time link, copying it while it's shown, and every link made with
-   whether it was used. *@
+@* Settings › Members, for admins: making a one-time link, every link made with whether it was used, copying an open
+   one's link again, and deleting one. *@
 @inject ApiClient Api
 @inject IJSRuntime JS
 
@@ -15,14 +15,18 @@
     {
         <div class="bt-linkbox" role="status">
             <span>@_created.Link</span>
-            <button class="bt-button" @onclick="CopyAsync"><Icon Name="@(_copied ? "Check" : "Copy")" />@(_copied ? "Copied" : "Copy link")</button>
+            <button class="bt-button" @onclick="() => CopyAsync(_created.Link)"><Icon Name="@(_copiedLink == _created.Link ? "Check" : "Copy")" />@(_copiedLink == _created.Link ? "Copied" : "Copy link")</button>
         </div>
-        <p class="bt-fine">Copy it now: it's shown only once.</p>
+        <p class="bt-fine">Send it yourself. You can copy it again from the list below until it's used.</p>
+    }
+    @if (_message is { } note)
+    {
+        <div class="bt-message" role="status">@note</div>
     }
     @if (_invites is { Count: > 0 })
     {
         <table class="bt-table">
-            <thead><tr><th>FOR</th><th>MADE</th><th>STATE</th></tr></thead>
+            <thead><tr><th>FOR</th><th>MADE</th><th>STATE</th><th></th></tr></thead>
             <tbody>
                 @foreach (var invite in _invites)
                 {
@@ -30,43 +34,119 @@
                         <td>@(invite.Note ?? "—")@(invite.Admin ? " (can invite)" : "")</td>
                         <td>@invite.Created.ToString("d MMM yyyy")</td>
                         <td>@State(invite)</td>
+                        <td class="bt-rowactions">
+                            @if (IsOpen(invite))
+                            {
+                                <button class="bt-icon" title="@(_copiedId == invite.Id ? "Copied" : "Copy link")" aria-label="@($"Copy the link of the invitation for {invite.Note ?? "nobody in particular"}")"
+                                        disabled="@_busy" @onclick="() => CopyInviteAsync(invite)"><Icon Name="@(_copiedId == invite.Id ? "Check" : "Copy")" Size="14" /></button>
+                            }
+                            <button class="bt-icon" title="Delete this invitation" aria-label="@($"Delete the invitation for {invite.Note ?? "nobody in particular"}")"
+                                    disabled="@_busy" @onclick="() => DeleteAsync(invite)"><Icon Name="Trash2" Size="14" /></button>
+                        </td>
                     </tr>
                 }
             </tbody>
         </table>
+    }
+    @if (_deleting is { } deleting)
+    {
+        <div class="bt-source bt-pending" role="alertdialog" aria-labelledby="delete-invite-heading" aria-describedby="delete-invite-detail">
+            <div class="bt-sourcerow">
+                <Icon Name="Trash2" />
+                <div id="delete-invite-heading">Delete the invitation@(deleting.Note is { } who ? $" for {who}" : "")?<small id="delete-invite-detail">Its link stops working
+                    straight away. Make a new invitation if you change your mind.</small></div>
+            </div>
+            <div class="bt-actions">
+                <button class="bt-button primary" disabled="@_busy" @onclick="() => DeleteNowAsync(deleting)"><Icon Name="Trash2" />Delete invitation</button>
+                <button class="bt-button" disabled="@_busy" @onclick="() => _deleting = null">Cancel</button>
+            </div>
+        </div>
     }
 </section>
 
 @code {
     IReadOnlyList<InviteInfo>? _invites;
     CreatedInvite? _created;
-    string? _note;
-    bool _admin, _copied;
+    InviteInfo? _deleting;
+    string? _note, _message, _copiedLink, _copiedId;
+    bool _admin, _busy;
 
     protected override async Task OnInitializedAsync() => _invites = await Api.InvitesAsync();
 
     async Task CreateInvite()
     {
         _created = await Api.CreateInviteAsync(new CreateInvite(_note, _admin));
-        _copied = false;
+        _copiedLink = null;
         _note = null;
+        _message = null;
         _admin = false;
         _invites = await Api.InvitesAsync();
     }
 
-    async Task CopyAsync()
+    /// <summary>The link again, from the server, since only it can give the code; then onto the clipboard.</summary>
+    async Task CopyInviteAsync(InviteInfo invite)
     {
-        if (_created is null) return;
+        _busy = true;
+        _message = null;
         try
         {
-            await JS.InvokeVoidAsync("navigator.clipboard.writeText", _created.Link);
-            _copied = true;
+            var link = await Api.InviteLinkAsync(invite.Id);
+            if (await CopyAsync(link.Link)) _copiedId = invite.Id;
+            else _created = link;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _message = "That invitation's link can't be copied: it has been used or has expired, or it was made before links could be copied again.";
+            _invites = await Api.InvitesAsync();
+        }
+        _busy = false;
+    }
+
+    /// <summary>Puts a link on the clipboard, or returns false when the browser refuses, so it can be shown to select instead.</summary>
+    async Task<bool> CopyAsync(string link)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", link);
+            _copiedLink = link;
+            return true;
         }
         catch (JSException)
         {
-            // The browser refused the clipboard; the link is still there to select and copy.
+            return false;
         }
     }
+
+    /// <summary>An open invitation asks first, since someone may hold its link; a used or expired one is only a record.</summary>
+    Task DeleteAsync(InviteInfo invite)
+    {
+        _message = null;
+        if (IsOpen(invite))
+        {
+            _deleting = invite;
+            return Task.CompletedTask;
+        }
+        return DeleteNowAsync(invite);
+    }
+
+    async Task DeleteNowAsync(InviteInfo invite)
+    {
+        _busy = true;
+        try
+        {
+            await Api.DeleteInviteAsync(invite.Id);
+            if (_copiedId == invite.Id) _copiedId = null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _message = "That invitation couldn't be deleted just now. Try again in a moment.";
+        }
+        _deleting = null;
+        _busy = false;
+        _invites = await Api.InvitesAsync();
+    }
+
+    static bool IsOpen(InviteInfo invite) => invite.Redeemed is null && invite.Expires > DateTimeOffset.UtcNow;
 
     static string State(InviteInfo invite) =>
         invite.Redeemed is { } used ? $"Used {used:d MMM yyyy}"

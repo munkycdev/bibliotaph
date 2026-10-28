@@ -86,6 +86,13 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadFromJsonAsync<CreatedInvite>(ct))!;
     }
 
+    /// <summary>An open invitation's link again; <see cref="ApiProblemException"/> once it's used or expired.</summary>
+    public Task<CreatedInvite> InviteLinkAsync(string id, CancellationToken ct = default) =>
+        SendAsync<CreatedInvite>(HttpMethod.Get, $"api/invites/{Uri.EscapeDataString(id)}/link", null, ct);
+
+    public Task DeleteInviteAsync(string id, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Delete, $"api/invites/{Uri.EscapeDataString(id)}", null, ct);
+
     public async Task<IReadOnlyList<StorageAccount>> StorageAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<StorageAccount>>("api/storage", ct) ?? [];
 
@@ -502,9 +509,6 @@ public sealed class ApiClient(HttpClient http)
     public Task<LibraryPreferences> LibraryPreferencesAsync(CancellationToken ct = default) =>
         SendAsync<LibraryPreferences>(HttpMethod.Get, "api/settings/library", null, ct);
 
-    public Task<LibraryPreferences> SwitchFolderNameAsync(FolderNameSwitch change, CancellationToken ct = default) =>
-        SendAsync<LibraryPreferences>(HttpMethod.Put, "api/settings/folder-names", change, ct);
-
     public Task<LibraryPreferences> SwitchFolderRuleAsync(long id, bool enabled, CancellationToken ct = default) =>
         SendAsync<LibraryPreferences>(HttpMethod.Put, $"api/settings/folder-rules/{id}", new RuleSwitch(enabled), ct);
 
@@ -517,11 +521,6 @@ public sealed class ApiClient(HttpClient http)
 
     public Task<ProcessingState> PauseLanesAsync(ProcessingPauses paused, CancellationToken ct = default) =>
         SendAsync<ProcessingState>(HttpMethod.Put, "api/processing/paused", paused, ct);
-
-    public Task<LookupSetting> LookupsAsync(CancellationToken ct = default) => SendAsync<LookupSetting>(HttpMethod.Get, "api/processing/lookups", null, ct);
-
-    public Task<LookupSetting> SetLookupsAsync(bool on, CancellationToken ct = default) =>
-        SendAsync<LookupSetting>(HttpMethod.Put, "api/processing/lookups", new LookupSetting(on), ct);
 
     public Task<List<VocabularyTerm>> VocabularyAsync(string vocabulary, CancellationToken ct = default) =>
         SendAsync<List<VocabularyTerm>>(HttpMethod.Get, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}", null, ct);

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Copy an invitation's link again, and delete invitations.** On bibliotaph.online, Settings > Members now has a copy
+  button beside each open invitation, which gives the same link again until it's used, and a bin on every invitation.
+  Deleting an open one makes its link stop working straight away, so it asks first; deleting a used one tidies the list
+  and keeps the account. See [Bibliotaph on the web](docs/guide/web.md#inviting-others).
+- **Books are always looked up by their ISBN.** The **Look up books online by their ISBN** box in Settings >
+  Processing is gone: every book that prints an ISBN is looked up in Open Library (and, on bibliotaph.online or from
+  a PC connected to it, Google Books), and the Looking up online step always shows its counts. Only the ISBNs are
+  sent, and **Looking up online** under the steps says where. See
+  [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+- **Folder names has gone from Settings > Library.** Folder names like "Adventures" or "D&D 5e" still suggest the type
+  or system of the books inside; the list of every such name with a switch each is gone, on Windows and the web. Fix a
+  book a folder name misled as you come to it, and Bibliotaph offers to fix the folder's other books with it. Folder
+  rules answered in Needs review stay in Settings > Library. See
+  [Getting started](docs/guide/getting-started.md#folder-names-count).
 - **Settings in four groups.** The section list, on Windows and the web, now reads BOOKS (Library, Online libraries,
   Devices), CATALOGUING (Processing, AI, Vocabulary), YOU (Preferences, Passwords, Backup, and Account on the web) and,
   for those who can invite, ADMIN (Members). Each page is headed as its entry is: Library, not Library folders; Devices,

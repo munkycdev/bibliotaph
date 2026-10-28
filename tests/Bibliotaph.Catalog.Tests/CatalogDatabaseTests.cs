@@ -142,7 +142,7 @@ public sealed class CatalogDatabaseTests : IDisposable
         Assert.Contains(result.AppliedMigrations, m => m.EndsWith("_Slice2Metadata", StringComparison.Ordinal));
         Assert.NotNull(result.BackupPath);
         Assert.Equal(1, Scalar(database.ConnectionString, "SELECT count(*) FROM document"));
-        foreach (var table in new[] { "rejection", "vocabulary_term", "vocabulary_alias", "classification_run", "ignored_folder_label" })
+        foreach (var table in new[] { "rejection", "vocabulary_term", "vocabulary_alias", "classification_run" })
             Assert.Equal(1, Scalar(database.ConnectionString, $"SELECT count(*) FROM sqlite_schema WHERE type = 'table' AND name = '{table}'"));
     }
 
@@ -310,7 +310,6 @@ public sealed class CatalogDatabaseTests : IDisposable
             context.Assertions.AddRange(
                 Theme("heist", Core.AssertionOrigin.Ai, Core.AssertionState.Provisional), Theme("horror", Core.AssertionOrigin.User, Core.AssertionState.Confirmed));
             context.Rejections.Add(new Entities.Rejection { EntryId = entryId, Field = "theme", NormalizedValue = "exploration", CreatedUtc = now });
-            context.IgnoredFolderLabels.Add(new Entities.IgnoredFolderLabel { Folder = "capers", Vocabulary = "theme", TermKey = "heist", CreatedUtc = now });
             context.SmartViews.Add(new Entities.SmartView { Name = "Capers", Definition = """{"query":"theme:heist level:3"}""", CreatedUtc = now, UpdatedUtc = now });
             context.Settings.Add(new Entities.Setting { Key = VocabularyStore.SeedVersionKey, Value = "2" });
             await context.SaveChangesAsync(ct);
@@ -323,7 +322,6 @@ public sealed class CatalogDatabaseTests : IDisposable
         Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM assertion WHERE field = 'style' AND normalized_value = 'heist' AND origin = 'Ai'"));
         Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM assertion WHERE field = 'theme' AND normalized_value = 'horror' AND origin = 'User'"));
         Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM rejection WHERE field = 'style' AND normalized_value = 'exploration'"));
-        Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM ignored_folder_label WHERE vocabulary = 'style' AND term_key = 'heist'"));
         Assert.Equal(1, Scalar(cs, "SELECT count(*) FROM smart_view WHERE definition LIKE '%style:heist level:3%'"));
 
         // Seeding version 3 then adds the new terms, which take the names the old ones gave up.
