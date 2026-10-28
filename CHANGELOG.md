@@ -2,7 +2,7 @@
 
 ## 1.3 · 19 October 2026
 
-New in 1.3.920 (28 October 2026):
+New in 1.3.929 (28 October 2026):
 
 - **Your web library's books on your PC.** A PC connected to bibliotaph.online shows the books in your online storage
   as well as its own: each web library folder is a library folder in Settings > Library, its books searchable without
