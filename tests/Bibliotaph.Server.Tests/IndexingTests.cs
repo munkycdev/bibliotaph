@@ -16,7 +16,7 @@ using SkiaSharp;
 namespace Bibliotaph.Server.Tests;
 
 /// <summary>Books on a drive read by the server as the Windows app reads them: the real PDF worker, Skia for images.</summary>
-public sealed class IndexingTests(SyntheticPdfs pdfs) : IClassFixture<SyntheticPdfs>, IDisposable
+public sealed class IndexingTests(SyntheticPdfs pdfs) : IDisposable
 {
     readonly TempFolder _folder = new();
     LibraryFixture? _fixture;

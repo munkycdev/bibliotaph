@@ -195,12 +195,17 @@ try {
                 $options = '--configuration', 'Debug', '--no-build', '--report-xunit-trx', '--results-directory', $results
                 if ($IsWindows) { Invoke-Dotnet test --solution $solution @options }
                 else {
-                    # The app's tests need WPF, which runs only on Windows; the Build step still compiled them.
-                    Write-Warning 'App tests skipped: they need Windows. CI still runs them.'
+                    # The app's tests need WPF, which runs only on Windows; the Build step still compiled them. A solution
+                    # filter without them lets dotnet test run the rest side by side, as it runs them all on Windows.
+                    Write-Warning 'App tests skipped: they need Windows. CI still runs them on main.'
                     $skipped.Add('App tests')
                     $projects = ([xml](Get-Content $solution)).Solution.Folder.Project.Path |
                         Where-Object { $_ -like 'tests/*.Tests.csproj' -and $_ -notlike '*/Bibliotaph.App.Tests.csproj' }
-                    foreach ($project in $projects) { Invoke-Dotnet test --project (Join-Path $root $project) @options }
+                    New-Item -ItemType Directory -Force $results | Out-Null
+                    $filter = Join-Path $results 'without-app-tests.slnf'
+                    @{ solution = @{ path = '../Bibliotaph.slnx'; projects = @($projects) } } | ConvertTo-Json -Depth 3 |
+                        Set-Content $filter
+                    Invoke-Dotnet test --solution $filter @options
                 }
                 Show-SlowestTests $results $started
             }
