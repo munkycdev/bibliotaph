@@ -50,9 +50,10 @@ public abstract partial class PipelineTests
             var (documentId, format, pages) = c.QuerySingle<(long, string, long)>("SELECT document_id, format, page_count FROM doc");
             Assert.Equal(SourceFormats.Epub, format);
             Assert.Equal(4, pages); // three pages of the first chapter, one of the second
-            Assert.Equal("Complete", StatusOf(c, "Lantern Coast", Stage.Text));
-            Assert.Equal("Complete", StatusOf(c, "Lantern Coast", Stage.Covers));
-            Assert.Null(StatusOf(c, "Lantern Coast", Stage.Ocr));
+            // By its id: the document is titled by whichever of its two files was found first.
+            Assert.Equal("Complete", StatusOf(c, documentId, Stage.Text));
+            Assert.Equal("Complete", StatusOf(c, documentId, Stage.Covers));
+            Assert.Null(StatusOf(c, documentId, Stage.Ocr));
             Assert.Equal(["c1", "c2"], c.Query<string>("SELECT title FROM outline WHERE document_id = @documentId ORDER BY ord", new { documentId }));
 
             // Search finds the phrase on the page it was cut into, and format:epub and the Books filter take the card.
