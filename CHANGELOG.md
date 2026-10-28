@@ -2,7 +2,7 @@
 
 ## 1.4 · 28 October 2026
 
-New in 1.4.N (28 October 2026):
+New in 1.4.941 (28 October 2026):
 
 - **Look books up by their ISBN.** Turn on **Look up books online by their ISBN** in Settings > Processing, on the
   Windows app or the web, and Bibliotaph asks Open Library about the ISBNs your books print, and nothing else. It
