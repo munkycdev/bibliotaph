@@ -3076,7 +3076,7 @@ static partial class SmokeTest
         settings.Show(SettingsSection.Processing);
         var processing = (ProcessingSectionViewModel)settings.Selected;
         await WaitUntilAsync(window, () => processing.HasFolders, () => "Settings > Processing says there are no folders.");
-        if (processing.Activity.Phases.Count != 5 || processing.Activity.Phases.Any(p => p.Status.Length == 0))
+        if (processing.Activity.Phases.Count != 6 || processing.Activity.Phases.Any(p => p.Status.Length == 0))
             throw new InvalidOperationException("The indexing steps aren't all described.");
         await ToggleReturnOnlineOnlyAsync(services, window, processing);
 
