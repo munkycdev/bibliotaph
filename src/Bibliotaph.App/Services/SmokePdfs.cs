@@ -87,6 +87,23 @@ public static class SmokePdfs
         return Write(objects, $"/Root 1 0 R /Info << /Title ({IndexedTitle}) /Producer (Bibliotaph smoke fixture) >>");
     }
 
+    /// <summary>A plain book of these pages, each a few lines of text, with its title in its metadata.</summary>
+    public static byte[] Plain(string title, string[][] pages)
+    {
+        var objects = new List<byte[]>
+        {
+            Latin1("<< /Type /Catalog /Pages 2 0 R >>"),
+            Latin1($"<< /Type /Pages /Kids [{string.Join(' ', pages.Select((_, i) => $"{4 + (2 * i)} 0 R"))}] /Count {pages.Length} >>"),
+            Latin1("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"),
+        };
+        foreach (var lines in pages)
+        {
+            objects.Add(Latin1($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents {objects.Count + 2} 0 R >>"));
+            objects.Add(Stream(Latin1($"BT /F1 14 Tf 72 720 Td 18 TL {string.Concat(lines.Select(l => $"({l}) Tj T* "))}ET")));
+        }
+        return Write(objects, $"/Root 1 0 R /Info << /Title ({title}) /Producer (Bibliotaph smoke fixture) >>");
+    }
+
     /// <summary>A catalog, one page, its content stream (object 4), a standard font and the encryption dictionary.</summary>
     static byte[] Build(byte[] content, string encryption, byte[] id)
     {

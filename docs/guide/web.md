@@ -628,7 +628,7 @@ storage when you open it, and the reader shows how far the download has got. Dow
 the **Room for downloads** in the app's **Settings > Devices** (5 GB to start); past that, the ones you read least
 recently go. To read a book without a connection, such as at the table, tick **Keep offline on this PC** in its
 details while you're online: it's downloaded then and stays until you untick it. Opened without a connection, any
-other web library book says it needs one. **Free up space** in **Settings > Devices** deletes the downloads not kept
+other web library book says it needs one. **Open in another app** opens the downloaded copy. **Free up space** in **Settings > Devices** deletes the downloads not kept
 offline, and disconnecting deletes them too; the ones kept offline stay for when you connect again.
 
 What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
