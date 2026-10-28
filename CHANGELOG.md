@@ -21,7 +21,7 @@ New in 1.3.920 (28 October 2026):
   characters is looked up like any other. Off until you turn it on. See
   [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
 - **Find a book by its ISBN.** Bibliotaph now finds the ISBN and product code a book prints on its first pages or back
-  cover, or in an e-book's own information, and shows each in the book's details with the page it's on. `isbn:` in
+  cover, or in an e-book's own information, and shows each in the book's details. `isbn:` in
   the search box finds a book by it, typed with or without hyphens, and `-isbn:unknown` lists the books that have one.
   Nothing is read again: books already in your library get it from the text Bibliotaph has. See
   [Searching](docs/guide/searching.md#fields).

@@ -99,7 +99,7 @@ A binder marked **Keep at hand during games** holds rules and references; from a
 | Also own | Where else it's owned: print, a virtual tabletop, an online library, with an optional link |
 | Get it from | Where to get it again: a store, with an optional link, shared by every copy |
 
-File facts (format, pages, files, copies, and the ISBNs and product codes the book prints, each with its page) are shown, not edited. Unknown stays unknown: nothing is inferred from what a sampled page doesn't mention.
+File facts (format, pages, files, copies, and the ISBNs and product codes the book prints) are shown, not edited. Unknown stays unknown: nothing is inferred from what a sampled page doesn't mention.
 
 ### Where values come from
 
