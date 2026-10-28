@@ -37,8 +37,8 @@ public abstract partial class SettingsSectionViewModel : ObservableObject
 /// <summary>
 /// Settings > Processing: indexing step by step with the time left, what each part is on now, pause and resume for
 /// each lane, and why online-only files wait. The progress itself is <see cref="LibraryActivity"/>'s, which the
-/// sidebar's status line also shows. Also whether files indexing downloaded go back to online-only, and whether books
-/// are looked up online by their ISBN.
+/// sidebar's status line also shows. Also whether files indexing downloaded go back to online-only, and where books
+/// are looked up by their ISBN.
 /// </summary>
 public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, LibraryActivity activity, SettingsLinks links, OnlineOnlyReturns returns,
     BookLookups lookups, ILogger<ProcessingSectionViewModel> log) : SettingsSectionViewModel
@@ -58,10 +58,6 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
     [ObservableProperty]
     public partial bool ReturnOnlineOnly { get; set; } = true;
 
-    /// <summary>"Look up books online by their ISBN": off until the user turns it on.</summary>
-    [ObservableProperty]
-    public partial bool LookUpOnline { get; set; }
-
     /// <summary>Where books are looked up: through the web library while this PC is connected, so it names its catalogues.</summary>
     [ObservableProperty]
     public partial string LookUpExplanation { get; set; } = Explain("Open Library");
@@ -76,7 +72,6 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
         try
         {
             ReturnOnlineOnly = await returns.IsOnAsync();
-            LookUpOnline = lookups.IsOn;
             LookUpExplanation = Explain(lookups.Catalogue.Name);
         }
         finally
@@ -96,19 +91,6 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
         catch (Exception ex)
         {
             log.LogError(ex, "Saving whether files go back to online-only failed");
-        }
-    }
-
-    async partial void OnLookUpOnlineChanged(bool value)
-    {
-        if (_loading) return;
-        try
-        {
-            await lookups.SetOnAsync(value);
-        }
-        catch (Exception ex)
-        {
-            log.LogError(ex, "Saving whether books are looked up online failed");
         }
     }
 

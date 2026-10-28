@@ -165,7 +165,7 @@ public static class StorageApi
         var progress = await library.Get<IndexQueries>().GetProgressAsync(ct);
         var settings = library.Get<AiSettings>();
         var ai = settings.Setup.IsReady && progress.ToClassify > 0;
-        var lookups = library.Get<BookLookups>().IsOn && progress.ToLookUp > 0;
+        var lookups = progress.ToLookUp > 0;
         var scanning = settings.Setup.IsReady && settings.ScanWholeBooks && progress.ToScanWhole > 0;
         var text = indexing.IsScanning ? "Looking through your folders"
             : unhashed > 0 && indexing.IsPaused(Lane.Index) ? "Indexing paused"

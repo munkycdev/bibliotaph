@@ -194,14 +194,14 @@
       </StackPanel>
     </CheckBox>
 
-    <CheckBox x:Name="LookUpOnline" Margin="0,16,0,0" IsChecked="{Binding LookUpOnline}" VerticalContentAlignment="Top"
-              Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Look up books online by their ISBN">
-      <StackPanel Margin="4,0,0,0">
-        <TextBlock Text="Look up books online by their ISBN" FontSize="12" />
-        <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+    <!-- Always on: where the ISBNs go, so the Looking up step above isn't a mystery. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,24,0,0" Padding="0,20,0,0">
+      <StackPanel>
+        <TextBlock Text="Looking up online" Style="{StaticResource Text.Row}" />
+        <TextBlock x:Name="LookUpExplanation" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
                    Text="{Binding LookUpExplanation}" />
       </StackPanel>
-    </CheckBox>
+    </Border>
 
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,24,0,0" Text="Your files, notes and collections stay on this device." />
   </StackPanel>

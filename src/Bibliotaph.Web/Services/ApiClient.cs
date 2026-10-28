@@ -525,11 +525,6 @@ public sealed class ApiClient(HttpClient http)
     public Task<ProcessingState> PauseLanesAsync(ProcessingPauses paused, CancellationToken ct = default) =>
         SendAsync<ProcessingState>(HttpMethod.Put, "api/processing/paused", paused, ct);
 
-    public Task<LookupSetting> LookupsAsync(CancellationToken ct = default) => SendAsync<LookupSetting>(HttpMethod.Get, "api/processing/lookups", null, ct);
-
-    public Task<LookupSetting> SetLookupsAsync(bool on, CancellationToken ct = default) =>
-        SendAsync<LookupSetting>(HttpMethod.Put, "api/processing/lookups", new LookupSetting(on), ct);
-
     public Task<List<VocabularyTerm>> VocabularyAsync(string vocabulary, CancellationToken ct = default) =>
         SendAsync<List<VocabularyTerm>>(HttpMethod.Get, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}", null, ct);
 

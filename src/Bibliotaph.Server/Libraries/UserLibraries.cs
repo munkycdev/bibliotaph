@@ -391,7 +391,6 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             await library.Get<ServerApiKeys>().LoadAsync();
             await library.Get<ServerPdfPasswords>().LoadAsync();
             await library.Get<AiSettings>().LoadAsync();
-            await library.Get<BookLookups>().LoadAsync();
             // A rebuilt index.db gets its chapters back from catalog.db, without the AI reading a book again.
             await library.Get<ChapterProjection>().RestoreAsync();
 
