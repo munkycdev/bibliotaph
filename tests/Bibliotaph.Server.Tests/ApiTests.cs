@@ -1235,7 +1235,17 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
 
         Assert.Contains("/join?invite=", created!.Link, StringComparison.Ordinal);
         var listed = await client.GetFromJsonAsync<List<InviteInfo>>("/api/invites", TestContext.Current.CancellationToken);
-        Assert.Contains(listed!, i => i.Note == "for a friend");
+        var invite = Assert.Single(listed!, i => i.Note == "for a friend");
+
+        // The same link again while it's open, then nothing once it's deleted.
+        var again = await client.GetFromJsonAsync<CreatedInvite>($"/api/invites/{invite.Id}/link", TestContext.Current.CancellationToken);
+        Assert.Equal(created.Link, again!.Link);
+        using var deleted = await client.DeleteAsync($"/api/invites/{invite.Id}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        using var gone = await client.GetAsync($"/api/invites/{invite.Id}/link", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+        using var deletedAgain = await client.DeleteAsync($"/api/invites/{invite.Id}", TestContext.Current.CancellationToken);
+        Assert.Equal(HttpStatusCode.NotFound, deletedAgain.StatusCode);
     }
 
     [Fact]

@@ -86,6 +86,13 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadFromJsonAsync<CreatedInvite>(ct))!;
     }
 
+    /// <summary>An open invitation's link again; <see cref="ApiProblemException"/> once it's used or expired.</summary>
+    public Task<CreatedInvite> InviteLinkAsync(string id, CancellationToken ct = default) =>
+        SendAsync<CreatedInvite>(HttpMethod.Get, $"api/invites/{Uri.EscapeDataString(id)}/link", null, ct);
+
+    public Task DeleteInviteAsync(string id, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Delete, $"api/invites/{Uri.EscapeDataString(id)}", null, ct);
+
     public async Task<IReadOnlyList<StorageAccount>> StorageAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<StorageAccount>>("api/storage", ct) ?? [];
 
