@@ -33,6 +33,12 @@ public sealed record OutlineRow(string Title, int PdfPage, int Depth);
 /// <summary>A page's text after extraction or OCR. <see cref="Error"/> explains a page with no text.</summary>
 public sealed record PageTextRow(int PdfPage, string Text, string Source, double Quality, bool NeedsOcr, string? Error = null);
 
+/// <summary>A page as the index has it: its size and label, and its text with where that came from and how good it is.</summary>
+public sealed record StoredPage(int Page, string? Label, double Width, double Height, string Text, string Source, double? Quality, bool NeedsOcr, string? Error);
+
+/// <summary>Everything reading a file put in the index: its row, its cover's file name, its pages and its outline.</summary>
+public sealed record DocumentReading(DocRow Doc, string? Cover, IReadOnlyList<StoredPage> Pages, IReadOnlyList<OutlineRow> Outline);
+
 /// <summary>An OCR'd word with its box in PDF points, origin bottom-left.</summary>
 public sealed record OcrWordRow(string Text, double Left, double Top, double Right, double Bottom);
 

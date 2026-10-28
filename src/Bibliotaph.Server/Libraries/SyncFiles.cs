@@ -50,6 +50,11 @@ public sealed class SyncFiles(string path)
                 PRIMARY KEY (content_hash, kind)
             );
             CREATE INDEX IF NOT EXISTS results_seq ON results (seq);
+            CREATE TABLE IF NOT EXISTS shelf (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                version TEXT NOT NULL,
+                content BLOB NOT NULL
+            );
             """;
         await command.ExecuteNonQueryAsync(ct);
     }
@@ -173,6 +178,39 @@ public sealed class SyncFiles(string path)
         command.Parameters.AddWithValue("$kind", kind);
         await using var reader = await command.ExecuteReaderAsync(ct);
         return await reader.ReadAsync(ct) ? Result(reader) : null;
+    }
+
+    /// <summary>The version of the web library's shelf as last kept (<see cref="WebShelf"/>), or null before the first.</summary>
+    public async Task<string?> ReadShelfVersionAsync(CancellationToken ct = default)
+    {
+        await using var db = await OpenAsync(ct);
+        await using var command = db.CreateCommand();
+        command.CommandText = "SELECT version FROM shelf WHERE id = 1";
+        return await command.ExecuteScalarAsync(ct) as string;
+    }
+
+    /// <summary>The web library's shelf as last kept: its version and its JSON, or null before the first.</summary>
+    public async Task<(string Version, byte[] Content)?> ReadShelfAsync(CancellationToken ct = default)
+    {
+        await using var db = await OpenAsync(ct);
+        await using var command = db.CreateCommand();
+        command.CommandText = "SELECT version, content FROM shelf WHERE id = 1";
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct) ? (reader.GetString(0), (byte[])reader.GetValue(1)) : null;
+    }
+
+    /// <summary>Keeps the shelf in place of the one before; one the same as it is left alone, so Litestream has nothing to send.</summary>
+    public async Task WriteShelfAsync(string version, byte[] content, CancellationToken ct = default)
+    {
+        await using var db = await OpenAsync(ct);
+        await using var command = db.CreateCommand();
+        command.CommandText = """
+            INSERT INTO shelf (id, version, content) VALUES (1, $version, $content)
+            ON CONFLICT (id) DO UPDATE SET version = excluded.version, content = excluded.content WHERE shelf.version <> excluded.version
+            """;
+        command.Parameters.AddWithValue("$version", version);
+        command.Parameters.AddWithValue("$content", content);
+        await command.ExecuteNonQueryAsync(ct);
     }
 
     static SharedResult Result(SqliteDataReader reader) =>
