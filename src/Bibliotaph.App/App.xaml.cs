@@ -293,7 +293,9 @@ public partial class App : Application
         builder.Services.AddSingleton<IStage, ClassifyStage>();
         builder.Services.AddSingleton<IStage, MatchStage>();
         builder.Services.AddSingleton<IStage, IdentifyStage>();
-        builder.Services.AddSingleton<IBookCatalogue>(_ => new OpenLibraryCatalogue(OpenLibraryCatalogue.CreateClient()));
+        // Through the web library while connected, which can ask catalogues only the server has a key for.
+        builder.Services.AddSingleton<IBookCatalogue>(sp => new WebLibraryCatalogue(sp.GetRequiredService<WebLibrary>(),
+            new OpenLibraryCatalogue(OpenLibraryCatalogue.CreateClient()), sp.GetRequiredService<SettingsStore>()));
         builder.Services.AddSingleton<BookLookups>();
         builder.Services.AddSingleton<IStage, LookUpStage>();
         builder.Services.AddSingleton<ChapterScanStore>();

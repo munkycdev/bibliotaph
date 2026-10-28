@@ -131,6 +131,27 @@ public sealed class IndexStoreTests : IndexFixture
     }
 
     [Fact]
+    public async Task Only_the_finished_jobs_whose_reason_is_accepted_run_again()
+    {
+        await _store.UpsertDocumentAsync(Doc(1), Pages(1), [], Ct);
+        await _store.UpsertDocumentAsync(Doc(2), Pages(1), [], Ct);
+        await _store.UpsertDocumentAsync(Doc(3), Pages(1), [], Ct);
+        foreach (var id in new long[] { 1, 2, 3 }) await _queue.EnqueueAsync(id, $"hash{id}", Stage.LookUp, ct: Ct);
+        foreach (var reason in new[] { "No record.", "Not printed in it." })
+            await _queue.CompleteAsync((await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct))!, StageStatus.Skipped, reason, ct: Ct);
+
+        var queued = await _queue.RerunAsync(Stage.LookUp, reason => reason == "No record.", Ct);
+        var again = await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct);
+        var next = await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct);
+
+        // The first book again, and the third, which was still waiting; never the second.
+        Assert.Equal(1, queued);
+        Assert.Equal(1, again!.DocumentId);
+        Assert.Equal(3, next!.DocumentId);
+        Assert.Null(await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct));
+    }
+
+    [Fact]
     public async Task A_book_the_ai_failed_for_good_needs_attention_and_one_waiting_for_it_does_not()
     {
         await _store.UpsertDocumentAsync(Doc(1) with { DisplayTitle = "Failed book" }, Pages(1), [], Ct);

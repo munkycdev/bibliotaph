@@ -128,6 +128,20 @@ public interface IGatedStage : IStage
 }
 
 /// <summary>
+/// A stage some of whose finished books are worth running again when something outside them changes, as a book no
+/// catalogue knew is once there is another to ask. Asked when the app starts and whenever <see cref="RunAgainChanged"/>
+/// is raised.
+/// </summary>
+public interface IRevisitedStage : IStage
+{
+    /// <summary>Which finished books to run again, by the reason each finished with.</summary>
+    Task<Func<string?, bool>> RunAgainAsync(CancellationToken ct);
+
+    /// <summary>Raised when more finished books may be worth running again, from any thread.</summary>
+    event EventHandler? RunAgainChanged;
+}
+
+/// <summary>
 /// A document open in the PDF engine for the length of one job. The file it reads is held until the session ends, so
 /// a file extracted from a ZIP isn't evicted under it.
 /// </summary>

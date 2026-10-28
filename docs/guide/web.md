@@ -631,6 +631,11 @@ details while you're online: it's downloaded then and stays until you untick it.
 other web library book says it needs one. **Open in another app** opens the downloaded copy. **Free up space** in **Settings > Devices** deletes the downloads not kept
 offline, and disconnecting deletes them too; the ones kept offline stay for when you connect again.
 
+With **Look up books online by their ISBN** on, a connected PC looks its books up through bibliotaph.online, which
+asks Open Library and then Google Books, so the PC's own books are found in both, as the web library's are; the ISBNs
+are all it sends. The books it couldn't find before it connected are asked again. Disconnected, it asks Open Library
+itself. See [Cataloging](cataloging.md#where-suggestions-come-from).
+
 What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
 with the built-in AI on its graphics card. The same file in your OneDrive and on the PC is the same book, matched by
 its contents, so when the PC's AI has read it, the web library has its suggestions within a minute or so, for you to
@@ -660,7 +665,8 @@ pause.
 
 **Look up books online by their ISBN**, off until you tick it, has the server ask Open Library about the ISBNs your
 books print, and nothing else, and suggest each book's title, authors, publisher and year from its record, as the
-Windows app does. A book Open Library doesn't know is looked for in Google Books next, and the setting names both. See [Cataloging](cataloging.md#where-suggestions-come-from).
+Windows app does. A book Open Library doesn't know is looked for in Google Books next, and the setting names both; a
+book either couldn't find before Google Books was added is asked again. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 ## Vocabulary
 

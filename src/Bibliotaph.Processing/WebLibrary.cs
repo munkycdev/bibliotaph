@@ -377,6 +377,49 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         return null;
     }
 
+    /// <summary>
+    /// Where the web library looks books up, or null when it didn't answer or this PC isn't connected. A key the web no
+    /// longer accepts is forgotten.
+    /// </summary>
+    public async Task<string?> LookupCataloguesAsync(CancellationToken ct)
+    {
+        if (!HasKey) return null;
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, "api/pc/lookups", null, withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.IsSuccessStatusCode && await response.Content.ReadFromJsonAsync<PcLookupAnswer>(ct) is { } answer) return answer.Catalogues;
+            log.LogWarning("Asking the web library where it looks books up got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library to ask where it looks books up");
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Asks the web library to look a book up by its ISBNs where it can: its answer, with <see cref="PcLookupAnswer.Problem"/>
+    /// set when it couldn't ask; or null when it didn't answer.
+    /// </summary>
+    public async Task<PcLookupAnswer?> LookUpAsync(IReadOnlyList<string> isbns, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Post, "api/pc/lookups", new PcLookupRequest(isbns), withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if ((response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.ServiceUnavailable)
+                && await response.Content.ReadFromJsonAsync<PcLookupAnswer>(ct) is { } answer) return answer;
+            log.LogWarning("Asking the web library to look a book up got {Status}", (int)response.StatusCode);
+        }
+        // A 503 from something in front of the server, rather than the server, isn't its answer.
+        catch (Exception ex) when (Unreachable(ex, ct) || ex is System.Text.Json.JsonException)
+        {
+            log.LogInformation(ex, "Couldn't reach the web library to look a book up");
+        }
+        return null;
+    }
+
     public async Task<Stream> OpenFileAsync(string contentHash, CancellationToken ct)
     {
         HttpResponseMessage response;
