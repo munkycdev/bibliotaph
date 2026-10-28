@@ -66,6 +66,10 @@ param(
     # and kept in Key Vault. Once set, a later run without it keeps it.
     [string] $BoxClientId,
 
+    # Asks once for a Google Cloud API key restricted to the Books API, kept in Key Vault, so lookups ask Google Books
+    # for a book Open Library doesn't know. Once set, a later run without it keeps it.
+    [switch] $GoogleBooksKey,
+
     # Adds the domain and www to the app and issues managed certificates. Needs the DNS records in place first.
     [switch] $BindDomain
 )
@@ -263,6 +267,21 @@ if (-not (StorageApp 'Box' 'Box' $BoxClientId "Client secret for Box app $BoxCli
 }
 Write-Host "  In Box's Developer Console: a Platform App with User Authentication (OAuth 2.0); application scope"
 Write-Host "  'Read all files and folders stored in Box' only; Redirect URI https://$Domain/storage/callback/box"
+
+Step 'Google Books'
+if ($GoogleBooksKey -and -not (SecretExists 'lookup-googlebooks')) {
+    $key = Read-Host '  API key for the Books API' -AsSecureString
+    az keyvault secret set --vault-name $KeyVault -n lookup-googlebooks --value ([System.Net.NetworkCredential]::new('', $key).Password) -o none
+}
+if (SecretExists 'lookup-googlebooks') {
+    $providers += 'Lookups__GoogleBooks__ApiKey=secretref:lookup-googlebooks'
+    $secrets += "lookup-googlebooks=keyvaultref:https://$KeyVault.vault.azure.net/secrets/lookup-googlebooks,identityref:$($id.id)"
+    Write-Host '  Lookups ask Google Books after Open Library'
+}
+else {
+    Write-Host '  Lookups ask Open Library only until this runs with -GoogleBooksKey.' -ForegroundColor Yellow
+}
+Write-Host "  In Google Cloud: enable the Books API; an API key with API restrictions set to the Books API only"
 
 $settings = @(
     "REPLICA_URL=abs://$StorageAccount@replica"

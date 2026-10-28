@@ -660,7 +660,7 @@ pause.
 
 **Look up books online by their ISBN**, off until you tick it, has the server ask Open Library about the ISBNs your
 books print, and nothing else, and suggest each book's title, authors, publisher and year from its record, as the
-Windows app does. See [Cataloging](cataloging.md#where-suggestions-come-from).
+Windows app does. A book Open Library doesn't know is looked for in Google Books next, and the setting names both. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 ## Vocabulary
 
