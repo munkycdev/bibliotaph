@@ -13,7 +13,7 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>A library folder, with what it holds and how much of it is searchable. Updated in place as indexing runs.</summary>
-public sealed partial class LibraryFolderItem(long id, string path) : ObservableObject
+public sealed partial class LibraryFolderItem(long id, string path, bool isWeb = false) : ObservableObject
 {
     public long Id { get; } = id;
 
@@ -21,9 +21,16 @@ public sealed partial class LibraryFolderItem(long id, string path) : Observable
     [ObservableProperty]
     public partial string Path { get; set; } = path;
 
+    /// <summary>A folder in the web library, read through bibliotaph.online rather than from a disk here.</summary>
+    public bool IsWeb { get; } = isWeb;
+
     /// <summary>The folder can't be read right now, so it offers Point to its new place.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanPointToNewPlace))]
     public partial bool IsOffline { get; set; }
+
+    /// <summary>A web library folder moves on the web, and comes back here with its list of files.</summary>
+    public bool CanPointToNewPlace => IsOffline && !IsWeb;
 
     /// <summary>Why the folder picked as its new place wasn't taken; empty otherwise.</summary>
     [ObservableProperty]
@@ -93,7 +100,7 @@ public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, 
 /// </summary>
 public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
-    LibraryFolders folders, MetadataHints hints, FolderRules rules, VocabularyStore vocabularies, IFilePicker files,
+    LibraryFolders folders, MetadataHints hints, FolderRules rules, VocabularyStore vocabularies, IFilePicker files, WebShelfCache shelf,
     ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Library;
@@ -214,10 +221,11 @@ public sealed partial class LibrarySectionViewModel(
             {
                 var root = current[i];
                 var item = Folders.FirstOrDefault(f => f.Id == root.Id);
-                if (item is null) Folders.Insert(Math.Min(i, Folders.Count), item = new LibraryFolderItem(root.Id, root.Path));
+                if (item is null)
+                    Folders.Insert(Math.Min(i, Folders.Count), item = new LibraryFolderItem(root.Id, shelf.Show(root.Path), WebLibraryPaths.IsWebPath(root.Path)));
                 var ids = await library.GetVisibleEntryIdsAsync(root.Id);
                 var searchable = await queries.CountSearchableAsync(ids);
-                item.Path = root.Path;
+                item.Path = shelf.Show(root.Path);
                 // Availability is kept in the catalog, so a folder offline before a restart says so before it is scanned again.
                 item.IsOffline = root.Availability == SourceRootAvailability.Offline;
                 item.Detail = Describe(root.AddedUtc, item.IsOffline, scans.GetValueOrDefault(root.Id), searchable, ids.Count);

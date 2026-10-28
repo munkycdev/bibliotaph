@@ -657,8 +657,9 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// A readable location for a document: a present file first, then an online-only one, then a file inside a ZIP,
-    /// which has to be extracted to be read. Null when every location is missing or its root is offline.
+    /// A readable location for a document: a present file first, then an online-only one, then one only the web library
+    /// has, then a file inside a ZIP, which has to be extracted to be read. Null when every location is missing or its
+    /// root is offline.
     /// </summary>
     public async Task<DocumentSource?> GetSourceAsync(long documentId, CancellationToken ct = default)
     {
@@ -667,7 +668,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         if (document is null) return null;
         var locations = await db.FileLocations.AsNoTracking()
             .Where(f => f.DocumentId == documentId && f.State != FileLocationState.Missing && f.SourceRoot.Availability == SourceRootAvailability.Online)
-            .OrderBy(f => f.ContainerId != null).ThenBy(f => f.State == FileLocationState.OnlineOnly).ThenBy(f => f.Id)
+            .OrderBy(f => f.ContainerId != null).ThenBy(f => f.State == FileLocationState.OnlineOnly)
+            .ThenBy(f => f.SourceRoot.Path.StartsWith(WebLibraryPaths.Prefix)).ThenBy(f => f.Id)
             .Select(f => new { Root = f.SourceRoot.Path, f.RelativePath, Archive = f.Container != null ? f.Container.RelativePath : null, f.EntryPath })
             .ToListAsync(ct);
         if (locations.Count == 0) return null;

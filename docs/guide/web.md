@@ -608,9 +608,20 @@ The Windows app can connect to your web library, the way a TV signs in to a stre
 Once connected, your work is merged both ways, with the web and [your other PCs](onedrive-and-other-pcs.md#more-than-one-pc): your
 corrections, hearts, notes, collections, saved searches, binders, pins, vocabulary, books you own elsewhere and your
 answers in Needs review. A change in the app reaches the web a few seconds after you make it, and one on the web
-reaches the app within a minute or so; where both changed the same thing, the newer change wins. Your books, library
-folders and settings stay on each side. The app keeps working offline and catches up when it's back, and its
+reaches the app within a minute or so; where both changed the same thing, the newer change wins. Settings stay on each
+side, and so do the PC's own library folders. The app keeps working offline and catches up when it's back, and its
 **Settings > Devices** says when it last merged.
+
+Your web library's books show in the app too. Each of its library folders is a library folder in the app's
+**Settings > Library**, with a cloud icon and where it is, such as **bibliotaph.online › OneDrive · Dana › RPG**, and its
+books join your library within a minute or so of connecting. Nothing is downloaded for that: the app takes what the
+web library already read from each book (its pages, contents, text and cover), so you can search them straight away,
+and the PC's AI reads them as it reads the PC's own books, unless you keep that folder from AI in **Settings > AI**. A
+book the web library hasn't read yet waits until it has. Scanned pages that need reading (OCR) are read on the PC,
+which downloads the book for that. A book that's on the PC as well opens from the PC's copy; one only your web library
+has is downloaded from your storage when you open it. A folder you add or remove on the web follows on the PC within a
+minute. **×** beside one in the app's **Settings > Library** removes it from that PC only. Disconnecting removes them
+all from the PC; what you did with their books stays, as it does for any folder you remove.
 
 What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
 with the built-in AI on its graphics card. The same file in your OneDrive and on the PC is the same book, matched by

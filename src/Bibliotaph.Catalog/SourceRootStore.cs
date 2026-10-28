@@ -19,6 +19,13 @@ public sealed class SourceRootStore(IDbContextFactory<CatalogDbContext> contexts
             .ToListAsync(ct);
     }
 
+    /// <summary>Every root, those the user removed too, in the order they were added.</summary>
+    public async Task<IReadOnlyList<SourceRoot>> ListWithRemovedAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.SourceRoots.AsNoTracking().OrderBy(r => r.Id).ToListAsync(ct);
+    }
+
     /// <summary>Adds a folder, or brings back one that was removed. Paths compare case-insensitively, as on Windows.</summary>
     public async Task<SourceRoot> AddAsync(string path, CancellationToken ct = default)
     {

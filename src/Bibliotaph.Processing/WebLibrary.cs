@@ -51,7 +51,7 @@ public enum WebConnectOutcome
 /// it is also library sync's way to the web library: this PC's sync file goes up, and the web library's comes down; and
 /// what the AI worked out about the PC's files goes up, and the user's other devices' comes down (<see cref="SharedResults"/>).
 /// </summary>
-public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStore settings, TimeProvider clock, ILogger<WebLibrary> log) : ISyncChannel, IResultChannel
+public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStore settings, TimeProvider clock, ILogger<WebLibrary> log) : ISyncChannel, IResultChannel, IWebBooks
 {
     /// <summary>The other devices' files as last fetched, by device, so an unchanged one isn't fetched again.</summary>
     readonly ConcurrentDictionary<string, (long Version, SyncFileContent Content)> _peers = new(StringComparer.Ordinal);
@@ -373,17 +373,43 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         return null;
     }
 
+    public async Task<Stream> OpenFileAsync(string contentHash, CancellationToken ct)
+    {
+        HttpResponseMessage response;
+        try
+        {
+            // Storage with links anyone may read redirects there; the key isn't sent on to it.
+            response = await SendAsync(HttpMethod.Get, $"api/pc/books/{Uri.EscapeDataString(contentHash)}/file", null, withKey: true, ct,
+                HttpCompletionOption.ResponseHeadersRead);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            throw new IOException("bibliotaph.online couldn't be reached.", ex);
+        }
+        if (response.IsSuccessStatusCode) return await response.Content.ReadAsStreamAsync(ct);
+        using (response)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.StatusCode == HttpStatusCode.NotFound) throw new FileNotFoundException("The file isn't in your web library any more.");
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                throw new IOException("That's as much as bibliotaph.online reads from your storage in a day. Try again tomorrow.");
+            log.LogWarning("Downloading a book from the web library got {Status}", (int)response.StatusCode);
+            throw new IOException($"bibliotaph.online couldn't give the file ({(int)response.StatusCode}).");
+        }
+    }
+
     /// <summary>No answer, or none in time; the caller cancelling is not one of these.</summary>
     static bool Unreachable(Exception ex, CancellationToken ct) =>
         ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
-    async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body, bool withKey, CancellationToken ct)
+    async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body, bool withKey, CancellationToken ct,
+        HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
     {
         using var request = new HttpRequestMessage(method, new Uri(await AddressAsync(ct), path));
         request.Headers.Add(ApiHeaders.Client, "windows");
         if (withKey && key.Find() is { } secret) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
         request.Content = body switch { null => null, HttpContent content => content, _ => JsonContent.Create(body, body.GetType()) };
-        return await http.SendAsync(request, ct);
+        return await http.SendAsync(request, completion, ct);
     }
 }
 

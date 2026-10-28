@@ -225,6 +225,7 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new WebLibrary(new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(20) },
             sp.GetRequiredService<IWebLibraryKey>(), sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<WebLibrary>>()));
+        builder.Services.AddSingleton<IWebBooks>(sp => sp.GetRequiredService<WebLibrary>());
         // The built-in AI's engine (llama.cpp's server, in aiworker\); nothing starts until there is a book to read.
         builder.Services.AddSingleton(new BuiltInEngineOptions { ModelsFolder = paths.Models, DownloadFolder = paths.Engine });
         builder.Services.AddSingleton(sp => new BuiltInEngine(sp.GetRequiredService<BuiltInEngineOptions>(),
@@ -268,7 +269,12 @@ public partial class App : Application
         builder.Services.AddSingleton<SourceFiles>();
         builder.Services.AddSingleton<IDiskSpace, DiskSpace>();
         builder.Services.AddSingleton<IFileIdentity, FileIdentity>();
-        builder.Services.AddSingleton<ISourceLister, FileSystemSourceLister>();
+        // The web library's folders list from its list of files, and their books are read through it, never from a disk.
+        builder.Services.AddSingleton<WebShelfCache>();
+        builder.Services.AddSingleton<IKnownHashes>(sp => sp.GetRequiredService<WebShelfCache>());
+        builder.Services.AddSingleton<ISourceLister>(sp => new WebAwareSourceLister(new FileSystemSourceLister(), sp.GetRequiredService<WebShelfCache>()));
+        builder.Services.AddSingleton<IRemoteFiles, WebLibraryFiles>();
+        builder.Services.AddSingleton<WebReadings>();
         builder.Services.AddSingleton<ICloudFiles, CloudFiles>();
         builder.Services.AddSingleton<OnlineOnlyReturns>();
         builder.Services.AddSingleton<StageServices>();
@@ -329,6 +335,8 @@ public partial class App : Application
         builder.Services.AddSingleton<SharedPageText>();
         builder.Services.AddSingleton<SharedResults>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SharedResults>());
+        builder.Services.AddSingleton<WebShelfSync>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<WebShelfSync>());
         builder.Services.AddSingleton<ForgetText>();
 
         // Shell
