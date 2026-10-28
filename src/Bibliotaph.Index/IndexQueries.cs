@@ -22,12 +22,14 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// online isn't counted at all: it is optional too, and waits for as long as it is switched off. <see cref="Withheld"/> counts the documents whose
 /// text won't be read by itself: locked, protected or forgotten (<see cref="TextAccess"/>), so nothing says they are still
 /// being read. Reading whole books chapter by chapter is counted apart too (<see cref="ToScanWhole"/>,
-/// <see cref="ScannedWhole"/>): it comes after everything else and never holds up a book. Looking books up online isn't
-/// counted at all: it is optional too, and waits for as long as it is switched off.
+/// <see cref="ScannedWhole"/>): it comes after everything else and never holds up a book. Looking books up online is
+/// counted apart as well (<see cref="ToLookUp"/>, <see cref="LookedUp"/>): it is optional too, and waits for as long as
+/// it is switched off.
 /// </summary>
 public sealed record IndexProgress(
     long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing, long Queued = 0, long OcrPagesDone = 0,
-    long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0, long Withheld = 0, long ToScanWhole = 0, long ScannedWhole = 0)
+    long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0, long Withheld = 0, long ToScanWhole = 0, long ScannedWhole = 0,
+    long ToLookUp = 0, long LookedUp = 0)
 {
     /// <summary>Queued documents with no text, cover or other index-lane stage left to run.</summary>
     public long Indexed => Math.Max(0, Queued - Indexing);
@@ -93,7 +95,9 @@ public sealed class IndexQueries(IndexDatabase database)
                 (SELECT count(DISTINCT document_id) FROM stage_status WHERE stage IN ('Probe', 'Text') AND (
                     (status = 'Blocked' AND reason = @locked) OR (status = 'Failed' AND reason IN (@protected, @protectedEbook)) OR (status = 'Skipped' AND reason = @forgotten))) AS Withheld,
                 (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Pending', 'Running')) AS ToScanWhole,
-                (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Complete', 'Partial')) AS ScannedWhole
+                (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Complete', 'Partial')) AS ScannedWhole,
+                (SELECT count(*) FROM stage_status WHERE stage = 'LookUp' AND status IN ('Pending', 'Running')) AS ToLookUp,
+                (SELECT count(*) FROM stage_status WHERE stage = 'LookUp' AND status IN ('Complete', 'Partial', 'Skipped')) AS LookedUp
             """, new { locked = TextAccessReasons.Locked, @protected = TextAccessReasons.Protected, protectedEbook = TextAccessReasons.ProtectedEbook, forgotten = TextAccessReasons.Forgotten },
             cancellationToken: ct));
     }

@@ -114,6 +114,23 @@ public sealed class IndexStoreTests : IndexFixture
     }
 
     [Fact]
+    public async Task Lookups_are_counted_apart_and_never_as_books_still_processing()
+    {
+        await _store.UpsertDocumentAsync(Doc(1), Pages(1), [], Ct);
+        await _store.UpsertDocumentAsync(Doc(2), Pages(1), [], Ct);
+        await AddEntriesAsync(_store, 1, 2);
+        await _queue.EnqueueAsync(1, "hash1", Stage.LookUp, ct: Ct);
+        await _queue.EnqueueAsync(2, "hash2", Stage.LookUp, ct: Ct);
+        await _queue.CompleteAsync((await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct))!, ct: Ct);
+
+        var progress = await _queries.GetProgressAsync(Ct);
+
+        Assert.Equal((1, 1), (progress.LookedUp, progress.ToLookUp));
+        Assert.Equal((0, 0), (progress.Processing, progress.Indexing));
+        Assert.True((await _queries.GetQueueSummaryAsync(Ct)).IsIdle);
+    }
+
+    [Fact]
     public async Task A_book_the_ai_failed_for_good_needs_attention_and_one_waiting_for_it_does_not()
     {
         await _store.UpsertDocumentAsync(Doc(1) with { DisplayTitle = "Failed book" }, Pages(1), [], Ct);
