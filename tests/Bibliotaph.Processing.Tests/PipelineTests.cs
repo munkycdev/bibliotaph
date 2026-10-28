@@ -242,6 +242,9 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         "SELECT s.status FROM stage_status s JOIN doc d ON d.document_id = s.document_id WHERE d.display_title = @title AND s.stage = @stage",
         new { title, stage = stage.ToString() });
 
+    static string? StatusOf(SqliteConnection c, long documentId, Stage stage) => c.ExecuteScalar<string?>(
+        "SELECT status FROM stage_status WHERE document_id = @documentId AND stage = @stage", new { documentId, stage = stage.ToString() });
+
     /// <summary>Keeps the last progress report, synchronously, where <see cref="Progress{T}"/> would post it.</summary>
     sealed class Reports : IProgress<(int Done, int Total)>
     {
