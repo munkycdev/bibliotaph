@@ -23,11 +23,11 @@ can take; then it shows **Bibliotaph is full for now.**, and an invitation still
 ## Settings
 
 **Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of
-sections beside the one you're in, in the Windows app's order: where your books are first, then how Bibliotaph reads
-them, then your own choices. **Library** (your storage and the folders from it), **Online libraries**, **Devices** (your
-Windows PCs and the books kept in this browser), **AI**, **Processing**, **Vocabulary**, **Preferences** (light or dark,
-where Bibliotaph opens and what waits for review), **Passwords**, **Backup** and **Account** are there for everyone, and
-**Members** (invitations and accounts) for those who can invite. The address names the section, such as
+sections beside the one you're in, in the Windows app's groups: **BOOKS** holds **Library** (your storage and the
+folders from it), **Online libraries** and **Devices** (your Windows PCs and the books kept in this browser);
+**CATALOGUING** holds **Processing**, **AI** and **Vocabulary**; **YOU** holds **Preferences** (light or dark, where
+Bibliotaph opens and what waits for review), **Passwords**, **Backup** and **Account**; and **ADMIN**, for those who can
+invite, holds **Members** (invitations and accounts). Each page is headed as its entry is. The address names the section, such as
 bibliotaph.online/settings#library, so Back returns to the last one; an older link to a section since folded into
 another, such as #storage, opens the one it's in now.
 **About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports,

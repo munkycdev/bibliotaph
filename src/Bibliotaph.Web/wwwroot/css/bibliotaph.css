@@ -1020,6 +1020,14 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-settingsentry{display:block;width:100%;padding:9px 10px;margin:1px 0;border-radius:6px;font-size:12px;text-align:left;color:var(--bt-muted);text-decoration:none;cursor:pointer}
 .bt-settingsentry:hover,.bt-settingsentry.active{background:var(--bt-soft);color:var(--bt-text)}
 .bt-settingsrule{border-top:1px solid var(--bt-line);margin:12px 10px}
+.bt-settingsgroup{display:block;padding:0 10px;margin:14px 0 6px}
+.bt-settingsgroup:first-child{margin-top:0}
+/* A page of several parts (Library, Devices, Members): its heading, then each part under a subheading. */
+.bt-sectionhead{font:30px 'Libre Caslon Display',Georgia,serif;font-weight:400;margin:0 0 6px}
+.bt-sectionhead+.bt-subsection{margin-top:14px}
+.bt-subsection{margin-top:26px}
+.bt-subsection>.bt-subheading{margin:0}
+.bt-subsection>.bt-copy{margin-top:6px}
 .bt-settingsbody>.bt-section:first-child{margin-top:0}
 .bt-settingsbody .bt-section>h2{font-size:30px}
 .bt-settingsbody .bt-copy{margin-top:12px;margin-bottom:8px}
@@ -1029,7 +1037,7 @@ button.bt-heart{color:var(--bt-accent)}
 @media(max-width:620px){.bt-settings{grid-template-columns:1fr;gap:18px}
 .bt-settingslist{position:static;flex-direction:row;flex-wrap:wrap;gap:3px}
 .bt-settingsentry{width:auto;padding:7px 9px;font-size:11px}
-.bt-settingsrule{display:none}}
+.bt-settingsrule,.bt-settingsgroup{display:none}}
 /* A part of a section, as the Windows app's: a rule above, then its name in row text and what it does in small text. */
 .bt-settingshead{font-size:12px;font-weight:400;color:var(--bt-text);border-top:1px solid var(--bt-line);margin-top:30px;padding-top:20px}
 .bt-settingshead+.bt-fine{margin-top:5px}

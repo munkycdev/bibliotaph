@@ -2,8 +2,8 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<section class="bt-section" aria-labelledby="offline-heading">
-    <h2 id="offline-heading">Books in this browser</h2>
+<section class="bt-section bt-subsection" aria-labelledby="offline-heading">
+    <h3 class="bt-subheading" id="offline-heading">Books in this browser</h3>
     <p class="bt-copy">The pages you read are kept in this browser, so a book opens again without downloading them. A book kept
         offline is kept whole; the others are let go, those read longest ago first, once they take more than the room below.</p>
     @if (_books is null)

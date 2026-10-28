@@ -28,9 +28,10 @@ public sealed partial class SettingsViewModel : PageViewModel
         _about = about;
         _shortcuts = shortcuts;
         _log = log;
-        SettingsSectionViewModel[] sections = [library, online, devices, ai, processing, vocabulary, preferences, passwords, backup];
+        SettingsSectionViewModel[] sections = [library, online, devices, processing, ai, vocabulary, preferences, passwords, backup];
         // Start over only with --dev.
         Sections = dev.IsOn ? [.. sections, startOver] : sections;
+        Groups = [.. Sections.GroupBy(s => SettingsGroups.Of(s.Section)).Select(g => new SettingsGroupViewModel(g.Key, [.. g]))];
         Selected = library;
         MarkSelected();
     }
@@ -46,6 +47,9 @@ public sealed partial class SettingsViewModel : PageViewModel
     /// person's own choices and the backups; Start over, when the app started with --dev, last.
     /// </summary>
     public IReadOnlyList<SettingsSectionViewModel> Sections { get; }
+
+    /// <summary>The same sections under their group labels, as the list shows them.</summary>
+    public IReadOnlyList<SettingsGroupViewModel> Groups { get; }
 
     /// <summary>The section filling the page.</summary>
     public SettingsSectionViewModel Selected { get; private set; }
@@ -129,4 +133,10 @@ public sealed partial class SettingsViewModel : PageViewModel
     /// </summary>
     [RelayCommand]
     void ShowShortcuts() => _shortcuts.Show();
+}
+
+/// <summary>A group of the section list: its small-capital label (none over Start over) and the sections under it.</summary>
+public sealed record SettingsGroupViewModel(string Label, IReadOnlyList<SettingsSectionViewModel> Sections)
+{
+    public bool HasLabel => Label.Length > 0;
 }

@@ -12,10 +12,14 @@
 {
     <div class="bt-settings">
         <nav class="bt-settingslist" aria-label="Settings sections">
-            @foreach (var (id, label) in Sections)
+            @foreach (var group in Sections.GroupBy(s => s.Group))
             {
-                <a class="bt-settingsentry @(id == _selected ? "active" : "")" href="@($"settings#{id}")"
-                   aria-current="@(id == _selected ? "page" : null)" @onclick="() => ChooseAsync(id)" @onclick:preventDefault="true">@label</a>
+                <span class="bt-eyebrow bt-settingsgroup" aria-hidden="true">@group.Key</span>
+                @foreach (var (_, id, label) in group)
+                {
+                    <a class="bt-settingsentry @(id == _selected ? "active" : "")" href="@($"settings#{id}")"
+                       aria-current="@(id == _selected ? "page" : null)" @onclick="() => ChooseAsync(id)" @onclick:preventDefault="true">@label</a>
+                }
             }
             <div class="bt-settingsrule"></div>
             <button class="bt-settingsentry" @onclick="() => _about = true">About Bibliotaph</button>
@@ -26,22 +30,25 @@
             @switch (_selected)
             {
                 case "library":
+                    <h2 class="bt-sectionhead" id="library-heading">Library</h2>
                     <SettingsStorage Problem="@Problem" ProblemProvider="@ProblemProvider" Changed="() => _storageChanges++" />
                     <SettingsLibrary @key="_storageChanges" />
                     break;
                 case "online": <SettingsOnline /> break;
                 case "devices":
+                    <h2 class="bt-sectionhead" id="devices-heading">Devices</h2>
                     <SettingsDevices />
                     <BrowserBooks />
                     break;
-                case "ai": <AiSection /> break;
                 case "processing": <SettingsProcessing /> break;
+                case "ai": <AiSection /> break;
                 case "vocabulary": <SettingsVocabulary /> break;
                 case "preferences": <SettingsPreferences /> break;
                 case "passwords": <SettingsPasswords /> break;
                 case "backup": <SettingsBackup /> break;
                 case "account": <SettingsAccount Me="_me" Problem="@Problem" /> break;
                 case "members":
+                    <h2 class="bt-sectionhead" id="members-heading">Members</h2>
                     <SettingsInvitations />
                     <SettingsAccounts />
                     break;
@@ -75,25 +82,25 @@
     [SupplyParameterFromQuery(Name = "provider")] public string? ProblemProvider { get; set; }
 
     /// <summary>
-    /// In the Windows app's order: where the books are first, then what reads them and how, then this person's own
-    /// choices and secrets, the account last, with what only admins see after it.
+    /// In the Windows app's order and groups: where the books are first, then what reads them and how, then this
+    /// person's own choices and secrets with the account last, and what only admins see after it.
     /// </summary>
-    IEnumerable<(string Id, string Label)> Sections
+    IEnumerable<(string Group, string Id, string Label)> Sections
     {
         get
         {
-            yield return ("library", "Library");
-            yield return ("online", "Online libraries");
-            yield return ("devices", "Devices");
-            yield return ("ai", "AI");
-            yield return ("processing", "Processing");
-            yield return ("vocabulary", "Vocabulary");
-            yield return ("preferences", "Preferences");
-            yield return ("passwords", "Passwords");
-            yield return ("backup", "Backup");
-            yield return ("account", "Account");
+            yield return ("BOOKS", "library", "Library");
+            yield return ("BOOKS", "online", "Online libraries");
+            yield return ("BOOKS", "devices", "Devices");
+            yield return ("CATALOGUING", "processing", "Processing");
+            yield return ("CATALOGUING", "ai", "AI");
+            yield return ("CATALOGUING", "vocabulary", "Vocabulary");
+            yield return ("YOU", "preferences", "Preferences");
+            yield return ("YOU", "passwords", "Passwords");
+            yield return ("YOU", "backup", "Backup");
+            yield return ("YOU", "account", "Account");
             if (_me?.IsAdmin != true) yield break;
-            yield return ("members", "Members");
+            yield return ("ADMIN", "members", "Members");
         }
     }
 
