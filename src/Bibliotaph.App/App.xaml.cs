@@ -471,7 +471,6 @@ public partial class App : Application
         // Before the Classify lane looks at whether it may send anything.
         var ai = services.GetRequiredService<AiSettings>();
         await ai.LoadAsync();
-        await services.GetRequiredService<BookLookups>().LoadAsync();
         Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
         services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IIndexingStatus>());
         services.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey).StopWhenNotNeededForAsk(ai);

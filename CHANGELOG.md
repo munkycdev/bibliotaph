@@ -1,5 +1,13 @@
 # Changes
 
+## Unreleased
+
+- **Books are always looked up by their ISBN.** The **Look up books online by their ISBN** box in Settings >
+  Processing is gone: every book that prints an ISBN is looked up in Open Library (and, on bibliotaph.online or from
+  a PC connected to it, Google Books), and the Looking up online step always shows its counts. Only the ISBNs are
+  sent, and **Looking up online** under the steps says where. See
+  [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+
 ## 1.4 · 28 October 2026
 
 New in 1.4.947 (28 October 2026):
