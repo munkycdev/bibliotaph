@@ -398,6 +398,8 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
             if (backfilled > 0) _log.LogInformation("Queued {Stage} for {Count} documents read before it existed", stage.Stage, backfilled);
         }
         WatchGates();
+        // In the background: a stage may need to ask over the network what has changed, and nothing waits for it.
+        foreach (var revisited in _lanes.Stages.All.OfType<IRevisitedStage>()) _ = RevisitAsync(revisited);
 
         _scanner.Wake();
         // Each loop on the thread pool: none of this may run on the UI thread that started the host.
@@ -427,8 +429,31 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
             var lane = gated.Lane;
             gated.ReadyChanged += (_, _) => _lanes.GateChanged(lane);
         }
+        foreach (var revisited in _lanes.Stages.All.OfType<IRevisitedStage>())
+            revisited.RunAgainChanged += (_, _) => _ = RevisitAsync(revisited);
         _parts.Marked += (_, documentId) => _ = ClassifyPartsAsync(documentId);
         _returns.SettingChanged += (_, _) => _hashing.WakeReturns();
+    }
+
+    /// <summary>Runs a stage again for the finished books it says are worth another go.</summary>
+    async Task RevisitAsync(IRevisitedStage stage)
+    {
+        try
+        {
+            var because = await stage.RunAgainAsync(_stopping);
+            var queued = await _queue.RerunAsync(stage.Stage, because, _stopping);
+            if (queued == 0) return;
+            _log.LogInformation("Queued {Stage} again for {Count} documents", stage.Stage, queued);
+            _lanes.Wake(stage.Stage);
+            RaiseChanged();
+        }
+        catch (OperationCanceledException) when (_stopping.IsCancellationRequested)
+        {
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Couldn't queue {Stage} again", stage.Stage);
+        }
     }
 
     static readonly TimeSpan PartsRecheck = TimeSpan.FromSeconds(1);

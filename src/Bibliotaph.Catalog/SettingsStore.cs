@@ -39,6 +39,9 @@ public static class SettingKeys
     /// <summary>"True" when books are looked up online by the ISBNs they print. Off until the user turns it on.</summary>
     public const string LookUpOnline = "lookup.online";
 
+    /// <summary>Where the web library looked books up when this PC last asked it ("Open Library or Google Books").</summary>
+    public const string LookUpWebCatalogues = "lookup.web-catalogues";
+
     /// <summary>The web library's address, when it isn't bibliotaph.online: only a developer sets it.</summary>
     public const string WebAddress = "web.address";
 

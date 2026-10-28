@@ -199,7 +199,7 @@
       <StackPanel Margin="4,0,0,0">
         <TextBlock Text="Look up books online by their ISBN" FontSize="12" />
         <TextBlock Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
-                   Text="Asks Open Library about the ISBNs your books print, and nothing else, to fill in their title, authors, publisher and year. A record is used only when its title is printed in the book, and the AI's guesses give way to it." />
+                   Text="{Binding LookUpExplanation}" />
       </StackPanel>
     </CheckBox>
 

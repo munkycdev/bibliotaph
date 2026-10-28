@@ -17,6 +17,19 @@ public interface IBookCatalogue
     /// </summary>
     /// <exception cref="CatalogueUnavailableException">The catalogue can't be asked right now.</exception>
     Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default);
+
+    /// <summary>
+    /// Finds out again where it asks, for a catalogue that asks somewhere else in turn, as a PC asks its web library:
+    /// <see cref="Name"/> may change, raising <see cref="NameChanged"/>. Never throws for a catalogue out of reach.
+    /// </summary>
+    Task RefreshAsync(CancellationToken ct = default) => Task.CompletedTask;
+
+    /// <summary>Raised when <see cref="Name"/> changes, from any thread.</summary>
+    event EventHandler? NameChanged
+    {
+        add { }
+        remove { }
+    }
 }
 
 /// <summary>The catalogue can't be reached, or is too busy to answer: nothing to do with the book asked about.</summary>

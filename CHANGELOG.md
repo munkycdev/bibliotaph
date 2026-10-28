@@ -1,13 +1,18 @@
 # Changes
 
-## Unreleased
+## 1.4 · 28 October 2026
 
+New in 1.4.947 (28 October 2026):
+
+- **Google Books for the Windows app's books too.** With **Look up books online by their ISBN** on, a PC connected to
+  bibliotaph.online looks its books up through it, so a book Open Library doesn't know is looked for in Google Books
+  as well, and no PC holds a Google key. Books neither catalogue knew before are asked again once there's somewhere
+  more to ask, on the PC and on the web, so the ones Open Library missed are tried on Google Books. Disconnected, the
+  app asks Open Library itself. See [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
 - **Replace a server secret in one step.** For whoever runs bibliotaph.online: `infra/setup.ps1 -Replace` asks again
   for the secrets it names (Microsoft, Auth0, Dropbox, GoogleDrive, Box, GoogleBooks), replaces them in Key Vault and
   restarts the app on them, so an old one no longer has to be deleted from Key Vault first. A new client ID for
   Auth0, Dropbox, Google Drive or Box asks for its secret too.
-
-## 1.4 · 28 October 2026
 
 New in 1.4.943 (28 October 2026):
 

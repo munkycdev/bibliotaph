@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Processing;
@@ -17,6 +18,9 @@ namespace Bibliotaph.Server.Api;
 /// </summary>
 public static class PcLibraryApi
 {
+    /// <summary>More ISBNs than any book prints: a request with more is no book's.</summary>
+    const int MostIsbns = 20;
+
     public static void MapPcLibraryApi(this IEndpointRouteBuilder app)
     {
         var pc = app.MapGroup("/api/pc").RequireAuthorization(AuthSetup.DevicePolicy);
@@ -33,6 +37,25 @@ public static class PcLibraryApi
                 shelf = await files.ReadShelfAsync(ct) ?? throw new InvalidOperationException("The shelf wasn't kept.");
             }
             return shelf.Version == version ? Results.StatusCode(StatusCodes.Status304NotModified) : Results.Bytes(shelf.Content, "application/json");
+        });
+
+        // A PC's own books looked up where the server can ask: the catalogues it holds keys for, which no PC is given,
+        // at the pace every library's lookups keep. Only ISBNs come, and nothing about them is kept.
+        pc.MapGet("/lookups", (IBookCatalogue catalogue) => Results.Ok(new PcLookupAnswer(catalogue.Name)));
+        pc.MapPost("/lookups", async (PcLookupRequest request, IBookCatalogue catalogue, CancellationToken ct) =>
+        {
+            if (request.Isbns is not { Count: > 0 and <= MostIsbns } isbns || !isbns.All(i => i is { Length: 13 } && i.All(char.IsAsciiDigit)))
+                return Results.BadRequest();
+            try
+            {
+                return await catalogue.FindAsync(isbns, ct) is { } r
+                    ? Results.Ok(new PcLookupAnswer(catalogue.Name, new PcBookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published)))
+                    : Results.Ok(new PcLookupAnswer(catalogue.Name));
+            }
+            catch (CatalogueUnavailableException ex)
+            {
+                return Results.Json(new PcLookupAnswer(catalogue.Name, Problem: ex.Message), statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
         });
 
         pc.MapGet("/books/{hash}/reading", async (string hash, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>

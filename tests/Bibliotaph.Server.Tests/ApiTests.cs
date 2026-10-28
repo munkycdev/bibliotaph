@@ -32,6 +32,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     readonly FakeGraph _graph = new();
     readonly FakeDropbox _dropbox = new();
     readonly FakeModelService _models = new();
+    readonly ScriptedCatalogue _catalogue = new();
     readonly SyntheticPdfs _pdfs;
     readonly WebApplicationFactory<Program> _factory;
 
@@ -44,6 +45,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
             host.UseSetting("Server:DataRoot", _folder.Path);
             host.ConfigureServices(services => services.AddSingleton<IHttpClientFactory>(new FakeHttp(new FakeHosts(_graph, _dropbox))));
             host.ConfigureServices(services => services.AddSingleton(new ModelClientFactory(_models.ClientFor, TimeSpan.FromMilliseconds(50))));
+            host.ConfigureServices(services => services.AddSingleton<IBookCatalogue>(_catalogue));
             host.ConfigureServices(services => services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, TestSession>(AuthSetup.SessionScheme + "-test", _ => { }));
             host.ConfigureServices(services => services.PostConfigure<AuthenticationOptions>(o =>
@@ -2349,6 +2351,68 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal(HttpStatusCode.OK, file.StatusCode);
         Assert.Equal(bytes, await file.Content.ReadAsByteArrayAsync(ct));
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_connected_PC_looks_its_books_up_where_the_server_can_and_falls_back_to_its_own_catalogue_once_disconnected()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var web = Client(await AddUserAsync(admin: false));
+        web.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var (pc, key) = await ConnectPcAsync(web, ct);
+        var path = Path.Combine(_folder.Path, "pc-lookups.db");
+        await using (var db = new CatalogDatabase(path, Path.Combine(_folder.Path, "pc-backups")).CreateContext())
+            await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database, ct);
+        var settings = new SettingsStore(new CatalogFile(path));
+        var direct = new ScriptedCatalogue { Name = "Open Library" };
+        var catalogue = new WebLibraryCatalogue(pc, direct, settings);
+        var changed = 0;
+        catalogue.NameChanged += (_, _) => changed++;
+        _catalogue.Record = new BookRecord("Google Books", "vol1", "9781234567897", "The Owlbear Mill", ["Ada Quill"], ["Gull Rock Games"], "2019");
+
+        // Where it asks is learned before anything is looked up, so books known nowhere can be asked again.
+        Assert.Equal("Open Library", catalogue.Name);
+        await catalogue.RefreshAsync(ct);
+        var record = await catalogue.FindAsync(["9781234567897"], ct);
+        _catalogue.Busy = true;
+        var busy = await Assert.ThrowsAsync<CatalogueUnavailableException>(() => catalogue.FindAsync(["9781234567897"], ct));
+        var keyed = new HttpClient(_factory.Server.CreateHandler()) { BaseAddress = new Uri("http://localhost") };
+        keyed.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+        using var notAnIsbn = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest(["978-1-234"]), ct);
+        using var signedIn = await web.GetAsync("/api/pc/lookups", ct);
+
+        Assert.Equal(("Open Library or Google Books", 1), (catalogue.Name, changed));
+        Assert.Equal(("Google Books", "The Owlbear Mill", "Gull Rock Games"), (record!.Source, record.Title, record.Publishers[0]));
+        Assert.Equal(["9781234567897"], _catalogue.Asked);
+        Assert.Equal("Google Books is busy.", busy.Message);
+        Assert.Equal(HttpStatusCode.BadRequest, notAnIsbn.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, signedIn.StatusCode);
+        Assert.Equal("Open Library or Google Books", await settings.GetAsync(SettingKeys.LookUpWebCatalogues, ct));
+
+        // Disconnected, the PC asks Open Library itself.
+        await pc.DisconnectAsync(ct);
+        Assert.Equal("Open Library", catalogue.Name);
+        Assert.Null(await catalogue.FindAsync(["9781234567897"], ct));
+        Assert.Single(direct.Asked);
+    }
+
+    /// <summary>The server's catalogues, answering as told: no test asks a real one.</summary>
+    sealed class ScriptedCatalogue : IBookCatalogue
+    {
+        public string Name { get; init; } = "Open Library or Google Books";
+
+        public BookRecord? Record { get; set; }
+
+        public bool Busy { get; set; }
+
+        public List<string> Asked { get; } = [];
+
+        public Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default)
+        {
+            if (Busy) throw new CatalogueUnavailableException("Google Books is busy.");
+            Asked.AddRange(isbns);
+            return Task.FromResult(Record);
+        }
     }
 
     /// <summary>A PC connected to the user's web library, as the Windows app connects, with its key.</summary>

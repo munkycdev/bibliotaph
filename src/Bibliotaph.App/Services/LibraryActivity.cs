@@ -100,7 +100,7 @@ public sealed partial class LibraryActivity : ObservableObject
     readonly PhaseProgress _reading = new("Reading files", "Checking each file; online-only files download");
     readonly PhaseProgress _making = new("Making searchable", "Text and covers");
     readonly PhaseProgress _scans = new("Reading scans", "Text from scanned pages, by OCR", "pages");
-    readonly PhaseProgress _lookingUp = new("Looking up online", "Title, authors, publisher and year from Open Library, by ISBN");
+    readonly PhaseProgress _lookingUp = new("Looking up online", "Title, authors, publisher and year, by ISBN");
     readonly PhaseProgress _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page");
     readonly Dictionary<long, string> _titles = [];
     int _dirty = 1;

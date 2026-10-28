@@ -42,7 +42,9 @@ public static class ServerSetup
             sp.GetRequiredService<UserDriveFactory>(), paths.Downloads, new WorkerPdfEngine(sp.GetRequiredService<PdfWorkerPool>()),
             new SkiaImageCodec(), sp.GetRequiredService<ICoverStore>(), sp.GetRequiredService<IDataProtectionProvider>(),
             sp.GetRequiredService<ModelClientFactory>(), sp.GetRequiredService<ForegroundActivity>(), sp.GetRequiredService<UploadMemory>(),
-            BookCatalogues(configuration, sp.GetRequiredService<TimeProvider>())));
+            sp.GetRequiredService<IBookCatalogue>()));
+        // One for every library and connected PC, so the catalogues' paces hold server-wide.
+        services.AddSingleton(sp => BookCatalogues(configuration, sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton(sp => new UploadMemory(sp.GetRequiredService<TimeProvider>(), options.UploadMemoryBytes));
         // Every library's reading steps aside for anyone's request: they share the one CPU.
         services.AddSingleton(sp => new ForegroundActivity(sp.GetRequiredService<TimeProvider>()));

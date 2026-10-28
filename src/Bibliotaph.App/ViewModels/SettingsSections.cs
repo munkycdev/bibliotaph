@@ -62,6 +62,14 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
     [ObservableProperty]
     public partial bool LookUpOnline { get; set; }
 
+    /// <summary>Where books are looked up: through the web library while this PC is connected, so it names its catalogues.</summary>
+    [ObservableProperty]
+    public partial string LookUpExplanation { get; set; } = Explain("Open Library");
+
+    static string Explain(string catalogues) =>
+        $"Asks {catalogues} about the ISBNs your books print, and nothing else, to fill in their title, authors, publisher and year. " +
+        "A record is used only when its title is printed in the book, and the AI's guesses give way to it.";
+
     public override async Task LoadAsync()
     {
         _loading = true;
@@ -69,6 +77,7 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
         {
             ReturnOnlineOnly = await returns.IsOnAsync();
             LookUpOnline = lookups.IsOn;
+            LookUpExplanation = Explain(lookups.Catalogue.Name);
         }
         finally
         {

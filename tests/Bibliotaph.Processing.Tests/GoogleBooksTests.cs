@@ -95,6 +95,19 @@ public sealed class GoogleBooksTests
         Assert.Equal("Google Books", (await new BookCatalogues([new Fixed("Open Library", null), second]).FindAsync(["9781234567897"], Ct))!.Source);
     }
 
+    [Theory]
+    [InlineData("No record of its ISBN in Open Library.", "Open Library or Google Books", true)]
+    [InlineData("No record of its ISBN in Open Library or Google Books.", "Open Library or Google Books", false)]
+    // A PC that can't reach its web library asks Open Library alone, and doesn't ask the books its web library didn't know.
+    [InlineData("No record of its ISBN in Open Library or Google Books.", "Open Library", false)]
+    [InlineData("It prints no ISBN to look up.", "Open Library or Google Books", false)]
+    [InlineData(null, "Open Library or Google Books", false)]
+    public void A_book_no_catalogue_knew_is_asked_again_only_once_there_is_one_more_to_ask(string? reason, string catalogues, bool again)
+    {
+        Assert.Equal(again, BookLookups.AskedOfFewer(reason, catalogues));
+        Assert.Equal("No record of its ISBN in Open Library.", BookLookups.NoRecordIn("Open Library"));
+    }
+
     [Fact]
     public async Task A_book_none_knows_waits_while_one_couldnt_answer()
     {
