@@ -1,9 +1,38 @@
 # Changes
 
-## 1.3 · 19 October 2026
+## Unreleased
 
-New in 1.3.929 (28 October 2026):
+- **Replace a server secret in one step.** For whoever runs bibliotaph.online: `infra/setup.ps1 -Replace` asks again
+  for the secrets it names (Microsoft, Auth0, Dropbox, GoogleDrive, Box, GoogleBooks), replaces them in Key Vault and
+  restarts the app on them, so an old one no longer has to be deleted from Key Vault first. A new client ID for
+  Auth0, Dropbox, Google Drive or Box asks for its secret too.
 
+## 1.4 · 28 October 2026
+
+New in 1.4.943 (28 October 2026):
+
+- **Look books up by their ISBN.** Turn on **Look up books online by their ISBN** in Settings > Processing, on the
+  Windows app or the web, and Bibliotaph asks Open Library about the ISBNs your books print, and nothing else. It
+  suggests the title, authors, publisher and year from the book's record, but only when the record's title is printed in
+  the book. These beat the AI's suggestions, which now fill only what the lookup didn't. Settings > Processing shows the
+  lookups as their own step, with how many books are done and left, and a book whose text holds broken
+  characters is looked up like any other. Off until you turn it on. See
+  [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+- **Google Books for books Open Library doesn't know.** On bibliotaph.online, Look up books online by their ISBN now
+  asks Google Books for a book Open Library has no record of, which finds many more small-press books. It sends the
+  ISBNs and nothing else, and the setting names where it looks. See
+  [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+- **Find a book by its ISBN.** Bibliotaph now finds the ISBN and product code a book prints on its first pages or back
+  cover, or in an e-book's own information, and shows each in the book's details. `isbn:` in
+  the search box finds a book by it, typed with or without hyphens, and `-isbn:unknown` lists the books that have one.
+  Nothing is read again: books already in your library get it from the text Bibliotaph has. See
+  [Searching](docs/guide/searching.md#fields).
+- **New versions found by ISBN.** A file that prints a book's ISBN as its own, but whose pages differ, such as a
+  corrected PDF or a scan of the print edition, is now asked about in Needs review as a new version of it. Bibliotaph
+  never joins two files by an ISBN alone, since publishers keep one ISBN across printings. Books already in your
+  library are checked from the text Bibliotaph has, without reading a file again, and a book an online lookup renames
+  is checked again for another file with its title and publisher. See
+  [Cataloging](docs/guide/cataloging.md#needs-review).
 - **Your web library's books on your PC.** A PC connected to bibliotaph.online shows the books in your online storage
   as well as its own: each web library folder is a library folder in Settings > Library, its books searchable without
   being downloaded, and the PC's AI reads them as it reads the rest. A book is downloaded only to open it, or to read
@@ -13,18 +42,6 @@ New in 1.3.929 (28 October 2026):
   PC**, in a book's details, keeps one for reading without a connection, and **Open in another app** opens the
   downloaded copy. A book the web library couldn't read is read on the PC instead. See
   [Bibliotaph on the web](docs/guide/web.md#connecting-a-windows-pc).
-- **Look books up by their ISBN.** Turn on **Look up books online by their ISBN** in Settings > Processing, on the
-  Windows app or the web, and Bibliotaph asks Open Library about the ISBNs your books print, and nothing else. It
-  suggests the title, authors, publisher and year from the book's record, but only when the record's title is printed in
-  the book. These beat the AI's suggestions, which now fill only what the lookup didn't. Settings > Processing shows the
-  lookups as their own step, with how many books are done and left, and a book whose text holds broken
-  characters is looked up like any other. Off until you turn it on. See
-  [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
-- **Find a book by its ISBN.** Bibliotaph now finds the ISBN and product code a book prints on its first pages or back
-  cover, or in an e-book's own information, and shows each in the book's details. `isbn:` in
-  the search box finds a book by it, typed with or without hyphens, and `-isbn:unknown` lists the books that have one.
-  Nothing is read again: books already in your library get it from the text Bibliotaph has. See
-  [Searching](docs/guide/searching.md#fields).
 - **No blank page after an update.** On bibliotaph.online, while your library comes back from storage after an update
   or a restart, the page says so with how long it has taken, and opens your library when it's back, rather than
   staying empty for minutes. The server also starts bringing back the libraries of people who signed in lately as soon
@@ -47,6 +64,8 @@ New in 1.3.929 (28 October 2026):
 - **The logo in large format.** bibliotaph.online/brand/ has the logo and the **b.** monogram as SVG and PNG, for light
   and dark backgrounds, drawn from the same type and shapes as the app's sidebar, for the sign-in page and anywhere
   else the name appears.
+
+## 1.3 · 19 October 2026
 
 New in 1.3.877 (26 October 2026):
 

@@ -253,6 +253,9 @@ public enum VersionEvidence
 
     /// <summary>Both cards have the same title and publisher.</summary>
     TitleAndPublisher,
+
+    /// <summary>Both files print the same ISBN as their own, the first each prints, but their pages differ.</summary>
+    SameIsbn,
 }
 
 /// <summary>The user's answer to a "new version?" card in Needs review.</summary>

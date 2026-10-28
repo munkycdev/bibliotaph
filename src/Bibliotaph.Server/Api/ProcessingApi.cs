@@ -38,7 +38,8 @@ public static class ProcessingApi
         processing.MapGet("/lookups", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
-            return new LookupSetting(lease.Library.Get<BookLookups>().IsOn);
+            var lookups = lease.Library.Get<BookLookups>();
+            return new LookupSetting(lookups.IsOn, lookups.Catalogue.Name);
         });
 
         processing.MapPut("/lookups", async (LookupSetting setting, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
@@ -46,7 +47,7 @@ public static class ProcessingApi
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var lookups = lease.Library.Get<BookLookups>();
             await lookups.SetOnAsync(setting.On, ct);
-            return new LookupSetting(lookups.IsOn);
+            return new LookupSetting(lookups.IsOn, lookups.Catalogue.Name);
         });
     }
 

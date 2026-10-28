@@ -140,8 +140,8 @@ doesn't match. To tag the head of main:
 ```powershell
 git fetch origin
 $n = git rev-list --count origin/main
-git tag "v1.3.$n" origin/main
-git push origin "v1.3.$n"
+git tag "v1.4.$n" origin/main
+git push origin "v1.4.$n"
 ```
 
 The draft waits for CI on the tagged commit. Every push to main gets its own run, so merging more pull requests

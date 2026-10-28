@@ -27,6 +27,10 @@
 .EXAMPLE
     # Once the DNS records it printed have propagated:
     ./infra/setup.ps1 -Environment <environment> -EnvironmentResourceGroup <environment's group> -BindDomain
+
+.EXAMPLE
+    # A new Google Drive client secret and Books API key, and a new client secret for OneDrive, in place of the kept ones:
+    ./infra/setup.ps1 -Environment <environment> -EnvironmentResourceGroup <environment's group> -Replace GoogleDrive, GoogleBooks, Microsoft
 #>
 #Requires -Version 7.3
 # Every setting is named, so a stray word, such as a ">>" pasted from a continued prompt, which PowerShell reads as a
@@ -65,6 +69,15 @@ param(
     # The Box app's Client ID, from its Configuration in Box's Developer Console. Its client secret is asked for once
     # and kept in Key Vault. Once set, a later run without it keeps it.
     [string] $BoxClientId,
+
+    # Asks once for a Google Cloud API key restricted to the Books API, kept in Key Vault, so lookups ask Google Books
+    # for a book Open Library doesn't know. Once set, a later run without it keeps it.
+    [switch] $GoogleBooksKey,
+
+    # Asks again for these secrets and replaces them in Key Vault, rather than keeping the ones it has: Microsoft makes
+    # the OneDrive app registration a new client secret; the rest ask for theirs, with the IDs the app already has
+    # unless they're given too. A new Dropbox, Google or Box ID, or Auth0 client ID, asks for its secret anyway.
+    [ValidateSet('Microsoft', 'Auth0', 'Dropbox', 'GoogleDrive', 'Box', 'GoogleBooks')] [string[]] $Replace = @(),
 
     # Adds the domain and www to the app and issues managed certificates. Needs the DNS records in place first.
     [switch] $BindDomain
@@ -169,6 +182,22 @@ Retry {
 }
 
 function SecretExists([string] $name) { [bool] (Find keyvault secret show --vault-name $KeyVault -n $name --query id) }
+function Plain([securestring] $secret) { [System.Net.NetworkCredential]::new('', $secret).Password }
+
+# The secrets this run wrote, each with its new version's id. The app would pick up a new version by itself only within
+# half an hour, so this run points it at the version just written and restarts it.
+$written = @{}
+function WriteSecret([string] $name, [string] $value) {
+    $script:written[$name] = az keyvault secret set --vault-name $KeyVault -n $name --value $value --query id -o tsv
+}
+function SecretRef([string] $name) {
+    $uri = $written[$name] ?? "https://$KeyVault.vault.azure.net/secrets/$name"
+    "$name=keyvaultref:$uri,identityref:$($id.id)"
+}
+function KnownSetting([string] $name) {
+    @(Find containerapp show -n $App -g $ResourceGroup --query 'properties.template.containers[0].env' -o json |
+        Where-Object name -eq $name).value
+}
 
 Step 'OneDrive app registration'
 $signIn = Find ad app list --display-name 'Bibliotaph' --query "[?displayName=='Bibliotaph'] | [0].{appId:appId, id:id}" -o json
@@ -193,35 +222,36 @@ function PatchSignIn([hashtable] $change) {
 $registration = Json (az ad app show --id $signIn.id --query '{version:api.requestedAccessTokenVersion, audience:signInAudience}' -o json)
 if ($registration.version -ne 2) { PatchSignIn @{ api = @{ requestedAccessTokenVersion = 2 } } }
 if ($registration.audience -ne 'AzureADandPersonalMicrosoftAccount') { PatchSignIn @{ signInAudience = 'AzureADandPersonalMicrosoftAccount' } }
-if (-not (SecretExists 'auth-microsoft')) {
+if ($Replace -contains 'Microsoft' -or -not (SecretExists 'auth-microsoft')) {
+    # Appended, so the secret the app runs with now keeps working until the restart below; older ones stay listed under
+    # the registration's Certificates & secrets until they expire or are deleted there.
     $password = az ad app credential reset --id $signIn.id --append --display-name $Domain --years 2 --query password -o tsv
-    az keyvault secret set --vault-name $KeyVault -n auth-microsoft --value $password -o none
+    WriteSecret 'auth-microsoft' $password
     Remove-Variable password
 }
 
 # The secret keeps the name it had when this registration signed people in too.
 $providers = @("Storage__OneDrive__ClientId=$($signIn.appId)", 'Storage__OneDrive__ClientSecret=secretref:auth-microsoft')
-$secrets = @("auth-microsoft=keyvaultref:https://$KeyVault.vault.azure.net/secrets/auth-microsoft,identityref:$($id.id)")
+$secrets = @(SecretRef 'auth-microsoft')
 
 Step 'Auth0 sign-in'
-$auth0Secret = $null
+$knownClient = KnownSetting 'Auth__auth0__ClientId'
+if ($Replace -contains 'Auth0' -and -not $Auth0ClientId) {
+    if (-not $knownClient) { throw 'There is no Auth0 secret to replace yet: give -Auth0Domain and -Auth0ClientId.' }
+    $Auth0Domain = $Auth0Domain ? $Auth0Domain : (KnownSetting 'Auth__auth0__Domain')
+    $Auth0ClientId = $knownClient
+}
 if ($Auth0Domain -or $Auth0ClientId) {
     if (-not ($Auth0Domain -and $Auth0ClientId)) { throw 'Give both -Auth0Domain and -Auth0ClientId.' }
     $Auth0Domain = $Auth0Domain -replace '^https://', '' -replace '/+$', ''
-    $knownClient = @(Find containerapp show -n $App -g $ResourceGroup --query 'properties.template.containers[0].env' -o json |
-        Where-Object name -eq 'Auth__auth0__ClientId').value
     # A different application, such as one in another tenant, has its own secret.
-    if (-not (SecretExists 'auth0') -or ($knownClient -and $knownClient -ne $Auth0ClientId)) {
-        $secret = Read-Host "  Client secret for $Auth0ClientId" -AsSecureString
-        # The app would pick up a new version by itself only within half an hour, after the new client ID is already in
-        # use, so this run points it at the version just written.
-        $auth0Secret = az keyvault secret set --vault-name $KeyVault -n auth0 --value ([System.Net.NetworkCredential]::new('', $secret).Password) --query id -o tsv
+    if ($Replace -contains 'Auth0' -or -not (SecretExists 'auth0') -or ($knownClient -and $knownClient -ne $Auth0ClientId)) {
+        WriteSecret 'auth0' (Plain (Read-Host "  Client secret for $Auth0ClientId" -AsSecureString))
     }
     $providers += "Auth__auth0__Domain=$Auth0Domain", "Auth__auth0__ClientId=$Auth0ClientId", 'Auth__auth0__ClientSecret=secretref:auth0'
 }
 # The secret reference stays while the app's settings name it, which a run without the switches leaves as they were.
-if (-not $auth0Secret -and (SecretExists 'auth0')) { $auth0Secret = "https://$KeyVault.vault.azure.net/secrets/auth0" }
-if ($auth0Secret) { $secrets += "auth0=keyvaultref:$auth0Secret,identityref:$($id.id)" }
+if (SecretExists 'auth0') { $secrets += SecretRef 'auth0' }
 Write-Host "  In Auth0, the application's Allowed Callback URLs: https://$Domain/auth/callback/auth0, https://localhost:5179/auth/callback/auth0"
 Write-Host "  Allowed Logout URLs: https://$Domain/, https://localhost:5179/"
 if (-not $Auth0Domain -and -not (SecretExists 'auth0')) {
@@ -232,16 +262,18 @@ Step 'Dropbox'
 # A storage app's settings and secret, kept as Auth0's are: the ID is given once, the secret asked for once.
 function StorageApp([string] $name, [string] $section, [string] $clientId, [string] $prompt) {
     $secretName = "storage-$($name.ToLowerInvariant())"
-    $known = @(Find containerapp show -n $App -g $ResourceGroup --query 'properties.template.containers[0].env' -o json |
-        Where-Object name -eq "Storage__${section}__ClientId").value
+    $known = KnownSetting "Storage__${section}__ClientId"
     if (-not $clientId) { $clientId = $known }
-    if (-not $clientId) { return $false }
-    if (-not (SecretExists $secretName)) {
-        $secret = Read-Host "  $prompt" -AsSecureString
-        az keyvault secret set --vault-name $KeyVault -n $secretName --value ([System.Net.NetworkCredential]::new('', $secret).Password) -o none
+    if (-not $clientId) {
+        if ($Replace -contains $name) { throw "There is no $name secret to replace yet: give its ID." }
+        return $false
+    }
+    # A new app, or a new client in the same one, has its own secret.
+    if ($Replace -contains $name -or -not (SecretExists $secretName) -or ($known -and $known -ne $clientId)) {
+        WriteSecret $secretName (Plain (Read-Host "  $prompt" -AsSecureString))
     }
     $script:providers += "Storage__${section}__ClientId=$clientId", "Storage__${section}__ClientSecret=secretref:$secretName"
-    $script:secrets += "$secretName=keyvaultref:https://$KeyVault.vault.azure.net/secrets/$secretName,identityref:$($id.id)"
+    $script:secrets += SecretRef $secretName
     return $true
 }
 if (-not (StorageApp 'Dropbox' 'Dropbox' $DropboxAppKey "App secret for Dropbox app $DropboxAppKey")) {
@@ -263,6 +295,20 @@ if (-not (StorageApp 'Box' 'Box' $BoxClientId "Client secret for Box app $BoxCli
 }
 Write-Host "  In Box's Developer Console: a Platform App with User Authentication (OAuth 2.0); application scope"
 Write-Host "  'Read all files and folders stored in Box' only; Redirect URI https://$Domain/storage/callback/box"
+
+Step 'Google Books'
+if ($Replace -contains 'GoogleBooks' -or ($GoogleBooksKey -and -not (SecretExists 'lookup-googlebooks'))) {
+    WriteSecret 'lookup-googlebooks' (Plain (Read-Host '  API key for the Books API' -AsSecureString))
+}
+if (SecretExists 'lookup-googlebooks') {
+    $providers += 'Lookups__GoogleBooks__ApiKey=secretref:lookup-googlebooks'
+    $secrets += SecretRef 'lookup-googlebooks'
+    Write-Host '  Lookups ask Google Books after Open Library'
+}
+else {
+    Write-Host '  Lookups ask Open Library only until this runs with -GoogleBooksKey.' -ForegroundColor Yellow
+}
+Write-Host "  In Google Cloud: enable the Books API; an API key with API restrictions set to the Books API only"
 
 $settings = @(
     "REPLICA_URL=abs://$StorageAccount@replica"
@@ -296,6 +342,12 @@ else {
     $old = @(az containerapp show -n $App -g $ResourceGroup --query 'properties.template.containers[0].env[].name' -o json | ConvertFrom-Json |
         Where-Object { $_ -like 'Auth__microsoft__*' -or $_ -like 'Auth__google__*' })
     if ($old) { az containerapp update -n $App -g $ResourceGroup --remove-env-vars @old -o none }
+    # A changed secret alone makes no new revision, so the running one reads its settings again.
+    if ($written.Count) {
+        $revision = az containerapp show -n $App -g $ResourceGroup --query properties.latestRevisionName -o tsv
+        az containerapp revision restart -n $App -g $ResourceGroup --revision $revision -o none
+        Write-Host "  Restarted $revision with the new $($written.Keys -join ', ')"
+    }
 }
 $appId = az containerapp show -n $App -g $ResourceGroup --query id -o tsv
 $fqdn = az containerapp show -n $App -g $ResourceGroup --query properties.configuration.ingress.fqdn -o tsv

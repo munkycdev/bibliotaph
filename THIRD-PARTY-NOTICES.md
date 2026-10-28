@@ -77,6 +77,16 @@ the fonts and the icons; everything else runs only on the server.
 | DM Sans and Libre Caslon Display | Browser | SIL Open Font License 1.1 | https://github.com/googlefonts/dm-fonts, https://github.com/impallari/Libre-Caslon |
 | Lucide icons | Browser | ISC; icons derived from Feather are MIT | https://github.com/lucide-icons/lucide |
 
+## Book data from online catalogues
+
+Used only when **Look up books online by their ISBN** is on. Each catalogue is sent a book's ISBNs and nothing else,
+and each suggestion it gives names it as its source ("Open Library's record for ISBN …").
+
+| Catalogue | Asked by | Terms of its data | Site |
+| --- | --- | --- | --- |
+| Open Library, run by the Internet Archive | The Windows app and the web server | Public domain (CC0) | https://openlibrary.org/developers/licensing |
+| Google Books | The web server, for a book Open Library has no record of | Google APIs Terms of Service | https://developers.google.com/books/terms |
+
 ## Build, test and tooling only (not shipped)
 
 | Component | Licence |

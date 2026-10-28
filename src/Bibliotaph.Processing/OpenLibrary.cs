@@ -23,6 +23,55 @@ public interface IBookCatalogue
 public sealed class CatalogueUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
 
 /// <summary>
+/// Keeps requests to one service at least <paramref name="pace"/> apart however many callers share it, as the web
+/// server's libraries do: each request takes the next free slot and waits for it.
+/// </summary>
+public sealed class RequestPace(TimeSpan pace, TimeProvider? clock = null)
+{
+    readonly TimeProvider _clock = clock ?? TimeProvider.System;
+    readonly Lock _lock = new();
+    DateTimeOffset _next = DateTimeOffset.MinValue;
+
+    public async Task WaitAsync(CancellationToken ct)
+    {
+        DateTimeOffset slot;
+        lock (_lock)
+        {
+            slot = _next > _clock.GetUtcNow() ? _next : _clock.GetUtcNow();
+            _next = slot + pace;
+        }
+        var wait = slot - _clock.GetUtcNow();
+        if (wait > TimeSpan.Zero) await Task.Delay(wait, _clock, ct);
+    }
+}
+
+/// <summary>
+/// Several catalogues asked in turn, the first record found winning: Open Library first, as it needs no key, then any
+/// the server has a key for. A book none of them knows waits to be asked again when one of them couldn't answer.
+/// </summary>
+public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : IBookCatalogue
+{
+    public string Name { get; } = string.Join(" or ", catalogues.Select(c => c.Name));
+
+    public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default)
+    {
+        CatalogueUnavailableException? unavailable = null;
+        foreach (var catalogue in catalogues)
+        {
+            try
+            {
+                if (await catalogue.FindAsync(isbns, ct) is { } record) return record;
+            }
+            catch (CatalogueUnavailableException ex)
+            {
+                unavailable ??= ex;
+            }
+        }
+        return unavailable is null ? null : throw unavailable;
+    }
+}
+
+/// <summary>
 /// Open Library (openlibrary.org), the Internet Archive's free catalogue: no key, and its data is public domain. Only
 /// the ISBNs are sent. Its rules ask for at most one request a second from an app without a contact in its user agent,
 /// and three with one; this keeps to one a second however many libraries share it, as the web server's do, and asks
@@ -35,9 +84,7 @@ public sealed class OpenLibraryCatalogue(HttpClient http, TimeProvider? clock = 
     /// <summary>The least time between two requests.</summary>
     public static readonly TimeSpan Pace = TimeSpan.FromSeconds(1);
 
-    readonly TimeProvider _clock = clock ?? TimeProvider.System;
-    readonly Lock _lock = new();
-    DateTimeOffset _next = DateTimeOffset.MinValue;
+    readonly RequestPace _pace = new(Pace, clock);
 
     public string Name => "Open Library";
 
@@ -57,15 +104,7 @@ public sealed class OpenLibraryCatalogue(HttpClient http, TimeProvider? clock = 
     {
         if (isbns.Count == 0) return null;
         var keys = string.Join(',', isbns.Select(i => "ISBN:" + i));
-        // Each request takes the next free slot, a pace after the one before, and waits for it.
-        DateTimeOffset slot;
-        lock (_lock)
-        {
-            slot = _next > _clock.GetUtcNow() ? _next : _clock.GetUtcNow();
-            _next = slot + Pace;
-        }
-        var wait = slot - _clock.GetUtcNow();
-        if (wait > TimeSpan.Zero) await Task.Delay(wait, _clock, ct);
+        await _pace.WaitAsync(ct);
 
         string json;
         try

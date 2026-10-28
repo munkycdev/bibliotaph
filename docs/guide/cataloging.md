@@ -12,8 +12,9 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   cover too), and party sizes and levels in the file name.
 - **Open Library**, if you turn on **Look up books online by their ISBN** in **Settings > Processing**: Bibliotaph
   sends the ISBNs a book prints, and nothing else, to [Open Library](https://openlibrary.org) and suggests the title,
-  authors, publisher and year its record gives. A record is used only when its title is printed in the book, so a
-  misprinted ISBN can't rename it. These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
+  authors, publisher and year its record gives. On bibliotaph.online, a book Open Library doesn't know is looked for in
+  [Google Books](https://books.google.com) too, which knows many more small-press books. A record is used only when
+  its title is printed in the book, so a misprinted ISBN can't rename it. These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
   come back only if you reject the looked-up value. Off until you turn it on.
 - **AI**, if you turn it on: a model on your PC reads a few pages and suggests the rest. Every AI suggestion must quote
   the page it came from, or it's thrown away. See [AI](ai.md).
@@ -90,8 +91,10 @@ usable while its card waits. It has two lists:
 - A field where the sources disagree, or a book with no useful title. Each button sits under the value it keeps:
   **Keep current** under what the book has, **Accept** under the suggestion, or **Edit** to type your own value.
 - A new term the AI used that your vocabulary doesn't know. Add it, file it under an existing term, or reject it.
-- **New version?** A file that looks like another version of a book you have. The card names both files with their
-  pages, and you choose which one the book opens: each button names its file, such as **Handbook_v2.pdf is current**,
+- **New version?** A file that looks like another version of a book you have: most of its pages are the book's, it
+  prints the book's ISBN as its own, or it has the book's title and publisher (from a lookup too, once one names it).
+  Two files are never joined by an ISBN alone, since publishers keep one ISBN across corrected printings. The card
+  says which it is and names both files with their pages, and you choose which one the book opens: each button names its file, such as **Handbook_v2.pdf is current**,
   either way one card for both files. **Separate book** keeps them apart. Nothing is picked until you click one. You can change it later with **Make current** under
   the book's copies in its details.
 - **Image pack?** "Make these 12 images one card?": **Make a pack** or **Keep separate**.

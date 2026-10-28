@@ -127,8 +127,8 @@ Below the folders, as in the Windows app:
 
 Each book is then read as the Windows app reads it: its pages, outline and text for search, its cover, and hints from
 its file and folder names. Two files of the same book, such as copies bought by different people, become one card with
-two copies, and a file that shares most of its pages with a book you have is offered in Needs review as a new version
-of it, as on Windows. Bibliotaph downloads a book once for this and deletes its copy as soon as it's done; the
+two copies, and a file that shares most of its pages or its ISBN with a book you have is offered in Needs review as a
+new version of it, as on Windows. Bibliotaph downloads a book once for this and deletes its copy as soon as it's done; the
 sidebar shows **Reading 120 new files** and then **Up to date**. Scanned pages with no text of their own are read by
 OCR, in English, as on Windows: the sidebar shows **Reading scanned pages · 40 left** while it works, and they're then
 found by search like any other page. With [AI](#ai) set up, each book is then catalogued by it too.
@@ -660,7 +660,7 @@ pause.
 
 **Look up books online by their ISBN**, off until you tick it, has the server ask Open Library about the ISBNs your
 books print, and nothing else, and suggest each book's title, authors, publisher and year from its record, as the
-Windows app does. See [Cataloging](cataloging.md#where-suggestions-come-from).
+Windows app does. A book Open Library doesn't know is looked for in Google Books next, and the setting names both. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 ## Vocabulary
 
