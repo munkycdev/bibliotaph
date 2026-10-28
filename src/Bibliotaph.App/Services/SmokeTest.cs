@@ -178,6 +178,8 @@ static partial class SmokeTest
                 await Check("a book's text forgotten from its card's menu, no longer found, and read again", () => ForgetAndReadAgainAsync(services, window));
                 await Check("a remembered password listed in Settings > Passwords and forgotten there", () => ForgetPasswordAsync(services, window));
                 await Check("Settings > Devices offering Connect on a PC not connected", () => ShowDevicesAsync(services, window));
+                await Check("a connected PC listing the web library's book and finding it by search without downloading it, downloading it to open, keeping it offline, and letting its folder go on Disconnect",
+                    () => ShowWebLibraryBooksAsync(services, window));
                 await Check("an index page with no links of its own: its printed page numbers followed as links, with Back",
                     () => FollowPrintedPageNumbersAsync(services, window));
             }

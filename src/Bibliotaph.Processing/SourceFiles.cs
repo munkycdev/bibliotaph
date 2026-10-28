@@ -33,6 +33,18 @@ public interface IRemoteFiles
     Task<Stream> OpenAsync(string path, CancellationToken ct);
 }
 
+/// <summary>
+/// Library files kept in a cache of their own, with its own rules, rather than the extract cache: a connected PC's copies
+/// of the web library's books. <see cref="SourceFiles"/> hands it the files it <see cref="Holds"/>.
+/// </summary>
+public interface IKeptCopies
+{
+    bool Holds(DocumentSource source);
+
+    /// <summary>The file's copy, fetched first when there isn't one, held until disposed.</summary>
+    Task<LocalFile> OpenAsync(DocumentSource source, CancellationToken ct);
+}
+
 /// <summary>A file inside a ZIP no longer has the content it was hashed with: the ZIP changed, and the next scan sorts it out.</summary>
 public sealed class SourceChangedException(string message) : IOException(message);
 
@@ -42,10 +54,11 @@ public sealed class SourceChangedException(string message) : IOException(message
 /// in use are kept; once the cache passes its limit, the least recently used go. It also knows which library files are
 /// open through it, a book in the reader or a ZIP being extracted, so none goes back to online-only while it is in use
 /// (<see cref="OnlineOnlyReturns"/>). A <paramref name="remote"/> file is fetched into the cache the same way, and its
-/// copy deleted as soon as its documents' stages are done with it (<see cref="DropRemoteCopiesAsync"/>).
+/// copy deleted as soon as its documents' stages are done with it (<see cref="DropRemoteCopiesAsync"/>). A file
+/// <paramref name="kept"/> holds is that cache's to give.
 /// </summary>
 public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpace disk, IndexingOptions? options = null,
-    long limitBytes = SourceFiles.DefaultLimitBytes, IRemoteFiles? remote = null)
+    long limitBytes = SourceFiles.DefaultLimitBytes, IRemoteFiles? remote = null, IKeptCopies? kept = null)
 {
     public const long DefaultLimitBytes = 5L * 1024 * 1024 * 1024;
 
@@ -68,6 +81,24 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
     /// </summary>
     public async Task<LocalFile> OpenAsync(DocumentSource source, CancellationToken ct = default)
     {
+        if (kept?.Holds(source) == true)
+        {
+            Track(source.FullPath, +1);
+            try
+            {
+                var copy = await kept.OpenAsync(source, ct);
+                return new LocalFile(copy.Path, () =>
+                {
+                    copy.Dispose();
+                    Track(source.FullPath, -1);
+                });
+            }
+            catch
+            {
+                Track(source.FullPath, -1);
+                throw;
+            }
+        }
         var fetch = !source.InArchive && remote?.IsRemote(source.FullPath) == true;
         if (!source.InArchive && !fetch)
         {

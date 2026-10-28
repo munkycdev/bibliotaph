@@ -70,6 +70,12 @@ public sealed record AppPaths(string Root)
     /// </summary>
     public string WebShelf => Path.Combine(Root, "web-shelf.json");
 
+    /// <summary>
+    /// A connected PC's copies of the web library's books, downloaded to open them. Kept to a size the user sets,
+    /// apart from <see cref="Extract"/> so the books kept offline aren't let go with files from inside ZIPs.
+    /// </summary>
+    public string WebCopies => Path.Combine(Root, "cache", "web");
+
     public IEnumerable<string> Directories => [Root, Backups, Logs, Cache];
 
     public static AppPaths ForCurrentUser() =>

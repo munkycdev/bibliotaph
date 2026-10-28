@@ -16,6 +16,10 @@
   as well as its own: each web library folder is a library folder in Settings > Library, its books searchable without
   being downloaded, and the PC's AI reads them as it reads the rest. A book is downloaded only to open it, or to read
   its scanned pages. See [Bibliotaph on the web](docs/guide/web.md#connecting-a-windows-pc).
+- **Web library books offline.** Opening a book only your web library has shows the download's progress, and the
+  download is kept for next time, up to the room you set in Settings > Devices (5 GB to start). **Keep offline on this
+  PC**, in a book's details, keeps one for reading without a connection, and **Open in another app** opens the
+  downloaded copy. A book the web library couldn't read is read on the PC instead. See [Bibliotaph on the web](docs/guide/web.md#connecting-a-windows-pc).
 - **No blank page after an update.** On bibliotaph.online, while your library comes back from storage after an update
   or a restart, the page says so with how long it has taken, and opens your library when it's back, rather than
   staying empty for minutes. The server also starts bringing back the libraries of people who signed in lately as soon
