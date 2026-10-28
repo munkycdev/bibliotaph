@@ -43,11 +43,13 @@ Before pushing, run the same checks as CI (in PowerShell 7):
 ./build/verify.ps1 -SkipSmoke  # the same without opening the app's window
 ./build/verify.ps1 -Step Build, Test
 ./build/verify.ps1 -Step Restore, AppBuild, Licenses, Smoke  # just the smoke test, building only the app
+./build/verify.ps1 -Step Build, Test -OnlyTests Server  # just the web server's tests (-SkipTests leaves projects out)
 ```
 
 CI runs each step of this script, so a green run here should mean a green run there. A pull request gets a quick
-check, a few minutes at most: **Sanity check (Linux)** (restore, build, licences, every test but the app's WPF tests,
-banned-API probe) and **Server image (Linux)** (the web server's container starts and its PDF worker is confined). A
+check, side by side on Linux: **Sanity check (Linux)** (restore, build, licences, every test but the app's WPF tests
+and the web server's, banned-API probe), **Web server tests (Linux)** (`-OnlyTests Server`, which builds just that test
+project) and **Server image (Linux)** (the web server's container starts and its PDF worker is confined). A
 push to main also runs the Windows jobs side by side: **Build and test (Windows)** (build, licences, all tests,
 banned-API probe, Release build) and **App smoke test (Windows)** (just the app's build, licences and the smoke test).
 A release waits for both on its tagged commit. To run them on a branch before merging, say for a risky change to the

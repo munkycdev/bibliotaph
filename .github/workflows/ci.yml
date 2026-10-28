@@ -17,10 +17,21 @@ concurrency:
 
 jobs:
   # What a pull request waits for: the whole solution built with warnings as errors, every test but the app's WPF
-  # tests, the licences and the banned-API probe, on Linux, where it takes a fraction of the Windows jobs' time. The
-  # Windows jobs below run on main, where a release waits for them, and on a branch from Run workflow.
+  # tests, the licences and the banned-API probe, on Linux. The web server's tests take as long as all the rest, so they
+  # get a job of their own beside it. The Windows jobs below run on main, where a release waits for them, and on a
+  # branch from Run workflow.
   sanity:
-    name: Sanity check (Linux)
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Sanity check (Linux)
+            tests: -SkipTests Server
+            all: true
+          - name: Web server tests (Linux)
+            tests: -OnlyTests Server
+            all: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -54,20 +65,23 @@ jobs:
         shell: pwsh
         run: ./build/verify.ps1 -Step Restore
 
-      # The WPF app and its tests compile here too; only running them needs Windows.
+      # The WPF app and its tests compile here too; only running them needs Windows. The web server tests' job builds
+      # just their project.
       - name: Build (Debug, warnings as errors)
         shell: pwsh
-        run: ./build/verify.ps1 -Step Build
+        run: ./build/verify.ps1 -Step Build ${{ matrix.tests }}
 
       - name: Licences
+        if: matrix.all
         shell: pwsh
         run: ./build/verify.ps1 -Step Licenses
 
       - name: Test
         shell: pwsh
-        run: ./build/verify.ps1 -Step Test
+        run: ./build/verify.ps1 -Step Test ${{ matrix.tests }}
 
       - name: Banned file APIs fail the build
+        if: matrix.all
         shell: pwsh
         run: ./build/verify.ps1 -Step BannedApi
 
@@ -75,7 +89,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-linux
+          name: test-results-${{ strategy.job-index }}
           path: TestResults
           if-no-files-found: ignore
 
@@ -180,7 +194,7 @@ jobs:
             docker push "$IMAGE:$tag"
           done
 
-  # Every push to main whose sanity check and image pass goes live, without waiting for the Windows jobs, which test
+  # Every push to main whose Linux checks and image pass goes live, without waiting for the Windows jobs, which test
   # only the Windows app. infra/setup.ps1 makes the app and prints the repository variables this needs; until they're
   # set, nothing deploys.
   deploy-server:

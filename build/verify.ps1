@@ -33,7 +33,12 @@ param(
     [string[]] $Step = @('Restore', 'Engine', 'Build', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'),
 
     # Leaves out the smoke test, which opens the app's window for a few minutes.
-    [switch] $SkipSmoke
+    [switch] $SkipSmoke,
+
+    # Test projects by short name, such as Server for tests/Bibliotaph.Server.Tests. -OnlyTests builds and tests just
+    # those; -SkipTests leaves them out of the Test step. Pull request CI splits the tests between two jobs this way.
+    [string[]] $OnlyTests = @(),
+    [string[]] $SkipTests = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,6 +51,8 @@ if ($PSVersionTable.PSVersion.Major -lt 7) {
     $command = "& '$($PSCommandPath.Replace("'", "''"))'"
     if ($PSBoundParameters.ContainsKey('Step')) { $command += " -Step $($Step -join ',')" }
     if ($SkipSmoke) { $command += ' -SkipSmoke' }
+    if ($OnlyTests) { $command += " -OnlyTests $($OnlyTests -join ',')" }
+    if ($SkipTests) { $command += " -SkipTests $($SkipTests -join ',')" }
     Write-Host 'Running in PowerShell 7 (pwsh), since this is Windows PowerShell.' -ForegroundColor Yellow
     & $pwsh.Source -NoProfile -Command $command
     exit $LASTEXITCODE
@@ -171,6 +178,20 @@ function Show-SlowestTests([string] $results, [datetime] $since) {
         ForEach-Object { Write-Host ('  {0,6:N1}s  {1}' -f $_.Seconds, $_.Test) }
 }
 
+function Get-TestProjects {
+    # The test projects the Test step runs, as the solution names them.
+    $name = { param($path) ($path -replace '^tests/Bibliotaph\.|\.Tests/.*$', '') }
+    $all = @(([xml](Get-Content $solution)).Solution.Folder.Project.Path | Where-Object { $_ -like 'tests/*.Tests.csproj' })
+    foreach ($wanted in $OnlyTests + $SkipTests) {
+        if (-not ($all | Where-Object { (& $name $_) -eq $wanted })) { throw "There's no test project named $wanted." }
+    }
+    $all | Where-Object {
+        $short = & $name $_
+        ($OnlyTests.Count -eq 0 -or $short -in $OnlyTests) -and $short -notin $SkipTests -and
+            ($IsWindows -or $OnlyTests.Count -gt 0 -or $short -ne 'App')
+    }
+}
+
 $order = 'Restore', 'Engine', 'Build', 'AppBuild', 'Licenses', 'Test', 'Smoke', 'BannedApi', 'Release'
 # From the repository root wherever it's started: dotnet finds global.json, which picks the SDK and the test runner,
 # by looking up from the current folder.
@@ -182,7 +203,10 @@ try {
             'Restore' { Invoke-Dotnet restore $solution }
             'Engine' { Invoke-Engine }
             # Debug builds contain the worker's fault-injection requests that the isolation tests use.
-            'Build' { Invoke-Dotnet build $solution --configuration Debug --no-restore }
+            'Build' {
+                if (-not $OnlyTests) { Invoke-Dotnet build $solution --configuration Debug --no-restore }
+                else { foreach ($project in Get-TestProjects) { Invoke-Dotnet build (Join-Path $root $project) --configuration Debug --no-restore } }
+            }
             'AppBuild' {
                 foreach ($project in 'src/Bibliotaph.App/Bibliotaph.App.csproj', 'tools/LicenseNotices/LicenseNotices.csproj') {
                     Invoke-Dotnet build (Join-Path $root $project) --configuration Debug --no-restore
@@ -193,17 +217,18 @@ try {
                 $results = Join-Path $root 'TestResults'
                 $started = Get-Date
                 $options = '--configuration', 'Debug', '--no-build', '--report-xunit-trx', '--results-directory', $results
-                if ($IsWindows) { Invoke-Dotnet test --solution $solution @options }
+                if ($IsWindows -and -not $OnlyTests -and -not $SkipTests) { Invoke-Dotnet test --solution $solution @options }
                 else {
-                    # The app's tests need WPF, which runs only on Windows; the Build step still compiled them. A solution
-                    # filter without them lets dotnet test run the rest side by side, as it runs them all on Windows.
-                    Write-Warning 'App tests skipped: they need Windows. CI still runs them on main.'
-                    $skipped.Add('App tests')
-                    $projects = ([xml](Get-Content $solution)).Solution.Folder.Project.Path |
-                        Where-Object { $_ -like 'tests/*.Tests.csproj' -and $_ -notlike '*/Bibliotaph.App.Tests.csproj' }
+                    if (-not $IsWindows -and -not $OnlyTests) {
+                        # The app's tests need WPF, which runs only on Windows; the Build step still compiled them.
+                        Write-Warning 'App tests skipped: they need Windows. CI still runs them on main.'
+                        $skipped.Add('App tests')
+                    }
+                    # A solution filter of just these projects lets dotnet test run them side by side, as it runs the
+                    # whole solution's.
                     New-Item -ItemType Directory -Force $results | Out-Null
-                    $filter = Join-Path $results 'without-app-tests.slnf'
-                    @{ solution = @{ path = '../Bibliotaph.slnx'; projects = @($projects) } } | ConvertTo-Json -Depth 3 |
+                    $filter = Join-Path $results 'tests.slnf'
+                    @{ solution = @{ path = '../Bibliotaph.slnx'; projects = @(Get-TestProjects) } } | ConvertTo-Json -Depth 3 |
                         Set-Content $filter
                     Invoke-Dotnet test --solution $filter @options
                 }
