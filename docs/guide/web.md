@@ -117,13 +117,9 @@ Bibliotaph open, and twice a day it looks through every folder anyway. Nextcloud
 anything inside it changes; other WebDAV servers may not, and then their changes wait for that twice-daily look or **Look
 for changes**, which looks straight away.
 
-Below the folders, as in the Windows app:
-
-- **Folder names** lists the folder names read as suggestions for the books inside, such as "Adventures" → "Type:
-  Adventure", with how many documents are under each. Untick one if that name means something else in your library;
-  its books' suggestions are read again straight away. **Refresh** lists them again.
-- **Folder rules** lists the rules you answered in Needs review, such as "Fey Court" → "system Pathfinder 2e", with where
-  the folder is. Untick one to stop it suggesting its value; ticking it again brings the suggestions back.
+Below the folders, as in the Windows app, **Folder rules** lists the rules you answered in Needs review, such as
+"Fey Court" → "system Pathfinder 2e", with where the folder is. Untick one to stop it suggesting its value; ticking it
+again brings the suggestions back.
 
 Each book is then read as the Windows app reads it: its pages, outline and text for search, its cover, and hints from
 its file and folder names. Two files of the same book, such as copies bought by different people, become one card with

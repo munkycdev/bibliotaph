@@ -502,9 +502,6 @@ public sealed class ApiClient(HttpClient http)
     public Task<LibraryPreferences> LibraryPreferencesAsync(CancellationToken ct = default) =>
         SendAsync<LibraryPreferences>(HttpMethod.Get, "api/settings/library", null, ct);
 
-    public Task<LibraryPreferences> SwitchFolderNameAsync(FolderNameSwitch change, CancellationToken ct = default) =>
-        SendAsync<LibraryPreferences>(HttpMethod.Put, "api/settings/folder-names", change, ct);
-
     public Task<LibraryPreferences> SwitchFolderRuleAsync(long id, bool enabled, CancellationToken ct = default) =>
         SendAsync<LibraryPreferences>(HttpMethod.Put, $"api/settings/folder-rules/{id}", new RuleSwitch(enabled), ct);
 

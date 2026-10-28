@@ -418,29 +418,6 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
     /// <summary>"Warhammer Fantasy Roleplay" becomes "warhammer-fantasy-roleplay"; "D&amp;D" becomes "d-and-d".</summary>
     internal static string Slug(string label) =>
         string.Join('-', MetadataText.Words(MetadataText.Normalize(label).Replace("&", " and ", StringComparison.Ordinal).Replace("+", " plus ", StringComparison.Ordinal)));
-
-    /// <summary>Folder labels the user switched off: (folder in comparison form, vocabulary, term key).</summary>
-    public async Task<IReadOnlySet<(string Folder, string Vocabulary, string Key)>> GetIgnoredFolderLabelsAsync(CancellationToken ct = default)
-    {
-        await using var db = await contexts.CreateDbContextAsync(ct);
-        var rows = await db.IgnoredFolderLabels.AsNoTracking().Select(l => new { l.Folder, l.Vocabulary, l.TermKey }).ToListAsync(ct);
-        return rows.Select(r => (r.Folder, r.Vocabulary, r.TermKey)).ToHashSet();
-    }
-
-    /// <summary>Switches a folder label off (<paramref name="enabled"/> false) or back on. Returns whether anything changed.</summary>
-    public async Task<bool> SetFolderLabelEnabledAsync(string folder, string vocabulary, string key, bool enabled, CancellationToken ct = default)
-    {
-        var normalized = MetadataText.Normalize(folder);
-        await using var db = await contexts.CreateDbContextAsync(ct);
-        var row = await db.IgnoredFolderLabels.FirstOrDefaultAsync(l => l.Folder == normalized && l.Vocabulary == vocabulary && l.TermKey == key, ct);
-        if (enabled == (row is null)) return false;
-        if (row is null)
-            db.IgnoredFolderLabels.Add(new IgnoredFolderLabel { Folder = normalized, Vocabulary = vocabulary, TermKey = key, CreatedUtc = _clock.GetUtcNow().UtcDateTime });
-        else
-            db.IgnoredFolderLabels.Remove(row);
-        await db.SaveChangesAsync(ct);
-        return true;
-    }
 }
 
 /// <summary>A pending term in Needs review: the field it would fill, how many documents wait on it, and a quote.</summary>

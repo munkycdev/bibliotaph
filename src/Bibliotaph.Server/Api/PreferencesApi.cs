@@ -13,7 +13,7 @@ namespace Bibliotaph.Server.Api;
 
 /// <summary>
 /// /api/settings: the choices in Settings › Library below the folders and in Preferences, as the Windows app has them, on
-/// the same services: the start page, the folder names read as labels and the folder rules answered in Needs review.
+/// the same services: the start page and the folder rules answered in Needs review.
 /// </summary>
 public static class PreferencesApi
 {
@@ -43,16 +43,6 @@ public static class PreferencesApi
             return Results.NoContent();
         });
 
-        // Every book under a folder of that name has its hints read again before the answer.
-        settings.MapPut("/folder-names", async (FolderNameSwitch change, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
-        {
-            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
-            var library = lease.Library;
-            if ((await library.Get<VocabularyStore>().GetAsync(ct)).Find(change.Vocabulary, change.Term) is not { } term) return Results.NotFound();
-            await library.Get<MetadataHints>().SetFolderLabelEnabledAsync(change.Folder, term, change.Enabled, ct);
-            return Results.Ok(await PreferencesAsync(library, ct));
-        });
-
         // Switching a rule on switches off another there for the same one-value field, so the whole list comes back.
         settings.MapPut("/folder-rules/{id:long}", async (long id, RuleSwitch change, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
@@ -68,19 +58,11 @@ public static class PreferencesApi
     static async Task<LibraryPreferences> PreferencesAsync(UserLibrary library, CancellationToken ct)
     {
         var start = await library.Get<SettingsStore>().GetAsync(SettingKeys.StartPage, ct);
-        var labels = await library.Get<MetadataHints>().GetFolderLabelsAsync(ct);
         var vocabulary = await library.Get<VocabularyStore>().GetAsync(ct);
         var drives = library.Get<UserDrives>();
         var rules = await library.Get<FolderRules>().GetAnsweredAsync(ct);
         return new LibraryPreferences(start == Library,
-            [.. labels.Select(u => new FolderNameLabel(u.Folder, u.Term.Vocabulary, u.Term.Key, Meaning(u.Term), Under(u.Documents), u.Enabled))],
             [.. rules.Select(r => new FolderRuleSwitch(r.Id, FolderRuleText.FolderName(r), FolderRuleText.Describe(r, vocabulary),
                 FolderText.Location(FolderRuleText.FullPath(r), drives), r.State == FolderRuleState.On))]);
     }
-
-    /// <summary>"Type: Adventure".</summary>
-    static string Meaning(Term term) => $"{MetadataFields.All.FirstOrDefault(f => f.Vocabulary == term.Vocabulary)?.Label ?? term.Vocabulary}: {term.Label}";
-
-    static string Under(int documents) =>
-        $"{documents.ToString("N0", CultureInfo.InvariantCulture)} {FolderText.Plural(documents, "document", "documents")} under a folder with this name";
 }

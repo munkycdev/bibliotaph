@@ -167,7 +167,6 @@ public sealed class FolderRules(CorrectionStore store, LibraryStore library, Met
         var folders = (await library.GetEntryFoldersAsync(entryIds, ct)).Where(f => f.Present).Select(f => f.Folder).Distinct().ToList();
         var proposed = 0;
         Vocabulary? vocabulary = null;
-        IReadOnlySet<(string Folder, string Vocabulary, string Key)>? ignored = null;
         foreach (var folder in folders)
         {
             var books = await library.GetEntriesInFolderAsync(folder, ct);
@@ -177,8 +176,7 @@ public sealed class FolderRules(CorrectionStore store, LibraryStore library, Met
                 foreach (var (value, count) in RepeatedValues(all.Values, field))
                 {
                     vocabulary ??= await vocabularies.GetAsync(ct);
-                    ignored ??= await vocabularies.GetIgnoredFolderLabelsAsync(ct);
-                    if (FromFolderNames(folder, field, value, vocabulary, ignored)) continue;
+                    if (FromFolderNames(folder, field, value, vocabulary)) continue;
                     if (await store.ProposeAsync(folder, field.Key, value, count, ct)) proposed++;
                 }
         }
@@ -186,11 +184,10 @@ public sealed class FolderRules(CorrectionStore store, LibraryStore library, Met
     }
 
     /// <summary>Whether the folder's own names (its folder labels) already suggest this value, which makes a rule pointless.</summary>
-    static bool FromFolderNames(FolderKey folder, MetadataField field, string value, Vocabulary vocabulary,
-        IReadOnlySet<(string Folder, string Vocabulary, string Key)> ignored)
+    static bool FromFolderNames(FolderKey folder, MetadataField field, string value, Vocabulary vocabulary)
     {
         var normalized = MetadataValues.Normalize(field, value);
-        return RuleHints.Propose(new HintSource(folder.Folder.Length == 0 ? "file.pdf" : $"{folder.Folder}{Path.DirectorySeparatorChar}file.pdf"), vocabulary, ignored)
+        return RuleHints.Propose(new HintSource(folder.Folder.Length == 0 ? "file.pdf" : $"{folder.Folder}{Path.DirectorySeparatorChar}file.pdf"), vocabulary)
             .Any(p => p.Origin == AssertionOrigin.Folder && p.Field == field && p.Normalized == normalized);
     }
 

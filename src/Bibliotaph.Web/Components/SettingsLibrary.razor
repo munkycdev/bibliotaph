@@ -1,5 +1,5 @@
 @* Settings › Library, as the Windows app's: the library folders, each with what it holds, adding one picked from
-   connected storage, removing one, and Look for changes. *@
+   connected storage, removing one, Look for changes, and the folder rules answered in Needs review. *@
 @inject ApiClient Api
 @inject LibraryActivity Activity
 
@@ -51,25 +51,6 @@
     </div>
     <p class="bt-fine">Removing a folder keeps your notes, collections and corrections. Files are never deleted.</p>
 
-    <div class="bt-settingshead bt-settingsheadrow">
-        <span>Folder names</span>
-        <button class="bt-link" aria-label="Refresh folder names" disabled="@_switching" @onclick="LoadPreferencesAsync">Refresh</button>
-    </div>
-    <p class="bt-fine">Folder names like “D&amp;D 5e” or “Adventures” are read as suggestions for the books inside. Switch one off if a
-        name means something else in your library. Your own corrections always win.</p>
-    @if (_preferences is { FolderNames.Count: 0 })
-    {
-        <p class="bt-fine">No folder names in your library match a game system, type or other label yet.</p>
-    }
-    @foreach (var label in _preferences?.FolderNames ?? [])
-    {
-        <label class="bt-switchrow">
-            <input type="checkbox" checked="@label.Enabled" disabled="@_switching" aria-label="@($"Read the folder name {label.Folder} as a label")"
-                   @onchange="e => SwitchNameAsync(label, e.Value is true)" />
-            <span><strong>@label.Folder</strong><span class="bt-arrow"> → </span>@label.Meaning<small>@label.Detail</small></span>
-        </label>
-    }
-
     @if (_preferences is { FolderRules.Count: > 0 } preferences)
     {
         <div class="bt-settingshead">Folder rules</div>
@@ -116,9 +97,6 @@
     async Task LoadPreferencesAsync() => await ChangeAsync(() => Api.LibraryPreferencesAsync());
 
     // Each switch reads the hints of the books it touches again before answering, so the others wait for it.
-    Task SwitchNameAsync(FolderNameLabel label, bool enabled) =>
-        ChangeAsync(() => Api.SwitchFolderNameAsync(new FolderNameSwitch(label.Folder, label.Vocabulary, label.Term, enabled)));
-
     Task SwitchRuleAsync(FolderRuleSwitch rule, bool enabled) => ChangeAsync(() => Api.SwitchFolderRuleAsync(rule.Id, enabled));
 
     async Task ChangeAsync(Func<Task<LibraryPreferences>> change)

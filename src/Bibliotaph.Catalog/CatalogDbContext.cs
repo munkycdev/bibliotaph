@@ -37,7 +37,6 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<VocabularyTerm> VocabularyTerms => Set<VocabularyTerm>();
     public DbSet<VocabularyAlias> VocabularyAliases => Set<VocabularyAlias>();
     public DbSet<ClassificationRun> ClassificationRuns => Set<ClassificationRun>();
-    public DbSet<IgnoredFolderLabel> IgnoredFolderLabels => Set<IgnoredFolderLabel>();
     public DbSet<AskTurn> AskTurns => Set<AskTurn>();
     public DbSet<CorrectionRequest> CorrectionRequests => Set<CorrectionRequest>();
     public DbSet<FolderRule> FolderRules => Set<FolderRule>();
@@ -150,8 +149,6 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(r => new { r.ContentHash, r.Model, r.PromptVersion });
             e.HasOne(r => r.Entry).WithMany().HasForeignKey(r => r.EntryId).OnDelete(DeleteBehavior.Cascade);
         });
-
-        modelBuilder.Entity<IgnoredFolderLabel>(e => e.HasIndex(l => new { l.Folder, l.Vocabulary, l.TermKey }).IsUnique());
 
         modelBuilder.Entity<CorrectionRequest>(e =>
         {

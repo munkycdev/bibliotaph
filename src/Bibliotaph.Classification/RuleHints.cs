@@ -65,8 +65,7 @@ public static partial class RuleHints
         _ => null,
     };
 
-    public static IReadOnlyList<MetadataProposal> Propose(
-        HintSource source, Vocabulary vocabulary, IReadOnlySet<(string Folder, string Vocabulary, string Key)>? ignored = null)
+    public static IReadOnlyList<MetadataProposal> Propose(HintSource source, Vocabulary vocabulary)
     {
         var single = new Dictionary<(MetadataField, AssertionOrigin), MetadataProposal>();
         var multi = new List<MetadataProposal>();
@@ -79,7 +78,7 @@ public static partial class RuleHints
 
         foreach (var folder in FolderNames(source.RelativePath))
         {
-            foreach (var label in Labels(folder, vocabulary, ignored))
+            foreach (var label in Labels(folder, vocabulary))
                 foreach (var proposal in TermProposals(label.Term, vocabulary, AssertionOrigin.Folder, folder))
                     Add(proposal);
         }
@@ -139,14 +138,9 @@ public static partial class RuleHints
     public static IReadOnlyList<string> FolderNames(string relativePath) =>
         (Path.GetDirectoryName(relativePath) ?? "").Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
 
-    /// <summary>The terms a folder name stands for, leaving out those the user switched off.</summary>
-    public static IEnumerable<FolderLabel> Labels(string folder, Vocabulary vocabulary, IReadOnlySet<(string Folder, string Vocabulary, string Key)>? ignored = null)
-    {
-        var normalized = MetadataText.Normalize(folder);
-        return vocabulary.Match(folder)
-            .Where(m => FieldFor(m.Term.Vocabulary) is not null && ignored?.Contains((normalized, m.Term.Vocabulary, m.Term.Key)) != true)
-            .Select(m => new FolderLabel(folder, m.Term));
-    }
+    /// <summary>The terms a folder name stands for.</summary>
+    public static IEnumerable<FolderLabel> Labels(string folder, Vocabulary vocabulary) =>
+        vocabulary.Match(folder).Where(m => FieldFor(m.Term.Vocabulary) is not null).Select(m => new FolderLabel(folder, m.Term));
 
     /// <summary>A term as a suggestion for its field; an edition also suggests its game system.</summary>
     static IEnumerable<MetadataProposal> TermProposals(Term term, Vocabulary vocabulary, AssertionOrigin origin, string quote)
