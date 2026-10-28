@@ -60,7 +60,7 @@ public static partial class BookRecords
     static string Simplify(string text)
     {
         var simple = new StringBuilder(text.Length);
-        foreach (var c in text.Normalize(NormalizationForm.FormD))
+        foreach (var c in MetadataText.UnicodeForm(text, NormalizationForm.FormD))
         {
             if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark) continue;
             if (char.IsLetterOrDigit(c)) simple.Append(char.ToLowerInvariant(c));
