@@ -253,6 +253,47 @@ public class EffectiveMetadataTests
         Assert.Equal("dnd", corrected[MetadataFields.System].First!.Value);
     }
 
+    /// <summary>Dave's rule: the AI suggests only what a lookup didn't fill, and comes back if its value is rejected.</summary>
+    [Fact]
+    public void The_ais_suggestions_give_way_on_a_field_a_lookup_filled()
+    {
+        MetadataClaim[] claims =
+        [
+            Claim(MetadataFields.Title, "Owlbear Mill", AssertionOrigin.Ai, minutes: 60),
+            Claim(MetadataFields.Title, "The Owlbear Mill", AssertionOrigin.Lookup),
+            Claim(MetadataFields.Authors, "A. Example", AssertionOrigin.Ai),
+            Claim(MetadataFields.Authors, "B. Example", AssertionOrigin.Lookup),
+            Claim(MetadataFields.System, "dnd", AssertionOrigin.Ai),
+        ];
+        var metadata = EffectiveMetadata.Compute(claims, []);
+
+        Assert.Equal("The Owlbear Mill", metadata[MetadataFields.Title].First!.Value);
+        Assert.Empty(metadata[MetadataFields.Title].Alternatives);
+        Assert.Equal(["B. Example"], metadata[MetadataFields.Authors].Values.Select(v => v.Value));
+        Assert.Empty(metadata[MetadataFields.Authors].Alternatives);
+        // A field the lookup didn't fill keeps the AI's suggestion.
+        Assert.Equal("dnd", metadata[MetadataFields.System].First!.Value);
+
+        var rejected = EffectiveMetadata.Compute(claims, [("title", MetadataValues.Normalize(MetadataFields.Title, "The Owlbear Mill"))]);
+        Assert.Equal("Owlbear Mill", rejected[MetadataFields.Title].First!.Value);
+    }
+
+    [Fact]
+    public void A_lookup_outranks_the_ai_and_hints_but_not_a_folder_rule_or_the_user()
+    {
+        var metadata = EffectiveMetadata.Compute(
+            [Claim(MetadataFields.Year, "2019", AssertionOrigin.Lookup), Claim(MetadataFields.Year, "2018", AssertionOrigin.Embedded)], []);
+        Assert.Equal("2019", metadata[MetadataFields.Year].First!.Value);
+
+        var ruled = EffectiveMetadata.Compute(
+            [Claim(MetadataFields.Publisher, "Example Press", AssertionOrigin.Lookup), Claim(MetadataFields.Publisher, "Sample Games", AssertionOrigin.FolderRule)], []);
+        Assert.Equal("Sample Games", ruled[MetadataFields.Publisher].First!.Value);
+
+        var kept = EffectiveMetadata.Compute(
+            [Claim(MetadataFields.Year, "2019", AssertionOrigin.Lookup), Claim(MetadataFields.Year, "2020", AssertionOrigin.User, AssertionState.Confirmed)], []);
+        Assert.Equal("2020", kept[MetadataFields.Year].First!.Value);
+    }
+
     [Fact]
     public void A_rejected_value_never_applies_from_any_source()
     {

@@ -18,10 +18,12 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// work (any stage but OCR) waiting or running. For progress bars: documents queued for any stage (known before
 /// Probe adds them to the index), and scanned pages already read by OCR. Classification by AI is counted on its own
 /// (<see cref="ToClassify"/>, <see cref="Classified"/>, <see cref="ClassifyFailed"/>), since it is optional and may wait
-/// for an endpoint for as long as the user likes; only a book it failed for good also needs attention. <see cref="Withheld"/> counts the documents whose
+/// for an endpoint for as long as the user likes; only a book it failed for good also needs attention. Looking books up
+/// online isn't counted at all: it is optional too, and waits for as long as it is switched off. <see cref="Withheld"/> counts the documents whose
 /// text won't be read by itself: locked, protected or forgotten (<see cref="TextAccess"/>), so nothing says they are still
 /// being read. Reading whole books chapter by chapter is counted apart too (<see cref="ToScanWhole"/>,
-/// <see cref="ScannedWhole"/>): it comes after everything else and never holds up a book.
+/// <see cref="ScannedWhole"/>): it comes after everything else and never holds up a book. Looking books up online isn't
+/// counted at all: it is optional too, and waits for as long as it is switched off.
 /// </summary>
 public sealed record IndexProgress(
     long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing, long Queued = 0, long OcrPagesDone = 0,
@@ -66,7 +68,7 @@ public sealed class IndexQueries(IndexDatabase database)
                 count(*) FILTER (WHERE status IN ('pending', 'leased')) AS Pending,
                 count(*) FILTER (WHERE status = 'failed')              AS Failed
             FROM job
-            WHERE stage NOT IN ('Classify', 'ChapterScan')
+            WHERE stage NOT IN ('Classify', 'ChapterScan', 'LookUp')
             """, cancellationToken: ct));
     }
 
@@ -78,11 +80,11 @@ public sealed class IndexQueries(IndexDatabase database)
             SELECT
                 (SELECT count(*) FROM doc) AS Documents,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Text' AND status IN ('Complete', 'Partial', 'Skipped')) AS Searchable,
-                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Classify', 'ChapterScan')) AS Processing,
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Classify', 'ChapterScan', 'LookUp')) AS Processing,
                 (SELECT count(DISTINCT document_id) FROM stage_status WHERE status IN ('Failed', 'Blocked')) AS NeedAttention,
                 (SELECT count(*) FROM page WHERE needs_ocr = 1 AND document_id NOT IN
                     (SELECT document_id FROM stage_status WHERE stage = 'Ocr' AND status IN ('Blocked', 'Failed'))) AS PagesAwaitingOcr,
-                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Ocr', 'Classify', 'ChapterScan')) AS Indexing,
+                (SELECT count(DISTINCT document_id) FROM job WHERE status IN ('pending', 'leased') AND stage NOT IN ('Ocr', 'Classify', 'ChapterScan', 'LookUp')) AS Indexing,
                 (SELECT count(DISTINCT document_id) FROM stage_status) AS Queued,
                 (SELECT count(*) FROM page WHERE text_source = 'ocr') AS OcrPagesDone,
                 (SELECT count(*) FROM stage_status WHERE stage = 'Classify' AND status IN ('Pending', 'Running')) AS ToClassify,
@@ -167,6 +169,18 @@ public sealed class IndexQueries(IndexDatabase database)
         await using var connection = database.OpenRead();
         return await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
             "SELECT meta_isbn FROM doc WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>
+    /// The ISBNs the Identify stage found for a document, in its stored 13-digit form: an e-book package's first, then
+    /// in page order, so a lookup tries the book's own ISBN before one printed further on.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetIsbnsAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<string>(new CommandDefinition(
+            "SELECT value FROM doc_identifier WHERE document_id = @documentId AND kind = 'Isbn' ORDER BY pdf_page IS NOT NULL, pdf_page, value",
+            new { documentId }, cancellationToken: ct))];
     }
 
     /// <summary>

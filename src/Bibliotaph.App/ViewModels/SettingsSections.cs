@@ -37,10 +37,11 @@ public abstract partial class SettingsSectionViewModel : ObservableObject
 /// <summary>
 /// Settings > Processing: indexing step by step with the time left, what each part is on now, pause and resume for
 /// each lane, and why online-only files wait. The progress itself is <see cref="LibraryActivity"/>'s, which the
-/// sidebar's status line also shows. Also whether files indexing downloaded go back to online-only.
+/// sidebar's status line also shows. Also whether files indexing downloaded go back to online-only, and whether books
+/// are looked up online by their ISBN.
 /// </summary>
 public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, LibraryActivity activity, SettingsLinks links, OnlineOnlyReturns returns,
-    ILogger<ProcessingSectionViewModel> log) : SettingsSectionViewModel
+    BookLookups lookups, ILogger<ProcessingSectionViewModel> log) : SettingsSectionViewModel
 {
     bool _loading;
 
@@ -57,12 +58,17 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
     [ObservableProperty]
     public partial bool ReturnOnlineOnly { get; set; } = true;
 
+    /// <summary>"Look up books online by their ISBN": off until the user turns it on.</summary>
+    [ObservableProperty]
+    public partial bool LookUpOnline { get; set; }
+
     public override async Task LoadAsync()
     {
         _loading = true;
         try
         {
             ReturnOnlineOnly = await returns.IsOnAsync();
+            LookUpOnline = lookups.IsOn;
         }
         finally
         {
@@ -81,6 +87,19 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
         catch (Exception ex)
         {
             log.LogError(ex, "Saving whether files go back to online-only failed");
+        }
+    }
+
+    async partial void OnLookUpOnlineChanged(bool value)
+    {
+        if (_loading) return;
+        try
+        {
+            await lookups.SetOnAsync(value);
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Saving whether books are looked up online failed");
         }
     }
 

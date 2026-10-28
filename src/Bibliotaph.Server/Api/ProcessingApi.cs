@@ -10,8 +10,9 @@ using Bibliotaph.Server.Libraries;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// /api/processing: Settings › Processing, as the Windows app's <c>LibraryActivity</c> gathers it, and pausing each lane.
-/// A pause is kept with the library, so it holds after the server closes an idle library and opens it again.
+/// /api/processing: Settings › Processing, as the Windows app's <c>LibraryActivity</c> gathers it, pausing each lane, and
+/// whether books are looked up online. A pause is kept with the library, so it holds after the server closes an idle
+/// library and opens it again.
 /// </summary>
 public static class ProcessingApi
 {
@@ -32,6 +33,20 @@ public static class ProcessingApi
             await PausedLanes.SaveAsync(library.Get<SettingsStore>(), paused, ct);
             PausedLanes.Apply(library.Indexing, paused);
             return await StateAsync(library, ct);
+        });
+
+        processing.MapGet("/lookups", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return new LookupSetting(lease.Library.Get<BookLookups>().IsOn);
+        });
+
+        processing.MapPut("/lookups", async (LookupSetting setting, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var lookups = lease.Library.Get<BookLookups>();
+            await lookups.SetOnAsync(setting.On, ct);
+            return new LookupSetting(lookups.IsOn);
         });
     }
 
