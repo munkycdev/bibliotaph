@@ -32,7 +32,12 @@ public abstract partial class PipelineTests
         public Task<WebShelfRead> ReadShelfAsync(string? version, CancellationToken ct) => Task.FromResult(
             Shelf is null ? WebShelfRead.Unreached : Shelf.Version == version ? WebShelfRead.Unchanged : new WebShelfRead(true, Shelf));
 
-        public Task<SharedReading?> ReadReadingAsync(string contentHash, CancellationToken ct) => Task.FromResult(Readings.GetValueOrDefault(contentHash));
+        /// <summary>Files the web library couldn't read, for this PC to read itself.</summary>
+        public ConcurrentDictionary<string, bool> Unreadable { get; } = [];
+
+        public Task<WebReading> ReadReadingAsync(string contentHash, CancellationToken ct) => Task.FromResult(
+            Unreadable.ContainsKey(contentHash) ? WebReading.Unreadable
+            : Readings.TryGetValue(contentHash, out var reading) ? new WebReading(reading, false) : WebReading.NotYet);
 
         public Task<byte[]?> ReadCoverAsync(string name, CancellationToken ct) => Task.FromResult(Covers.GetValueOrDefault(name));
 
@@ -107,7 +112,8 @@ public abstract partial class PipelineTests
             _web.Covers[hash + ".jpg"] = [0xFF, 0xD8, 0xFF, 0xD9];
             await SettleAsync();
 
-            Assert.Null(before);
+            // Listed by its file name while it waits.
+            Assert.Equal("Lantern", before);
             Assert.Equal("The Sunken Lantern", await _queries.GetTitleAsync(documentId, Ct));
             Assert.Equal(0, _web.Downloads);
         }
@@ -176,6 +182,80 @@ public abstract partial class PipelineTests
             Assert.Equal(bytes, opened);
             Assert.Equal(1, _web.Downloads);
             Assert.Equal(Path.Combine(_library, "Lantern.pdf"), local.FullPath);
+        }
+
+        [Fact]
+        public async Task A_book_the_web_library_couldnt_read_is_downloaded_and_read_here()
+        {
+            var bytes = await File.ReadAllBytesAsync(_pdfs.Injected, Ct);
+            var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            _web.Shelf = new WebShelf("v1", [Folder(7, "RPG", new WebShelfFile("Lantern.pdf", hash, bytes.Length, Modified))]);
+            _web.Unreadable[hash] = true;
+            _web.Files[hash] = bytes;
+
+            await _service.StartAsync(Ct);
+            await Sync().SyncNowAsync(Ct);
+            await SettleAsync();
+            var documentId = (await _libraryStore.FindDocumentAsync(ContentHash.Parse(hash), Ct))!.Value;
+            var entry = Assert.Single(await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct));
+            await using var c = _index.OpenRead();
+
+            Assert.Equal(documentId, entry.DocumentId);
+            Assert.True(entry.PageCount > 0);
+            Assert.All(new[] { Stage.Probe, Stage.Text }, stage => Assert.Equal("Complete", StatusOf(c, entry.Title, stage)));
+            Assert.True(_web.Downloads > 0);
+        }
+
+        [Fact]
+        public async Task Downloads_past_their_room_go_least_recently_read_first_and_those_kept_offline_stay()
+        {
+            // Room counted in 1,000-byte "GB", so two 600-byte books don't fit in one.
+            var copies = new WebLibraryCopies(_paths, _web, _shelf, _settings, new DiskSpace(), gigabyte: 1000);
+            await copies.SetRoomGbAsync(1, Ct);
+            var books = Enumerable.Range(0, 3).Select(i =>
+            {
+                var bytes = Enumerable.Repeat((byte)i, 600).ToArray();
+                var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+                _web.Files[hash] = bytes;
+                return new DocumentSource(i + 1, hash, "pdf", $"{WebLibraryPaths.Of(7)}/Book {i}.pdf", "", []);
+            }).ToArray();
+            async Task OpenAsync(DocumentSource book)
+            {
+                await using var file = await copies.OpenAsync(book, Ct);
+            }
+
+            await copies.KeepAsync(books[0], keep: true, Ct);
+            await OpenAsync(books[1]);
+            await Task.Delay(50, Ct);
+            await OpenAsync(books[2]);
+            var after = books.Select(b => copies.Has(b.ContentHash)).ToArray();
+            var summary = await copies.SummarizeAsync(Ct);
+            // Disconnected, only the book kept offline stays.
+            _web.Shelf = new WebShelf("v1", [Folder(7, "RPG")]);
+            var sync = new WebShelfSync(_web, _shelf, _roots, _service, copies: copies);
+            await sync.SyncNowAsync(Ct);
+            _web.IsOn = false;
+            await sync.SyncNowAsync(Ct);
+            var disconnected = books.Select(b => copies.Has(b.ContentHash)).ToArray();
+            var stillKept = await copies.IsKeptAsync(books[0].ContentHash, Ct);
+
+            Assert.Equal([true, false, true], after);
+            Assert.Equal(new WebCopiesSummary(2, 1200, 1), summary);
+            Assert.Equal([true, false, false], disconnected);
+            Assert.True(stillKept);
+            Assert.Equal(3, _web.Downloads);
+        }
+
+        [Fact]
+        public async Task A_book_that_cant_be_downloaded_isnt_kept_offline()
+        {
+            var copies = new WebLibraryCopies(_paths, _web, _shelf, _settings, new DiskSpace());
+            var book = new DocumentSource(1, new string('c', 64), "pdf", $"{WebLibraryPaths.Of(7)}/Gone.pdf", "", []);
+
+            await Assert.ThrowsAsync<FileNotFoundException>(() => copies.KeepAsync(book, keep: true, Ct));
+
+            Assert.False(await copies.IsKeptAsync(book.ContentHash, Ct));
+            Assert.False(copies.Has(book.ContentHash));
         }
 
         static async Task<long> WaitForAsync(Func<Task<long?>> found)

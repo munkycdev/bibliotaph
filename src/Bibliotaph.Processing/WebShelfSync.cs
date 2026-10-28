@@ -11,11 +11,12 @@ namespace Bibliotaph.Processing;
 /// Keeps a connected PC's library folders for the web library's (<see cref="WebLibraryPaths"/>) in step with its
 /// list of files: every minute it asks whether the list changed, keeps it (<see cref="WebShelfCache"/>), adds a folder
 /// new to the web library, removes one gone from it, and has them looked through again. A web library folder the user
-/// removed here stays removed until this PC connects again. Disconnected, the folders are removed and the list
-/// forgotten; the books keep their cards, notes and everything else done with them, as a removed folder's do.
+/// removed here stays removed until this PC connects again. Disconnected, the folders are removed, the list
+/// forgotten and the downloaded books not kept offline deleted; the books keep their cards, notes and everything else
+/// done with them, as a removed folder's do.
 /// </summary>
 public sealed class WebShelfSync(IWebBooks web, WebShelfCache shelf, SourceRootStore roots, IJobControl indexing, TimeProvider? clock = null,
-    ILogger<WebShelfSync>? log = null) : IHostedService, IDisposable
+    ILogger<WebShelfSync>? log = null, WebLibraryCopies? copies = null) : IHostedService, IDisposable
 {
     public static readonly TimeSpan Every = TimeSpan.FromMinutes(1);
 
@@ -125,6 +126,8 @@ public sealed class WebShelfSync(IWebBooks web, WebShelfCache shelf, SourceRootS
         var folders = (await roots.ListAsync(ct)).Where(r => WebLibraryPaths.IsWebPath(r.Path)).ToList();
         foreach (var root in folders) await roots.RemoveAsync(root.Id, ct);
         if (folders.Count > 0) _log.LogInformation("Removed {Count} web library folders: this PC isn't connected", folders.Count);
-        if (shelf.Current is not null) shelf.Clear();
+        if (folders.Count == 0 && shelf.Current is null) return;
+        shelf.Clear();
+        if (copies is not null) await copies.ClearAsync(keepKept: true, ct);
     }
 }

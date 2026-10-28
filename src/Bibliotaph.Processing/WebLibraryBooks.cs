@@ -18,7 +18,7 @@ public interface IWebBooks
 
     Task<WebShelfRead> ReadShelfAsync(string? version, CancellationToken ct);
 
-    Task<SharedReading?> ReadReadingAsync(string contentHash, CancellationToken ct);
+    Task<WebReading> ReadReadingAsync(string contentHash, CancellationToken ct);
 
     Task<byte[]?> ReadCoverAsync(string name, CancellationToken ct);
 
@@ -168,13 +168,4 @@ public sealed class WebAwareSourceLister(ISourceLister local, WebShelfCache shel
         return Task.FromResult<SourceListing?>(new SourceListing(
             [.. folder.Files.Select(f => new ScannedFile(f.Path.Replace('/', Path.DirectorySeparatorChar), f.SizeBytes, f.ModifiedUtc, OnlineOnly: false))], []));
     }
-}
-
-/// <summary>The web library's files, downloaded through the server for <see cref="SourceFiles"/> to keep while they're read.</summary>
-public sealed class WebLibraryFiles(WebShelfCache shelf, IWebBooks web) : IRemoteFiles
-{
-    public bool IsRemote(string path) => WebLibraryPaths.IsWebPath(path);
-
-    public Task<Stream> OpenAsync(string path, CancellationToken ct) =>
-        shelf.File(path) is { } file ? web.OpenFileAsync(file.ContentHash, ct) : throw new FileNotFoundException("The file isn't in the web library any more.", path);
 }

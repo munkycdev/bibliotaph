@@ -337,22 +337,26 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         return WebShelfRead.Unreached;
     }
 
-    /// <summary>What the web library read from the file with this content, or null when it hasn't yet or didn't answer.</summary>
-    public async Task<SharedReading?> ReadReadingAsync(string contentHash, CancellationToken ct)
+    /// <summary>
+    /// What the web library read from the file with this content: <see cref="WebReading.NotYet"/> when it hasn't yet or
+    /// didn't answer, <see cref="WebReading.Unreadable"/> when this PC should read the file itself.
+    /// </summary>
+    public async Task<WebReading> ReadReadingAsync(string contentHash, CancellationToken ct)
     {
         try
         {
             using var response = await SendAsync(HttpMethod.Get, $"api/pc/books/{Uri.EscapeDataString(contentHash)}/reading", null, withKey: true, ct);
             if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
-            if (response.StatusCode == HttpStatusCode.NotFound) return null;
-            if (response.IsSuccessStatusCode) return await response.Content.ReadFromJsonAsync<SharedReading>(ct);
+            if (response.StatusCode == HttpStatusCode.NotFound) return WebReading.NotYet;
+            if (response.StatusCode == HttpStatusCode.Conflict) return WebReading.Unreadable;
+            if (response.IsSuccessStatusCode && await response.Content.ReadFromJsonAsync<SharedReading>(ct) is { } reading) return new WebReading(reading, false);
             log.LogWarning("Asking the web library for a book's reading got {Status}", (int)response.StatusCode);
         }
         catch (Exception ex) when (Unreachable(ex, ct))
         {
             log.LogInformation(ex, "Couldn't reach the web library for a book's reading");
         }
-        return null;
+        return WebReading.NotYet;
     }
 
     /// <summary>A cover the web library drew, by its file name, or null when it has none by that name or didn't answer.</summary>
@@ -384,7 +388,7 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         }
         catch (Exception ex) when (Unreachable(ex, ct))
         {
-            throw new IOException("bibliotaph.online couldn't be reached.", ex);
+            throw new WebLibraryUnreachableException(ex);
         }
         if (response.IsSuccessStatusCode) return await response.Content.ReadAsStreamAsync(ct);
         using (response)
@@ -412,6 +416,9 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         return await http.SendAsync(request, completion, ct);
     }
 }
+
+/// <summary>bibliotaph.online didn't answer: a web library book can't be downloaded until this PC is online again.</summary>
+public sealed class WebLibraryUnreachableException(Exception inner) : IOException("bibliotaph.online couldn't be reached.", inner);
 
 /// <summary>A key held in memory: the smoke test's and the tests', which must not write to Credential Manager.</summary>
 public sealed class MemoryWebLibraryKey : IWebLibraryKey

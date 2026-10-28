@@ -2301,7 +2301,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
 
         var shelf = (await pc.ReadShelfAsync(null, ct)).Shelf!;
         var same = await pc.ReadShelfAsync(shelf.Version, ct);
-        var reading = await WaitAsync(async () => await pc.ReadReadingAsync(hash, ct) is { Cover: not null } r ? r : null, ct);
+        var reading = await WaitAsync(async () => await pc.ReadReadingAsync(hash, ct) is { Reading: { Cover: not null } r } ? r : null, ct);
         var cover = await pc.ReadCoverAsync(reading.Cover!, ct);
         var notACover = await pc.ReadCoverAsync("..%2Fcatalog.db", ct);
         var unknown = await pc.ReadReadingAsync(new string('b', 64), ct);
@@ -2319,7 +2319,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal(reading.PageCount, reading.Pages.Count);
         Assert.NotEmpty(cover!);
         Assert.Null(notACover);
-        Assert.Null(unknown);
+        Assert.Equal(WebReading.NotYet, unknown);
         // OneDrive gives a link anyone may read, so the PC downloads from there, not through the server.
         Assert.Equal(HttpStatusCode.Redirect, file.StatusCode);
         Assert.StartsWith("https://public.files.1drv.com/", file.Headers.Location!.ToString(), StringComparison.Ordinal);

@@ -618,10 +618,18 @@ books join your library within a minute or so of connecting. Nothing is download
 web library already read from each book (its pages, contents, text and cover), so you can search them straight away,
 and the PC's AI reads them as it reads the PC's own books, unless you keep that folder from AI in **Settings > AI**. A
 book the web library hasn't read yet waits until it has. Scanned pages that need reading (OCR) are read on the PC,
-which downloads the book for that. A book that's on the PC as well opens from the PC's copy; one only your web library
-has is downloaded from your storage when you open it. A folder you add or remove on the web follows on the PC within a
+which downloads the book for that. A book the web library couldn't read, such as one with a password it hasn't been
+given, is downloaded and read on the PC instead. A folder you add or remove on the web follows on the PC within a
 minute. **×** beside one in the app's **Settings > Library** removes it from that PC only. Disconnecting removes them
 all from the PC; what you did with their books stays, as it does for any folder you remove.
+
+A book that's on the PC as well opens from the PC's copy. One only your web library has is downloaded from your
+storage when you open it, and the reader shows how far the download has got. Downloads are kept for next time, up to
+the **Room for downloads** in the app's **Settings > Devices** (5 GB to start); past that, the ones you read least
+recently go. To read a book without a connection, such as at the table, tick **Keep offline on this PC** in its
+details while you're online: it's downloaded then and stays until you untick it. Opened without a connection, any
+other web library book says it needs one. **Free up space** in **Settings > Devices** deletes the downloads not kept
+offline, and disconnecting deletes them too; the ones kept offline stay for when you connect again.
 
 What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
 with the built-in AI on its graphics card. The same file in your OneDrive and on the PC is the same book, matched by

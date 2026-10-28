@@ -529,7 +529,7 @@
           <v:EbookView x:Name="EbookSurface" Visibility="{Binding IsEbook, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <viewer:ImageView x:Name="ImageSurface" Source="{Binding Image}" Zoom="{Binding Zoom}"
                             Visibility="{Binding IsImage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <TextBlock Text="Opening…" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"
+          <TextBlock Text="{Binding OpeningText}" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"
                      Visibility="{Binding IsOpening, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <!-- A session item's pages weren't where they were (choice 14), and what Add page did, with Undo. -->
           <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="18,14,18,0" MaxWidth="560">

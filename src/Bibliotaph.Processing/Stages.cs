@@ -267,7 +267,7 @@ public sealed class ProbeStage(StageServices s) : IStage
             await RecordUnreachableAsync(job, ct);
             return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
         }
-        if (s.Web is { } web && WebReadings.Serves(source)) return await web.ProbeAsync(s, job, source, ct);
+        if (s.Web is { } web && WebReadings.Serves(source) && await web.ProbeAsync(s, job, source, ct) is { } read) return read;
         var title = DisplayTitle.FromFileName(source.FullPath);
 
         if (SourceFormats.IsImage(source.Format))
@@ -406,7 +406,7 @@ public sealed class TextStage(StageServices s) : IStage
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
         if (SourceFormats.IsImage(source.Format)) return new StageOutcome.Done(StageStatus.Skipped, [], "Images have no text layer.");
-        if (s.Web is { } web && WebReadings.Serves(source)) return await web.TextAsync(s, job, ct);
+        if (s.Web is { } web && WebReadings.Serves(source) && await web.TextAsync(s, job, ct) is { } read) return read;
         if (EbookFiles.Is(source)) return await ReadEbookAsync(job, source, ct);
 
         var (session, failed) = await StageHelpers.OpenPdfAsync(s, job, ct);
@@ -506,7 +506,7 @@ public sealed class CoversStage(StageServices s) : IStage
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
 
-        if (s.Web is { } web && WebReadings.Serves(source)) return await web.CoverAsync(s, job, ct);
+        if (s.Web is { } web && WebReadings.Serves(source) && await web.CoverAsync(s, job, ct) is { } read) return read;
         byte[]? jpeg;
         var key = job.ContentHash;
         if (SourceFormats.IsImage(source.Format))
