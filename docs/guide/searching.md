@@ -63,9 +63,11 @@ guide at any time, and **Esc** closes it (press **Esc** again to clear the searc
 | `favorite:` | `yes` for books with a heart, `no` for the rest | `favorite:yes` |
 | `collection:` | Books in a collection (in quotes if it has spaces) | `collection:"Winter campaign"` |
 | `folder:` | Part of a folder's name | `folder:maps` |
+| `isbn:` | An ISBN printed in the book, with or without hyphens, ISBN-10 or ISBN-13 | `isbn:978-1-23-456789-7` |
 | `format:` | `pdf`, `epub`, `mobi`, `azw`, `azw3`, `kfx`, `jpg`, `png`, `webp`, `image` for any picture, `ebook` for any e-book, or `kindle` for any Kindle book | `format:epub` |
 
 Any field also takes `unknown`, for books where nobody knows yet: `system:unknown` finds books still to be sorted out.
+`-isbn:unknown` finds the books that print an ISBN.
 A level filter only matches books whose levels are known, unless you say otherwise.
 
 If something you type can't be understood, the search says what and where, and keeps what you typed.

@@ -23,6 +23,8 @@ public sealed record DocRow
     public string? MetaKeywords { get; init; }
     /// <summary>The software the PDF says made it, which can name the store that sold it ("…DriveThruRPG…").</summary>
     public string? MetaProducer { get; init; }
+    /// <summary>An e-book package's ISBN, as 13 digits.</summary>
+    public string? MetaIsbn { get; init; }
     public string? FolderHint { get; init; }
 }
 
@@ -129,15 +131,15 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             c.Execute(
                 """
                 INSERT INTO doc (document_id, content_hash, format, display_title, page_count, width_px, height_px, encrypted, can_copy,
-                                 meta_title, meta_author, meta_subject, meta_keywords, meta_producer, folder_hint, added_utc)
+                                 meta_title, meta_author, meta_subject, meta_keywords, meta_producer, meta_isbn, folder_hint, added_utc)
                 VALUES (@DocumentId, @ContentHash, @Format, @DisplayTitle, @PageCount, @WidthPx, @HeightPx, @Encrypted, @CanCopy,
-                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @MetaProducer, @FolderHint, @now)
+                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @MetaProducer, @MetaIsbn, @FolderHint, @now)
                 ON CONFLICT (document_id) DO UPDATE SET
                     content_hash = excluded.content_hash, format = excluded.format, display_title = excluded.display_title,
                     page_count = excluded.page_count, width_px = excluded.width_px, height_px = excluded.height_px,
                     encrypted = excluded.encrypted, can_copy = excluded.can_copy, meta_title = excluded.meta_title,
                     meta_author = excluded.meta_author, meta_subject = excluded.meta_subject, meta_keywords = excluded.meta_keywords,
-                    meta_producer = excluded.meta_producer, folder_hint = excluded.folder_hint
+                    meta_producer = excluded.meta_producer, meta_isbn = excluded.meta_isbn, folder_hint = excluded.folder_hint
                 """,
                 new
                 {
@@ -155,6 +157,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     doc.MetaSubject,
                     doc.MetaKeywords,
                     doc.MetaProducer,
+                    doc.MetaIsbn,
                     doc.FolderHint,
                     now = JobBoard.Timestamp(_clock.GetUtcNow()),
                 }, t);
@@ -290,7 +293,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
 
     /// <summary>
     /// "Forget its text", the purge of derived content: a document's pages with their search text and OCR words, its
-    /// bookmarks, its cover and what the AI found in its chapters go in one transaction, and so do its jobs and stage statuses, in place of which a
+    /// bookmarks, its cover, the ISBNs found in its text and what the AI found in its chapters go in one transaction, and so do its jobs and stage statuses, in place of which a
     /// skipped Probe says why. Its doc row stays, so the card keeps its title, page count and the file's own
     /// information. Returns false, changing nothing, while one of its stages is running.
     /// </summary>
@@ -308,6 +311,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 DELETE FROM page_cover WHERE document_id = @documentId;
                 DELETE FROM chapter WHERE document_id = @documentId;
                 DELETE FROM chapter_tag WHERE document_id = @documentId;
+                DELETE FROM doc_identifier WHERE document_id = @documentId;
                 DELETE FROM job WHERE document_id = @documentId;
                 DELETE FROM stage_status WHERE document_id = @documentId;
                 """, args, t);
@@ -520,6 +524,15 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             new { entryId }, t);
 
     /// <summary>Stores a document's page fingerprints (<see cref="PageFingerprints"/>), in page order.</summary>
+    /// <summary>Replaces the ISBNs and product codes found in a document.</summary>
+    public Task SetIdentifiersAsync(long documentId, IReadOnlyList<BookIdentifier> identifiers, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            c.Execute("DELETE FROM doc_identifier WHERE document_id = @documentId", new { documentId }, t);
+            c.Execute("INSERT INTO doc_identifier (document_id, kind, value, pdf_page, printed) VALUES (@documentId, @Kind, @Value, @PdfPage, @Printed)",
+                identifiers.Select(i => new { documentId, Kind = i.Kind.ToString(), i.Value, i.PdfPage, i.Printed }), t);
+        }, ct);
+
     public Task SetFingerprintsAsync(long documentId, IReadOnlyList<string?> fingerprints, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) => c.Execute(
             "UPDATE page SET fingerprint = @fingerprint WHERE document_id = @documentId AND pdf_page = @pdfPage",

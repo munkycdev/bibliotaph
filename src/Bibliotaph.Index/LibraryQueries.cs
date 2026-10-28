@@ -225,7 +225,17 @@ public sealed record StageState(Stage Stage, StageStatus Status, string? Reason)
 /// <summary>What the inspector shows from index.db.</summary>
 public sealed record DocumentDetails(
     LibraryEntry Entry, bool Encrypted, bool CanCopy, string? MetaTitle, string? MetaAuthor, string? MetaSubject,
-    int? WidthPx, int? HeightPx, long OcrPages, long PagesAwaitingOcr, IReadOnlyList<StageState> Stages);
+    int? WidthPx, int? HeightPx, long OcrPages, long PagesAwaitingOcr, IReadOnlyList<StageState> Stages)
+{
+    /// <summary>The ISBNs and product codes the file prints about itself, in the order found.</summary>
+    public IReadOnlyList<PrintedIdentifier> Identifiers { get; init; } = [];
+}
+
+/// <summary>
+/// An ISBN or product code as the book prints it, and the page it is on as the book numbers it (its printed label, else
+/// its page number from 1), or null when it came from an e-book's package.
+/// </summary>
+public sealed record PrintedIdentifier(IdentifierKind Kind, string Printed, string? Page);
 
 /// <summary>
 /// The library grid and both search tabs, over index.db. SQL text comes from fixed fragments; every value,
@@ -681,10 +691,22 @@ public sealed class LibraryQueries(IndexDatabase database)
         var stages = await connection.QueryAsync<(string Stage, string Status, string? Reason)>(new CommandDefinition(
             "SELECT stage, status, reason FROM stage_status WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
 
+        var identifiers = await connection.QueryAsync<(string Kind, string Printed, long? PdfPage, string? Label)>(new CommandDefinition(
+            """
+            SELECT i.kind, i.printed, i.pdf_page, p.label
+            FROM doc_identifier i LEFT JOIN page p ON p.document_id = i.document_id AND p.pdf_page = i.pdf_page
+            WHERE i.document_id = @documentId
+            ORDER BY i.pdf_page IS NOT NULL, i.pdf_page, i.kind
+            """, new { documentId }, cancellationToken: ct));
+
         return new DocumentDetails(entry, encrypted != 0, canCopy != 0, metaTitle, metaAuthor, metaSubject,
             (int?)widthPx, (int?)heightPx, ocrPages, awaiting,
             [.. stages.Select(s => new StageState(Enum.Parse<Stage>(s.Stage), Enum.Parse<StageStatus>(s.Status), s.Reason))
-                .OrderBy(s => s.Stage)]); // the enum is in pipeline order
+                .OrderBy(s => s.Stage)]) // the enum is in pipeline order
+        {
+            Identifiers = [.. identifiers.Select(i => new PrintedIdentifier(Enum.Parse<IdentifierKind>(i.Kind), i.Printed,
+                i.PdfPage is { } page ? i.Label ?? (page + 1).ToString(CultureInfo.InvariantCulture) : null))],
+        };
     }
 
     /// <summary>
@@ -996,6 +1018,16 @@ public sealed class LibraryQueries(IndexDatabase database)
                 Add($"coalesce(d.folder_hint, '') LIKE @folder{i} ESCAPE '\\'", $"folder{i}", Contains(plan.Folders[i]));
             for (var i = 0; i < plan.ExcludedFolders.Count; i++)
                 Add($"coalesce(d.folder_hint, '') NOT LIKE @excludedFolder{i} ESCAPE '\\'", $"excludedFolder{i}", Contains(plan.ExcludedFolders[i]));
+
+            for (var i = 0; i < plan.Isbns.Count; i++)
+            {
+                var isbn = plan.Isbns[i];
+                // A book owned elsewhere has no document, so no ISBN of its own: it is one of the unknown.
+                var found = isbn.IsUnknown
+                    ? "coalesce(e.document_id, -1) IN (SELECT document_id FROM doc_identifier WHERE kind = 'Isbn')"
+                    : $"coalesce(e.document_id, -1) IN (SELECT document_id FROM doc_identifier WHERE kind = 'Isbn' AND value = @isbn{i})";
+                Add(isbn.Negated != isbn.IsUnknown ? $"NOT {found}" : found, $"isbn{i}", isbn.Value);
+            }
 
             // Only set when there are no words to find, so it never applies to page search (which then finds nothing).
             if (plan.TextExclude is { } textExclude)

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Find a book by its ISBN.** Bibliotaph now finds the ISBN and product code a book prints on its first pages or back
+  cover, or in an e-book's own information, and shows each in the book's details with the page it's on. `isbn:` in
+  the search box finds a book by it, typed with or without hyphens, and `-isbn:unknown` lists the books that have one.
+  Nothing is read again: books already in your library get it from the text Bibliotaph has. See
+  [Searching](docs/guide/searching.md#fields).
 - **No blank page after an update.** On bibliotaph.online, while your library comes back from storage after an update
   or a restart, the page says so with how long it has taken, and opens your library when it's back, rather than
   staying empty for minutes. The server also starts bringing back the libraries of people who signed in lately as soon

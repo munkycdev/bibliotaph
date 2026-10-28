@@ -23,6 +23,12 @@ public sealed record ScopeCondition(string Scope, bool Negated = false, bool ByN
 /// <summary><c>where:elsewhere</c>: books owned only somewhere else, or with <see cref="Elsewhere"/> false those with a file here.</summary>
 public sealed record WhereCondition(bool Elsewhere);
 
+/// <summary><c>isbn:</c> an ISBN's 13 digits, or unknown for the books with none found in them.</summary>
+public sealed record IsbnCondition(string Value, bool Negated = false)
+{
+    public bool IsUnknown => Value == SearchQuery.Unknown;
+}
+
 /// <summary><c>level:</c> a stored level value ("3", "1-5", "n/a") or unknown.</summary>
 public sealed record LevelCondition(string Value, bool Negated = false);
 
@@ -67,11 +73,12 @@ public sealed record SearchPlan
     public IReadOnlyList<PlayersCondition> Players { get; init; } = [];
     public IReadOnlyList<ScopeCondition> Scopes { get; init; } = [];
     public IReadOnlyList<WhereCondition> Wheres { get; init; } = [];
+    public IReadOnlyList<IsbnCondition> Isbns { get; init; } = [];
 
     /// <summary>True when the query asks for nothing at all, so the library shows everything.</summary>
     public bool IsEmpty => TextMatch is null && TextExclude is null && FieldMatch is null && FieldExclude is null
         && Formats.Count == 0 && ExcludedFormats.Count == 0 && Folders.Count == 0 && ExcludedFolders.Count == 0
-        && Facets.Count == 0 && Levels.Count == 0 && Players.Count == 0 && Scopes.Count == 0 && Wheres.Count == 0;
+        && Facets.Count == 0 && Levels.Count == 0 && Players.Count == 0 && Scopes.Count == 0 && Wheres.Count == 0 && Isbns.Count == 0;
 
     /// <summary>Documents found by title and metadata: the text and text-field parts together.</summary>
     public string? DocumentMatch => (TextMatch, FieldMatch) switch
@@ -128,6 +135,7 @@ public sealed record SearchPlan
         var players = new List<PlayersCondition>();
         var scopes = new List<ScopeCondition>();
         var wheres = new List<WhereCondition>();
+        var isbns = new List<IsbnCondition>();
         var formats = new List<string>();
         var excludedFormats = new List<string>();
         var folders = new List<string>();
@@ -169,6 +177,9 @@ public sealed record SearchPlan
                     case SearchField.Collection:
                         scopes.Add(new ScopeCondition(value, negated, ByName: true, Prefix: field.Value is TermNode { Prefix: true }));
                         break;
+                    case SearchField.Isbn:
+                        isbns.Add(new IsbnCondition(value, negated));
+                        break;
                     case SearchField.Where:
                         // -where:here is where:elsewhere: a book has a file here or it doesn't.
                         wheres.Add(new WhereCondition(negated != (value == SearchQuery.Elsewhere)));
@@ -198,6 +209,7 @@ public sealed record SearchPlan
             Players = players,
             Scopes = scopes,
             Wheres = wheres,
+            Isbns = isbns,
         };
     }
 

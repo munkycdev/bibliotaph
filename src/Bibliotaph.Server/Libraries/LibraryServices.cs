@@ -168,6 +168,7 @@ public static class LibraryServices
         services.AddSingleton<IStage, OcrStage>();
         services.AddSingleton<UserTagService>();
         services.AddSingleton<IStage, MatchStage>();
+        services.AddSingleton<IStage, IdentifyStage>();
         // AI: the Windows app's Classify and whole-book scan stages and Settings > AI, over a model service the user chose, with their key.
         services.AddSingleton(sp => new ServerApiKeys(sp.GetRequiredService<SettingsStore>(), host.Protection.CreateProtector($"Bibliotaph.Ai.Keys.{userId}")));
         services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ServerApiKeys>());

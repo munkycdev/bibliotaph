@@ -282,6 +282,7 @@ public partial class App : Application
         builder.Services.AddSingleton<AiReadingFeed>();
         builder.Services.AddSingleton<IStage, ClassifyStage>();
         builder.Services.AddSingleton<IStage, MatchStage>();
+        builder.Services.AddSingleton<IStage, IdentifyStage>();
         builder.Services.AddSingleton<ChapterScanStore>();
         builder.Services.AddSingleton<ChapterQueries>();
         builder.Services.AddSingleton<ChapterProjection>();

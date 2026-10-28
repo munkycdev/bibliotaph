@@ -38,6 +38,9 @@ The **Details** tab shows:
 - **Suggested** marks on values nobody has confirmed yet. Open one to see where it came from, with the page and quote.
 - **Where it is**: the file's folder, with **Show in File Explorer**.
 - **Copies**, when the book is in more than one file.
+- **About the file**: its format, when it was added, its folders and what the file says of itself. It includes the
+  **ISBN** and **Product code** the book prints, with the page each is on, so you can check them. Bibliotaph finds
+  these on the first pages and the back cover, from the text it already has, and from an e-book's own information.
 - Its collections, as chips you can remove.
 - **Found inside the book**, once the AI has [scanned the whole book](ai.md#scanning-whole-books): each chapter with
   its pages and the settings, environments, themes and creatures found in it. These describe parts of the book, not the
