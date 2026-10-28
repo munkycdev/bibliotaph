@@ -83,6 +83,18 @@ public static class ApiEndpoints
             return new CreatedInvite(InviteLink(options.Value, context.Request, code), Utc(invite.Expires));
         });
 
+        // The link again, while the invitation is open; 404 once it's used or expired, or for one made before codes were kept.
+        invites.MapGet("/{id}/link", async (string id, HttpContext context, AccountService accounts, IOptions<ServerOptions> options, CancellationToken ct) =>
+        {
+            if (await accounts.InviteCodeAsync(id, ct) is not { } code) return Results.NotFound();
+            var invite = (await accounts.InvitesAsync(ct)).Single(i => i.Id == id);
+            return Results.Ok(new CreatedInvite(InviteLink(options.Value, context.Request, code), Utc(invite.Expires)));
+        });
+
+        // An open invitation's link stops working at once; a used one's account stays.
+        invites.MapDelete("/{id}", async (string id, AccountService accounts, CancellationToken ct) =>
+            await accounts.DeleteInviteAsync(id, ct) ? Results.NoContent() : Results.NotFound());
+
         // An admin's list of accounts, and deleting one as Close account would: the account's own sessions end at
         // their next request. An admin closes their own account with Close account instead.
         var people = api.MapGroup("/accounts").RequireAuthorization(AuthSetup.AdminPolicy);

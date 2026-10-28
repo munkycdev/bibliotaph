@@ -61,8 +61,10 @@ another service is theirs, so it stays.
 ## Inviting others
 
 If your account can invite, **Settings** has **Members**. Type who it's for (only you see this), tick **Can invite
-others** if they should be able to invite too, and choose **New invitation**. Copy the link straight away and send it
-yourself: it's shown only once. The list below shows each invitation and whether it has been used.
+others** if they should be able to invite too, and choose **New invitation**. Copy the link and send it yourself. The
+list below shows each invitation and whether it has been used: the copy button beside an open one puts its link on
+the clipboard again, and the bin deletes an invitation. Deleting an open one makes its link stop working straight
+away, so it asks first; deleting a used one only tidies the list, and the account made from it stays.
 
 Under the invitations, **Accounts** lists everyone who has joined, with their email address, when they joined and when they last
 signed in. The bin beside an account deletes it once you confirm: it's the same as its owner choosing **Close
@@ -627,7 +629,7 @@ details while you're online: it's downloaded then and stays until you untick it.
 other web library book says it needs one. **Open in another app** opens the downloaded copy. **Free up space** in **Settings > Devices** deletes the downloads not kept
 offline, and disconnecting deletes them too; the ones kept offline stay for when you connect again.
 
-With **Look up books online by their ISBN** on, a connected PC looks its books up through bibliotaph.online, which
+A connected PC looks its books up through bibliotaph.online, which
 asks Open Library and then Google Books, so the PC's own books are found in both, as the web library's are; the ISBNs
 are all it sends. The books it couldn't find before it connected are asked again. Disconnected, it asks Open Library
 itself. See [Cataloging](cataloging.md#where-suggestions-come-from).
@@ -659,10 +661,10 @@ AI** each stop one step until you resume it, even after you sign out; pausing th
 The library comes first: while you're using it, reading books in the background steps aside, and carries on when you
 pause.
 
-**Look up books online by their ISBN**, off until you tick it, has the server ask Open Library about the ISBNs your
-books print, and nothing else, and suggest each book's title, authors, publisher and year from its record, as the
-Windows app does. A book Open Library doesn't know is looked for in Google Books next, and the setting names both; a
-book either couldn't find before Google Books was added is asked again. See [Cataloging](cataloging.md#where-suggestions-come-from).
+**Looking up online**, under the steps, says where books are looked up: the server asks Open Library about the ISBNs
+your books print, and nothing else, and suggests each book's title, authors, publisher and year from its record, as the
+Windows app does. A book Open Library doesn't know is looked for in Google Books next. This is always on; a book
+neither knew is asked again once there's somewhere more to ask. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 ## Vocabulary
 

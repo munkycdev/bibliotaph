@@ -6,31 +6,13 @@ using Bibliotaph.Index;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// "Look up books online by their ISBN": off until the user turns it on, since it sends the ISBNs a library holds to
-/// someone else's server. Held in memory once loaded, so the Look up stage's gate can be read at any time.
+/// Looking books up by their ISBN: the catalogue asked, and the words the Look up stage records a miss in. Always on:
+/// each catalogue is sent a book's ISBNs and nothing else, and the Processing section says where they go.
 /// </summary>
-public sealed class BookLookups(SettingsStore settings, IBookCatalogue catalogue)
+public sealed class BookLookups(IBookCatalogue catalogue)
 {
-    volatile bool _on;
-
-    /// <summary>Raised when the setting changes, from any thread.</summary>
-    public event EventHandler? Changed;
-
-    public bool IsOn => _on;
-
     /// <summary>The catalogue books are looked up in.</summary>
     public IBookCatalogue Catalogue => catalogue;
-
-    public async Task LoadAsync(CancellationToken ct = default) =>
-        _on = await settings.GetAsync(SettingKeys.LookUpOnline, ct) == bool.TrueString;
-
-    public async Task SetOnAsync(bool on, CancellationToken ct = default)
-    {
-        await settings.SetAsync(SettingKeys.LookUpOnline, on.ToString(), ct);
-        if (_on == on) return;
-        _on = on;
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
 
     const string NoRecordBefore = "No record of its ISBN in ";
 
@@ -54,12 +36,12 @@ public sealed class BookLookups(SettingsStore settings, IBookCatalogue catalogue
 /// Look up: asks an online catalogue about the ISBNs a book prints (<see cref="IdentifyStage"/>), and suggests the
 /// title, authors, publisher and year its record gives, above the AI's (<see cref="AssertionOrigin.Lookup"/>). A record
 /// is used only when its title is printed in the book, so a misprinted or reused ISBN can't rename it. A book the record
-/// renames is looked at again for another file with its new title and publisher. Runs in its own lane, only while the
-/// user has lookups on, and waits with a notice while the catalogue can't be reached. A book no catalogue knew is
-/// asked again once there are more catalogues to ask.
+/// renames is looked at again for another file with its new title and publisher. Runs in its own lane, and waits with
+/// a notice while the catalogue can't be reached. A book no catalogue knew is asked again once there are more
+/// catalogues to ask.
 /// </summary>
 public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, EntryStore entries, MetadataStore metadata, MetadataProjector projector,
-    VersionFinder versions) : IGatedStage, IRevisitedStage
+    VersionFinder versions) : IRevisitedStage
 {
     public Stage Stage => Stage.LookUp;
 
@@ -67,45 +49,27 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
 
     public Stage? After => Stage.Identify;
 
-    /// <summary>Books identified before it existed get it too; they wait in the queue until lookups are on.</summary>
+    /// <summary>Books identified before it existed get it too.</summary>
     public bool Backfill => true;
 
     public StageNames Names => new("Looking it up online", "Looking it up online", "Looking up");
 
-    public bool IsReady => lookups.IsOn;
-
-    public event EventHandler? ReadyChanged
-    {
-        add => lookups.Changed += value;
-        remove => lookups.Changed -= value;
-    }
-
-    /// <summary>Asked again when lookups are turned on, too, as the catalogues may have changed while they were off.</summary>
+    /// <summary>Asked again when the catalogues change, as when a PC connects to its web library.</summary>
     public event EventHandler? RunAgainChanged
     {
-        add
-        {
-            lookups.Changed += value;
-            lookups.Catalogue.NameChanged += value;
-        }
-        remove
-        {
-            lookups.Changed -= value;
-            lookups.Catalogue.NameChanged -= value;
-        }
+        add => lookups.Catalogue.NameChanged += value;
+        remove => lookups.Catalogue.NameChanged -= value;
     }
 
     public async Task<Func<string?, bool>> RunAgainAsync(CancellationToken ct)
     {
-        // Only while lookups are on: off, nothing is sent anywhere, not even to ask where it would be.
-        if (lookups.IsOn) await lookups.Catalogue.RefreshAsync(ct);
+        await lookups.Catalogue.RefreshAsync(ct);
         var catalogues = lookups.Catalogue.Name;
         return reason => BookLookups.AskedOfFewer(reason, catalogues);
     }
 
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
-        if (!lookups.IsOn) return new StageOutcome.Unavailable("Looking books up online is switched off.");
         var isbns = await queries.GetIsbnsAsync(job.DocumentId, ct);
         if (isbns.Count == 0) return new StageOutcome.Done(StageStatus.Skipped, [], "It prints no ISBN to look up.");
 

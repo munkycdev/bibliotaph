@@ -1025,6 +1025,8 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-settingsbody .bt-copy{margin-top:12px;margin-bottom:8px}
 .bt-fine{font-size:11px;line-height:1.6;color:var(--bt-muted);margin-top:10px}
 .bt-linkbox>span{flex:1;min-width:0}
+.bt-rowactions{white-space:nowrap;text-align:right;padding-right:0}
+.bt-rowactions .bt-icon{margin:-7px 0 -7px 2px}
 @media(max-width:850px){.bt-settings{grid-template-columns:140px minmax(0,1fr);gap:22px}}
 @media(max-width:620px){.bt-settings{grid-template-columns:1fr;gap:18px}
 .bt-settingslist{position:static;flex-direction:row;flex-wrap:wrap;gap:3px}

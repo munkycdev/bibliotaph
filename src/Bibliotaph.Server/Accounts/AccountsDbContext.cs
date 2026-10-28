@@ -109,11 +109,17 @@ public sealed class Login
     public DateTime Added { get; set; }
 }
 
-/// <summary>A one-time invitation link. Only the code's SHA-256 is kept, so this table can't be used to sign up.</summary>
+/// <summary>
+/// A one-time invitation link. The code's SHA-256 is what redeems it; the code itself is kept while the invitation is
+/// open, so an admin can copy the link again until it's used.
+/// </summary>
 public sealed class Invite
 {
     public required string Id { get; set; }
     public required string CodeHash { get; set; }
+
+    /// <summary>The code while the invitation is open; null once it's used, and for invitations made before codes were kept.</summary>
+    public string? Code { get; set; }
     public string? Note { get; set; }
     public bool Admin { get; set; }
     public string? CreatedBy { get; set; }

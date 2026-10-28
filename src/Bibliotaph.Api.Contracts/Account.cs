@@ -21,7 +21,7 @@ public sealed record LibrarySummary(int Books, int Folders);
 /// </summary>
 public sealed record CreateInvite(string? Note, bool Admin = false);
 
-/// <summary>A new invitation. <see cref="Link"/> is shown once: only a hash of its code is kept.</summary>
+/// <summary>An invitation's link: a new one's, or an open one's again from GET /api/invites/{id}/link.</summary>
 public sealed record CreatedInvite(string Link, DateTimeOffset Expires);
 
 public sealed record InviteInfo(string Id, string? Note, bool Admin, DateTimeOffset Created, DateTimeOffset Expires, DateTimeOffset? Redeemed);
