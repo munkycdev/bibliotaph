@@ -96,6 +96,10 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("TEXT")
                     .HasColumnName("code_hash");
 
+                b.Property<string>("Code")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("code");
+
                 b.Property<DateTime>("Created")
                     .HasColumnType("TEXT")
                     .HasColumnName("created");

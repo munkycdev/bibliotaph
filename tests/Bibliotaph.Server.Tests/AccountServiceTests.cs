@@ -122,13 +122,60 @@ public sealed class AccountServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task Only_a_hash_of_the_code_is_kept()
+    public async Task The_code_is_redeemed_by_its_hash()
     {
         var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
 
         var stored = Assert.Single(await _accounts.InvitesAsync());
         Assert.DoesNotContain(code, stored.CodeHash, StringComparison.Ordinal);
         Assert.Equal(64, stored.CodeHash.Length);
+        Assert.Equal(code, stored.Code);
+    }
+
+    [Fact]
+    public async Task An_open_invitations_code_can_be_had_again_until_it_is_used()
+    {
+        var (code, invite) = await _accounts.CreateInviteAsync(null, "Dana", admin: false);
+        Assert.Equal(code, await _accounts.InviteCodeAsync(invite.Id));
+
+        await _accounts.SignInAsync(Dana, code, null);
+
+        Assert.Null(await _accounts.InviteCodeAsync(invite.Id));
+        Assert.Null(Assert.Single(await _accounts.InvitesAsync()).Code);
+    }
+
+    [Fact]
+    public async Task An_expired_invitations_code_is_not_given()
+    {
+        var (_, invite) = await _accounts.CreateInviteAsync(null, null, admin: false);
+        _clock.Advance(AccountService.InviteLifetime + TimeSpan.FromMinutes(1));
+
+        Assert.Null(await _accounts.InviteCodeAsync(invite.Id));
+        Assert.Null(await _accounts.InviteCodeAsync("not-an-invitation"));
+    }
+
+    [Fact]
+    public async Task A_deleted_invitation_no_longer_signs_anyone_up()
+    {
+        var (code, invite) = await _accounts.CreateInviteAsync(null, null, admin: false);
+
+        Assert.True(await _accounts.DeleteInviteAsync(invite.Id));
+
+        Assert.False(await _accounts.DeleteInviteAsync(invite.Id));
+        Assert.Empty(await _accounts.InvitesAsync());
+        Assert.Equal(SignInResult.InviteNotValid, (await _accounts.SignInAsync(Dana, code, null)).Result);
+    }
+
+    [Fact]
+    public async Task Deleting_a_used_invitation_keeps_its_account()
+    {
+        var (code, invite) = await _accounts.CreateInviteAsync(null, null, admin: false);
+        var user = (await _accounts.SignInAsync(Dana, code, null)).User!;
+
+        Assert.True(await _accounts.DeleteInviteAsync(invite.Id));
+
+        Assert.Equal(SignInResult.SignedIn, (await _accounts.SignInAsync(Dana, null, null)).Result);
+        Assert.NotNull(await _accounts.FindUserAsync(user.Id));
     }
 
     [Fact]

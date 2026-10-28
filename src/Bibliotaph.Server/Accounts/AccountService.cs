@@ -126,6 +126,8 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
         {
             invite.Redeemed = Now;
             invite.RedeemedBy = user.Id;
+            // A used invitation's link is no use to anyone, so its code isn't kept.
+            invite.Code = null;
         }
         await db.SaveChangesAsync(ct);
         return new(SignInResult.Created, user);
@@ -211,7 +213,10 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
         await db.SaveChangesAsync(ct);
     }
 
-    /// <summary>Makes an invitation and returns its code, which is never stored and can't be shown again.</summary>
+    /// <summary>
+    /// Makes an invitation and returns its code, which is kept until the invitation is used, so
+    /// <see cref="InviteCodeAsync"/> can give it again meanwhile.
+    /// </summary>
     public async Task<(string Code, Invite Invite)> CreateInviteAsync(string? createdBy, string? note, bool admin, CancellationToken ct = default)
     {
         var code = Convert.ToBase64String(RandomNumberGenerator.GetBytes(18)).Replace('+', '-').Replace('/', '_');
@@ -219,6 +224,7 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
         {
             Id = Guid.NewGuid().ToString("N"),
             CodeHash = Hash(code),
+            Code = code,
             Note = string.IsNullOrWhiteSpace(note) ? null : note.Trim(),
             Admin = admin,
             CreatedBy = createdBy,
@@ -235,6 +241,30 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
     {
         await using var db = database.CreateContext();
         return await db.Invites.OrderByDescending(i => i.Created).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// The code of an open invitation, for copying its link again; null for one unknown, used or expired, or one made
+    /// before codes were kept.
+    /// </summary>
+    public async Task<string?> InviteCodeAsync(string id, CancellationToken ct = default)
+    {
+        await using var db = database.CreateContext();
+        if (await db.Invites.FindAsync([id], ct) is not { Code: { } code } invite) return null;
+        return invite.Redeemed is null && invite.Expires > Now ? code : null;
+    }
+
+    /// <summary>
+    /// Deletes an invitation. An open one's link stops working at once; a used one's account stays. Returns whether
+    /// there was one to delete.
+    /// </summary>
+    public async Task<bool> DeleteInviteAsync(string id, CancellationToken ct = default)
+    {
+        await using var db = database.CreateContext();
+        if (await db.Invites.FindAsync([id], ct) is not { } invite) return false;
+        db.Invites.Remove(invite);
+        await db.SaveChangesAsync(ct);
+        return true;
     }
 
     static string Hash(string code) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(code)));

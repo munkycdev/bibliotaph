@@ -1,5 +1,12 @@
 # Changes
 
+## Unreleased
+
+- **Copy an invitation's link again, and delete invitations.** On bibliotaph.online, Settings > Members now has a copy
+  button beside each open invitation, which gives the same link again until it's used, and a bin on every invitation.
+  Deleting an open one makes its link stop working straight away, so it asks first; deleting a used one tidies the list
+  and keeps the account. See [Bibliotaph on the web](docs/guide/web.md#inviting-others).
+
 ## 1.4 · 28 October 2026
 
 New in 1.4.947 (28 October 2026):
