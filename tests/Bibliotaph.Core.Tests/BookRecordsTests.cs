@@ -25,6 +25,10 @@ public class BookRecordsTests
         Assert.True(BookRecords.IsNamedIn(Record("Café Tales, Volume 2"), ["CAFE TALES VOLUME 2"]));
 
     [Fact]
+    public void Broken_characters_in_a_books_text_are_passed_over() =>
+        Assert.True(BookRecords.IsNamedIn(Record("The Owlbear Mill"), ["\uD83D The Owlbear Mill \uDC00\uFFFE"]));
+
+    [Fact]
     public void A_record_suggests_its_title_authors_first_publisher_and_year()
     {
         var proposals = BookRecords.Proposals(Record("The Owlbear Mill"));
