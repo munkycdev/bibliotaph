@@ -166,5 +166,36 @@ public abstract partial class PipelineTests
             Assert.Empty(await _copies.GetVersionsAsync(Ct));
             Assert.Equal(2, (await search.ListAsync(new LibraryFilter(), ct: Ct)).Count);
         }
+
+        [Fact]
+        public async Task A_file_printing_another_books_own_isbn_is_proposed_as_its_new_version_but_one_listing_it_further_in_is_not()
+        {
+            Copy(_pdfs.KnownText, "Books/Harbour Guide.pdf");
+            Copy(_pdfs.ChapterBook, "Books/Harbour Guide, corrected.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            var books = (await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct)).OrderBy(b => b.DocumentId).ToList();
+            Assert.Equal(2, books.Count);
+            var (first, second) = (books[0].DocumentId, books[1].DocumentId);
+            BookIdentifier Isbn(string value, int page) => new(IdentifierKind.Isbn, value, page, value);
+
+            // The first book's ISBN only in the second file's list of the line, after its own: not the same book.
+            await _indexStore.SetIdentifiersAsync(first, [Isbn("9781234567897", 1)], Ct);
+            await _indexStore.SetIdentifiersAsync(second, [Isbn("9780306406157", 1), Isbn("9781234567897", 9)], Ct);
+            await _finder.ProposeByIsbnAsync(second, Ct);
+            Assert.Empty(await _copies.GetVersionsAsync(Ct));
+
+            // Printed as its own, the first it prints, its pages differing: a new version of the book, asked about.
+            await _indexStore.SetIdentifiersAsync(second, [Isbn("9781234567897", 0)], Ct);
+            await _finder.ProposeByIsbnAsync(second, Ct);
+            var version = Assert.Single(await _copies.GetVersionsAsync(Ct)).Version;
+            Assert.Equal((first, second, VersionEvidence.SameIsbn), (version.MatchedDocumentId, version.DocumentId, version.Evidence));
+            Assert.Equal(2, (await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct)).Count);
+
+            // Found again by title and publisher, the card keeps the stronger reason.
+            await _finder.ProposeByTitleAndPublisherAsync(second, Ct);
+            Assert.Equal(VersionEvidence.SameIsbn, Assert.Single(await _copies.GetVersionsAsync(Ct)).Version.Evidence);
+        }
     }
 }

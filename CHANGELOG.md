@@ -6,6 +6,12 @@
   asks Google Books for a book Open Library has no record of, which finds many more small-press books. It sends the
   ISBNs and nothing else, and the setting names where it looks. See
   [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+- **New versions found by ISBN.** A file that prints a book's ISBN as its own, but whose pages differ, such as a
+  corrected PDF or a scan of the print edition, is now asked about in Needs review as a new version of it. Bibliotaph
+  never joins two files by an ISBN alone, since publishers keep one ISBN across printings. Books already in your
+  library are checked from the text Bibliotaph has, without reading a file again, and a book an online lookup renames
+  is checked again for another file with its title and publisher. See
+  [Cataloging](docs/guide/cataloging.md#needs-review).
 
 ## 1.3 · 19 October 2026
 

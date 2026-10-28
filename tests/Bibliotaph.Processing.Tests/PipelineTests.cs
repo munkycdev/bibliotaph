@@ -65,6 +65,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
     readonly HeldStage.Gate _matchGate = new();
     readonly TestPasswords _passwords = new();
     IndexStore _indexStore = null!;
+    VersionFinder _finder = null!;
     PartStore _partStore = null!;
     PartsService _parts = null!;
     PartProposalService _proposals = null!;
@@ -138,6 +139,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _proposals = new PartProposalService(new PartProposalStore(contexts), _parts, entries, _queries);
         await projector.ProjectAllAsync(Ct); // as the app does at startup
         var versions = new VersionStore(contexts, entries);
+        _finder = new VersionFinder(versions, entries, _queries);
         _pageRefs = new PageRefStore(contexts);
         _places = new PagePlaces(_pageRefs, entries, library, _queries, _reading);
         _copies = new CopiesService(entries, versions, library, _queries, projector, _places, _parts);
@@ -166,7 +168,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
             new StageCatalog(
             [
                 new ProbeStage(services), new TextStage(services), new CoversStage(services), new RuleHintsStage(hints, _proposals), new OcrStage(services, pageText, _shared), classify,
-                new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere, _places, hints, _parts, _userTags), _matchGate),
+                new HeldStage(new MatchStage(entries, versions, _finder, index, _queries, projector, elsewhere, _places, hints, _parts, _userTags), _matchGate),
                 chapters,
             ]),
             new IndexingFiles(new FileHasher(reader, _shelf), archives, _disk, _identity, _returns, new WebAwareSourceLister(new FileSystemSourceLister(), _shelf)),

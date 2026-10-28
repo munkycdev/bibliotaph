@@ -6,8 +6,8 @@ namespace Bibliotaph.Processing.Tests;
 /// <summary>A New version? card's buttons name the file each makes current, since "this file" left which was which to guess.</summary>
 public sealed class VersionCardTextTests
 {
-    static VersionItem Item(string path, string bookPath) => new(
-        new PendingVersion(1, 2, new EntryId(3), 4, new EntryId(5), VersionEvidence.SharedPages, 187, 190, 196, 196, DateTime.UtcNow),
+    static VersionItem Item(string path, string bookPath, VersionEvidence evidence = VersionEvidence.SharedPages) => new(
+        new PendingVersion(1, 2, new EntryId(3), 4, new EntryId(5), evidence, 187, 190, 196, 196, DateTime.UtcNow),
         "Gazetteer of the Ash Coast", path, "Gazetteer of the Ash Coast", bookPath);
 
     [Fact]
@@ -28,4 +28,11 @@ public sealed class VersionCardTextTests
         Assert.Equal(["Reprint/Gazetteer.pdf is current", "First printing/Gazetteer.pdf is current"], text.Choices.Take(2).Select(c => c.Label));
         Assert.Equal("Gazetteer of the Ash Coast now opens Reprint/Gazetteer.pdf.", text.MadeCurrent);
     }
+
+    [Theory]
+    [InlineData(VersionEvidence.SharedPages, "187 of 190 pages are the same as the book's; the rest differ.")]
+    [InlineData(VersionEvidence.SameIsbn, "It prints the book's ISBN as its own, but its pages differ.")]
+    [InlineData(VersionEvidence.TitleAndPublisher, "It has the book's title and publisher.")]
+    public void The_card_says_why_it_asks(VersionEvidence evidence, string why) =>
+        Assert.Equal(why, new VersionCardText(Item("Gazetteer_v2.pdf", "Gazetteer.pdf", evidence)).Evidence);
 }

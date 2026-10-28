@@ -29,7 +29,7 @@ public sealed record VersionDecision(PendingVersion Version, VersionAnswer Answe
 
 /// <summary>
 /// The "new version?" cards: Match proposes a file that shares most of its pages with a book, or has its title and
-/// publisher, as a new version of it; the user makes it current, keeps it as another copy, or says it is a separate
+/// publisher, and Identify one that prints its ISBN, as a new version of it; the user makes it current, keeps it as another copy, or says it is a separate
 /// book, which is remembered for that pair of files. Each file gets one card, for its best match.
 /// </summary>
 public sealed class VersionStore(IDbContextFactory<CatalogDbContext> contexts, EntryStore entries, TimeProvider? clock = null)
@@ -42,7 +42,7 @@ public sealed class VersionStore(IDbContextFactory<CatalogDbContext> contexts, E
     /// <summary>
     /// Proposes the newer of two documents as a new version of the other's book. Nothing is proposed for files already
     /// on one card, or that the user said are different books; and a file keeps the card for its best match: shared
-    /// pages over title and publisher, then the larger share. Returns whether the card is new or changed.
+    /// pages over the same ISBN over title and publisher, then the larger share. Returns whether the card is new or changed.
     /// </summary>
     public async Task<bool> ProposeAsync(long documentId, long otherDocumentId, VersionEvidence evidence, int sharedPages = 0, int comparedPages = 0,
         CancellationToken ct = default)
@@ -66,6 +66,8 @@ public sealed class VersionStore(IDbContextFactory<CatalogDbContext> contexts, E
         {
             if (existing.MatchedDocumentId != older && Score(existing).CompareTo(Score(proposal)) >= 0) return false;
             if (existing.MatchedDocumentId == older && Score(existing).Equals(Score(proposal))) return false;
+            // The same two files found again by weaker evidence keep the card's stronger reason.
+            if (existing.MatchedDocumentId == older && Strength(existing.Evidence) > Strength(evidence)) return false;
             existing.MatchedDocumentId = older;
             existing.Evidence = evidence;
             existing.SharedPages = sharedPages;
@@ -76,8 +78,16 @@ public sealed class VersionStore(IDbContextFactory<CatalogDbContext> contexts, E
         return true;
     }
 
-    static (bool, double, int) Score(VersionProposal p) =>
-        (p.Evidence == VersionEvidence.SharedPages, p.ComparedPages == 0 ? 0 : (double)p.SharedPages / p.ComparedPages, p.SharedPages);
+    static (int, double, int) Score(VersionProposal p) =>
+        (Strength(p.Evidence), p.ComparedPages == 0 ? 0 : (double)p.SharedPages / p.ComparedPages, p.SharedPages);
+
+    /// <summary>Shared pages are the book itself; an ISBN is the publisher's word for it, which a title can't be.</summary>
+    static int Strength(VersionEvidence evidence) => evidence switch
+    {
+        VersionEvidence.SharedPages => 2,
+        VersionEvidence.SameIsbn => 1,
+        _ => 0,
+    };
 
     /// <summary>
     /// The cards waiting, oldest first. A card whose files have since joined one card, or that the user said are
