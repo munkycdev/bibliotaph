@@ -66,7 +66,8 @@ public sealed record StageServices(
     IPasswordStore Passwords,
     SourceFiles Sources,
     MetadataProjector Projector,
-    PartStore Parts);
+    PartStore Parts,
+    WebReadings? Web = null);
 
 /// <summary>
 /// One step of reading a book. Besides doing its work, a stage says where it runs, what queues it and what the app
@@ -266,6 +267,7 @@ public sealed class ProbeStage(StageServices s) : IStage
             await RecordUnreachableAsync(job, ct);
             return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
         }
+        if (s.Web is { } web && WebReadings.Serves(source)) return await web.ProbeAsync(s, job, source, ct);
         var title = DisplayTitle.FromFileName(source.FullPath);
 
         if (SourceFormats.IsImage(source.Format))
@@ -404,6 +406,7 @@ public sealed class TextStage(StageServices s) : IStage
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
         if (SourceFormats.IsImage(source.Format)) return new StageOutcome.Done(StageStatus.Skipped, [], "Images have no text layer.");
+        if (s.Web is { } web && WebReadings.Serves(source)) return await web.TextAsync(s, job, ct);
         if (EbookFiles.Is(source)) return await ReadEbookAsync(job, source, ct);
 
         var (session, failed) = await StageHelpers.OpenPdfAsync(s, job, ct);
@@ -503,6 +506,7 @@ public sealed class CoversStage(StageServices s) : IStage
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
 
+        if (s.Web is { } web && WebReadings.Serves(source)) return await web.CoverAsync(s, job, ct);
         byte[]? jpeg;
         var key = job.ContentHash;
         if (SourceFormats.IsImage(source.Format))

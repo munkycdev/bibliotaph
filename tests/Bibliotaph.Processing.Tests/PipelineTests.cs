@@ -74,6 +74,8 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
     ChapterProjection _chapterProjection = null!;
     ChapterScanService _chapterService = null!;
     readonly FakeHub _hub = new();
+    readonly FakeWebBooks _web = new();
+    WebShelfCache _shelf = null!;
     SharedResults _shared = null!;
     UserTagService _userTags = null!;
     FolderCollectionStore _folderCollectionStore = null!;
@@ -108,7 +110,9 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         var reader = new DownloadingReader(new SourceFileReader(), _cloud);
         var index = _indexStore = new IndexStore(_writer);
         var archives = new ArchiveReader(reader);
-        _sources = new SourceFiles(_paths, archives, new DiskSpace());
+        // The web library's folders are read through it, as on a connected PC; no other test has one.
+        _shelf = new WebShelfCache(_paths);
+        _sources = new SourceFiles(_paths, archives, new DiskSpace(), remote: new WebLibraryFiles(_shelf, _web));
         var vocabulary = _vocabulary = new VocabularyStore(contexts);
         await vocabulary.SeedAsync(Ct);
         _metadataStore = new MetadataStore(contexts);
@@ -123,7 +127,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
             new MarkStores(_favorites, _reading, _collections, _sessions, _notes), new CoverCache(_paths));
         _partStore = new PartStore(contexts);
         var services = _stages = new StageServices(library, entries, index, _queries, new WorkerPdfEngine(_workers), reader, new FakeCodec(), new CoverCache(_paths), _passwords, _sources, projector,
-            _partStore);
+            _partStore, new WebReadings(_web, wait: TimeSpan.FromMilliseconds(300)));
         _parts = new PartsService(_partStore, entries, _queries, projector, services);
         var packStore = new PackStore(contexts);
         _correctionStore = new CorrectionStore(contexts);
@@ -163,7 +167,8 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
                 new HeldStage(new MatchStage(entries, versions, index, _queries, projector, elsewhere, _places, hints, _parts, _userTags), _matchGate),
                 chapters,
             ]),
-            new IndexingFiles(new FileHasher(reader), archives, _disk, _identity, _returns, new FileSystemSourceLister()), _packs, _parts, _folderCollections,
+            new IndexingFiles(new FileHasher(reader, _shelf), archives, _disk, _identity, _returns, new WebAwareSourceLister(new FileSystemSourceLister(), _shelf)),
+            _packs, _parts, _folderCollections,
             new IndexingOptions
             {
                 WatchFolders = _watchFolders, RescanDelay = TimeSpan.FromMilliseconds(200), IdleRecheck = TimeSpan.FromSeconds(1),

@@ -13,7 +13,7 @@ namespace Bibliotaph.App.ViewModels;
 /// stops waiting. Once connected, it says whose library and how library sync with it is going, and Disconnect
 /// forgets the PC's key here and on the web.
 /// </summary>
-public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync sync, IDesktopShell shell, TimeProvider clock,
+public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync sync, WebShelfSync shelf, IDesktopShell shell, TimeProvider clock,
     ILogger<DevicesSectionViewModel> log) : SettingsSectionViewModel
 {
     System.Windows.Threading.Dispatcher? _dispatcher;
@@ -130,7 +130,11 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
         }
         await ShowAsync();
         // Merged now rather than at the next minute's look, so the web library's work shows here straight away.
-        if (IsConnected) _ = Task.Run(() => sync.SyncNowAsync());
+        if (IsConnected)
+        {
+            _ = Task.Run(() => sync.SyncNowAsync());
+            shelf.Nudge();
+        }
     }
 
     /// <summary>Opens the approval page again, as when its tab was closed.</summary>
@@ -151,7 +155,8 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
     async Task DisconnectAsync()
     {
         await web.DisconnectAsync();
-        Note = "This PC is disconnected. Your books and work on it are untouched.";
+        shelf.Nudge();
+        Note = "This PC is disconnected. The web library's folders go from your library here; your own folders and your work are untouched.";
         await ShowAsync();
     }
 }
