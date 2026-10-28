@@ -1,6 +1,8 @@
 # Changes
 
-## Unreleased
+## 1.4 · 28 October 2026
+
+New in 1.4.960 (28 October 2026):
 
 - **Copy an invitation's link again, and delete invitations.** On bibliotaph.online, Settings > Members now has a copy
   button beside each open invitation, which gives the same link again until it's used, and a bin on every invitation.
@@ -21,8 +23,6 @@
   for those who can invite, ADMIN (Members). Each page is headed as its entry is: Library, not Library folders; Devices,
   not Web library or Windows PCs; and a page of several parts (Library, Devices, Members) has a subheading for each.
   See [Bibliotaph on the web](docs/guide/web.md#settings).
-
-## 1.4 · 28 October 2026
 
 New in 1.4.947 (28 October 2026):
 
