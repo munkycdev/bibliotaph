@@ -169,10 +169,9 @@ public static class DetailsText
         if (entry.Format == SourceFormats.Pdf && entry.TextAccess is TextAccess.Readable or TextAccess.Forgotten)
             facts.Add(("Copying text", details.CanCopy ? "Allowed"
                 : "Not allowed by the file. Search still finds its pages; copying text out of the reader stays off, as the file asks."));
-        // What the book prints about itself, found from its text, with where it is printed so it can be checked.
+        // Only the numbers as the book prints them: a page beside one reads as part of it, and gets copied with it.
         foreach (var kind in details.Identifiers.GroupBy(i => i.Kind))
-            facts.Add((kind.Key == IdentifierKind.Isbn ? "ISBN" : "Product code",
-                string.Join(" · ", kind.Select(i => i.Page is { } page ? $"{i.Printed}, page {page}" : $"{i.Printed}, in the file's own information"))));
+            facts.Add((kind.Key == IdentifierKind.Isbn ? "ISBN" : "Product code", string.Join(" · ", kind.Select(i => i.Printed).Distinct())));
         // The PDF's own information is often wrong ("Microsoft Word - final2.doc"), so it is labelled as the file's.
         if (!string.IsNullOrWhiteSpace(details.MetaTitle)) facts.Add(("Title in the file", details.MetaTitle));
         if (!string.IsNullOrWhiteSpace(details.MetaAuthor)) facts.Add(("Author in the file", details.MetaAuthor));
