@@ -53,7 +53,7 @@ The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Needs rev
 
 ## Search
 
-The box takes words, quoted phrases, `OR`, `-word` and `word*`, mixed with fields such as `type:adventure level:3`. There is a field for every detail Bibliotaph keeps, plus `favorite:`, `collection:`, `folder:`, `format:` and `where:`; any field takes `unknown`. The **search guide** under the box explains each field and lists its values with book counts.
+The box takes words, quoted phrases, `OR`, `-word` and `word*`, mixed with fields such as `type:adventure level:3`. There is a field for every detail Bibliotaph keeps, plus `favorite:`, `collection:`, `folder:`, `format:`, `where:` and `isbn:`; any field takes `unknown`. The **search guide** under the box explains each field and lists its values with book counts.
 
 Results have two tabs, **Documents** and **Inside documents**. Snippets are always the page's own text, and while books are still being read, results say how much is covered ("Searching text in 70 of 84 documents.").
 
@@ -99,7 +99,7 @@ A binder marked **Keep at hand during games** holds rules and references; from a
 | Also own | Where else it's owned: print, a virtual tabletop, an online library, with an optional link |
 | Get it from | Where to get it again: a store, with an optional link, shared by every copy |
 
-File facts (format, pages, files, copies) are shown, not edited. Unknown stays unknown: nothing is inferred from what a sampled page doesn't mention.
+File facts (format, pages, files, copies, and the ISBNs and product codes the book prints, each with its page) are shown, not edited. Unknown stays unknown: nothing is inferred from what a sampled page doesn't mention.
 
 ### Where values come from
 
@@ -160,7 +160,7 @@ Kindle books (MOBI and AZW, including ones holding a KF8 version, and AZW3) are 
 
 When a file's content changes, it becomes the new version of its book. Binder items and page notes follow their pages into it by the pages' text; one that can't be found opens at the same printed page marked "This page changed: check it", with **Use this page**. Bibliotaph never silently jumps to an unrelated page.
 
-Processing runs in steps (finding files, text, covers, hints from names, text recognition on scanned pages, matching copies, AI), each with its own status. The bottom of the sidebar shows the current step in at most two lines, with the whole of it in its tooltip, and opens Settings > Processing. Indexing, text recognition and AI pause separately. A damaged file fails alone, without stopping the queue. **Reprocess** reads a file again, keeping the user's work, and can recognize text on every page of a bad scan.
+Processing runs in steps (finding files, text, covers, hints from names, text recognition on scanned pages, matching copies, finding the ISBN, AI), each with its own status. Finding the ISBN reads the first pages with text and the last three of a book's stored text, and an e-book's package, for ISBNs (checked by their check digit) and publishers' product codes such as PZO1110; a book that lists more than five ISBNs keeps only those labelled on its copyright page, since the rest are adverts. The bottom of the sidebar shows the current step in at most two lines, with the whole of it in its tooltip, and opens Settings > Processing. Indexing, text recognition and AI pause separately. A damaged file fails alone, without stopping the queue. **Reprocess** reads a file again, keeping the user's work, and can recognize text on every page of a bad scan.
 
 OneDrive's online-only files are indexed too, local files first, pausing while a download would leave less than 2 GB free. A file Bibliotaph downloaded is returned to online-only once read, so a cloud library bigger than the disk can be indexed; only the local copy goes, and a setting turns this off.
 

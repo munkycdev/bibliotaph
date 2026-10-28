@@ -3,7 +3,7 @@ namespace Bibliotaph.Core;
 /// <summary>Which worker lane runs a stage. Lanes pause and run independently.</summary>
 public enum Lane
 {
-    /// <summary>Probe, Text, Covers and rule hints: fast, and needed before a book is searchable.</summary>
+    /// <summary>Probe, Text, Covers, rule hints, Match and Identify: fast, and needed before a book is searchable.</summary>
     Index,
 
     /// <summary>OCR of flagged pages: slow, so it never holds up the next book's text.</summary>
@@ -36,6 +36,7 @@ public static class Pipeline
         Stage.Classify => 1,
         // 2: new-version cards, so a library matched before gets them.
         Stage.Match => 2,
+        Stage.Identify => 1,
         // Never bumped for a new prompt: a finished scan is kept until the file changes or the user asks again.
         Stage.ChapterScan => 1,
         _ => 1,

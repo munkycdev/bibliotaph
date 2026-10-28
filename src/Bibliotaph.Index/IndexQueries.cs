@@ -161,6 +161,14 @@ public sealed class IndexQueries(IndexDatabase database)
             "SELECT text FROM page WHERE document_id = @documentId ORDER BY pdf_page", new { documentId }, cancellationToken: ct))];
     }
 
+    /// <summary>An e-book package's ISBN, as the Probe stage kept it, or null.</summary>
+    public async Task<string?> GetPackageIsbnAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT meta_isbn FROM doc WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
+    }
+
     /// <summary>
     /// Each page's printed label, in page order (null for a page without one), so pages can be typed as the file
     /// numbers them outside the reader, as in the details' adventures. Empty until the file's pages are read.

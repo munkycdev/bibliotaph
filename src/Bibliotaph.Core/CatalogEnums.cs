@@ -137,6 +137,9 @@ public enum Stage
     /// <summary>Fingerprints a document's pages from its stored text and joins it to a copy of the same book.</summary>
     Match,
 
+    /// <summary>Finds the ISBNs and product codes a book prints about itself, from its stored text.</summary>
+    Identify,
+
     /// <summary>
     /// Reads a whole book chapter by chapter with the AI and tags each chapter's setting, environments, themes and
     /// creatures, after everything else, at the lowest priority.

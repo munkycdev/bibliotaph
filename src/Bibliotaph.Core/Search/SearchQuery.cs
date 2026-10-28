@@ -75,6 +75,9 @@ public enum SearchField
 
     /// <summary><c>creature:</c>, a creature the AI found in one of the book's chapters: dragon, ghoul.</summary>
     Creature,
+
+    /// <summary><c>isbn:</c>, an ISBN printed in the book, with or without hyphens, ISBN-10 or 13, or unknown.</summary>
+    Isbn,
 }
 
 /// <summary>
@@ -418,6 +421,15 @@ sealed class QueryParser(string text)
             }
             value = new TermNode(yesNo);
         }
+        if (field == SearchField.Isbn)
+        {
+            if (value is not TermNode { Prefix: false } isbn || NormalizeIsbn(isbn.Text) is not { } digits)
+            {
+                Issue("isbn: needs a whole ISBN, like 978-1-23-456789-7, or unknown.", Span(token, valueToken));
+                return null;
+            }
+            value = new TermNode(digits);
+        }
         if (field == SearchField.Where)
         {
             if (value is not TermNode { Prefix: false } answer || NormalizeWhere(answer.Text) is not { } where)
@@ -448,6 +460,10 @@ sealed class QueryParser(string text)
         MetadataText.Normalize(value) is "unknown" ? SearchQuery.Unknown
         : PlayerRange.TryParse(value, out var range) ? range.ToString()
         : null;
+
+    /// <summary>An ISBN's 13 digits, however it is written, or "unknown".</summary>
+    static string? NormalizeIsbn(string value) =>
+        MetadataText.Normalize(value) is "unknown" ? SearchQuery.Unknown : Isbn.Normalize(value);
 
     /// <summary>"yes" or "no", for a field that is one or the other.</summary>
     static string? NormalizeYesNo(string value) => value.ToLowerInvariant() switch
