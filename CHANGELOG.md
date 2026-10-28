@@ -16,6 +16,11 @@
   book a folder name misled as you come to it, and Bibliotaph offers to fix the folder's other books with it. Folder
   rules answered in Needs review stay in Settings > Library. See
   [Getting started](docs/guide/getting-started.md#folder-names-count).
+- **Settings in four groups.** The section list, on Windows and the web, now reads BOOKS (Library, Online libraries,
+  Devices), CATALOGUING (Processing, AI, Vocabulary), YOU (Preferences, Passwords, Backup, and Account on the web) and,
+  for those who can invite, ADMIN (Members). Each page is headed as its entry is: Library, not Library folders; Devices,
+  not Web library or Windows PCs; and a page of several parts (Library, Devices, Members) has a subheading for each.
+  See [Bibliotaph on the web](docs/guide/web.md#settings).
 
 ## 1.4 · 28 October 2026
 

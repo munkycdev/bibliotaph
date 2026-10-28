@@ -3,6 +3,24 @@ using Bibliotaph.App.ViewModels;
 namespace Bibliotaph.App.Services;
 
 /// <summary>The sections of the Settings page, in the order its section list shows them.</summary>
+/// <summary>
+/// The groups the section list shows its sections in, as small-capital labels above each: where the books are, how
+/// they're read, and the person's own choices. The same four, in the same words, on the web.
+/// </summary>
+public static class SettingsGroups
+{
+    public const string Books = "BOOKS", Cataloguing = "CATALOGUING", You = "YOU", Admin = "ADMIN";
+
+    /// <summary>A section's group; Start over, a development aid, sits under no label.</summary>
+    public static string Of(SettingsSection section) => section switch
+    {
+        SettingsSection.Library or SettingsSection.OnlineLibraries or SettingsSection.Devices => Books,
+        SettingsSection.Processing or SettingsSection.Ai or SettingsSection.Vocabulary => Cataloguing,
+        SettingsSection.Preferences or SettingsSection.Passwords or SettingsSection.Backup => You,
+        _ => "",
+    };
+}
+
 public enum SettingsSection
 {
     Library,
