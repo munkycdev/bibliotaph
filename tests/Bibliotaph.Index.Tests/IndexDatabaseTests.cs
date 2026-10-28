@@ -175,6 +175,9 @@ public sealed class IndexDatabaseTests : IDisposable
         Assert.Equal(2, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND name IN ('page_vec_ad', 'page_vec_au')"));
         // Version 17: a vocabulary value's web link, such as a book's page on an online service.
         Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('entry_facet') WHERE name = 'link'"));
+        // Version 22: the ISBNs and product codes books print, and an e-book package's ISBN.
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_identifier"));
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('doc') WHERE name = 'meta_isbn'"));
     }
 
     [Fact]

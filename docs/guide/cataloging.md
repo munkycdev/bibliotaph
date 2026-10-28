@@ -10,6 +10,11 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
 - **Folder and file names**: a folder called "Adventures" or "D&D 5e" suggests the type or system of the books in it.
 - **The file itself**: the title, author and other details a PDF or e-book carries (an e-book's description and
   cover too), and party sizes and levels in the file name.
+- **Open Library**, if you turn on **Look up books online by their ISBN** in **Settings > Processing**: Bibliotaph
+  sends the ISBNs a book prints, and nothing else, to [Open Library](https://openlibrary.org) and suggests the title,
+  authors, publisher and year its record gives. A record is used only when its title is printed in the book, so a
+  misprinted ISBN can't rename it. These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
+  come back only if you reject the looked-up value. Off until you turn it on.
 - **AI**, if you turn it on: a model on your PC reads a few pages and suggests the rest. Every AI suggestion must quote
   the page it came from, or it's thrown away. See [AI](ai.md).
 - **You**: anything you type, accept or reject.
@@ -38,6 +43,9 @@ The **Details** tab shows:
 - **Suggested** marks on values nobody has confirmed yet. Open one to see where it came from, with the page and quote.
 - **Where it is**: the file's folder, with **Show in File Explorer**.
 - **Copies**, when the book is in more than one file.
+- **About the file**: its format, when it was added, its folders and what the file says of itself. It includes the
+  **ISBN** and **Product code** the book prints, with the page each is on, so you can check them. Bibliotaph finds
+  these on the first pages and the back cover, from the text it already has, and from an e-book's own information.
 - Its collections, as chips you can remove.
 - **Found inside the book**, once the AI has [scanned the whole book](ai.md#scanning-whole-books): each chapter with
   its pages and the settings, environments, themes and creatures found in it. These describe parts of the book, not the

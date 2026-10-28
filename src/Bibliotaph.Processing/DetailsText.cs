@@ -169,6 +169,10 @@ public static class DetailsText
         if (entry.Format == SourceFormats.Pdf && entry.TextAccess is TextAccess.Readable or TextAccess.Forgotten)
             facts.Add(("Copying text", details.CanCopy ? "Allowed"
                 : "Not allowed by the file. Search still finds its pages; copying text out of the reader stays off, as the file asks."));
+        // What the book prints about itself, found from its text, with where it is printed so it can be checked.
+        foreach (var kind in details.Identifiers.GroupBy(i => i.Kind))
+            facts.Add((kind.Key == IdentifierKind.Isbn ? "ISBN" : "Product code",
+                string.Join(" · ", kind.Select(i => i.Page is { } page ? $"{i.Printed}, page {page}" : $"{i.Printed}, in the file's own information"))));
         // The PDF's own information is often wrong ("Microsoft Word - final2.doc"), so it is labelled as the file's.
         if (!string.IsNullOrWhiteSpace(details.MetaTitle)) facts.Add(("Title in the file", details.MetaTitle));
         if (!string.IsNullOrWhiteSpace(details.MetaAuthor)) facts.Add(("Author in the file", details.MetaAuthor));
@@ -210,7 +214,7 @@ public static class DetailsText
     {
         StageStatus.Complete => "Done",
         StageStatus.Partial => stage.Reason is null ? "Partly done" : $"Partly done: {stage.Reason}",
-        StageStatus.Skipped => stage.Stage is Stage.Classify or Stage.ChapterScan && stage.Reason is { } why ? why : "Not needed",
+        StageStatus.Skipped => stage.Stage is Stage.Classify or Stage.ChapterScan or Stage.Identify or Stage.LookUp && stage.Reason is { } why ? why : "Not needed",
         // A whole-book scan waits a long time, and says how far it has got or what it waits for.
         StageStatus.Pending when stage.Stage == Stage.ChapterScan && stage.Reason is { } waiting => waiting,
         StageStatus.Pending => "Waiting",

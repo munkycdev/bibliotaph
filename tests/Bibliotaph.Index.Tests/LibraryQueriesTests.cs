@@ -455,6 +455,25 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Equal(expected.Order(), (await DocumentsAsync(query)).Order());
 
     [Fact]
+    public async Task A_book_is_found_by_an_isbn_it_prints_however_it_is_typed()
+    {
+        var store = new IndexStore(Writer, Clock);
+        await store.SetIdentifiersAsync(Gazetteer,
+            [new BookIdentifier(IdentifierKind.Isbn, "9781234567897", 1, "978-1-23-456789-7"), new BookIdentifier(IdentifierKind.ProductCode, "PZO9999", 1, "PZO9999")], Ct);
+
+        Assert.Equal(Gazetteer, Assert.Single(await DocumentsAsync("isbn:978-1-23-456789-7")));
+        Assert.Equal(Gazetteer, Assert.Single(await DocumentsAsync("isbn:123456789x"))); // its ISBN-10
+        Assert.Empty(await DocumentsAsync("isbn:9780000000002"));
+        Assert.Equal(Gazetteer, Assert.Single(await DocumentsAsync("-isbn:unknown")));
+        Assert.Equal([Lairs, TavernMap, HauntedInn], (await DocumentsAsync("isbn:unknown")).Order());
+        Assert.Equal([Lairs, TavernMap, HauntedInn], (await DocumentsAsync("-isbn:9781234567897")).Order());
+
+        var details = await _library.GetDetailsAsync(EntryOf(Gazetteer), Ct);
+        Assert.Equal([new PrintedIdentifier(IdentifierKind.Isbn, "978-1-23-456789-7", "2"), new PrintedIdentifier(IdentifierKind.ProductCode, "PZO9999", "2")],
+            details!.Identifiers);
+    }
+
+    [Fact]
     public async Task Pages_are_grouped_by_book_with_counts_and_snippets()
     {
         var results = await _library.SearchPagesAsync(Plan("dragon"), new LibraryFilter(), pagesPerDocument: 1, ct: Ct);

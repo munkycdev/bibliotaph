@@ -54,6 +54,7 @@ static class EbookFiles
         MetaAuthor = metadata.Authors.Count > 0 ? string.Join("; ", metadata.Authors) : null,
         MetaSubject = metadata.Description is { Length: > 0 } description ? Shorten(description, 1000) : null,
         MetaKeywords = string.Join(", ", new[] { metadata.Publisher }.Concat(metadata.Subjects).OfType<string>()) is { Length: > 0 } keywords ? keywords : null,
+        MetaIsbn = metadata.Isbn is { } isbn ? Isbn.Normalize(isbn) : null,
     };
 
     static string Shorten(string text, int length)

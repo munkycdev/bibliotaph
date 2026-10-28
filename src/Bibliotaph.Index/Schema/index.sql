@@ -27,7 +27,8 @@ CREATE TABLE doc (
     meta_producer   TEXT,                          -- the software that made it, which can name the store that sold it
     folder_hint     TEXT,                          -- folder names above the file, for search
     cover           TEXT,                          -- cover file name in the cache folder, once made
-    added_utc       TEXT    NOT NULL
+    added_utc       TEXT    NOT NULL,
+    meta_isbn       TEXT                           -- an e-book package's ISBN, as 13 digits
 );
 
 -- Bookmarks, flattened in reading order. pdf_page is -1 for a bookmark that points outside the file.
@@ -291,6 +292,18 @@ CREATE VIRTUAL TABLE entry_fts USING fts5(
     tokenize = 'unicode61 remove_diacritics 2'
 );
 
+-- The ISBNs and product codes a document prints about itself, found by the Identify stage from its stored text (or
+-- its e-book package, with no page), so a book can be found by its ISBN and looked up by it.
+CREATE TABLE doc_identifier (
+    document_id  INTEGER NOT NULL,
+    kind         TEXT    NOT NULL,                 -- Bibliotaph.Core.IdentifierKind
+    value        TEXT    NOT NULL,                 -- an ISBN's 13 digits; a product code in capitals, no spaces
+    pdf_page     INTEGER,                          -- where it is first printed; null from an e-book's package
+    printed      TEXT    NOT NULL,                 -- as the book writes it
+    PRIMARY KEY (document_id, kind, value)
+) WITHOUT ROWID;
+CREATE INDEX doc_identifier_value ON doc_identifier (kind, value);
+
 -- Per-document, per-stage progress. A document is searchable once its Text stage is complete.
 CREATE TABLE stage_status (
     document_id    INTEGER NOT NULL,
@@ -342,4 +355,4 @@ CREATE TABLE shared_state (
     value           TEXT    NOT NULL
 );
 
-PRAGMA user_version = 21;
+PRAGMA user_version = 22;

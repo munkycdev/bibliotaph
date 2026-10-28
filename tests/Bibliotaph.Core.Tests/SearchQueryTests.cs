@@ -34,6 +34,9 @@ public class SearchQueryTests
     [InlineData("format:Kindle", "format:kindle")]
     [InlineData("format:prc", "format:mobi")]
     [InlineData("folder:\"Monster Manuals\"", "folder:\"Monster Manuals\"")]
+    [InlineData("isbn:978-1-23-456789-7", "isbn:9781234567897")]
+    [InlineData("isbn:123456789x", "isbn:9781234567897")]
+    [InlineData("-isbn:Unknown", "-isbn:unknown")]
     [InlineData("http://example.com", "http://example.com")]
     [InlineData("or nor", "AND(or, nor)")]
     public void Parses(string text, string expected) => Assert.Equal(expected, Tree(text));
@@ -125,6 +128,13 @@ public class SearchQueryTests
     [InlineData("level:40")]
     public void A_level_that_isnt_one_is_reported(string text) =>
         Assert.Contains("level: can be", OnlyIssue(text).Message, StringComparison.Ordinal);
+
+    [Theory]
+    [InlineData("isbn:978-1-23-456789-8")]
+    [InlineData("isbn:978*")]
+    [InlineData("isbn:dragon")]
+    public void An_isbn_that_isnt_one_is_reported(string text) =>
+        Assert.Contains("isbn: needs a whole ISBN", OnlyIssue(text).Message, StringComparison.Ordinal);
 
     [Theory]
     [InlineData("players:many")]

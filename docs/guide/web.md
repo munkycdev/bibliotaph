@@ -658,6 +658,10 @@ AI** each stop one step until you resume it, even after you sign out; pausing th
 The library comes first: while you're using it, reading books in the background steps aside, and carries on when you
 pause.
 
+**Look up books online by their ISBN**, off until you tick it, has the server ask Open Library about the ISBNs your
+books print, and nothing else, and suggest each book's title, authors, publisher and year from its record, as the
+Windows app does. See [Cataloging](cataloging.md#where-suggestions-come-from).
+
 ## Vocabulary
 
 **Settings** › **Vocabulary** holds the game systems, types and other terms your books are filed under, as in the

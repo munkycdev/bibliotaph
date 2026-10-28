@@ -118,10 +118,13 @@ public static class SearchFields
     public static readonly SearchFieldInfo Folder = new(SearchField.Folder, "folder", [], SearchFieldKind.Text,
         "part of a folder's name", "folder:maps");
 
+    public static readonly SearchFieldInfo Isbn = new(SearchField.Isbn, "isbn", [], SearchFieldKind.Text,
+        "an ISBN printed in it, with or without hyphens, or unknown", "isbn:9781234567897");
+
     /// <summary>Every field, in the order the field guide lists them: the inspector's order, then the file's own.</summary>
     public static IReadOnlyList<SearchFieldInfo> All { get; } =
         [Title, System, Edition, Type, Level, Players, Duration, Publisher, Author, Series, Setting, Style, Theme, Environment, Creature, Own, Store, Tag,
-            Favorite, Where, Collection, Format, Folder];
+            Favorite, Where, Collection, Format, Folder, Isbn];
 
     /// <summary>Fields that arrive with later metadata. Typing one says so rather than searching for the word.</summary>
     public static IReadOnlyList<string> Coming { get; } = ["length"];

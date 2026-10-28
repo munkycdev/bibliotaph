@@ -4,6 +4,16 @@
 
 New in 1.3.910 (28 October 2026):
 
+- **Look books up by their ISBN.** Turn on **Look up books online by their ISBN** in Settings > Processing, on the
+  Windows app or the web, and Bibliotaph asks Open Library about the ISBNs your books print, and nothing else. It
+  suggests the title, authors, publisher and year from the book's record, but only when the record's title is printed in
+  the book. These beat the AI's suggestions, which now fill only what the lookup didn't. Off until you turn it on. See
+  [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+- **Find a book by its ISBN.** Bibliotaph now finds the ISBN and product code a book prints on its first pages or back
+  cover, or in an e-book's own information, and shows each in the book's details with the page it's on. `isbn:` in
+  the search box finds a book by it, typed with or without hyphens, and `-isbn:unknown` lists the books that have one.
+  Nothing is read again: books already in your library get it from the text Bibliotaph has. See
+  [Searching](docs/guide/searching.md#fields).
 - **Your web library's books on your PC.** A PC connected to bibliotaph.online shows the books in your online storage
   as well as its own: each web library folder is a library folder in Settings > Library, its books searchable without
   being downloaded, and the PC's AI reads them as it reads the rest. A book is downloaded only to open it, or to read

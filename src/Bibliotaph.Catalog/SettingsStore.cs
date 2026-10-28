@@ -36,6 +36,9 @@ public static class SettingKeys
     /// <summary>"True" when backups take the search index (index.db) too.</summary>
     public const string BackupIncludeIndex = "backup.include-index";
 
+    /// <summary>"True" when books are looked up online by the ISBNs they print. Off until the user turns it on.</summary>
+    public const string LookUpOnline = "lookup.online";
+
     /// <summary>The web library's address, when it isn't bibliotaph.online: only a developer sets it.</summary>
     public const string WebAddress = "web.address";
 

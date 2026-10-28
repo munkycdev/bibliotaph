@@ -14,11 +14,12 @@ namespace Bibliotaph.Server.Libraries;
 /// <summary>
 /// What every library shares with the server: logging, the clock, the way to reach a user's drives, the PDF worker
 /// and image codec, so one worker reads for every user in turn rather than one each, where covers are kept, the keys
-/// that seal a user's AI keys and PDF passwords, and how a model service is reached.
+/// that seal a user's AI keys and PDF passwords, how a model service is reached, and the online catalogue books are
+/// looked up in, so its pace is kept across every library rather than per user.
 /// </summary>
 public sealed record LibraryHost(ILoggerFactory Logs, TimeProvider Clock, UserDriveFactory Drives, string TemporaryFolder, IPdfEngine Pdf,
     IImageCodec Images, ICoverStore Covers, IDataProtectionProvider Protection, ModelClientFactory Models, ForegroundActivity? Foreground = null,
-    UploadMemory? Uploads = null);
+    UploadMemory? Uploads = null, IBookCatalogue? Catalogue = null);
 
 /// <summary>
 /// One library's services: the same stores, queries and indexing the Windows app composes in its own host, built once
@@ -171,6 +172,10 @@ public static class LibraryServices
         services.AddSingleton<IStage, OcrStage>();
         services.AddSingleton<UserTagService>();
         services.AddSingleton<IStage, MatchStage>();
+        services.AddSingleton<IStage, IdentifyStage>();
+        services.AddSingleton(host.Catalogue ?? new OpenLibraryCatalogue(OpenLibraryCatalogue.CreateClient(PublicNetwork.Handler())));
+        services.AddSingleton<BookLookups>();
+        services.AddSingleton<IStage, LookUpStage>();
         // AI: the Windows app's Classify and whole-book scan stages and Settings > AI, over a model service the user chose, with their key.
         services.AddSingleton(sp => new ServerApiKeys(sp.GetRequiredService<SettingsStore>(), host.Protection.CreateProtector($"Bibliotaph.Ai.Keys.{userId}")));
         services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ServerApiKeys>());
