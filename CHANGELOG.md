@@ -1,5 +1,12 @@
 # Changes
 
+## Unreleased
+
+- **Replace a server secret in one step.** For whoever runs bibliotaph.online: `infra/setup.ps1 -Replace` asks again
+  for the secrets it names (Microsoft, Auth0, Dropbox, GoogleDrive, Box, GoogleBooks), replaces them in Key Vault and
+  restarts the app on them, so an old one no longer has to be deleted from Key Vault first. A new client ID for
+  Auth0, Dropbox, Google Drive or Box asks for its secret too.
+
 ## 1.4 · 28 October 2026
 
 New in 1.4.943 (28 October 2026):
