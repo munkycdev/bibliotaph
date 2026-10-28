@@ -39,7 +39,8 @@ public static class Pipeline
         Stage.Classify => 1,
         // 2: new-version cards, so a library matched before gets them.
         Stage.Match => 2,
-        Stage.Identify => 1,
+        // 2: files printing the same ISBN get new-version cards, so a library identified before gets them.
+        Stage.Identify => 2,
         Stage.LookUp => 1,
         // Never bumped for a new prompt: a finished scan is kept until the file changes or the user asks again.
         Stage.ChapterScan => 1,

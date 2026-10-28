@@ -90,8 +90,10 @@ usable while its card waits. It has two lists:
 - A field where the sources disagree, or a book with no useful title. Each button sits under the value it keeps:
   **Keep current** under what the book has, **Accept** under the suggestion, or **Edit** to type your own value.
 - A new term the AI used that your vocabulary doesn't know. Add it, file it under an existing term, or reject it.
-- **New version?** A file that looks like another version of a book you have. The card names both files with their
-  pages, and you choose which one the book opens: each button names its file, such as **Handbook_v2.pdf is current**,
+- **New version?** A file that looks like another version of a book you have: most of its pages are the book's, it
+  prints the book's ISBN as its own, or it has the book's title and publisher (from a lookup too, once one names it).
+  Two files are never joined by an ISBN alone, since publishers keep one ISBN across corrected printings. The card
+  says which it is and names both files with their pages, and you choose which one the book opens: each button names its file, such as **Handbook_v2.pdf is current**,
   either way one card for both files. **Separate book** keeps them apart. Nothing is picked until you click one. You can change it later with **Make current** under
   the book's copies in its details.
 - **Image pack?** "Make these 12 images one card?": **Make a pack** or **Keep separate**.

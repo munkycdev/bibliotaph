@@ -370,6 +370,30 @@ public sealed class IndexQueries(IndexDatabase database)
     }
 
     /// <summary>
+    /// The other documents whose own ISBN is <paramref name="documentId"/>'s: the first each prints, as
+    /// <see cref="GetIsbnsAsync"/> orders them. Only the first, since the ISBNs further in are often other books', in an
+    /// advert on the back cover or a list of the line.
+    /// </summary>
+    public async Task<IReadOnlyList<long>> GetSameIsbnAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<long>(new CommandDefinition(
+            """
+            WITH own AS (
+                SELECT document_id, value FROM (
+                    SELECT document_id, value,
+                        row_number() OVER (PARTITION BY document_id ORDER BY pdf_page IS NOT NULL, pdf_page, value) AS n
+                    FROM doc_identifier WHERE kind = 'Isbn')
+                WHERE n = 1)
+            SELECT other.document_id
+            FROM own mine JOIN own other ON other.value = mine.value AND other.document_id <> mine.document_id
+            WHERE mine.document_id = @documentId
+            ORDER BY other.document_id
+            """,
+            new { documentId }, cancellationToken: ct))];
+    }
+
+    /// <summary>
     /// The books owned elsewhere that could be <paramref name="entryId"/>'s: the same title, ignoring case, and no
     /// publisher that says otherwise. A file's publisher often arrives later than its title, so one missing on either
     /// side doesn't rule a book out; the user answers the card anyway.
