@@ -188,8 +188,9 @@ public interface IJobControl
 
 /// <summary>
 /// Runs the library: scans roots (and rescans when a watched folder changes), hashes new and changed files into
-/// documents, and works the job queue in three lanes, Index (Probe, Text, Covers, RuleHints), OCR and Classify, each
-/// pausable on its own. Classify works only while AI is ready, and waits with a notice while its endpoint can't be used.
+/// documents, and works the job queue in four lanes, Index (Probe, Text, Covers, RuleHints, Match, Identify), OCR,
+/// Classify and Online, each pausable on its own. Classify works only while AI is ready, and Online only while lookups
+/// are on; each waits with a notice while its service can't be reached.
 /// Leases left by a previous run go back to pending before anything else starts. Online-only files that reading
 /// downloaded go back to online-only once their stages are done with them (<see cref="OnlineOnlyReturns"/>).
 /// </summary>
@@ -408,6 +409,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
             Task.Run(() => LoopAsync("index lane", ct => _lanes.RunAsync(Lane.Index, ct), stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("OCR lane", ct => _lanes.RunAsync(Lane.Ocr, ct), stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("Classify lane", ct => _lanes.RunAsync(Lane.Classify, ct), stoppingToken), CancellationToken.None),
+            Task.Run(() => LoopAsync("online lane", ct => _lanes.RunAsync(Lane.Online, ct), stoppingToken), CancellationToken.None),
             Task.Run(() => LoopAsync("online-only returns", _hashing.ReturnLoopAsync, stoppingToken), CancellationToken.None),
         ];
         await Task.WhenAll(loops);

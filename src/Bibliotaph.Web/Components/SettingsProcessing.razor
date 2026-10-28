@@ -1,5 +1,5 @@
 @* Settings › Processing, as the Windows app's: indexing step by step with the time left, what each part is on now, and
-   pause and resume for each lane. It asks the server again every couple of seconds while it shows. *@
+   pause and resume for each lane, and whether books are looked up online. It asks the server again every couple of seconds while it shows. *@
 @using Bibliotaph.Core.Progress
 @implements IDisposable
 @inject ApiClient Api
@@ -81,6 +81,15 @@
         </div>
         <p class="bt-fine">A pause holds until you resume, even after you sign out. Pausing the AI stops requests on your key.</p>
     }
+    @if (_lookups is { } lookups)
+    {
+        <div class="bt-scanwhole">
+            <label class="bt-check"><input type="checkbox" checked="@lookups.On" disabled="@_saving" aria-label="Look up books online by their ISBN"
+                       @onchange="e => LookUpAsync(e.Value is true)" />Look up books online by their ISBN</label>
+            <p class="bt-fine">Asks Open Library about the ISBNs your books print, and nothing else, to fill in their title, authors,
+                publisher and year. A record is used only when its title is printed in the book, and the AI's guesses give way to it.</p>
+        </div>
+    }
 </section>
 
 @code {
@@ -94,6 +103,7 @@
     readonly CancellationTokenSource _stop = new();
     ProcessingPhase[] _phases = [];
     ProcessingState? _state;
+    LookupSetting? _lookups;
     string _timeLeft = "";
     bool _saving;
 
@@ -103,6 +113,14 @@
     {
         _phases = [_finding, _reading, _making, _scans, _classifying];
         await RefreshAsync();
+        try
+        {
+            _lookups = await Api.LookupsAsync(_stop.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            // Without it the setting isn't shown, rather than shown wrong.
+        }
         _ = PollAsync();
     }
 
@@ -146,6 +164,20 @@
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
             // The buttons still show the lanes as they were.
+        }
+        _saving = false;
+    }
+
+    async Task LookUpAsync(bool on)
+    {
+        _saving = true;
+        try
+        {
+            _lookups = await Api.SetLookupsAsync(on, _stop.Token);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            // The box still shows the setting as it was.
         }
         _saving = false;
     }

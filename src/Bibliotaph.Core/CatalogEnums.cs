@@ -86,6 +86,12 @@ public enum AssertionOrigin
     /// ranks with a folder rule, but it stays a guess until the user keeps it.
     /// </summary>
     UserTag,
+    /// <summary>
+    /// A book's record in an online catalogue, found by an ISBN the book prints. Ranked above the AI: a publisher's
+    /// own record of the book is firmer than a reading of its pages, so the AI's suggestions give way on the fields a
+    /// lookup filled (<see cref="Metadata.EffectiveMetadata"/>). Still only a suggestion.
+    /// </summary>
+    Lookup,
 }
 
 public enum AssertionState
@@ -139,6 +145,12 @@ public enum Stage
 
     /// <summary>Finds the ISBNs and product codes a book prints about itself, from its stored text.</summary>
     Identify,
+
+    /// <summary>
+    /// Looks a book up online by the ISBNs it prints, when the user has switched that on, and suggests what the record
+    /// says about it.
+    /// </summary>
+    LookUp,
 
     /// <summary>
     /// Reads a whole book chapter by chapter with the AI and tags each chapter's setting, environments, themes and

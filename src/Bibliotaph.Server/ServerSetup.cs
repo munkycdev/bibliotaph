@@ -41,7 +41,8 @@ public static class ServerSetup
         services.AddSingleton(sp => new LibraryHost(sp.GetRequiredService<ILoggerFactory>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<UserDriveFactory>(), paths.Downloads, new WorkerPdfEngine(sp.GetRequiredService<PdfWorkerPool>()),
             new SkiaImageCodec(), sp.GetRequiredService<ICoverStore>(), sp.GetRequiredService<IDataProtectionProvider>(),
-            sp.GetRequiredService<ModelClientFactory>(), sp.GetRequiredService<ForegroundActivity>(), sp.GetRequiredService<UploadMemory>()));
+            sp.GetRequiredService<ModelClientFactory>(), sp.GetRequiredService<ForegroundActivity>(), sp.GetRequiredService<UploadMemory>(),
+            new OpenLibraryCatalogue(OpenLibraryCatalogue.CreateClient(PublicNetwork.Handler()), sp.GetRequiredService<TimeProvider>())));
         services.AddSingleton(sp => new UploadMemory(sp.GetRequiredService<TimeProvider>(), options.UploadMemoryBytes));
         // Every library's reading steps aside for anyone's request: they share the one CPU.
         services.AddSingleton(sp => new ForegroundActivity(sp.GetRequiredService<TimeProvider>()));

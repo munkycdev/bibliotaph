@@ -59,13 +59,15 @@ public sealed record EffectiveField(MetadataField Field, IReadOnlyList<Effective
 /// <list type="bullet">
 /// <item>A confirmed value wins and is never replaced by a suggestion. Rejected values never apply, from any source (a
 /// rejection is a document, field and normalised value).</item>
-/// <item>A single-value field otherwise takes the highest-priority suggestion: a folder rule the user agreed to, then AI,
-/// then rule hints, and among hints the PDF's own information over folder names over the file name; the newest wins a
+/// <item>A single-value field otherwise takes the highest-priority suggestion: a folder rule the user agreed to, then an
+/// online lookup, then AI, then rule hints, and among hints the PDF's own information over folder names over the file name; the newest wins a
 /// tie.</item>
 /// <item>A multi-value field is judged value by value: confirmed values, plus the suggestions of the highest-priority
 /// source that has any. Lower sources' extra values are alternatives, not values. Once the user has decided the field,
 /// only suggestions that arrived after that decision are added; the older ones stay alternatives, so confirming the
 /// AI's types doesn't promote the folder's extra type the user just looked past.</item>
+/// <item>The AI's suggestions don't count on a field an online lookup has a value for: the book's record is firmer than a
+/// reading of its pages, so they aren't even alternatives. Rejecting the lookup's value brings them back.</item>
 /// </list>
 /// </summary>
 public sealed class EffectiveMetadata
@@ -88,6 +90,7 @@ public sealed class EffectiveMetadata
     {
         AssertionOrigin.User => 100,
         AssertionOrigin.FolderRule or AssertionOrigin.UserTag => 60,
+        AssertionOrigin.Lookup => 55,
         AssertionOrigin.Ai => 50,
         AssertionOrigin.Rule => 30,
         AssertionOrigin.Embedded => 20,
@@ -107,13 +110,22 @@ public sealed class EffectiveMetadata
         var fields = new Dictionary<string, EffectiveField>(StringComparer.Ordinal);
         foreach (var field in MetadataFields.All)
         {
-            var decided = Decide(field, [.. live[field.Key]]);
+            var decided = Decide(field, WithoutAiUnderLookup(live[field.Key]));
             List<MetadataClaim> aside = [.. setAside[field.Key]];
             if (aside.Count > 0)
                 decided = decided with { DisputedValues = [.. Group(aside, confirmed: false, aside).Where(v => decided.Values.All(c => c.Normalized != v.Normalized))] };
             fields[field.Key] = decided;
         }
         return new EffectiveMetadata(fields);
+    }
+
+    /// <summary>A field's live claims, less the AI's undecided suggestions when an online lookup has a value for it.</summary>
+    static List<MetadataClaim> WithoutAiUnderLookup(IEnumerable<MetadataClaim> claims)
+    {
+        List<MetadataClaim> all = [.. claims];
+        return all.Any(c => c.Origin == AssertionOrigin.Lookup)
+            ? [.. all.Where(c => c is not { Origin: AssertionOrigin.Ai, State: AssertionState.Provisional })]
+            : all;
     }
 
     static EffectiveField Decide(MetadataField field, List<MetadataClaim> claims)

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// The three lanes, Index, OCR and Classify: each takes the next job for its stages from the queue and runs it, and
+/// The lanes, Index, OCR, Classify and Online: each takes the next job for its stages from the queue and runs it, and
 /// each can be paused on its own. A lane with a gated stage works only while every one is ready, and a lane whose work
 /// can't be done right now (a model endpoint that isn't running) waits a while with the reason before trying again.
 /// <paramref name="changed"/> is called when something a progress display would show has moved, and

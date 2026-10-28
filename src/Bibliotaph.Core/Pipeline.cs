@@ -11,6 +11,9 @@ public enum Lane
 
     /// <summary>Classification by the AI: one book at a time, and only while AI is set up and switched on.</summary>
     Classify,
+
+    /// <summary>Lookups in online catalogues: only while the user has them switched on, and paced for the catalogue.</summary>
+    Online,
 }
 
 /// <summary>
@@ -37,6 +40,7 @@ public static class Pipeline
         // 2: new-version cards, so a library matched before gets them.
         Stage.Match => 2,
         Stage.Identify => 1,
+        Stage.LookUp => 1,
         // Never bumped for a new prompt: a finished scan is kept until the file changes or the user asks again.
         Stage.ChapterScan => 1,
         _ => 1,

@@ -292,6 +292,9 @@ public partial class App : Application
         builder.Services.AddSingleton<IStage, ClassifyStage>();
         builder.Services.AddSingleton<IStage, MatchStage>();
         builder.Services.AddSingleton<IStage, IdentifyStage>();
+        builder.Services.AddSingleton<IBookCatalogue>(_ => new OpenLibraryCatalogue(OpenLibraryCatalogue.CreateClient()));
+        builder.Services.AddSingleton<BookLookups>();
+        builder.Services.AddSingleton<IStage, LookUpStage>();
         builder.Services.AddSingleton<ChapterScanStore>();
         builder.Services.AddSingleton<ChapterQueries>();
         builder.Services.AddSingleton<ChapterProjection>();
@@ -465,6 +468,7 @@ public partial class App : Application
         // Before the Classify lane looks at whether it may send anything.
         var ai = services.GetRequiredService<AiSettings>();
         await ai.LoadAsync();
+        await services.GetRequiredService<BookLookups>().LoadAsync();
         Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
         services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IIndexingStatus>());
         services.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey).StopWhenNotNeededForAsk(ai);
