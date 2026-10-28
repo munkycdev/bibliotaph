@@ -65,6 +65,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     bool _holdRefresh;
     readonly LibrarySorts _sorts;
     readonly LibraryPackView _packView;
+    readonly WebShelfCache _shelf;
     // Whether the order shown was chosen for a search, so the order changes only when searching starts or stops.
     bool _sortSearching;
 
@@ -73,9 +74,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         PackService packs, ElsewhereService elsewhere, FavoritesService favorites, CollectionActions collections, SessionActions sessions,
         SmartViewDirectory views, LibraryPages pages, BookTextActions text, PinDirectory pins, CorrectionService corrections, AskService ask,
         ChosenCovers chosenCovers, LibraryAskScope askScope, IFilePicker files, InspectorFactory inspectors, LibrarySelectionFactory selection,
-        LibrarySorts sorts, LibraryPackView packView, TimeProvider time, ILogger<LibraryViewModel> log)
+        LibrarySorts sorts, LibraryPackView packView, WebShelfCache shelf, TimeProvider time, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _shelf = shelf;
         _files = files;
         _inspectors = inspectors;
         _chosenCovers = chosenCovers;
@@ -419,7 +421,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         var roots = await _roots.ListAsync();
         FolderCount = roots.Count;
-        Filters.ShowFolders([.. roots.Select(r => new Choice<long?>(r.Id, System.IO.Path.GetFileName(r.Path) is { Length: > 0 } name ? name : r.Path))]);
+        Filters.ShowFolders([.. roots.Select(r => new Choice<long?>(r.Id, _shelf.NameOf(r.Path)))]);
     }
 
     /// <summary>Runs the current view's query. A newer refresh supersedes an older one still running.</summary>

@@ -1,3 +1,4 @@
+using Bibliotaph.Catalog;
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Microsoft.Extensions.Logging;
@@ -84,7 +85,8 @@ internal sealed class FolderWatchers(IFolderWatcher watcher, TimeSpan rescanDela
                 _watchers.Remove(gone);
             }
             _stale.Clear();
-            foreach (var root in current.Where(r => !_watchers.ContainsKey(r.Id)))
+            // The web library's folders change on the server, and come with its list of files.
+            foreach (var root in current.Where(r => !_watchers.ContainsKey(r.Id) && !WebLibraryPaths.IsWebPath(r.Path)))
             {
                 var rootId = root.Id;
                 try

@@ -165,7 +165,8 @@ internal sealed class LibraryScanner(SourceRootStore roots, LibraryStore library
             await MarkOfflineAsync(root, OfflineReason.Unreachable, now, ct);
             return [];
         }
-        var volume = await Task.Run(() => identity.Volume(root.Path), ct);
+        // A web library folder is on no disk of this PC's.
+        var volume = WebLibraryPaths.IsWebPath(root.Path) ? null : await Task.Run(() => identity.Volume(root.Path), ct);
         if (root.VolumeSerial is { } serial && volume is not null && !string.Equals(volume.Serial, serial, StringComparison.OrdinalIgnoreCase))
         {
             await MarkOfflineAsync(root, OfflineReason.DifferentDisk, now, ct);

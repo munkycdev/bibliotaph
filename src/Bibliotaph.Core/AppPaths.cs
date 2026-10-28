@@ -64,6 +64,12 @@ public sealed record AppPaths(string Root)
     /// </summary>
     public string EbookReader => Path.Combine(Root, "ebook-reader");
 
+    /// <summary>
+    /// The web library's files as a connected PC last listed them, so its folders list while the server can't be
+    /// reached. Asked for again whenever it's lost.
+    /// </summary>
+    public string WebShelf => Path.Combine(Root, "web-shelf.json");
+
     public IEnumerable<string> Directories => [Root, Backups, Logs, Cache];
 
     public static AppPaths ForCurrentUser() =>

@@ -3,11 +3,21 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>SHA-256 of a source file's bytes: the document's identity.</summary>
-public sealed class FileHasher(ISourceFileReader reader)
+/// <summary>Hashes a library file has before it is read: those the web library lists with its files.</summary>
+public interface IKnownHashes
+{
+    ContentHash? Find(string path);
+}
+
+/// <summary>
+/// SHA-256 of a source file's bytes: the document's identity. A file whose hash is <paramref name="known"/> isn't read
+/// for it.
+/// </summary>
+public sealed class FileHasher(ISourceFileReader reader, IKnownHashes? known = null)
 {
     public async Task<ContentHash> HashAsync(string path, CancellationToken ct = default)
     {
+        if (known?.Find(path) is { } hash) return hash;
         await using var stream = reader.OpenRead(path);
         return await HashAsync(stream, ct);
     }

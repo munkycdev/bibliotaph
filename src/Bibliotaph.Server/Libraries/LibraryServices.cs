@@ -147,6 +147,9 @@ public static class LibraryServices
         services.AddSingleton<IResultChannel, ServerResultChannel>();
         services.AddSingleton<SharedPageText>();
         services.AddSingleton<SharedResults>();
+        // What a connected PC shows of the web library: its files, and what was read from each.
+        services.AddSingleton<WebShelfPublisher>();
+        services.AddSingleton<SharedReadings>();
 
         // What the details change: the Windows inspector's services.
         services.AddSingleton(sp => new ChapterScanStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), host.Clock));

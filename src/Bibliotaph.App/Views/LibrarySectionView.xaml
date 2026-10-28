@@ -23,7 +23,11 @@
                       ToolTip="Remove from library" AutomationProperties.Name="{Binding Path, StringFormat='Remove {0} from the library'}"
                       Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                       CommandParameter="{Binding}" />
-              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Folder}" Margin="0,0,10,0" VerticalAlignment="Top" />
+              <Grid DockPanel.Dock="Left" Margin="0,0,10,0" VerticalAlignment="Top">
+                <c:LucideIcon Data="{StaticResource Icon.Folder}" Visibility="{Binding IsWeb, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                <!-- A folder in the web library, read through bibliotaph.online. -->
+                <c:LucideIcon Data="{StaticResource Icon.Cloud}" Visibility="{Binding IsWeb, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </Grid>
               <StackPanel>
                 <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
                 <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
@@ -32,7 +36,7 @@
                         Margin="0,10,0,0" ToolTip="If this folder moved for good, as to a new disk, pick where it is now. Its books and everything you did with them follow."
                         AutomationProperties.Name="{Binding Path, StringFormat='Point {0} to its new place'}"
                         Command="{Binding DataContext.PointToNewPlaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                        CommandParameter="{Binding}" Visibility="{Binding IsOffline, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                        CommandParameter="{Binding}" Visibility="{Binding CanPointToNewPlace, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <TextBlock Text="{Binding Problem}" Style="{StaticResource Text.Small}" Margin="0,6,0,0" TextWrapping="Wrap"
                            Visibility="{Binding HasProblem, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               </StackPanel>

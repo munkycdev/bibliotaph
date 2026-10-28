@@ -16,11 +16,15 @@ public sealed record InspectorFact(string Label, string Value);
 /// Where a document's file is, and whether it can be read now. The first place carries the book's Reprocess button
 /// beside its Show in File Explorer: copies are one book, so reprocessing one covers them all. For a file inside a ZIP,
 /// File Explorer selects the ZIP (<see cref="ExplorerPath"/>). A file that has gone missing offers its last location
-/// instead: the folder it was in, or the nearest one above it that is still there.
+/// instead: the folder it was in, or the nearest one above it that is still there. A file in the web library
+/// (<see cref="IsWeb"/>) is on no disk here, so it has nothing to show.
 /// </summary>
-public sealed record InspectorLocation(string Path, string State, bool ShowsReprocess = false, string? ExplorerPath = null, bool IsMissing = false)
+public sealed record InspectorLocation(string Path, string State, bool ShowsReprocess = false, string? ExplorerPath = null, bool IsMissing = false,
+    bool IsWeb = false)
 {
     public bool HasState => State.Length > 0;
+
+    public bool CanShowInExplorer => !IsWeb;
 
     public string ShowLabel => IsMissing ? "Show last location" : "Show in File Explorer";
 }
@@ -31,9 +35,12 @@ public sealed record InspectorStage(string Name, string Status);
 /// One file of the book in the inspector's Copies list: "Current copy" or "Copy", or an earlier version whose file
 /// has gone, with its pages and where it is.
 /// </summary>
-public sealed record InspectorCopy(long DocumentId, string Heading, string Detail, string? Path, bool IsCurrent, string? ExplorerPath = null)
+public sealed record InspectorCopy(long DocumentId, string Heading, string Detail, string? Path, bool IsCurrent, string? ExplorerPath = null,
+    bool IsWeb = false)
 {
     public bool HasPath => Path is not null;
+
+    public bool CanShowInExplorer => HasPath && !IsWeb;
 
     public bool CanMakeCurrent => !IsCurrent;
 }
@@ -67,7 +74,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
         IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IJobControl indexing, IStageCatalog stages,
         CopiesService copiesService, PackService packs, ElsewhereService elsewhere, IFilePicker files, IUserPrompts prompts, IDesktopShell shell,
-        CorrectionService? corrections, ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log)
+        CorrectionService? corrections, ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log, WebShelfCache? shelf)
     {
         PartUndo = new UndoSlot(log);
         _files = files;
@@ -84,7 +91,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         _copies = copiesService;
         _packs = packs;
         Locations = locations;
-        Copies = copies.Count < 2 ? [] : [.. copies.Select(ToCopy)];
+        Copies = copies.Count < 2 ? [] : [.. copies.Select(c => ToCopy(c, shelf))];
         PackImages = images;
         ShowProcessing(details?.Entry ?? item.Entry, details);
     }
@@ -230,13 +237,13 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if ((copy.ExplorerPath ?? copy.Path) is { } path) _shell.ShowInFolder(path);
     }
 
-    static InspectorCopy ToCopy(CopyDetails details)
+    static InspectorCopy ToCopy(CopyDetails details, WebShelfCache? shelf)
     {
         var copy = details.Copy;
         var location = details.Locations.FirstOrDefault(l => l.State != FileLocationState.Missing);
         var path = location?.FullPath;
-        return new InspectorCopy(copy.DocumentId, DetailsText.CopyHeading(copy, path is not null), DetailsText.CopyDetail(copy), path, copy.IsCurrent,
-            location?.ExplorerPath);
+        return new InspectorCopy(copy.DocumentId, DetailsText.CopyHeading(copy, path is not null), DetailsText.CopyDetail(copy),
+            path is null ? null : shelf?.Show(path) ?? path, copy.IsCurrent, location?.ExplorerPath, path is not null && WebLibraryPaths.IsWebPath(path));
     }
 
     [ObservableProperty]
@@ -481,7 +488,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
         IJobControl indexing, IStageCatalog stages, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers,
         PartsService parts, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log,
-        CorrectionService? corrections = null, ChosenCovers? chosen = null)
+        CorrectionService? corrections = null, ChosenCovers? chosen = null, WebShelfCache? shelf = null)
     {
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
@@ -504,13 +511,13 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         else
         {
             locations = [.. (await library.GetLocationsAsync(item.DocumentId))
-                .Select((l, i) => new InspectorLocation(l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath,
-                    IsMissing: l.State == FileLocationState.Missing && l.RootAvailability == SourceRootAvailability.Online))];
+                .Select((l, i) => new InspectorLocation(shelf?.Show(l.FullPath) ?? l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath,
+                    IsMissing: l.State == FileLocationState.Missing && l.RootAvailability == SourceRootAvailability.Online, IsWeb: WebLibraryPaths.IsWebPath(l.FullPath)))];
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
         }
         var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, stages, copies, packs, elsewhere,
-            files, prompts, shell, corrections, chosen, log);
+            files, prompts, shell, corrections, chosen, log, shelf);
         if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
         await inspector.ReloadMetadataAsync(changed: false);
         await inspector.LoadPartsAsync(parts);
