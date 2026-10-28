@@ -251,17 +251,6 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Folder_labels_switch_off_and_on()
-    {
-        Assert.True(await _vocabulary.SetFolderLabelEnabledAsync("D&D 5e", "edition", "dnd-5e", enabled: false, Ct));
-        Assert.False(await _vocabulary.SetFolderLabelEnabledAsync("d&d  5E", "edition", "dnd-5e", enabled: false, Ct));
-        Assert.Contains(("d&d 5e", "edition", "dnd-5e"), await _vocabulary.GetIgnoredFolderLabelsAsync(Ct));
-
-        Assert.True(await _vocabulary.SetFolderLabelEnabledAsync("D&D 5e", "edition", "dnd-5e", enabled: true, Ct));
-        Assert.Empty(await _vocabulary.GetIgnoredFolderLabelsAsync(Ct));
-    }
-
-    [Fact]
     public async Task Typing_a_different_type_replaces_the_suggested_one()
     {
         await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Types, "adventure")], Ct);

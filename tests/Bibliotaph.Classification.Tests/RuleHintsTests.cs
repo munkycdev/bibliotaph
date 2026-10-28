@@ -30,9 +30,8 @@ public class RuleHintsTests
 
     static string Sep(params string[] parts) => Path.Combine(parts);
 
-    static (string Field, string Value, AssertionOrigin Origin)[] Propose(HintSource source,
-        IReadOnlySet<(string, string, string)>? ignored = null) =>
-        [.. RuleHints.Propose(source, Vocabulary, ignored).Select(p => (p.Field.Key, p.Value, p.Origin)).OrderBy(p => p.Key).ThenBy(p => p.Value)];
+    static (string Field, string Value, AssertionOrigin Origin)[] Propose(HintSource source) =>
+        [.. RuleHints.Propose(source, Vocabulary).Select(p => (p.Field.Key, p.Value, p.Origin)).OrderBy(p => p.Key).ThenBy(p => p.Value)];
 
     [Fact]
     public void Folder_names_suggest_vocabulary_terms_and_an_edition_its_system()
@@ -69,14 +68,6 @@ public class RuleHintsTests
         // A folder of Roll20 exports holds files, not a claim that the books are owned on Roll20.
         Assert.DoesNotContain(RuleHints.Propose(new HintSource(Sep("Roll20", "Tome.pdf")), Vocabulary), p => p.Field == MetadataFields.AlsoOwn);
         Assert.Empty(RuleHints.Labels("Roll20", Vocabulary));
-    }
-
-    [Fact]
-    public void A_folder_label_the_user_switched_off_is_skipped()
-    {
-        var proposals = Propose(new HintSource(Sep("Maps", "Cave.png")), new HashSet<(string, string, string)> { ("maps", "type", "map-pack") });
-
-        Assert.DoesNotContain(proposals, p => p.Field == "type");
     }
 
     [Fact]

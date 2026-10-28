@@ -1518,7 +1518,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
-    public async Task Settings_library_chooses_the_start_page_and_switches_a_folder_name_off()
+    public async Task Settings_library_chooses_the_start_page_and_lists_the_folder_rules()
     {
         var ct = TestContext.Current.CancellationToken;
         var user = await AddUserAsync(admin: false);
@@ -1532,15 +1532,11 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
 
         var before = (await client.GetFromJsonAsync<LibraryPreferences>("/api/settings/library", ct))!;
         using (await client.PutAsJsonAsync("/api/settings/start", new StartPageChoice(true), ct)) { }
-        var label = before.FolderNames.Single(l => l.Folder == "Adventures");
-        using var switched = await client.PutAsJsonAsync("/api/settings/folder-names", new FolderNameSwitch(label.Folder, label.Vocabulary, label.Term, false), ct);
-        var after = (await switched.Content.ReadFromJsonAsync<LibraryPreferences>(ct))!;
+        var after = (await client.GetFromJsonAsync<LibraryPreferences>("/api/settings/library", ct))!;
 
         Assert.False(before.StartOnLibrary);
-        Assert.Equal(("Type: Adventure", "1 document under a folder with this name", true), (label.Meaning, label.Detail, label.Enabled));
         Assert.True((await client.GetFromJsonAsync<StartPageChoice>("/api/settings/start", ct))!.Library);
         Assert.True(after.StartOnLibrary);
-        Assert.False(after.FolderNames.Single(l => l.Folder == "Adventures").Enabled);
         Assert.Empty(after.FolderRules);
     }
 

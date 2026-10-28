@@ -306,16 +306,15 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
         var places = await packs.GetPlacesAsync(entryIds, ct);
         if (places.Count == 0) return [];
         var vocabulary = await vocabularies.GetAsync(ct);
-        var ignored = await vocabularies.GetIgnoredFolderLabelsAsync(ct);
         foreach (var (packId, place) in places)
-            await metadata.ReplaceHintsAsync(packId, null, PackHints(place, vocabulary, ignored), ct);
+            await metadata.ReplaceHintsAsync(packId, null, PackHints(place, vocabulary), ct);
         return [.. places.Keys];
     }
 
     /// <summary>A pack's hints: read as if an image sat directly in its folder or ZIP, with the pack's name as the title.</summary>
-    internal static IReadOnlyList<MetadataProposal> PackHints(PackPlace place, Vocabulary vocabulary, IReadOnlySet<(string Folder, string Vocabulary, string Key)>? ignored = null)
+    internal static IReadOnlyList<MetadataProposal> PackHints(PackPlace place, Vocabulary vocabulary)
     {
-        var fromFolders = RuleHints.Propose(new HintSource(Path.Combine(place.FolderPath, "pack.png")), vocabulary, ignored)
+        var fromFolders = RuleHints.Propose(new HintSource(Path.Combine(place.FolderPath, "pack.png")), vocabulary)
             .Where(p => p.Field != MetadataFields.Title);
         return [.. fromFolders, new MetadataProposal(MetadataFields.Title, PackStore.Name(place.FolderPath, place.IsArchive), AssertionOrigin.Filename,
             PackStore.FileName(place.FolderPath))];
@@ -350,7 +349,7 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
         // The watermark lines are read here, matched against the store names and dropped: never stored or logged.
         var watermarks = Watermarks.Find(await queries.GetAllPageTextsAsync(documentId, ct));
         var source = new HintSource(path, info?.Title, info?.Author, info?.Subject, info?.Keywords, info?.Producer, watermarks, await RulesAsync(rootId, ct));
-        var proposals = RuleHints.Propose(source, await vocabularies.GetAsync(ct), await vocabularies.GetIgnoredFolderLabelsAsync(ct));
+        var proposals = RuleHints.Propose(source, await vocabularies.GetAsync(ct));
         return (entry.EntryId, await metadata.ReplaceHintsAsync(entry.EntryId, entry.ContentHash, proposals, ct));
     }
 
@@ -373,46 +372,7 @@ public sealed class MetadataHints(LibraryStore library, EntryStore entries, Inde
             if (await StoreAsync(documentId, ct) is { } entry) stored.Add(entry.Entry);
         await projector.ProjectAsync([.. stored.Distinct()], ct);
     }
-
-    /// <summary>
-    /// The vocabulary terms folder names in the library stand for, with how many documents sit under each and whether
-    /// the user has switched it off, for Settings > Library.
-    /// </summary>
-    public async Task<IReadOnlyList<FolderLabelUse>> GetFolderLabelsAsync(CancellationToken ct = default)
-    {
-        var vocabulary = await vocabularies.GetAsync(ct);
-        var ignored = await vocabularies.GetIgnoredFolderLabelsAsync(ct);
-        var uses = new Dictionary<(string Folder, string Vocabulary, string Key), (string Folder, Term Term, HashSet<long> Documents)>();
-        foreach (var (documentId, path) in await library.GetRelativePathsAsync(ct))
-            foreach (var folder in RuleHints.FolderNames(path))
-                foreach (var label in RuleHints.Labels(folder, vocabulary))
-                {
-                    var key = (MetadataText.Normalize(folder), label.Term.Vocabulary, label.Term.Key);
-                    if (!uses.TryGetValue(key, out var use)) uses[key] = use = (folder, label.Term, []);
-                    use.Documents.Add(documentId);
-                }
-        return [.. uses.Select(u => new FolderLabelUse(u.Value.Folder, u.Value.Term, u.Value.Documents.Count, !ignored.Contains(u.Key)))
-            .OrderBy(u => u.Folder, StringComparer.CurrentCultureIgnoreCase).ThenBy(u => u.Term.Label, StringComparer.CurrentCultureIgnoreCase)];
-    }
-
-    /// <summary>Switches a folder label on or off and refreshes the hints of every document under a folder of that name.</summary>
-    public async Task SetFolderLabelEnabledAsync(string folder, Term term, bool enabled, CancellationToken ct = default)
-    {
-        if (!await vocabularies.SetFolderLabelEnabledAsync(folder, term.Vocabulary, term.Key, enabled, ct)) return;
-        var normalized = MetadataText.Normalize(folder);
-        var affected = (await library.GetRelativePathsAsync(ct))
-            .Where(p => RuleHints.FolderNames(p.RelativePath).Any(f => MetadataText.Normalize(f) == normalized))
-            .Select(p => p.DocumentId).Distinct().ToList();
-        var stored = new List<EntryId>();
-        foreach (var documentId in affected)
-            if (await StoreAsync(documentId, ct) is { } entry) stored.Add(entry.Entry);
-        stored.AddRange(await StorePacksAsync(ct: ct));
-        await projector.ProjectAsync([.. stored.Distinct()], ct);
-    }
 }
-
-/// <summary>A folder name that stands for a term, the documents under it, and whether the label is switched on.</summary>
-public sealed record FolderLabelUse(string Folder, Term Term, int Documents, bool Enabled);
 
 /// <summary>Hints from names: folder names, the file name and the PDF's own information as provisional metadata.</summary>
 public sealed class RuleHintsStage(MetadataHints hints, PartProposalService proposals) : IStage

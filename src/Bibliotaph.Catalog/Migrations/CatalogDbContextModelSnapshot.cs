@@ -809,40 +809,6 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("folder_rule");
             });
 
-        modelBuilder.Entity("Bibliotaph.Catalog.Entities.IgnoredFolderLabel", b =>
-            {
-                b.Property<long>("Id")
-                    .ValueGeneratedOnAdd()
-                    .HasColumnType("INTEGER")
-                    .HasColumnName("id");
-
-                b.Property<DateTime>("CreatedUtc")
-                    .HasColumnType("TEXT")
-                    .HasColumnName("created_utc");
-
-                b.Property<string>("Folder")
-                    .IsRequired()
-                    .HasColumnType("TEXT")
-                    .HasColumnName("folder");
-
-                b.Property<string>("TermKey")
-                    .IsRequired()
-                    .HasColumnType("TEXT")
-                    .HasColumnName("term_key");
-
-                b.Property<string>("Vocabulary")
-                    .IsRequired()
-                    .HasColumnType("TEXT")
-                    .HasColumnName("vocabulary");
-
-                b.HasKey("Id");
-
-                b.HasIndex("Folder", "Vocabulary", "TermKey")
-                    .IsUnique();
-
-                b.ToTable("ignored_folder_label");
-            });
-
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Note", b =>
             {
                 b.Property<long>("Id")

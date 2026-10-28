@@ -11,6 +11,11 @@
   a PC connected to it, Google Books), and the Looking up online step always shows its counts. Only the ISBNs are
   sent, and **Looking up online** under the steps says where. See
   [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+- **Folder names has gone from Settings > Library.** Folder names like "Adventures" or "D&D 5e" still suggest the type
+  or system of the books inside; the list of every such name with a switch each is gone, on Windows and the web. Fix a
+  book a folder name misled as you come to it, and Bibliotaph offers to fix the folder's other books with it. Folder
+  rules answered in Needs review stay in Settings > Library. See
+  [Getting started](docs/guide/getting-started.md#folder-names-count).
 
 ## 1.4 · 28 October 2026
 

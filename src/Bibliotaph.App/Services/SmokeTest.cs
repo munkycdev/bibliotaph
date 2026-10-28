@@ -3056,7 +3056,7 @@ static partial class SmokeTest
 
     /// <summary>
     /// Settings with a library in it, from the Library page and back to it: the Library's and Home's Manage folders
-    /// open the Library section, which describes each folder and lists the folder names read as labels; Processing
+    /// open the Library section, which describes each folder; Processing
     /// shows each step of indexing; and Back returns to the section that was showing.
     /// </summary>
     static async Task ShowSettingsAsync(IServiceProvider services, Window window)
@@ -3069,8 +3069,6 @@ static partial class SmokeTest
         var library = (LibrarySectionViewModel)settings.Selected;
         await WaitUntilAsync(window, () => library.Folders.Count > 0 && library.Folders.All(f => f.Detail.Length > 0),
             () => "Settings > Library didn't describe its folders.");
-        await WaitUntilAsync(window, () => library.FolderLabels.Any(l => l is { Folder: "Adventures", IsEnabled: true }),
-            () => "Settings > Library doesn't list the Adventures folder name.");
         await ShowEachSectionAsync(window, settings, "with a library");
 
         settings.Show(SettingsSection.Processing);

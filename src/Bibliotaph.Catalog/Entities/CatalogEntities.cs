@@ -433,17 +433,6 @@ public sealed class UserTag
     public DateTime UpdatedUtc { get; set; }
 }
 
-/// <summary>A folder label the user switched off in Settings > Library: that folder name no longer suggests that term.</summary>
-public sealed class IgnoredFolderLabel
-{
-    public long Id { get; set; }
-    /// <summary>The folder name in comparison form.</summary>
-    public required string Folder { get; set; }
-    public required string Vocabulary { get; set; }
-    public required string TermKey { get; set; }
-    public DateTime CreatedUtc { get; set; }
-}
-
 /// <summary>
 /// A page or page range that user work points at (session pack items; page notes), in one document. The printed labels
 /// and the page-text fingerprints of its first and last pages are kept from when it was made, so it can be found again
