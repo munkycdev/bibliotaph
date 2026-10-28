@@ -583,6 +583,81 @@ public sealed class IndexQueries(IndexDatabase database)
         return [.. rows.Select(r => new PageTextEntry((int)r.PdfPage, r.Text))];
     }
 
+    /// <summary>
+    /// What Probe, Text and Covers wrote for a document: its row, its pages with their text, and its outline. Null when
+    /// the index doesn't have it.
+    /// </summary>
+    public async Task<DocumentReading?> GetReadingAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var doc = await connection.QuerySingleOrDefaultAsync<DocReadingRow>(new CommandDefinition("""
+            SELECT document_id AS DocumentId, content_hash AS ContentHash, format AS Format, display_title AS DisplayTitle, page_count AS PageCount,
+                   width_px AS WidthPx, height_px AS HeightPx, encrypted AS Encrypted, can_copy AS CanCopy, meta_title AS MetaTitle,
+                   meta_author AS MetaAuthor, meta_subject AS MetaSubject, meta_keywords AS MetaKeywords, meta_producer AS MetaProducer, cover AS Cover
+            FROM doc WHERE document_id = @documentId
+            """, new { documentId }, cancellationToken: ct));
+        if (doc is null) return null;
+        var pages = await connection.QueryAsync<StoredPageRow>(new CommandDefinition("""
+            SELECT pdf_page AS Page, label AS Label, width_pt AS Width, height_pt AS Height, text AS Text, text_source AS Source,
+                   text_quality AS Quality, needs_ocr AS NeedsOcr, error AS Error
+            FROM page WHERE document_id = @documentId ORDER BY pdf_page
+            """, new { documentId }, cancellationToken: ct));
+        var outline = await connection.QueryAsync<(string Title, long PdfPage, long Depth)>(new CommandDefinition(
+            "SELECT title, pdf_page, depth FROM outline WHERE document_id = @documentId ORDER BY ord", new { documentId }, cancellationToken: ct));
+        return new DocumentReading(new DocRow
+        {
+            DocumentId = doc.DocumentId,
+            ContentHash = doc.ContentHash,
+            Format = doc.Format,
+            DisplayTitle = doc.DisplayTitle,
+            PageCount = (int?)doc.PageCount,
+            WidthPx = (int?)doc.WidthPx,
+            HeightPx = (int?)doc.HeightPx,
+            Encrypted = doc.Encrypted != 0,
+            CanCopy = doc.CanCopy != 0,
+            MetaTitle = doc.MetaTitle,
+            MetaAuthor = doc.MetaAuthor,
+            MetaSubject = doc.MetaSubject,
+            MetaKeywords = doc.MetaKeywords,
+            MetaProducer = doc.MetaProducer,
+        }, doc.Cover,
+            [.. pages.Select(p => new StoredPage((int)p.Page, p.Label, p.Width, p.Height, p.Text, p.Source, p.Quality, p.NeedsOcr != 0, p.Error))],
+            [.. outline.Select(o => new OutlineRow(o.Title, (int)o.PdfPage, (int)o.Depth))]);
+    }
+
+    // Properties rather than constructors: Dapper matches a constructor by column types, which NULLs leave untyped.
+    sealed class DocReadingRow
+    {
+        public long DocumentId { get; init; }
+        public string ContentHash { get; init; } = "";
+        public string Format { get; init; } = "";
+        public string DisplayTitle { get; init; } = "";
+        public long? PageCount { get; init; }
+        public long? WidthPx { get; init; }
+        public long? HeightPx { get; init; }
+        public long Encrypted { get; init; }
+        public long CanCopy { get; init; }
+        public string? MetaTitle { get; init; }
+        public string? MetaAuthor { get; init; }
+        public string? MetaSubject { get; init; }
+        public string? MetaKeywords { get; init; }
+        public string? MetaProducer { get; init; }
+        public string? Cover { get; init; }
+    }
+
+    sealed class StoredPageRow
+    {
+        public long Page { get; init; }
+        public string? Label { get; init; }
+        public double Width { get; init; }
+        public double Height { get; init; }
+        public string Text { get; init; } = "";
+        public string Source { get; init; } = "";
+        public double? Quality { get; init; }
+        public long NeedsOcr { get; init; }
+        public string? Error { get; init; }
+    }
+
     /// <summary>A document's page count, or null before Probe has counted its pages.</summary>
     public async Task<int?> GetPageCountAsync(long documentId, CancellationToken ct = default)
     {
@@ -609,6 +684,16 @@ public sealed class IndexQueries(IndexDatabase database)
             "SELECT status FROM stage_status WHERE document_id = @documentId AND stage = @stage",
             new { documentId, stage = stage.ToString() }, cancellationToken: ct));
         return status is null ? null : Enum.Parse<StageStatus>(status);
+    }
+
+    /// <summary>How a stage last ended for a document, and why when it says, or null when it hasn't run.</summary>
+    public async Task<(StageStatus Status, string? Reason)?> GetStageAsync(long documentId, Stage stage, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(string Status, string? Reason)>(new CommandDefinition(
+            "SELECT status, reason FROM stage_status WHERE document_id = @documentId AND stage = @stage",
+            new { documentId, stage = stage.ToString() }, cancellationToken: ct));
+        return rows.FirstOrDefault() is { Status: { } status } found ? (Enum.Parse<StageStatus>(status), found.Reason) : null;
     }
 
     /// <summary>

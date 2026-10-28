@@ -317,6 +317,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             var library = await slot.Opening.Value;
             // Sync first, so the web library's own file has everything done here; then indexing, so it can still
             // record the job it was on; then the writer, as the Windows app stops them.
+            await library.Get<WebShelfPublisher>().StopAsync();
             await library.Get<SharedResults>().StopAsync(CancellationToken.None);
             await library.Get<LibrarySync>().StopAsync(CancellationToken.None);
             await library.Get<LibraryVectors>().StopAsync(CancellationToken.None);
@@ -401,6 +402,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             await library.Get<ServerSyncChannel>().LoadAsync();
             await library.Get<LibrarySync>().StartAsync(CancellationToken.None);
             await library.Get<SharedResults>().StartAsync(CancellationToken.None);
+            library.Get<WebShelfPublisher>().Start();
             _log.LogInformation("Opened the library of {User} in {Total:N0} ms, {Restore:N0} ms of it bringing its databases back",
                 userId, Stopwatch.GetElapsedTime(started).TotalMilliseconds, restored.TotalMilliseconds);
             return library;

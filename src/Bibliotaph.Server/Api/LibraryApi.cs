@@ -112,7 +112,7 @@ public static class LibraryApi
     }
 
     /// <summary>The names CoverCache gives covers: a hash, a page key or a chosen cover's, always a .jpg in its own folder.</summary>
-    static bool IsCoverName(string name) =>
+    internal static bool IsCoverName(string name) =>
         name.Length is > 4 and < 200 && name.EndsWith(".jpg", StringComparison.Ordinal) && name.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '.')
         && !name.Contains("..", StringComparison.Ordinal);
 

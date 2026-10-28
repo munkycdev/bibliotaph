@@ -315,6 +315,64 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         return null;
     }
 
+    /// <summary>
+    /// The web library's files, unless the shelf is still <paramref name="version"/>: <see cref="WebShelfRead.Unchanged"/>
+    /// then, or <see cref="WebShelfRead.Unreached"/> when the server didn't answer, so the PC keeps the shelf it has.
+    /// </summary>
+    public async Task<WebShelfRead> ReadShelfAsync(string? version, CancellationToken ct)
+    {
+        try
+        {
+            var query = version is null ? "" : $"?version={Uri.EscapeDataString(version)}";
+            using var response = await SendAsync(HttpMethod.Get, $"api/pc/library{query}", null, withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.StatusCode == HttpStatusCode.NotModified) return WebShelfRead.Unchanged;
+            if (response.IsSuccessStatusCode && await response.Content.ReadFromJsonAsync<WebShelf>(ct) is { } shelf) return new WebShelfRead(true, shelf);
+            log.LogWarning("Asking the web library for its files got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library for its files");
+        }
+        return WebShelfRead.Unreached;
+    }
+
+    /// <summary>What the web library read from the file with this content, or null when it hasn't yet or didn't answer.</summary>
+    public async Task<SharedReading?> ReadReadingAsync(string contentHash, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, $"api/pc/books/{Uri.EscapeDataString(contentHash)}/reading", null, withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.StatusCode == HttpStatusCode.NotFound) return null;
+            if (response.IsSuccessStatusCode) return await response.Content.ReadFromJsonAsync<SharedReading>(ct);
+            log.LogWarning("Asking the web library for a book's reading got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library for a book's reading");
+        }
+        return null;
+    }
+
+    /// <summary>A cover the web library drew, by its file name, or null when it has none by that name or didn't answer.</summary>
+    public async Task<byte[]?> ReadCoverAsync(string name, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, $"api/pc/covers/{Uri.EscapeDataString(name)}", null, withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.StatusCode == HttpStatusCode.NotFound) return null;
+            if (response.IsSuccessStatusCode) return await response.Content.ReadAsByteArrayAsync(ct);
+            log.LogWarning("Asking the web library for a cover got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library for a cover");
+        }
+        return null;
+    }
+
     /// <summary>No answer, or none in time; the caller cancelling is not one of these.</summary>
     static bool Unreachable(Exception ex, CancellationToken ct) =>
         ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
@@ -343,4 +401,14 @@ public sealed class MemoryWebLibraryKey : IWebLibraryKey
     }
 
     public void Forget() => _key = null;
+}
+
+/// <summary>
+/// An answer to <see cref="WebLibrary.ReadShelfAsync"/>: <see cref="Reached"/> when the server answered, with the
+/// <see cref="Shelf"/> when it changed from the version the PC has.
+/// </summary>
+public sealed record WebShelfRead(bool Reached, WebShelf? Shelf)
+{
+    public static readonly WebShelfRead Unchanged = new(true, null);
+    public static readonly WebShelfRead Unreached = new(false, null);
 }
