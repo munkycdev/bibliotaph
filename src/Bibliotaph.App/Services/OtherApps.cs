@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using Bibliotaph.Catalog;
+using Bibliotaph.Processing;
 using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.Services;
@@ -51,16 +52,27 @@ public sealed class SmokeShellLauncher : IShellLauncher
 /// <summary>
 /// Open in another app, for a PDF whose protection Bibliotaph can't open: the file goes to the user's default PDF app,
 /// read where it is. A file inside a ZIP can't be opened by itself without being copied out, so its ZIP is opened
-/// instead, in whatever Windows opens ZIPs with.
+/// instead, in whatever Windows opens ZIPs with. A book only the web library has opens from its copy downloaded here.
 /// </summary>
-public sealed class OtherApps(LibraryStore library, IShellLauncher launcher)
+public sealed class OtherApps(LibraryStore library, IShellLauncher launcher, IKeptCopies? kept = null)
 {
     /// <summary>Returns what to tell the user when it couldn't, or null once the file is open elsewhere.</summary>
     public async Task<string?> OpenAsync(long documentId, CancellationToken ct = default)
     {
         if (await library.GetSourceAsync(documentId, ct) is not { } source)
             return "No copy of this file can be opened right now: its folder is offline or the file has gone.";
-        var path = source.ArchivePath ?? source.FullPath;
+        LocalFile? copy = null;
+        try
+        {
+            if (kept is not null && kept.Holds(source)) copy = await kept.OpenAsync(source, ct);
+        }
+        catch (System.IO.IOException ex)
+        {
+            return $"It couldn't be downloaded from your web library. {ex.Message}";
+        }
+        // A downloaded copy is held only while Windows starts the app; one the other app has open can't be deleted under it.
+        await using var held = copy;
+        var path = copy?.Path ?? source.ArchivePath ?? source.FullPath;
         return launcher.Open(path) is { } error ? $"Windows couldn't open it: {error}" : null;
     }
 }
