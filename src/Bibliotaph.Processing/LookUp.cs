@@ -36,10 +36,12 @@ public sealed class BookLookups(SettingsStore settings, IBookCatalogue catalogue
 /// <summary>
 /// Look up: asks an online catalogue about the ISBNs a book prints (<see cref="IdentifyStage"/>), and suggests the
 /// title, authors, publisher and year its record gives, above the AI's (<see cref="AssertionOrigin.Lookup"/>). A record
-/// is used only when its title is printed in the book, so a misprinted or reused ISBN can't rename it. Runs in its own
-/// lane, only while the user has lookups on, and waits with a notice while the catalogue can't be reached.
+/// is used only when its title is printed in the book, so a misprinted or reused ISBN can't rename it. A book the record
+/// renames is looked at again for another file with its new title and publisher. Runs in its own lane, only while the
+/// user has lookups on, and waits with a notice while the catalogue can't be reached.
 /// </summary>
-public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, EntryStore entries, MetadataStore metadata, MetadataProjector projector) : IGatedStage
+public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, EntryStore entries, MetadataStore metadata, MetadataProjector projector,
+    VersionFinder versions) : IGatedStage
 {
     public Stage Stage => Stage.LookUp;
 
@@ -85,7 +87,11 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         if (await entries.GetEntryAsync(job.DocumentId, ct) is not { } entry) return StageOutcome.Complete();
         var source = record.Source.ToLowerInvariant().Replace(" ", "", StringComparison.Ordinal);
         if (await metadata.ApplyRunAsync(entry.EntryId, job.ContentHash, $"{source}:{record.Key}", AssertionOrigin.Lookup, BookRecords.Proposals(record), ct))
+        {
             await projector.ProjectAsync([entry.EntryId], ct);
+            // Match looked for a book of the same title and publisher before the record named this one properly.
+            await versions.ProposeByTitleAndPublisherAsync(job.DocumentId, ct);
+        }
         return StageOutcome.Complete();
     }
 

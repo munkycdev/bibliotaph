@@ -171,6 +171,7 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryStore>();
         builder.Services.AddSingleton<EntryStore>();
         builder.Services.AddSingleton<VersionStore>();
+        builder.Services.AddSingleton<VersionFinder>();
         builder.Services.AddSingleton<CopiesService>();
         builder.Services.AddSingleton<PackStore>();
         builder.Services.AddSingleton<PartStore>();

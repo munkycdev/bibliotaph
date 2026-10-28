@@ -16,8 +16,9 @@ namespace Bibliotaph.Processing;
 /// fingerprints, and so do the adventures marked in its book's file. Once matched, its book is checked against the
 /// user's own tags, whose words it can now be searched for.
 /// </summary>
-public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexStore index, IndexQueries queries, MetadataProjector projector,
-    ElsewhereStore elsewhere, PagePlaces places, MetadataHints hints, PartsService parts, UserTagService tags, ILogger<MatchStage>? log = null) : IStage
+public sealed class MatchStage(EntryStore entries, VersionStore versions, VersionFinder finder, IndexStore index, IndexQueries queries,
+    MetadataProjector projector, ElsewhereStore elsewhere, PagePlaces places, MetadataHints hints, PartsService parts, UserTagService tags,
+    ILogger<MatchStage>? log = null) : IStage
 {
     readonly ILogger _log = log ?? NullLogger<MatchStage>.Instance;
 
@@ -106,11 +107,41 @@ public sealed class MatchStage(EntryStore entries, VersionStore versions, IndexS
             return;
         }
 
+        await finder.ProposeByTitleAndPublisherAsync(documentId, ct);
+    }
+}
+
+/// <summary>
+/// The "new version?" cards found from what is known about a book rather than its pages: its title and publisher,
+/// which Match looks at and a lookup can change, and the ISBN it prints, which Identify finds. Each proposes the first
+/// book that fits; <see cref="VersionStore"/> keeps a file's card for its best match.
+/// </summary>
+public sealed class VersionFinder(VersionStore versions, EntryStore entries, IndexQueries queries, ILogger<VersionFinder>? log = null)
+{
+    readonly ILogger _log = log ?? NullLogger<VersionFinder>.Instance;
+
+    public async Task ProposeByTitleAndPublisherAsync(long documentId, CancellationToken ct = default)
+    {
         if (await entries.GetEntryAsync(documentId, ct) is not { } entry) return;
         foreach (var other in await queries.GetSameTitleAndPublisherAsync(entry.EntryId, ct))
         {
             if (!await versions.ProposeAsync(documentId, other, VersionEvidence.TitleAndPublisher, ct: ct)) continue;
             _log.LogInformation("Document {Document} has the title and publisher of document {Other}; proposed as a new version", documentId, other);
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Files that print the same ISBN as their own but aren't the same book page for page, as Match would have joined
+    /// those: a corrected PDF, a reprint, or the same book scanned. Never joined without asking, since publishers reuse
+    /// an ISBN across printings whose pages changed.
+    /// </summary>
+    public async Task ProposeByIsbnAsync(long documentId, CancellationToken ct = default)
+    {
+        foreach (var other in await queries.GetSameIsbnAsync(documentId, ct))
+        {
+            if (!await versions.ProposeAsync(documentId, other, VersionEvidence.SameIsbn, ct: ct)) continue;
+            _log.LogInformation("Document {Document} prints the ISBN of document {Other}; proposed as a new version", documentId, other);
             return;
         }
     }

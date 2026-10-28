@@ -85,6 +85,7 @@ public static class LibraryServices
         services.AddSingleton<LibraryStore>();
         services.AddSingleton<EntryStore>();
         services.AddSingleton<VersionStore>();
+        services.AddSingleton<VersionFinder>();
         services.AddSingleton<CopiesService>();
         services.AddSingleton<PackStore>();
         services.AddSingleton<PartStore>();

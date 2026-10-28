@@ -50,9 +50,13 @@ public sealed record VersionCardText(VersionItem Item)
 
     public string Heading => $"Looks like a new version of {Item.BookTitle}";
 
-    public string Evidence => Version.Evidence == VersionEvidence.SharedPages
-        ? $"{ReviewCardText.N(Version.SharedPages)} of {ReviewCardText.N(Version.ComparedPages)} pages are the same as the book's; the rest differ."
-        : "It has the book's title and publisher.";
+    public string Evidence => Version.Evidence switch
+    {
+        VersionEvidence.SharedPages =>
+            $"{ReviewCardText.N(Version.SharedPages)} of {ReviewCardText.N(Version.ComparedPages)} pages are the same as the book's; the rest differ.",
+        VersionEvidence.SameIsbn => "It prints the book's ISBN as its own, but its pages differ.",
+        _ => "It has the book's title and publisher.",
+    };
 
     public string Detail =>
         $"This file: {ThisFile}, {Pages(Version.PageCount)}. The book's file: {BookFile}, {Pages(Version.MatchedPageCount)}.";
