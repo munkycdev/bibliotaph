@@ -1,6 +1,6 @@
 # Bibliotaph architecture
 
-This describes the design of Bibliotaph 1.3. For what the app does, see [features.md](features.md); for how to use it, the [user guide](guide/getting-started.md).
+This describes the design of Bibliotaph 1.4. For what the app does, see [features.md](features.md); for how to use it, the [user guide](guide/getting-started.md).
 
 ## At a glance
 
