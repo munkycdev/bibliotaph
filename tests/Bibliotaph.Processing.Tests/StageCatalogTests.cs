@@ -18,7 +18,7 @@ public sealed class StageCatalogTests
         new(Stage.Ocr, 1, Lane.Ocr, null, false, "Reading scanned pages", "Reading scanned pages", "Reading scanned pages of"),
         new(Stage.Classify, 1, Lane.Classify, Stage.Text, true, "Cataloguing with AI", "Reading with AI", "Asking the AI about"),
         new(Stage.Match, 2, Lane.Index, Stage.Text, true, "Looking for other copies", "Looking for other copies", "Working on"),
-        new(Stage.Identify, 1, Lane.Index, Stage.Text, true, "Finding its ISBN", "Finding its ISBN", "Working on"),
+        new(Stage.Identify, 2, Lane.Index, Stage.Text, true, "Finding its ISBN", "Finding its ISBN", "Working on"),
         new(Stage.LookUp, 1, Lane.Online, Stage.Identify, true, "Looking it up online", "Looking it up online", "Looking up"),
         new(Stage.ChapterScan, 1, Lane.Classify, Stage.Text, true, "Scanning the whole book", "Scanning the whole book", "Scanning the chapters of"),
     ];
