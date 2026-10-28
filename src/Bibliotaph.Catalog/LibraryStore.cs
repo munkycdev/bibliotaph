@@ -25,6 +25,9 @@ public sealed record ReconcileResult(int Added, int Changed, int Unchanged, int 
 public sealed record UnhashedFile(long LocationId, string FullPath, long SizeBytes, DateTime ModifiedUtc, bool OnlineOnly, string Format,
     bool IsArchive = false, string? EntryPath = null);
 
+/// <summary>A file read into a document, in a library folder the user hasn't removed, as a connected PC lists the web library's.</summary>
+public sealed record ShelfFile(long RootId, string RelativePath, string ContentHash, long SizeBytes, DateTime ModifiedUtc);
+
 /// <summary>A file inside a ZIP, as the ZIP lists it. <see cref="Problem"/> says why it can't be read, if it can't.</summary>
 public sealed record ArchiveMember(string EntryPath, long SizeBytes, DateTime ModifiedUtc, uint Crc32, string? Problem = null);
 
@@ -605,6 +608,15 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>What Probe found of a document's protection and capabilities, as <see cref="SetProbeResultAsync"/> kept it.</summary>
+    public async Task<(ProtectionType Protection, string? Capabilities)?> GetProbeResultAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var row = await db.Documents.AsNoTracking().Where(d => d.Id == documentId)
+            .Select(d => new { d.Protection, d.CapabilitiesJson }).FirstOrDefaultAsync(ct);
+        return row is null ? null : (row.Protection, row.CapabilitiesJson);
+    }
+
     /// <summary>
     /// Marks documents' text as forgotten, for "Forget its text", or clears the mark for "Read it again". A document
     /// already marked keeps the time it was first forgotten.
@@ -645,8 +657,9 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>
-    /// A readable location for a document: a present file first, then an online-only one, then a file inside a ZIP,
-    /// which has to be extracted to be read. Null when every location is missing or its root is offline.
+    /// A readable location for a document: a present file first, then an online-only one, then one only the web library
+    /// has, then a file inside a ZIP, which has to be extracted to be read. Null when every location is missing or its
+    /// root is offline.
     /// </summary>
     public async Task<DocumentSource?> GetSourceAsync(long documentId, CancellationToken ct = default)
     {
@@ -655,7 +668,8 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         if (document is null) return null;
         var locations = await db.FileLocations.AsNoTracking()
             .Where(f => f.DocumentId == documentId && f.State != FileLocationState.Missing && f.SourceRoot.Availability == SourceRootAvailability.Online)
-            .OrderBy(f => f.ContainerId != null).ThenBy(f => f.State == FileLocationState.OnlineOnly).ThenBy(f => f.Id)
+            .OrderBy(f => f.ContainerId != null).ThenBy(f => f.State == FileLocationState.OnlineOnly)
+            .ThenBy(f => f.SourceRoot.Path.StartsWith(WebLibraryPaths.Prefix)).ThenBy(f => f.Id)
             .Select(f => new { Root = f.SourceRoot.Path, f.RelativePath, Archive = f.Container != null ? f.Container.RelativePath : null, f.EntryPath })
             .ToListAsync(ct);
         if (locations.Count == 0) return null;
@@ -899,6 +913,22 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             .Select(d => new { d.Id, d.ContentHash })
             .ToListAsync(ct);
         return [.. rows.Select(r => (r.Id, r.ContentHash))];
+    }
+
+    /// <summary>
+    /// Every file that is a document, other than one gone missing, in a folder the user hasn't removed: what a connected
+    /// PC shows of the web library. Files inside ZIPs are left out, since the PC would need the whole ZIP for any one.
+    /// </summary>
+    public async Task<IReadOnlyList<ShelfFile>> GetShelfFilesAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.FileLocations.AsNoTracking()
+            .Where(f => f.DocumentId != null && f.ContentHash != null && f.ContainerId == null && f.State != FileLocationState.Missing
+                && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .OrderBy(f => f.SourceRootId).ThenBy(f => f.RelativePath)
+            .Select(f => new { f.SourceRootId, f.RelativePath, f.ContentHash, f.SizeBytes, f.ModifiedUtc })
+            .ToListAsync(ct);
+        return [.. rows.Select(r => new ShelfFile(r.SourceRootId, r.RelativePath, r.ContentHash!, r.SizeBytes, r.ModifiedUtc))];
     }
 
     /// <summary>Every place a document's file is or was, readable ones first, for the inspector.</summary>

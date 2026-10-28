@@ -32,7 +32,7 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 public sealed partial class AiSettingsViewModel(
     AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
     PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, SettingsLinks links, LibraryVectors libraryVectors, ILogger<AiSettingsViewModel> log,
-    ChapterScanService chapters)
+    ChapterScanService chapters, WebShelfCache shelf)
     : SettingsSectionViewModel
 {
     bool _loading;
@@ -282,7 +282,7 @@ public sealed partial class AiSettingsViewModel(
 
         Folders.Clear();
         foreach (var root in await roots.ListAsync())
-            Folders.Add(new AiFolderItem(root.Id, root.Path, !setup.SkippedRoots.Contains(root.Id), OnFolderChangedAsync));
+            Folders.Add(new AiFolderItem(root.Id, shelf.Show(root.Path), !setup.SkippedRoots.Contains(root.Id), OnFolderChangedAsync));
         HasFolders = Folders.Count > 0;
 
         // Choosing the section that is showing loads it again, without an Unload in between.

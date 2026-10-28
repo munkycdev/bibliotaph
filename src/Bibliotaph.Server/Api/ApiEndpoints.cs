@@ -19,6 +19,7 @@ public static class ApiEndpoints
         app.MapDevicesApi();
         app.MapSyncApi();
         app.MapResultsApi();
+        app.MapPcLibraryApi();
 
         var api = app.MapGroup("/api").RequireAuthorization();
 

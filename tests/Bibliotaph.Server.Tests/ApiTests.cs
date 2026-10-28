@@ -2285,6 +2285,90 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.True(listed.Last > 0);
     }
 
+    [Fact]
+    public async Task A_connected_PC_lists_the_web_librarys_books_and_takes_what_the_server_read_from_them()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Adventures/known.pdf", await File.ReadAllBytesAsync(_pdfs.KnownText, ct));
+        var web = Client(user);
+        web.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await web.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var (pc, key) = await ConnectPcAsync(web, ct);
+        var hash = await WaitAsync(async () => (await pc.ReadShelfAsync(null, ct)).Shelf?.Folders.SelectMany(f => f.Files).FirstOrDefault()?.ContentHash, ct);
+
+        var shelf = (await pc.ReadShelfAsync(null, ct)).Shelf!;
+        var same = await pc.ReadShelfAsync(shelf.Version, ct);
+        var reading = await WaitAsync(async () => await pc.ReadReadingAsync(hash, ct) is { Cover: not null } r ? r : null, ct);
+        var cover = await pc.ReadCoverAsync(reading.Cover!, ct);
+        var notACover = await pc.ReadCoverAsync("..%2Fcatalog.db", ct);
+        var unknown = await pc.ReadReadingAsync(new string('b', 64), ct);
+        var keyed = new HttpClient(_factory.Server.CreateHandler()) { BaseAddress = new Uri("http://localhost") };
+        keyed.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+        using var file = await keyed.GetAsync($"/api/pc/books/{hash}/file", ct);
+        using var session = await web.GetAsync("/api/pc/library", ct);
+
+        var folder = Assert.Single(shelf.Folders);
+        Assert.Equal(("RPG", "OneDrive · Dana › RPG"), (folder.Name, folder.Location));
+        Assert.Equal("Adventures/known.pdf", Assert.Single(folder.Files).Path);
+        Assert.Equal((true, null), (same.Reached, same.Shelf));
+        Assert.Equal("Complete", reading.TextStatus);
+        Assert.Contains(reading.Pages, p => !string.IsNullOrWhiteSpace(p.Text));
+        Assert.Equal(reading.PageCount, reading.Pages.Count);
+        Assert.NotEmpty(cover!);
+        Assert.Null(notACover);
+        Assert.Null(unknown);
+        // OneDrive gives a link anyone may read, so the PC downloads from there, not through the server.
+        Assert.Equal(HttpStatusCode.Redirect, file.StatusCode);
+        Assert.StartsWith("https://public.files.1drv.com/", file.Headers.Location!.ToString(), StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Unauthorized, session.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_connected_PC_downloads_a_book_from_storage_without_read_links_through_the_server()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, DropboxProvider.Key, FakeDropbox.AccountId, "Dropbox · Dana", "personal", "refresh", null, ct);
+        var bytes = await File.ReadAllBytesAsync(_pdfs.KnownText, ct);
+        _dropbox.Add("RPG/known.pdf", bytes);
+        var web = Client(user);
+        web.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await web.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var (pc, key) = await ConnectPcAsync(web, ct);
+        var hash = await WaitAsync(async () => (await pc.ReadShelfAsync(null, ct)).Shelf?.Folders.SelectMany(f => f.Files).FirstOrDefault()?.ContentHash, ct);
+        var keyed = new HttpClient(_factory.Server.CreateHandler()) { BaseAddress = new Uri("http://localhost") };
+        keyed.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+
+        using var file = await keyed.GetAsync($"/api/pc/books/{hash}/file", ct);
+        using var missing = await keyed.GetAsync($"/api/pc/books/{new string('b', 64)}/file", ct);
+
+        Assert.Equal(HttpStatusCode.OK, file.StatusCode);
+        Assert.Equal(bytes, await file.Content.ReadAsByteArrayAsync(ct));
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    /// <summary>A PC connected to the user's web library, as the Windows app connects, with its key.</summary>
+    async Task<(WebLibrary Pc, string Key)> ConnectPcAsync(HttpClient web, CancellationToken ct)
+    {
+        var path = Path.Combine(_folder.Path, $"pc-{Guid.NewGuid():N}.db");
+        var catalog = new CatalogDatabase(path, Path.Combine(_folder.Path, "pc-backups"));
+        await using (var db = catalog.CreateContext()) await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database, ct);
+        var settings = new SettingsStore(new CatalogFile(path));
+        await settings.SetAsync(SettingKeys.WebAddress, "http://localhost", ct);
+        var key = new MemoryWebLibraryKey();
+        var pc = new WebLibrary(new HttpClient(_factory.Server.CreateHandler()), key, settings, TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WebLibrary>.Instance);
+        var started = (await pc.StartAsync("DESKTOP-1", ct))!;
+        var waiting = pc.WaitAsync(started, ct);
+        (await web.PostAsync($"/api/devices/connect/{started.Code}", null, ct)).EnsureSuccessStatusCode();
+        Assert.Equal(WebConnectOutcome.Connected, await waiting);
+        return (pc, key.Find()!);
+    }
+
     static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);

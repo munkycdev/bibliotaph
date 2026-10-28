@@ -1445,7 +1445,7 @@
                                  Visibility="{Binding HasState, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                       <WrapPanel Margin="0,10,0,0">
                         <Button Content="{Binding ShowLabel}" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,0"
-                                AutomationProperties.Name="{Binding ShowLabel}"
+                                AutomationProperties.Name="{Binding ShowLabel}" Visibility="{Binding CanShowInExplorer, Converter={StaticResource Bt.VisibleWhenTrue}}"
                                 Command="{Binding DataContext.ShowInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                 CommandParameter="{Binding}" />
                         <!-- Reprocess, with a small menu for OCR on every page. Disabled, reading Reprocessing…, while a stage waits or runs. -->
@@ -1494,7 +1494,7 @@
                                   Command="{Binding DataContext.MakeCurrentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                   CommandParameter="{Binding}" />
                           <Button Content="Show in File Explorer" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,8"
-                                  Visibility="{Binding HasPath, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                  Visibility="{Binding CanShowInExplorer, Converter={StaticResource Bt.VisibleWhenTrue}}"
                                   Command="{Binding DataContext.ShowCopyInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                   CommandParameter="{Binding}" />
                           <Button Content="Not the same book" Margin="0,0,8,8"
