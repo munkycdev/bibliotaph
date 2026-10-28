@@ -1,7 +1,7 @@
 name: Set up the Windows runner
 description: >-
-  What every CI job needs before it builds: Defender off, temporary files on D:, the cached .NET SDK and NuGet
-  packages, a restore, and the built-in AI's engine. Both CI jobs use it, so they can't drift apart.
+  What every Windows CI job needs before it builds: Defender off, temporary files on D:, the cached .NET SDK and NuGet
+  packages, a restore, and the built-in AI's engine. Both Windows CI jobs use it, so they can't drift apart.
 inputs:
   github-token:
     description: Token the engine download uses to read llama.cpp's release.

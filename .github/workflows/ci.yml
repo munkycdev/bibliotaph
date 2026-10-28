@@ -16,10 +16,88 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # What a pull request waits for: the whole solution built with warnings as errors, every test but the app's WPF
+  # tests, the licences and the banned-API probe, on Linux. The web server's tests take as long as all the rest, so they
+  # get a job of their own beside it. The Windows jobs below run on main, where a release waits for them, and on a
+  # branch from Run workflow.
+  sanity:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Sanity check (Linux)
+            tests: -SkipTests Server
+            all: true
+          - name: Web server tests (Linux)
+            tests: -OnlyTests Server
+            all: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK; use '11.0.x' with
+      # dotnet-quality ga then.
+      DOTNET_SDK: '11.0.100-rc.2.26504.105'
+      DOTNET_INSTALL_DIR: /home/runner/dotnet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.DOTNET_INSTALL_DIR }}
+          key: dotnet-${{ runner.os }}-${{ env.DOTNET_SDK }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK }}
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Restore
+
+      # The WPF app and its tests compile here too; only running them needs Windows. The web server tests' job builds
+      # just their project.
+      - name: Build (Debug, warnings as errors)
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Build ${{ matrix.tests }}
+
+      - name: Licences
+        if: matrix.all
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Licenses
+
+      - name: Test
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Test ${{ matrix.tests }}
+
+      - name: Banned file APIs fail the build
+        if: matrix.all
+        shell: pwsh
+        run: ./build/verify.ps1 -Step BannedApi
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ strategy.job-index }}
+          path: TestResults
+          if-no-files-found: ignore
+
   # Two jobs side by side: the smoke test takes about as long as the tests, so running it beside them, rather than
-  # after, puts it on every pull request for no more wall time than the slower of the two.
+  # after, costs no more wall time than the slower of the two.
   build-and-test:
     name: Build and test (Windows)
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -57,9 +135,7 @@ jobs:
         shell: pwsh
         run: ./build/verify.ps1 -Step BannedApi
 
-      # The release workflow builds Release itself, so pull requests leave this to main.
       - name: Build (Release)
-        if: github.event_name != 'pull_request'
         shell: pwsh
         run: ./build/verify.ps1 -Step Release
 
@@ -118,11 +194,12 @@ jobs:
             docker push "$IMAGE:$tag"
           done
 
-  # Every push to main that passes the Windows build and tests goes live. infra/setup.ps1 makes the app and prints
-  # the repository variables this needs; until they're set, nothing deploys.
+  # Every push to main whose Linux checks and image pass goes live, without waiting for the Windows jobs, which test
+  # only the Windows app. infra/setup.ps1 makes the app and prints the repository variables this needs; until they're
+  # set, nothing deploys.
   deploy-server:
     name: Deploy bibliotaph.online
-    needs: [build-and-test, server-image]
+    needs: [sanity, server-image]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -149,6 +226,7 @@ jobs:
   # exception or binding error. A release waits for it on its tagged commit, so no release ships without it.
   smoke:
     name: App smoke test (Windows)
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     timeout-minutes: 30
     env:
