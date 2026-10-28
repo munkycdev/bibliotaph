@@ -488,8 +488,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
         IJobControl indexing, IStageCatalog stages, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers,
         PartsService parts, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log,
-        CorrectionService? corrections = null, ChosenCovers? chosen = null, WebShelfCache? shelf = null)
+        CorrectionService? corrections = null, ChosenCovers? chosen = null, WebShelfCache? shelf = null, WebLibraryCopies? webCopies = null)
     {
+        DocumentSource? webSource = null;
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
         IReadOnlyList<InspectorLocation> locations;
         IReadOnlyList<CopyDetails> copyList = [];
@@ -515,14 +516,84 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
                     IsMissing: l.State == FileLocationState.Missing && l.RootAvailability == SourceRootAvailability.Online, IsWeb: WebLibraryPaths.IsWebPath(l.FullPath)))];
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
+            // Only a book that opens from the web library, with no file of its own here, can be kept offline.
+            if (webCopies is not null && locations.Any(l => l.IsWeb)
+                && await library.GetSourceAsync(item.DocumentId) is { } source && WebReadings.Serves(source))
+                webSource = source;
         }
         var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, stages, copies, packs, elsewhere,
             files, prompts, shell, corrections, chosen, log, shelf);
         if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
+        if (webSource is not null) await inspector.LoadOfflineAsync(webCopies!, webSource);
         await inspector.ReloadMetadataAsync(changed: false);
         await inspector.LoadPartsAsync(parts);
         await inspector.LoadChaptersAsync(log);
         return inspector;
+    }
+
+    WebLibraryCopies? _webCopies;
+    DocumentSource? _webSource;
+    bool _showingKept;
+
+    /// <summary>The book opens from the web library, with no file of its own here: it can be kept on this PC to read without a connection.</summary>
+    public bool CanKeepOffline => _webSource is not null;
+
+    /// <summary>"Keep offline on this PC": downloads the book now and keeps it, or lets it go with the other downloads.</summary>
+    [ObservableProperty]
+    public partial bool IsKeptOffline { get; set; }
+
+    /// <summary>Whether the book's copy is on this PC, and for how long.</summary>
+    [ObservableProperty]
+    public partial string? OfflineText { get; private set; }
+
+    /// <summary>A download for Keep offline is running; the box waits for it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanChangeKeptOffline))]
+    public partial bool IsKeepingOffline { get; private set; }
+
+    public bool CanChangeKeptOffline => !IsKeepingOffline;
+
+    async Task LoadOfflineAsync(WebLibraryCopies copies, DocumentSource source)
+    {
+        (_webCopies, _webSource) = (copies, source);
+        ShowKept(await copies.IsKeptAsync(source.ContentHash));
+        OnPropertyChanged(nameof(CanKeepOffline));
+    }
+
+    partial void OnIsKeptOfflineChanged(bool value)
+    {
+        if (!_showingKept) KeepOfflineAsync(value).FireAndForget();
+    }
+
+    async Task KeepOfflineAsync(bool keep)
+    {
+        if (_webCopies is not { } copies || _webSource is not { } source) return;
+        IsKeepingOffline = true;
+        if (keep) OfflineText = "Downloading to this PC…";
+        try
+        {
+            await Task.Run(() => copies.KeepAsync(source, keep));
+            ShowKept(keep);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            ShowKept(!keep);
+            OfflineText = $"It couldn't be downloaded. {ex.Message}";
+        }
+        finally
+        {
+            IsKeepingOffline = false;
+        }
+    }
+
+    void ShowKept(bool kept)
+    {
+        _showingKept = true;
+        IsKeptOffline = kept;
+        _showingKept = false;
+        OfflineText = kept ? "Kept on this PC, so it opens without a connection."
+            : _webCopies!.Has(_webSource!.ContentHash) ? "Downloaded to this PC for now. It's let go when the room for downloads is needed."
+            : "Downloaded from bibliotaph.online when you open it.";
     }
 
     /// <summary>

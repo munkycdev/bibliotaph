@@ -72,7 +72,7 @@ public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
     NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
     IUserPrompts UserPrompts, IDesktopShell Shell, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null, PackService? Packs = null,
-    EbookBrowser? Ebooks = null);
+    EbookBrowser? Ebooks = null, WebLibraryCopies? WebCopies = null);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -100,6 +100,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     readonly JobBoard _jobs;
     readonly ISourceFileReader _files;
     readonly SourceFiles _sources;
+    readonly WebLibraryCopies? _webCopies;
     readonly WpfImageCodec _codec;
     readonly FavoritesService _favorites;
     readonly PinDirectory _pins;
@@ -161,6 +162,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         _jobs = services.Jobs;
         _files = services.Files;
         _sources = services.Sources;
+        _webCopies = services.WebCopies;
         _codec = services.Codec;
         _favorites = services.Favorites;
         _pins = services.Pins;
@@ -411,6 +413,12 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
 
     public bool IsOpening => Mode == ViewerMode.Opening;
 
+    /// <summary>What the reader says while a book opens: how much has come, for one downloaded from the web library.</summary>
+    [ObservableProperty]
+    public partial string OpeningText { get; private set; } = Opening;
+
+    const string Opening = "Opening…";
+
     public bool ShowEmptyState => Mode is ViewerMode.Empty or ViewerMode.Problem;
 
     /// <summary>"PDF · 320 pages · Adventures / Winter", under the title.</summary>
@@ -561,6 +569,12 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         _pins.Changed += OnPinsChanged;
         _sessions.Changed -= OnSessionsChanged;
         if (request.SessionItem is not null && !InBinder) _sessions.Changed += OnSessionsChanged;
+        if (_webCopies is not null)
+        {
+            _webCopies.Progress -= OnWebDownload;
+            _webCopies.Progress += OnWebDownload;
+        }
+        OpeningText = Opening;
         var version = ++_version;
         // Stepping through a pack keeps the image in view until the next one is ready.
         if (!(IsInPack && Mode == ViewerMode.Image)) Mode = ViewerMode.Opening;
@@ -583,11 +597,20 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             // Coming Back to a session item's pages, which may have been moved meanwhile, as from a Needs review card.
             if (version == _version && request.SessionItem is not null && !InBinder) await FollowSessionItemAsync();
         }
+        catch (WebLibraryUnreachableException)
+        {
+            _log.LogInformation("Document {DocumentId} is only in the web library, which can't be reached", request.DocumentId);
+            if (version == _version)
+                Problem("This book needs a connection to open.",
+                    "It's in your web library, and bibliotaph.online can't be reached from this PC right now. To read it without a connection, choose Keep offline on this PC in its details while you're online.");
+        }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
         {
             // The file went away, is locked, or is still downloading: worth saying, not worth an error in the log.
             _log.LogWarning("Reading document {DocumentId} failed: {Reason}", request.DocumentId, ex.Message);
-            if (version == _version) Problem("The file could not be read.", "It may have moved, be in use, or still be downloading.");
+            if (version == _version)
+                Problem("The file could not be read.",
+                    _source is { } source && WebReadings.Serves(source) ? ex.Message : "It may have moved, be in use, or still be downloading.");
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -619,6 +642,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         PartEditor?.CancelCommand.Execute(null);
         _pins.Changed -= OnPinsChanged;
         _sessions.Changed -= OnSessionsChanged;
+        if (_webCopies is not null) _webCopies.Progress -= OnWebDownload;
         Ask.Detach();
         Pdf = null;
         Image = null;
@@ -845,6 +869,12 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     void ShowPinned() => IsPinned = _card is { } card && _pins.IsPinned(PinTarget.Entry(card));
 
     void OnPinsChanged(object? sender, EventArgs e) => ShowPinned();
+
+    void OnWebDownload(object? sender, WebDownload download) => _dispatcher.InvokeAsync(() =>
+    {
+        if (IsOpening && string.Equals(_source?.ContentHash, download.ContentHash, StringComparison.OrdinalIgnoreCase))
+            OpeningText = $"Downloading from bibliotaph.online… {download.Percent.ToString(CultureInfo.CurrentCulture)}%";
+    });
 
     /// <summary>Moves the book to a window of its own at the same page and zoom; the main window goes Back.</summary>
     [RelayCommand(CanExecute = nameof(CanPopOut))]

@@ -1474,6 +1474,15 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
 
+            <!-- A book only the web library has: downloaded when it's opened, or kept here to read without a connection. -->
+            <StackPanel Margin="0,0,0,8" Visibility="{Binding CanKeepOffline, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <CheckBox x:Name="KeepOffline" Content="Keep offline on this PC" IsChecked="{Binding IsKeptOffline}" FontSize="11"
+                        Foreground="{DynamicResource Bt.Text}" IsEnabled="{Binding CanChangeKeptOffline}"
+                        ToolTip="Download the book now and keep it, so it opens without a connection" />
+              <TextBlock Text="{Binding OfflineText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0"
+                         AutomationProperties.LiveSetting="Polite" />
+            </StackPanel>
+
             <!-- The book's files when it has more than one (F2): which one opens, Make current, and Not the same book. -->
             <StackPanel Visibility="{Binding HasCopies, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <TextBlock Text="{Binding CopiesHeading}" Style="{StaticResource SectionHead}" />
