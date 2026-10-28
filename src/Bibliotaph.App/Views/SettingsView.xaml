@@ -190,6 +190,23 @@
         </WrapPanel>
         <TextBlock Text="{Binding Note}" Style="{StaticResource Text.Small}" Margin="0,10,0,0" TextWrapping="Wrap"
                    Visibility="{Binding Note, Converter={StaticResource Bt.VisibleWhenSet}}" />
+
+        <!-- The web library's books downloaded to open them: how many, and the room for those not kept offline. -->
+        <StackPanel Margin="0,28,0,0" Visibility="{Binding IsConnected, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <TextBlock Text="Books downloaded to this PC" Style="{StaticResource Text.H2}" />
+          <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
+                     Text="A book only your web library has is downloaded when you open it. The ones you keep offline, from a book's details, stay on this PC; the rest go, least recently read first, once they take more than the room below." />
+          <TextBlock x:Name="WebCopiesSummary" Text="{Binding CopiesLine}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" Margin="0,4,0,12" />
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Text="Room for downloads" Style="{StaticResource Text.Row}" VerticalAlignment="Center" Margin="0,0,10,0" />
+            <ComboBox x:Name="WebCopiesRoom" Style="{StaticResource Bt.Select}" ItemsSource="{Binding RoomChoices}" SelectedItem="{Binding RoomGb}"
+                      ItemStringFormat="{}{0} GB" MinWidth="90" AutomationProperties.Name="Room for downloads"
+                      ToolTip="Books kept offline don't count" />
+            <Button Style="{StaticResource Bt.Link}" Content="Free up space" VerticalAlignment="Center" Margin="14,0,0,0"
+                    Command="{Binding FreeUpSpaceCommand}" AutomationProperties.Name="Delete the downloads not kept offline"
+                    ToolTip="Delete the downloads not kept offline. They're downloaded again when you open them." />
+          </StackPanel>
+        </StackPanel>
       </StackPanel>
     </DataTemplate>
 

@@ -38,7 +38,13 @@ public static class PcLibraryApi
         pc.MapGet("/books/{hash}/reading", async (string hash, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
-            return await lease.Library.Get<SharedReadings>().ReadAsync(hash, ct) is { } reading ? Results.Ok(reading) : Results.NotFound();
+            // Conflict: the server couldn't read the file, so the PC reads it itself.
+            return await lease.Library.Get<SharedReadings>().ReadAsync(hash, ct) switch
+            {
+                { Reading: { } reading } => Results.Ok(reading),
+                { ReadHere: true } => Results.StatusCode(StatusCodes.Status409Conflict),
+                _ => Results.NotFound(),
+            };
         });
 
         pc.MapGet("/covers/{name}", async (string name, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>

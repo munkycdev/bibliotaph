@@ -11,10 +11,11 @@ namespace Bibliotaph.App.ViewModels;
 /// same on every PC connected to it and on the web. Connect opens the approval
 /// page in the browser and shows the code the page shows, then waits for the user's answer there; leaving the section
 /// stops waiting. Once connected, it says whose library and how library sync with it is going, and Disconnect
-/// forgets the PC's key here and on the web.
+/// forgets the PC's key here and on the web. It also says how much of the web library is downloaded here, and sets
+/// the room for the downloads not kept offline.
 /// </summary>
-public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync sync, WebShelfSync shelf, IDesktopShell shell, TimeProvider clock,
-    ILogger<DevicesSectionViewModel> log) : SettingsSectionViewModel
+public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync sync, WebShelfSync shelf, WebLibraryCopies copies, IDesktopShell shell,
+    TimeProvider clock, ILogger<DevicesSectionViewModel> log) : SettingsSectionViewModel
 {
     System.Windows.Threading.Dispatcher? _dispatcher;
     // Stops the wait; the wait itself owns its token source.
@@ -49,6 +50,19 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
 
     public bool CanConnect => !IsConnected && !IsWaiting;
 
+    /// <summary>The rooms offered for the downloads not kept offline, in GB.</summary>
+    public IReadOnlyList<int> RoomChoices { get; } = WebLibraryCopies.Rooms;
+
+    /// <summary>The room for the web library's books downloaded to open them, in GB; past it the least recently read go.</summary>
+    [ObservableProperty]
+    public partial int RoomGb { get; set; } = WebLibraryCopies.DefaultRoomGb;
+
+    /// <summary>How many of the web library's books are downloaded here, their size, and how many are kept offline.</summary>
+    [ObservableProperty]
+    public partial string? CopiesLine { get; private set; }
+
+    bool _showingRoom;
+
     partial void OnIsConnectedChanged(bool value) => OnPropertyChanged(nameof(CanConnect));
 
     partial void OnIsWaitingChanged(bool value) => OnPropertyChanged(nameof(CanConnect));
@@ -72,6 +86,36 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
 
     void ShowSync() => SyncLine = IsConnected ? LibrarySync.DescribeWeb(sync.Status, clock.GetUtcNow(), clock.LocalTimeZone) : null;
 
+    partial void OnRoomGbChanged(int value)
+    {
+        if (!_showingRoom) SetRoomAsync(value).FireAndForget();
+    }
+
+    async Task SetRoomAsync(int gb)
+    {
+        await Task.Run(() => copies.SetRoomGbAsync(gb));
+        await ShowCopiesAsync();
+    }
+
+    async Task ShowCopiesAsync()
+    {
+        var summary = await Task.Run(() => copies.SummarizeAsync());
+        _showingRoom = true;
+        RoomGb = await copies.GetRoomGbAsync();
+        _showingRoom = false;
+        CopiesLine = summary.Books == 0 ? "None of your web library's books are downloaded to this PC."
+            : $"{summary.Books} {LibraryActivity.Plural(summary.Books, "book", "books")} from your web library downloaded to this PC, {LibraryActivity.Size(summary.Bytes)}"
+                + (summary.KeptOffline == 0 ? "." : $", {summary.KeptOffline} kept offline.");
+    }
+
+    /// <summary>Deletes the downloads not kept offline and not open; they're downloaded again when they're opened.</summary>
+    [RelayCommand]
+    async Task FreeUpSpaceAsync()
+    {
+        await Task.Run(() => copies.ClearAsync(keepKept: true));
+        await ShowCopiesAsync();
+    }
+
     async Task ShowAsync()
     {
         var status = await web.CheckAsync();
@@ -85,6 +129,7 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
             _ => "Not connected.",
         };
         ShowSync();
+        await ShowCopiesAsync();
     }
 
     [RelayCommand]

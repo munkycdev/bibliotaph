@@ -76,6 +76,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
     readonly FakeHub _hub = new();
     readonly FakeWebBooks _web = new();
     WebShelfCache _shelf = null!;
+    WebLibraryCopies _webCopies = null!;
     SharedResults _shared = null!;
     UserTagService _userTags = null!;
     FolderCollectionStore _folderCollectionStore = null!;
@@ -110,13 +111,14 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         var reader = new DownloadingReader(new SourceFileReader(), _cloud);
         var index = _indexStore = new IndexStore(_writer);
         var archives = new ArchiveReader(reader);
-        // The web library's folders are read through it, as on a connected PC; no other test has one.
-        _shelf = new WebShelfCache(_paths);
-        _sources = new SourceFiles(_paths, archives, new DiskSpace(), remote: new WebLibraryFiles(_shelf, _web));
         var vocabulary = _vocabulary = new VocabularyStore(contexts);
         await vocabulary.SeedAsync(Ct);
         _metadataStore = new MetadataStore(contexts);
         _settings = new SettingsStore(contexts);
+        // The web library's folders are read through it, as on a connected PC; no other test has one.
+        _shelf = new WebShelfCache(_paths);
+        _webCopies = new WebLibraryCopies(_paths, _web, _shelf, _settings, new DiskSpace());
+        _sources = new SourceFiles(_paths, archives, new DiskSpace(), kept: _webCopies);
         _runs = new ClassificationStore(contexts);
         _favorites = new FavoriteStore(contexts);
         _reading = new ReadingStore(contexts, entries);

@@ -273,7 +273,8 @@ public partial class App : Application
         builder.Services.AddSingleton<WebShelfCache>();
         builder.Services.AddSingleton<IKnownHashes>(sp => sp.GetRequiredService<WebShelfCache>());
         builder.Services.AddSingleton<ISourceLister>(sp => new WebAwareSourceLister(new FileSystemSourceLister(), sp.GetRequiredService<WebShelfCache>()));
-        builder.Services.AddSingleton<IRemoteFiles, WebLibraryFiles>();
+        builder.Services.AddSingleton<WebLibraryCopies>();
+        builder.Services.AddSingleton<IKeptCopies>(sp => sp.GetRequiredService<WebLibraryCopies>());
         builder.Services.AddSingleton<WebReadings>();
         builder.Services.AddSingleton<ICloudFiles, CloudFiles>();
         builder.Services.AddSingleton<OnlineOnlyReturns>();
