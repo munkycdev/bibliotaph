@@ -86,7 +86,7 @@
         <div class="bt-scanwhole">
             <label class="bt-check"><input type="checkbox" checked="@lookups.On" disabled="@_saving" aria-label="Look up books online by their ISBN"
                        @onchange="e => LookUpAsync(e.Value is true)" />Look up books online by their ISBN</label>
-            <p class="bt-fine">Asks Open Library about the ISBNs your books print, and nothing else, to fill in their title, authors,
+            <p class="bt-fine">Asks @(lookups.Sources ?? "Open Library") about the ISBNs your books print, and nothing else, to fill in their title, authors,
                 publisher and year. A record is used only when its title is printed in the book, and the AI's guesses give way to it.</p>
         </div>
     }
@@ -99,7 +99,7 @@
     readonly ProcessingPhase _reading = new("Reading files", "Each file is downloaded once to be read");
     readonly ProcessingPhase _making = new("Making searchable", "Text and covers");
     readonly ProcessingPhase _scans = new("Reading scans", "Text from scanned pages, by OCR", "pages");
-    readonly ProcessingPhase _lookingUp = new("Looking up online", "Title, authors, publisher and year from Open Library, by ISBN");
+    readonly ProcessingPhase _lookingUp = new("Looking up online", "Title, authors, publisher and year, by ISBN");
     readonly ProcessingPhase _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page");
     readonly CancellationTokenSource _stop = new();
     ProcessingPhase[] _phases = [];

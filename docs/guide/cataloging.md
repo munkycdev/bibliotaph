@@ -12,8 +12,9 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   cover too), and party sizes and levels in the file name.
 - **Open Library**, if you turn on **Look up books online by their ISBN** in **Settings > Processing**: Bibliotaph
   sends the ISBNs a book prints, and nothing else, to [Open Library](https://openlibrary.org) and suggests the title,
-  authors, publisher and year its record gives. A record is used only when its title is printed in the book, so a
-  misprinted ISBN can't rename it. These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
+  authors, publisher and year its record gives. On bibliotaph.online, a book Open Library doesn't know is looked for in
+  [Google Books](https://books.google.com) too, which knows many more small-press books. A record is used only when
+  its title is printed in the book, so a misprinted ISBN can't rename it. These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
   come back only if you reject the looked-up value. Off until you turn it on.
 - **AI**, if you turn it on: a model on your PC reads a few pages and suggests the rest. Every AI suggestion must quote
   the page it came from, or it's thrown away. See [AI](ai.md).

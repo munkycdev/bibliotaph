@@ -14,5 +14,5 @@ public sealed record ProcessingState(
 /// <summary>Which lanes the user paused: reading files and making them searchable, reading scans, and the AI.</summary>
 public sealed record ProcessingPauses(bool Indexing, bool Scans, bool Ai);
 
-/// <summary>Whether books are looked up online by the ISBNs they print.</summary>
-public sealed record LookupSetting(bool On);
+/// <summary>Whether books are looked up online by the ISBNs they print, and where: "Open Library or Google Books".</summary>
+public sealed record LookupSetting(bool On, string? Sources = null);

@@ -1,5 +1,12 @@
 # Changes
 
+## Unreleased
+
+- **Google Books for books Open Library doesn't know.** On bibliotaph.online, Look up books online by their ISBN now
+  asks Google Books for a book Open Library has no record of, which finds many more small-press books. It sends the
+  ISBNs and nothing else, and the setting names where it looks. See
+  [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+
 ## 1.3 · 19 October 2026
 
 New in 1.3.929 (28 October 2026):

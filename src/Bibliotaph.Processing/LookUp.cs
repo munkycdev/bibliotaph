@@ -76,11 +76,11 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         {
             return new StageOutcome.Unavailable(ex.Message);
         }
-        if (record is null) return new StageOutcome.Done(StageStatus.Skipped, [], $"{catalogue.Name} has no record of its ISBN.");
+        if (record is null) return new StageOutcome.Done(StageStatus.Skipped, [], $"No record of its ISBN in {catalogue.Name}.");
 
         if (!BookRecords.IsNamedIn(record, await PlacesAsync(job.DocumentId, ct)))
             return new StageOutcome.Done(StageStatus.Skipped, [],
-                $"{catalogue.Name}'s record for its ISBN is of “{record.Title}”, which isn't printed in it, so it wasn't used.");
+                $"{record.Source}'s record for its ISBN is of “{record.Title}”, which isn't printed in it, so it wasn't used.");
 
         if (await entries.GetEntryAsync(job.DocumentId, ct) is not { } entry) return StageOutcome.Complete();
         var source = record.Source.ToLowerInvariant().Replace(" ", "", StringComparison.Ordinal);
