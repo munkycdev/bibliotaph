@@ -100,6 +100,7 @@ public sealed partial class LibraryActivity : ObservableObject
     readonly PhaseProgress _reading = new("Reading files", "Checking each file; online-only files download");
     readonly PhaseProgress _making = new("Making searchable", "Text and covers");
     readonly PhaseProgress _scans = new("Reading scans", "Text from scanned pages, by OCR", "pages");
+    readonly PhaseProgress _lookingUp = new("Looking up online", "Title, authors, publisher and year from Open Library, by ISBN");
     readonly PhaseProgress _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page");
     readonly Dictionary<long, string> _titles = [];
     int _dirty = 1;
@@ -120,7 +121,7 @@ public sealed partial class LibraryActivity : ObservableObject
         _indexing.Changed += (_, _) => Interlocked.Exchange(ref _dirty, 1);
         // Metadata edits and projections change what the library shows without any indexing.
         metadata.Projected += (_, _) => Interlocked.Exchange(ref _dirty, 1);
-        Phases = [_finding, _reading, _making, _scans, _classifying];
+        Phases = [_finding, _reading, _making, _scans, _lookingUp, _classifying];
     }
 
     /// <summary>Raised on the UI thread after each refresh, for pages that show more detail.</summary>
@@ -199,6 +200,18 @@ public sealed partial class LibraryActivity : ObservableObject
 
     public bool IsAiWaiting => AiWaiting.Length > 0;
 
+    /// <summary>"Look up books online by their ISBN" is on, so the Online lane may run.</summary>
+    [ObservableProperty]
+    public partial bool LookupsOn { get; private set; }
+
+    /// <summary>Why lookups are waiting though they have work, such as a catalogue that can't be reached; empty otherwise.</summary>
+    [ObservableProperty]
+    public partial string LookupWaiting { get; private set; } = "";
+
+    /// <summary>Books waiting to be looked up while lookups are on.</summary>
+    [ObservableProperty]
+    public partial bool HasLookupWork { get; private set; }
+
     [ObservableProperty]
     public partial bool WaitingForDiskSpace { get; private set; }
 
@@ -242,7 +255,7 @@ public sealed partial class LibraryActivity : ObservableObject
         if (Interlocked.Exchange(ref _dirty, 0) == 0)
         {
             // No news, but while there is work the clock still moves, so a stall shows in the time left.
-            if (HasIndexWork || HasOcrWork || HasAiWork) UpdatePhases(_time.GetUtcNow());
+            if (HasIndexWork || HasOcrWork || HasLookupWork || HasAiWork) UpdatePhases(_time.GetUtcNow());
             return;
         }
         _refreshing = true;
@@ -255,6 +268,8 @@ public sealed partial class LibraryActivity : ObservableObject
             AiPaused = _indexing.IsPaused(Lane.Classify);
             AiOn = _indexing.IsOpen(Lane.Classify);
             AiWaiting = AiOn ? _indexing.Unavailable(Lane.Classify) ?? "" : "";
+            LookupsOn = _indexing.IsOpen(Lane.Online);
+            LookupWaiting = LookupsOn ? _indexing.Unavailable(Lane.Online) ?? "" : "";
             WaitingForDiskSpace = _indexing.WaitingForDiskSpace;
             // Counted among the library's folders, so a removed folder's failures don't linger.
             var failing = Progress.NeedAttention == 0 ? 0
@@ -265,6 +280,7 @@ public sealed partial class LibraryActivity : ObservableObject
             HasIndexWork = _indexing.IsScanning || Counts.Unhashed - _indexing.Unreadable.Count > 0 || Progress.Indexing > 0;
             HasOcrWork = Progress.PagesAwaitingOcr > 0;
             HasAiWork = AiOn && (Progress.ToClassify > 0 || Progress.ToScanWhole > 0);
+            HasLookupWork = LookupsOn && Progress.ToLookUp > 0;
             Summary = Describe();
             OfflineText = Counts.OfflineFolders == 0 ? "" : $"{Counts.OfflineFolders:N0} {Plural(Counts.OfflineFolders, "folder", "folders")} offline";
             UpdatePhases(_time.GetUtcNow());
@@ -294,6 +310,8 @@ public sealed partial class LibraryActivity : ObservableObject
         if (Progress.Indexing > 0) return $"Indexing · {Progress.Searchable:N0} of {Progress.Documents:N0} searchable";
         if (Progress.PagesAwaitingOcr > 0)
             return OcrPaused ? "Reading scanned pages paused" : $"Reading scanned pages · {Progress.PagesAwaitingOcr:N0} left";
+        if (HasLookupWork)
+            return LookupWaiting.Length > 0 ? "Looking up online is waiting" : $"Looking up online · {Progress.ToLookUp:N0} left";
         if (HasAiWork && Progress.ToClassify > 0)
             return AiPaused ? "Cataloguing with AI paused"
                 : IsAiWaiting ? "Cataloguing with AI is waiting"
@@ -318,7 +336,9 @@ public sealed partial class LibraryActivity : ObservableObject
         _reading.Count(now, Counts.Files - toHash, Counts.Files, IndexPaused, waitingForSpace ? "Waiting for disk space" : null);
         _making.Count(now, Progress.Indexed, Progress.Queued, IndexPaused);
         _scans.Count(now, Progress.OcrPagesDone, Progress.OcrPages, OcrPaused);
-        // AI cataloguing is optional and off until set up, so "Off" rather than a count that never moves.
+        // Lookups and AI cataloguing are optional and off until switched on, so "Off" rather than a count that never moves.
+        if (!LookupsOn) _lookingUp.Show(PhaseState.Waiting, Progress.ToLookUp > 0 ? $"Off · {Progress.ToLookUp:N0} waiting" : "Off");
+        else _lookingUp.Count(now, Progress.LookedUp, Progress.LookedUp + Progress.ToLookUp, paused: false, LookupWaiting.Length > 0 ? LookupWaiting : null);
         if (!AiOn) _classifying.Show(PhaseState.Waiting, Progress.ToClassify > 0 ? $"Off · {Progress.ToClassify:N0} waiting" : "Off");
         else _classifying.Count(now, Progress.Classified, Progress.Classified + Progress.ToClassify, AiPaused, IsAiWaiting ? AiWaiting : null);
 

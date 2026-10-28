@@ -99,6 +99,7 @@
     readonly ProcessingPhase _reading = new("Reading files", "Each file is downloaded once to be read");
     readonly ProcessingPhase _making = new("Making searchable", "Text and covers");
     readonly ProcessingPhase _scans = new("Reading scans", "Text from scanned pages, by OCR", "pages");
+    readonly ProcessingPhase _lookingUp = new("Looking up online", "Title, authors, publisher and year from Open Library, by ISBN");
     readonly ProcessingPhase _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page");
     readonly CancellationTokenSource _stop = new();
     ProcessingPhase[] _phases = [];
@@ -111,7 +112,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _phases = [_finding, _reading, _making, _scans, _classifying];
+        _phases = [_finding, _reading, _making, _scans, _lookingUp, _classifying];
         await RefreshAsync();
         try
         {
@@ -174,6 +175,7 @@
         try
         {
             _lookups = await Api.SetLookupsAsync(on, _stop.Token);
+            Show(await Api.ProcessingAsync(_stop.Token));
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
@@ -191,7 +193,9 @@
         _reading.Count(now, state.Files - state.ToRead, state.Files, state.Paused.Indexing);
         _making.Count(now, state.Indexed, state.Queued, state.Paused.Indexing);
         _scans.Count(now, state.OcrPagesDone, state.OcrPages, state.Paused.Scans);
-        // AI cataloguing is optional and off until set up, so "Off" rather than a count that never moves.
+        // Lookups and AI cataloguing are optional and off until switched on, so "Off" rather than a count that never moves.
+        if (!state.LookupsOn) _lookingUp.Show(PhaseState.Waiting, state.ToLookUp > 0 ? $"Off · {state.ToLookUp:N0} waiting" : "Off");
+        else _lookingUp.Count(now, state.LookedUp, state.LookedUp + state.ToLookUp, paused: false, state.LookupWaiting);
         if (!state.AiOn) _classifying.Show(PhaseState.Waiting, state.ToClassify > 0 ? $"Off · {state.ToClassify:N0} waiting" : "Off");
         else _classifying.Count(now, state.Classified, state.Classified + state.ToClassify, state.Paused.Ai, state.AiWaiting);
 

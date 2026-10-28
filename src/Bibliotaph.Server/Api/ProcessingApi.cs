@@ -57,10 +57,12 @@ public static class ProcessingApi
         var progress = await library.Get<IndexQueries>().GetProgressAsync(ct);
         var folders = (await library.Get<SourceRootStore>().ListAsync(ct)).Count;
         var aiOn = library.Get<AiSettings>().Setup.IsReady;
+        var lookupsOn = library.Get<BookLookups>().IsOn;
         var status = await StorageApi.StatusAsync(library, ct);
         return new ProcessingState(status.Text, folders > 0, indexing.IsScanning, counts.Files, Math.Max(0, counts.Unhashed - indexing.Unreadable.Count),
             progress.Indexed, progress.Queued, progress.OcrPagesDone, progress.OcrPages, aiOn, aiOn ? indexing.Unavailable(Lane.Classify) : null,
-            progress.Classified, progress.ToClassify, PausedLanes.Of(indexing), await NowAsync(library, ct), status.Attention);
+            progress.Classified, progress.ToClassify, PausedLanes.Of(indexing), await NowAsync(library, ct), status.Attention,
+            lookupsOn, lookupsOn ? indexing.Unavailable(Lane.Online) : null, progress.LookedUp, progress.ToLookUp);
     }
 
     /// <summary>What each part of indexing is working on right now, one line each, in the Windows app's words.</summary>
