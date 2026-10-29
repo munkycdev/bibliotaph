@@ -243,6 +243,80 @@ public sealed class ReviewStoreTests : IAsyncLifetime
         Assert.Null((await _vocabulary.GetAsync(Ct)).Resolve("type", "module"));
     }
 
+    [Fact]
+    public async Task Combining_terms_moves_names_values_rejections_and_editions_to_the_target_and_undo_puts_them_back()
+    {
+        var settings = await _vocabulary.ListAsync("setting", Ct);
+        var realms = settings.Single(e => e.Key == "forgotten-realms");
+        var twin = await _vocabulary.AddTermAsync("setting", "The Forgotten Realms", Ct);
+        var coast = await _vocabulary.AddTermAsync("setting", "Sword Coast Adventures", Ct);
+        await _vocabulary.AddAliasAsync(twin.TermId!.Value, "Realms", Ct);
+        // The first book has the twin from the AI and the target as the user's own value; the second has only the twin, and rejected the target.
+        await _metadata.AddSuggestionsAsync(_document, Hash, [Hint(MetadataFields.Settings, "the-forgotten-realms", AssertionOrigin.Ai)], Ct);
+        await _metadata.SetValuesAsync(_document, MetadataFields.Settings, ["forgotten-realms"], Ct);
+        await _metadata.AddSuggestionsAsync(_other, Hash, [Hint(MetadataFields.Settings, "the-forgotten-realms", AssertionOrigin.Ai), Hint(MetadataFields.Settings, "sword-coast-adventures", AssertionOrigin.Ai)], Ct);
+        await _metadata.RejectAsync(_other, MetadataFields.Settings, "forgotten-realms", Ct);
+        var otherBefore = await _metadata.GetAsync(_other, Ct);
+        var systems = await _vocabulary.ListAsync("system", Ct);
+        var dnd = systems.Single(e => e.Key == "dnd");
+        var dndTwin = await _vocabulary.AddTermAsync("system", "Dungeons and Dragons", Ct);
+        var edition = (await _vocabulary.GetAsync(Ct)).InVocabulary("edition").First(t => t.ParentKey == "dnd");
+        await _vocabulary.MergeAsync(dndTwin.TermId!.Value, [dnd.Id], Ct);
+
+        var merge = await _vocabulary.MergeAsync(realms.Id, [twin.TermId.Value, coast.TermId!.Value], Ct);
+
+        var vocabulary = await _vocabulary.GetAsync(Ct);
+        Assert.Null(vocabulary.Find("setting", "the-forgotten-realms"));
+        Assert.Equal("forgotten-realms", vocabulary.Resolve("setting", "The Forgotten Realms")?.Key);
+        Assert.Equal("forgotten-realms", vocabulary.Resolve("setting", "Realms")?.Key);
+        Assert.Equal("forgotten-realms", vocabulary.Resolve("setting", "Sword Coast Adventures")?.Key);
+        Assert.Equal(["forgotten-realms"], (await EffectiveAsync())[MetadataFields.Settings].Values.Select(v => v.Value));
+        Assert.Equal(AssertionOrigin.User, (await EffectiveAsync())[MetadataFields.Settings].First!.Origin);
+        // The second book rejected the target, so the twin's value stays rejected under the target's key.
+        Assert.Empty((await EffectiveAsync(_other))[MetadataFields.Settings].Values);
+        Assert.Equal(["forgotten-realms"], (await _metadata.GetAsync(_other, Ct)).Rejections.Select(r => r.Normalized));
+        Assert.Equal("dungeons-and-dragons", vocabulary.Find("edition", edition.Key)?.ParentKey);
+        Assert.Equal([_document, _other], merge.EntryIds.OrderBy(e => e.Value));
+        Assert.Equal(["The Forgotten Realms", "Sword Coast Adventures"], merge.Merged.Select(m => m.Label));
+
+        await _vocabulary.UndoMergeAsync(merge, Ct);
+
+        vocabulary = await _vocabulary.GetAsync(Ct);
+        Assert.Equal("the-forgotten-realms", vocabulary.Resolve("setting", "Realms")?.Key);
+        Assert.Equal("The Forgotten Realms", vocabulary.Label("setting", "the-forgotten-realms"));
+        Assert.Equal("sword-coast-adventures", vocabulary.Resolve("setting", "Sword Coast Adventures")?.Key);
+        // Setting the target by hand had rejected the twin's suggestion; that rejection is back, under the twin's own key.
+        Assert.Equal(["forgotten-realms"], (await EffectiveAsync())[MetadataFields.Settings].Values.Select(v => v.Value));
+        Assert.Contains(("setting", "the-forgotten-realms"), (await _metadata.GetAsync(_document, Ct)).Rejections);
+        var otherAfter = await _metadata.GetAsync(_other, Ct);
+        Assert.Equal(otherBefore.Claims.Select(c => (c.Value, c.State)), otherAfter.Claims.Select(c => (c.Value, c.State)));
+        Assert.Equal(otherBefore.Rejections, otherAfter.Rejections);
+    }
+
+    [Fact]
+    public async Task Terms_kept_apart_are_remembered_by_pair_and_can_be_forgotten()
+    {
+        var a = await _vocabulary.AddTermAsync("setting", "Realms", Ct);
+        var b = await _vocabulary.AddTermAsync("setting", "The Realms", Ct);
+        var c = await _vocabulary.AddTermAsync("setting", "Realm", Ct);
+        Assert.NotNull(a.TermId);
+        Assert.NotNull(b.TermId);
+        Assert.NotNull(c.TermId);
+
+        var added = await _vocabulary.KeepApartAsync("setting", ["realms", "the-realms", "realm"], Ct);
+        var again = await _vocabulary.KeepApartAsync("setting", ["realms", "the-realms"], Ct);
+        var kept = await _vocabulary.GetKeptApartAsync("setting", Ct);
+        await _vocabulary.ForgetKeptApartAsync([kept[0].Id], Ct);
+
+        Assert.Equal(3, added.Count);
+        Assert.Empty(again);
+        Assert.Equal([("realms", "the-realms"), ("realm", "realms"), ("realm", "the-realms")], kept.Select(k => (k.FirstKey, k.SecondKey)));
+        Assert.Equal(2, (await _vocabulary.GetKeptApartAsync("setting", Ct)).Count);
+        var terms = await _vocabulary.GetOverlapTermsAsync("setting", Ct);
+        Assert.Contains(terms, t => t.Key == "realms" && !t.Starter);
+        Assert.Contains(terms, t => t.Key == "forgotten-realms" && t.Starter && t.OtherNames.Contains("FR"));
+    }
+
     sealed class SnapshotComparer : IEqualityComparer<FieldSnapshot>
     {
         public static readonly SnapshotComparer Instance = new();

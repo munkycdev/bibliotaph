@@ -46,6 +46,74 @@ public static class AiTermText
 /// </summary>
 public sealed record VocabularyChange(long? TermId, string? Problem, string? Note);
 
+/// <summary>
+/// Find overlaps, GET /api/vocabulary/{key}/overlaps: the terms that look like the same thing, in groups, and the
+/// pairs the user kept apart.
+/// </summary>
+public sealed record TermOverlapPage(IReadOnlyList<TermOverlapGroup> Proposals, IReadOnlyList<KeptApartTerms> KeptApart);
+
+/// <summary>Terms that look like the same thing: each with how many books use it, why, whether the names alone make it likely, and which to keep by default.</summary>
+public sealed record TermOverlapGroup(IReadOnlyList<TermOverlapMember> Terms, string Reason, bool Sure, long KeepId);
+
+public sealed record TermOverlapMember(long Id, string Label, int Books);
+
+/// <summary>A pair the user said are not the same thing, by their labels.</summary>
+public sealed record KeptApartTerms(long Id, string First, string Second);
+
+/// <summary>Combine: the term that stays and the terms folded into it.</summary>
+public sealed record CombineTerms(long KeepId, IReadOnlyList<long> MergeIds);
+
+/// <summary>Keep apart: the terms of a proposal, every pair of which is remembered.</summary>
+public sealed record KeepTermsApart(IReadOnlyList<long> Ids);
+
+/// <summary>What both clients say about overlaps.</summary>
+public static class OverlapText
+{
+    public const string Title = "Find overlaps";
+
+    public const string Help = "Looks for terms in this list that may be the same thing under two names, and offers to combine them.";
+
+    public const string None = "No overlaps found.";
+
+    public const string NoneLeft = "No overlaps left.";
+
+    public const string Comparing = "Comparing names…";
+
+    public const string Keep = "Keep";
+
+    public const string Combine = "Combine";
+
+    public const string CombineHelp = "Folds the other terms into the one kept: their names become its other names, and the books filed under them move to it.";
+
+    public const string KeepApart = "Keep apart";
+
+    public const string KeepApartHelp = "They're not the same thing. Find overlaps leaves this pair alone from now on.";
+
+    public const string Forget = "Offer this pair again";
+
+    public const string NamesOnly = "By names only. With AI on, it also asks the model what each name refers to.";
+
+    public const string UndoFailed = "The terms couldn't be put back.";
+
+    public static string Found(int groups) => groups == 1 ? "1 group of terms may be the same thing." : $"{groups:N0} groups of terms may be the same thing.";
+
+    public static string Books(int count) => count == 1 ? "1 book" : $"{count:N0} books";
+
+    public static string KeptApart(int pairs) => pairs == 1 ? "1 pair kept apart" : $"{pairs:N0} pairs kept apart";
+
+    /// <summary>"Kept Greyhawk and Grayhawk apart."</summary>
+    public static string KeptApartNote(IReadOnlyList<string> labels) => labels.Count switch
+    {
+        0 => "Nothing to keep apart.",
+        1 => $"Kept {labels[0]} apart.",
+        2 => $"Kept {labels[0]} and {labels[1]} apart.",
+        _ => $"Kept {string.Join(", ", labels.Take(labels.Count - 1))} and {labels[^1]} apart.",
+    };
+
+    /// <summary>"Forgotten Realms · 12 books", as the Keep list shows a term.</summary>
+    public static string Member(string label, int books) => books == 0 ? label : $"{label} · {Books(books)}";
+}
+
 /// <summary>One of the user's own tags: the words that find it in books' pages, and how many books show it.</summary>
 public sealed record UserTag(long Id, string Name, IReadOnlyList<string> Words, int Books);
 

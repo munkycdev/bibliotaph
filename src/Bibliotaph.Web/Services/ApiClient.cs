@@ -550,6 +550,18 @@ public sealed class ApiClient(HttpClient http)
     public Task RemoveAliasAsync(long aliasId, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Delete, $"api/vocabulary/aliases/{aliasId}", null, ct);
 
+    public Task<TermOverlapPage> TermOverlapsAsync(string vocabulary, CancellationToken ct = default) =>
+        SendAsync<TermOverlapPage>(HttpMethod.Get, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}/overlaps", null, ct);
+
+    public Task<ActionResult> CombineTermsAsync(string vocabulary, long keepId, IReadOnlyList<long> mergeIds, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}/combine", new CombineTerms(keepId, mergeIds), ct);
+
+    public Task<ActionResult> KeepTermsApartAsync(string vocabulary, IReadOnlyList<long> ids, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}/keep-apart", new KeepTermsApart(ids), ct);
+
+    public Task ForgetKeptApartAsync(string vocabulary, long id, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Delete, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}/kept-apart/{id}", null, ct);
+
     public Task<List<UserTag>> UserTagsAsync(CancellationToken ct = default) => SendAsync<List<UserTag>>(HttpMethod.Get, "api/tags", null, ct);
 
     /// <summary>Adds a tag when <paramref name="id"/> is null, otherwise changes it.</summary>

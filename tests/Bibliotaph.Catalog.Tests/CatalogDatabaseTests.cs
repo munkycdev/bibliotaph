@@ -280,20 +280,22 @@ public sealed class CatalogDatabaseTests : IDisposable
         {
             await context.GetService<Microsoft.EntityFrameworkCore.Migrations.IMigrator>().MigrateAsync("20261011045255_CatalogLibrarySync", ct);
             var now = new DateTime(2026, 10, 8, 12, 0, 0, DateTimeKind.Utc);
-            Entities.VocabularyTerm Term(string vocabulary, string key, string label, params string[] aliases) => new()
+            // Written as SQL, since today's VocabularyTerm and Entry have columns this older schema doesn't.
+            var termId = 0L;
+            async Task TermAsync(string vocabulary, string key, string label, params string[] aliases)
             {
-                Vocabulary = vocabulary,
-                Key = key,
-                Label = label,
-                Origin = Core.TermOrigin.Starter,
-                State = Core.TermState.Active,
-                CreatedUtc = now,
-                Aliases = [.. aliases.Select(a => new Entities.VocabularyAlias { Text = a, Normalized = Core.Metadata.MetadataText.Normalize(a) })],
-            };
-            context.VocabularyTerms.AddRange(
-                Term("theme", "heist", "Heist", "caper"), Term("theme", "horror", "Horror"), Term("theme", "exploration", "Exploration", "hexcrawl", "sandbox"),
-                Term("theme", "mystery", "Mystery", "investigation", "whodunit"), Term("environment", "forest", "Forest", "jungle", "woods"));
-            // Written as SQL, since today's Entry has columns this older schema doesn't.
+                termId++;
+                await context.Database.ExecuteSqlAsync(
+                    $"INSERT INTO vocabulary_term (id, vocabulary, key, label, origin, state, created_utc) VALUES ({termId}, {vocabulary}, {key}, {label}, 'Starter', 'Active', '2026-10-08 12:00:00')", ct);
+                foreach (var alias in aliases)
+                    await context.Database.ExecuteSqlAsync(
+                        $"INSERT INTO vocabulary_alias (term_id, text, normalized) VALUES ({termId}, {alias}, {Core.Metadata.MetadataText.Normalize(alias)})", ct);
+            }
+            await TermAsync("theme", "heist", "Heist", "caper");
+            await TermAsync("theme", "horror", "Horror");
+            await TermAsync("theme", "exploration", "Exploration", "hexcrawl", "sandbox");
+            await TermAsync("theme", "mystery", "Mystery", "investigation", "whodunit");
+            await TermAsync("environment", "forest", "Forest", "jungle", "woods");
             await context.Database.ExecuteSqlRawAsync(
                 "INSERT INTO entry (id, kind, created_utc, sync_id) VALUES (1, 'Whole', '2026-10-08 12:00:00', '6F1C2A9E-0B7D-4E52-9C1A-3D2B8E4F5A60')", ct);
             const long entryId = 1;

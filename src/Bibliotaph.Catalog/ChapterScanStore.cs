@@ -20,6 +20,9 @@ public sealed record ChapterScanRecord(string ContentHash, string Provider, stri
     public bool IsFinished => FinishedUtc is not null;
 }
 
+/// <summary>A scan as it was before a term was combined into another, for undoing.</summary>
+public sealed record ChapterScanWas(long Id, string ContentHash, string ChaptersJson);
+
 /// <summary>
 /// Whole-book scans in catalog.db, by the content hash of the copy they read, so what the AI found in each chapter
 /// outlives an index.db rebuild and the same file is never read twice. They describe the file rather than anything the
@@ -79,6 +82,40 @@ public sealed class ChapterScanStore(IDbContextFactory<CatalogDbContext> context
         row.ChaptersJson = JsonSerializer.Serialize(chapters, Json);
         row.StartedUtc = startedUtc;
         row.FinishedUtc = finished ? _clock.GetUtcNow().UtcDateTime : null;
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Gives every chapter tagged with <paramref name="fromKey"/> in <paramref name="field"/> the key and label of the
+    /// term it was combined into. Returns each scan changed as it was, for undoing, with the copy it describes.
+    /// </summary>
+    public async Task<IReadOnlyList<ChapterScanWas>> ReplaceTermAsync(string field, string fromKey, string toKey, string toLabel, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var was = new List<ChapterScanWas>();
+        var marker = JsonSerializer.Serialize(fromKey);
+        foreach (var row in await db.ChapterScans.Where(s => s.ChaptersJson.Contains(marker)).ToListAsync(ct))
+        {
+            var chapters = Read(row.ChaptersJson);
+            if (!chapters.Any(c => c.Tags.Any(t => t.Field == field && t.Value == fromKey))) continue;
+            was.Add(new ChapterScanWas(row.Id, row.ContentHash, row.ChaptersJson));
+            row.ChaptersJson = JsonSerializer.Serialize(chapters.Select(c => c with
+            {
+                Tags = [.. c.Tags.Select(t => t.Field == field && t.Value == fromKey ? t with { Value = toKey, Label = toLabel } : t)],
+            }).ToList(), Json);
+        }
+        await db.SaveChangesAsync(ct);
+        return was;
+    }
+
+    /// <summary>Puts scans back as <see cref="ReplaceTermAsync"/> found them.</summary>
+    public async Task RestoreAsync(IReadOnlyList<ChapterScanWas> was, CancellationToken ct = default)
+    {
+        if (was.Count == 0) return;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var ids = was.Select(w => w.Id).ToList();
+        foreach (var row in await db.ChapterScans.Where(s => ids.Contains(s.Id)).ToListAsync(ct))
+            row.ChaptersJson = was.First(w => w.Id == row.Id).ChaptersJson;
         await db.SaveChangesAsync(ct);
     }
 
