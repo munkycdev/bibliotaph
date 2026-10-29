@@ -15,9 +15,14 @@ RUN curl -fsSL -o /tmp/litestream.tar.gz \
 
 WORKDIR /src
 COPY . .
+# The build's number and commit, as CI passes them; a local build keeps Directory.Build.props's MAJOR.MINOR.0 and names
+# no commit, since the repository's .git isn't copied in.
+ARG VERSION=
+ARG COMMIT=
 # The PDF worker is its own process, as in the Windows app, so a book that crashes PDFium can't take the server down.
-RUN dotnet publish src/Bibliotaph.Server -c Release -r linux-x64 --self-contained false -o /app -p:UseAppHost=false \
- && dotnet publish src/Bibliotaph.PdfWorker -c Release -r linux-x64 --self-contained false -o /app/pdfworker -p:PdfWorkerPortable=true \
+RUN props="${VERSION:+-p:Version=$VERSION} ${COMMIT:+-p:SourceRevisionId=$COMMIT}" \
+ && dotnet publish src/Bibliotaph.Server -c Release -r linux-x64 --self-contained false -o /app -p:UseAppHost=false $props \
+ && dotnet publish src/Bibliotaph.PdfWorker -c Release -r linux-x64 --self-contained false -o /app/pdfworker -p:PdfWorkerPortable=true $props \
  && install -m 755 src/Bibliotaph.Server/Container/start.sh /usr/local/bin/bibliotaph \
  && install -m 755 src/Bibliotaph.Server/Container/invite.sh /usr/local/bin/bibliotaph-invite
 

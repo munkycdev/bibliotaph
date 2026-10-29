@@ -43,7 +43,7 @@ Bibliotaph opens and what waits for review), **Passwords**, **Backup** and **Acc
 invite, holds **Members** (invitations and accounts). Each page is headed as its entry is. The address names the section, such as
 bibliotaph.online/settings#library, so Back returns to the last one; an older link to a section since folded into
 another, such as #storage, opens the one it's in now.
-**About Bibliotaph**, under the list, shows the version, the licence and links to the source code, problem reports,
+**About Bibliotaph**, under the list, shows the version (the build number and commit the site is running, as the footer does), the licence and links to the source code, problem reports,
 the privacy policy, the terms and the change log. **Keyboard shortcuts**, under it, lists every key that works on the web, by where it works; Ctrl+/
 shows the same list from anywhere. Ctrl+K, or / when you're not typing, puts the keyboard in the search box, and in a
 reader popped out into a window of its own, Ctrl+K searches in the main window. The button beside **Settings**, or
