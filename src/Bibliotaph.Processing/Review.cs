@@ -273,7 +273,7 @@ public sealed class ReviewService(
 /// background, once a run of edits pauses.
 /// </summary>
 public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProjector projector, IJobControl indexing, MetadataHints hints,
-    ILogger<VocabularyService>? log = null, TimeSpan? settle = null)
+    SettingsStore settings, ILogger<VocabularyService>? log = null, TimeSpan? settle = null)
 {
     readonly ILogger _log = log ?? NullLogger<VocabularyService>.Instance;
     readonly TimeSpan _settle = settle ?? TimeSpan.FromSeconds(2);
@@ -294,6 +294,26 @@ public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProj
     {
         await vocabularies.RemoveAliasAsync(aliasId, ct);
         ScheduleRefresh();
+    }
+
+    /// <summary>Whether a new term the AI uses joins <paramref name="vocabulary"/> at once, rather than asking in Needs review.</summary>
+    public Task<bool> AddsAiTermsAsync(string vocabulary, CancellationToken ct = default) => settings.AddsAiTermsAsync(vocabulary, ct);
+
+    /// <summary>
+    /// Chooses whether a new term the AI uses joins <paramref name="vocabulary"/> at once. Choosing it adds that
+    /// vocabulary's terms waiting in Needs review too, so the list clears, and returns how many it added.
+    /// </summary>
+    public async Task<int> SetAddsAiTermsAsync(string vocabulary, bool add, CancellationToken ct = default)
+    {
+        await settings.SetAddsAiTermsAsync(vocabulary, add, ct);
+        if (!add) return 0;
+        var waiting = (await vocabularies.GetPendingAsync(ct)).Where(p => p.Term.Vocabulary == vocabulary).ToList();
+        if (waiting.Count == 0) return 0;
+        var entries = new HashSet<EntryId>();
+        foreach (var term in waiting) entries.UnionWith((await vocabularies.AcceptPendingAsync(term.Id, ct)).EntryIds);
+        await projector.ProjectAsync([.. entries], ct);
+        ScheduleRefresh();
+        return waiting.Count;
     }
 
     async Task<VocabularyEdit> AfterAsync(Task<VocabularyEdit> edit)

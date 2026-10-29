@@ -109,7 +109,7 @@ Suggestions come from folder and file names that match a vocabulary term, the PD
 
 **Cataloged wrong…** shows every field with each guess marked **Guessed** and its evidence open. After a fix, Bibliotaph offers to fix the same guess on look-alike books in that folder; after the same value is set on three books in a folder, it offers a folder rule.
 
-**Settings > Vocabulary** holds the terms books are filed under, each with other names ("5e" for an edition, say), which folder names, searches, AI and typing all go through.
+**Settings > Vocabulary** holds the terms books are filed under, each with other names ("5e" for an edition, say), which folder names, searches, AI and typing all go through. **New names from the AI**, per list the AI can add to (never editions), chooses Ask first (a Needs review card per new name, the default) or Add them (the name joins the list as the AI uses it, the books that use it get it as a suggestion, and the names already waiting are added at once); a rejected name stays rejected either way.
 
 **Your tags** there are the user's own, each with the words that signal it ("Undead": undead, zombie, lich). Saving one looks for the words in the pages already indexed, without reading any file again, and suggests the tag for each book whose pages use them on at least 3 pages and at least one page in 20, so a passing mention or a few pages of a thick rulebook don't count. New books are checked once their text is in. Changing a tag looks again, deleting one takes its suggestions away, and the user's own decisions win: a kept tag stays, and a rejected one never comes back to that book.
 

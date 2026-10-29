@@ -98,6 +98,7 @@ public sealed class SharedResults : IHostedService, IDisposable
     readonly ChapterScanStore _scans;
     readonly MetadataStore _metadata;
     readonly VocabularyStore _vocabularies;
+    readonly SettingsStore? _settings;
     readonly EntryStore _entries;
     readonly LibraryStore _library;
     readonly MetadataProjector _projector;
@@ -120,9 +121,11 @@ public sealed class SharedResults : IHostedService, IDisposable
 
     public SharedResults(ClassificationStore runs, ChapterScanStore scans, MetadataStore metadata, VocabularyStore vocabularies, EntryStore entries,
         LibraryStore library, MetadataProjector projector, ChapterProjection chapters, ChapterQueries chapterQueries, SharedResultCache cache, AiSettings ai,
-        IResultChannel? channel = null, TimeProvider? clock = null, ILogger<SharedResults>? log = null, SharedPageText? pageText = null)
+        IResultChannel? channel = null, TimeProvider? clock = null, ILogger<SharedResults>? log = null, SharedPageText? pageText = null,
+        SettingsStore? settings = null)
     {
         _pageText = pageText;
+        _settings = settings;
         _runs = runs;
         _scans = scans;
         _metadata = metadata;
@@ -353,23 +356,28 @@ public sealed class SharedResults : IHostedService, IDisposable
 
     /// <summary>
     /// The suggestions, as this device names them: a term this device doesn't have is proposed by its label, as a new
-    /// term the AI suggested here would be, and one the user rejected here is left out.
+    /// term the AI suggested here would be (added at once where this device's Settings › Vocabulary says so), and one
+    /// the user rejected here is left out.
     /// </summary>
     async Task<List<MetadataProposal>> ProposalsAsync(IReadOnlyList<SharedClaim> claims, CancellationToken ct)
     {
         var proposals = new List<MetadataProposal>();
+        var grew = false;
         foreach (var claim in claims)
         {
             if (MetadataFields.Find(claim.Field) is not { } field) continue;
             var value = claim.Value;
             if (field is { Kind: FieldKind.Term, Vocabulary: { } vocabulary } && (await _vocabularies.GetAsync(ct)).Find(vocabulary, value) is null)
             {
-                var (term, state) = await _vocabularies.ProposeTermAsync(vocabulary, claim.Term ?? value, ct);
+                var addAtOnce = _settings is not null && await _settings.AddsAiTermsAsync(vocabulary, ct);
+                var (term, state, added) = await _vocabularies.ProposeTermAsync(vocabulary, claim.Term ?? value, addAtOnce, ct);
                 if (state == TermState.Rejected) continue;
+                grew |= added;
                 value = term.Key;
             }
             proposals.Add(new MetadataProposal(field, value, AssertionOrigin.Ai, claim.Quote, claim.Pages, claim.FromSampling));
         }
+        if (grew) await _projector.ProjectVocabularyAsync(ct);
         return proposals;
     }
 

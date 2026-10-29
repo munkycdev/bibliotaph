@@ -1422,6 +1422,49 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task A_vocabulary_can_take_the_AIs_new_terms_at_once_which_adds_the_ones_waiting_in_Needs_review()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/IMG_0042.png", Png());
+        _graph.Add("RPG/Maps/IMG_0043.png", Png(SkiaSharp.SKColors.Crimson));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
+
+        // A campaign setting the AI named on both books, which the vocabulary doesn't know yet.
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            var library = lease.Library;
+            var (reach, _) = await library.Get<VocabularyStore>().ProposeTermAsync("setting", "Thornwick Reach", ct);
+            foreach (var book in books)
+                await library.Get<MetadataStore>().AddSuggestionsAsync(new EntryId(book.EntryId), null,
+                    [new(MetadataFields.Settings, reach.Key, AssertionOrigin.Ai, "set in Thornwick Reach")], ct);
+            await library.Get<MetadataProjector>().ProjectAllAsync(ct);
+        }
+
+        var asking = await client.GetFromJsonAsync<AiTermChoice>("/api/vocabulary/setting/ai-terms", ct);
+        var waiting = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        using var chosen = await client.PutAsJsonAsync("/api/vocabulary/setting/ai-terms", new AiTermChoice(true), ct);
+        var change = await chosen.Content.ReadFromJsonAsync<AiTermChange>(ct);
+        var adding = await client.GetFromJsonAsync<AiTermChoice>("/api/vocabulary/setting/ai-terms", ct);
+        var terms = await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/setting", ct);
+        var after = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        using var editions = await client.GetAsync("/api/vocabulary/edition/ai-terms", ct);
+
+        Assert.False(asking!.Add);
+        Assert.Equal("Thornwick Reach", Assert.Single(waiting.Terms).Label);
+        Assert.Equal(new AiTermChange(true, 1), change);
+        Assert.True(adding!.Add);
+        Assert.Contains(terms!, t => t.Label == "Thornwick Reach" && !t.Yours);
+        Assert.Empty(after.Terms);
+        Assert.Equal(HttpStatusCode.NotFound, editions.StatusCode);
+    }
+
+    [Fact]
     public async Task A_backup_and_both_exports_download_named_for_the_users_day_without_the_servers_sealed_keys()
     {
         var ct = TestContext.Current.CancellationToken;

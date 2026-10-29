@@ -58,6 +58,25 @@
     <Border Style="{StaticResource Bt.Rule}" />
 
     <StackPanel Visibility="{Binding IsTags, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+      <!-- New names from the AI: a card in Needs review, or straight into the list. -->
+      <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18"
+              Visibility="{Binding OffersAiTerms, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <DockPanel>
+          <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" KeyboardNavigation.DirectionalNavigation="Cycle" AutomationProperties.Name="{x:Static vm:VocabularyViewModel.AiTermsTitle}">
+              <RadioButton Style="{StaticResource Bt.Segment}" GroupName="AiTerms" Content="Ask first" IsChecked="{Binding AiTermsAsk}" />
+              <RadioButton Style="{StaticResource Bt.Segment}" GroupName="AiTerms" Content="Add them" IsChecked="{Binding AiTermsAdd}" />
+            </StackPanel>
+          </Border>
+          <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+            <TextBlock Text="{x:Static vm:VocabularyViewModel.AiTermsTitle}" Style="{StaticResource Text.Row}" />
+            <TextBlock Text="{x:Static vm:VocabularyViewModel.AiTermsHelp}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding AiTermsNote}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
+                       Visibility="{Binding AiTermsNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
       <!-- Add a term -->
       <TextBlock Text="{Binding AddLabel}" Style="{StaticResource FieldLabel}" Margin="0,18,0,5" />
       <DockPanel>

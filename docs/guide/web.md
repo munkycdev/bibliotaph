@@ -686,7 +686,9 @@ Windows app, with a tab for each list. Type in **Add to types** (or whichever li
 a term by any of its names. The pencil beside a term opens it: change its **Name** or its **Short name, on covers** and
 **Save name**, and add or remove its **Other names** ("5e" for an edition, say). Folder names, searches and what you type
 all go through these names. Renaming keeps everything filed under the term, and the library catches up a few seconds
-after you stop.
+after you stop. **New names from the AI**, at the top of each list the AI can add to, chooses **Ask first** (a card in
+Needs review for each name, the default) or **Add them** (the name joins the list as the AI uses it, and the names
+already waiting are added too), as in the Windows app.
 
 The last tab, **Your tags**, holds tags of your own, each with the words that signal it ("Undead": zombie, lich).
 **Add tag** looks through your books' pages at once and suggests the tag for each book whose pages use the words often

@@ -35,6 +35,23 @@ public static class VocabularyApi
             return Results.Ok(Change(await lease.Library.Get<VocabularyService>().AddTermAsync(key, term.Label, ct)));
         });
 
+        // Only the vocabularies the AI can add to have the choice; editions never do.
+        vocabulary.MapGet("/{key}/ai-terms", async (string key, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!AiTerms.Extends(key)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Results.Ok(new AiTermChoice(await lease.Library.Get<VocabularyService>().AddsAiTermsAsync(key, ct)));
+        });
+
+        // Choosing Add them adds the terms waiting in Needs review too, so the answer waits for them.
+        vocabulary.MapPut("/{key}/ai-terms", async (string key, AiTermChoice choice, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!AiTerms.Extends(key)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var added = await lease.Library.Get<VocabularyService>().SetAddsAiTermsAsync(key, choice.Add, ct);
+            return Results.Ok(new AiTermChange(choice.Add, added));
+        });
+
         vocabulary.MapPut("/terms/{id:long}", async (long id, TermRename rename, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
