@@ -100,6 +100,36 @@ public sealed class ReviewStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_new_term_joins_the_vocabulary_at_once_where_the_user_chose_so_and_its_values_are_suggestions()
+    {
+        var (term, state, added) = await _vocabulary.ProposeTermAsync("setting", "Thornwick Reach", addAtOnce: true, Ct);
+
+        Assert.Equal((TermState.Active, true), (state, added));
+        Assert.Equal(term.Key, (await _vocabulary.GetAsync(Ct)).Resolve("setting", "thornwick reach")?.Key);
+        Assert.Equal(1, await _metadata.AddSuggestionsAsync(_document, Hash, [new MetadataProposal(MetadataFields.Settings, term.Key, AssertionOrigin.Ai, "in Thornwick Reach")], Ct));
+        Assert.Equal(term.Key, (await EffectiveAsync())[MetadataFields.Settings].First?.Value);
+        Assert.Empty(await _vocabulary.GetPendingAsync(Ct));
+        // Proposed again, it's the term it already is, not a second addition.
+        var again = await _vocabulary.ProposeTermAsync("setting", "thornwick reach", addAtOnce: true, Ct);
+        Assert.Equal((term.Key, TermState.Active, false), (again.Term.Key, again.State, again.Added));
+    }
+
+    [Fact]
+    public async Task A_term_still_waiting_is_added_when_proposed_again_at_once_but_a_rejected_one_stays_rejected()
+    {
+        var rejected = await PendingAsync("Nonsense");
+        await _vocabulary.RejectPendingAsync(rejected.Id, Ct);
+        var pending = await PendingAsync("Heist Kit");
+
+        var (term, state, added) = await _vocabulary.ProposeTermAsync("type", "heist kit", addAtOnce: true, Ct);
+
+        Assert.Equal((pending.Term.Key, TermState.Active, true), (term.Key, state, added));
+        Assert.Equal(term.Key, (await EffectiveAsync())[MetadataFields.Types].First?.Value);
+        Assert.Equal(TermState.Rejected, (await _vocabulary.ProposeTermAsync("type", "nonsense", addAtOnce: true, Ct)).State);
+        Assert.Empty(await _vocabulary.GetPendingAsync(Ct));
+    }
+
+    [Fact]
     public async Task Adding_a_new_term_turns_its_values_into_suggestions_and_undo_holds_them_again()
     {
         var pending = await PendingAsync("Heist Kit");

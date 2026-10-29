@@ -158,7 +158,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         _shared = new SharedResults(_runs, _chapterScans, _metadataStore, vocabulary, entries, library, projector, _chapterProjection, new ChapterQueries(_index),
             sharedCache, _ai, _hub, pageText: pageText);
         var classify = new ClassifyStage(_ai, library, _queries, Inputs(), _runs,
-            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector), _aiReading, _parts, _proposals, shared: _shared);
+            new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector, _settings), _aiReading, _parts, _proposals, shared: _shared);
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);
         _packs = new PackService(packStore, projector, hints, _metadataStore);
         _folderCollectionStore = new FolderCollectionStore(contexts);
@@ -192,7 +192,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
     /// suggestions itself passes the ones it holds.
     /// </summary>
     ReviewService Review(CorrectionService? corrections = null, CollectionSuggestions? suggestions = null) =>
-        new(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings, new VocabularyService(_vocabulary, _projector, _service, _hints),
+        new(_metadataStore, _vocabulary, _metadata, _projector, _queries, _settings, new VocabularyService(_vocabulary, _projector, _service, _hints, _settings),
             new ReviewCards(_copies, _packs, _elsewhere, _places, corrections ?? Corrections(), _folderRules, _parts, _proposals, _folderCollections,
                 suggestions ?? Suggestions(), _libraryStore));
 
@@ -576,7 +576,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
             Assert.Equal("Adventure", Assert.Single(await search.ListAsync(new LibraryFilter(), ct: Ct)).Kind);
 
             // Settings > Vocabulary: One-shot becomes a type of its own, taking "one shot" and "one shots" from Adventure.
-            var vocabulary = new VocabularyService(_vocabulary, _projector, _service, _hints);
+            var vocabulary = new VocabularyService(_vocabulary, _projector, _service, _hints, _settings);
             var added = await vocabulary.AddTermAsync("type", "One-shot", Ct);
             Assert.Null((await vocabulary.AddAliasAsync(added.TermId!.Value, "one shots", Ct)).Problem);
             await vocabulary.RefreshAsync(Ct);

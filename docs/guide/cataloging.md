@@ -92,7 +92,9 @@ usable while its card waits. It has two lists:
 
 - A field where the sources disagree, or a book with no useful title. Each button sits under the value it keeps:
   **Keep current** under what the book has, **Accept** under the suggestion, or **Edit** to type your own value.
-- A new term the AI used that your vocabulary doesn't know. Add it, file it under an existing term, or reject it.
+- A new term the AI used that your vocabulary doesn't know. Add it, file it under an existing term, or reject it. A
+  list you'd rather let the AI grow by itself, such as campaign settings, can take its new names at once instead:
+  see [Vocabulary](#vocabulary).
 - **New version?** A file that looks like another version of a book you have: most of its pages are the book's, it
   prints the book's ISBN as its own, or it has the book's title and publisher (from a lookup too, once one names it).
   Two files are never joined by an ISBN alone, since publishers keep one ISBN across corrected printings. The card
@@ -228,6 +230,13 @@ or owned elsewhere. Nothing is copied, moved or added. **Copy list** copies the 
 **Settings > Vocabulary** lists the game systems, types, themes and other terms your books are filed under, with the
 other names each goes by ("5e" for "D&D 5e", say). Add terms, rename them, and add or remove other names. Folder names,
 searches and what you type all go through these names.
+
+**New names from the AI**, at the top of each list the AI can add to (everything but editions), chooses what happens
+when the AI uses a name the list doesn't have. **Ask first**, the default, puts a card in Needs review, one per name,
+and the books that use it wait for your answer. **Add them** puts the name straight into the list, and those books get
+it as an ordinary suggestion; choosing it also adds that list's names already waiting in Needs review, so a long list of
+campaign settings clears in one click. A name you rejected before stays rejected either way, and a name the AI added
+can be renamed, given other names or filed under another term here like any other.
 
 ### Your tags
 

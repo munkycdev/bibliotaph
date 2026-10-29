@@ -517,6 +517,12 @@ public sealed class ApiClient(HttpClient http)
     public Task<LibraryPreferences> SwitchFolderRuleAsync(long id, bool enabled, CancellationToken ct = default) =>
         SendAsync<LibraryPreferences>(HttpMethod.Put, $"api/settings/folder-rules/{id}", new RuleSwitch(enabled), ct);
 
+    public Task<AiTermChoice> AiTermChoiceAsync(string vocabulary, CancellationToken ct = default) =>
+        SendAsync<AiTermChoice>(HttpMethod.Get, $"api/vocabulary/{vocabulary}/ai-terms", null, ct);
+
+    public Task<AiTermChange> SetAiTermChoiceAsync(string vocabulary, bool add, CancellationToken ct = default) =>
+        SendAsync<AiTermChange>(HttpMethod.Put, $"api/vocabulary/{vocabulary}/ai-terms", new AiTermChoice(add), ct);
+
     public Task<ReviewMode> ReviewModeAsync(CancellationToken ct = default) => SendAsync<ReviewMode>(HttpMethod.Get, "api/review/mode", null, ct);
 
     public Task<ReviewMode> SetReviewModeAsync(bool all, CancellationToken ct = default) =>
