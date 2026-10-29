@@ -1078,11 +1078,6 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-editpanel{background:var(--bt-side);border-radius:6px;padding:15px;margin-top:12px}
 .bt-editpanel>.bt-field:first-child,.bt-editpanel>.bt-inputrow:first-child{margin-top:0}
 .bt-editpanel .bt-actions{margin-top:10px}
-.bt-overlaplist{margin-top:4px}
-.bt-overlap{margin-top:6px}
-.bt-overlapactions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.bt-overlapactions label{display:inline-flex;align-items:center;gap:8px}
-.bt-overlapactions .bt-select{max-width:260px}
 .bt-gap{margin-top:18px;margin-bottom:5px}
 .bt-fine.bt-tight{margin-top:6px}
 .bt-editnote{margin-top:8px;font-size:11px;color:var(--bt-text)}

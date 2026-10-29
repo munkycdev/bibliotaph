@@ -77,7 +77,7 @@
         </DockPanel>
       </Border>
 
-      <!-- Find overlaps: terms that look like one thing, to combine (with Undo) or keep apart. -->
+      <!-- Find overlaps: terms that may be one thing go to Needs review; the pairs kept apart can be offered again here. -->
       <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
         <StackPanel>
           <DockPanel>
@@ -90,38 +90,14 @@
           </DockPanel>
           <TextBlock Text="{x:Static vm:VocabularyViewModel.OverlapsComparing}" Style="{StaticResource Text.Small}" Margin="0,10,0,0"
                      Visibility="{Binding IsFindingOverlaps, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <TextBlock Text="{Binding OverlapsNote}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,10,0,0"
-                     Visibility="{Binding OverlapsNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
-
-          <!-- What the last Combine or Keep apart did, with Undo. -->
-          <DockPanel Margin="0,10,0,0" Visibility="{Binding OverlapUndo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
-            <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                    Command="{Binding OverlapUndo.UndoCommand}" Padding="12,0,0,0" AutomationProperties.Name="Undo the change to the terms"
-                    Visibility="{Binding OverlapUndo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-            <TextBlock Text="{Binding OverlapUndo.Message}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+          <DockPanel Margin="0,10,0,0" Visibility="{Binding OverlapsNote, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="{x:Static vm:VocabularyViewModel.OpenNeedsReviewLabel}"
+                    c:Ui.Icon="{StaticResource Icon.Inbox}" Command="{Binding OpenNeedsReviewCommand}" Padding="12,0,0,0"
+                    Visibility="{Binding HasOverlapsWaiting, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+            <TextBlock Text="{Binding OverlapsNote}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
           </DockPanel>
-
-          <ItemsControl ItemsSource="{Binding Overlaps}" Focusable="False" Margin="0,4,0,0" AutomationProperties.Name="Terms that may be the same thing">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate DataType="{x:Type vm:OverlapGroupViewModel}">
-                <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,6,0,0">
-                  <StackPanel>
-                    <TextBlock Text="{Binding Names}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
-                    <TextBlock Text="{Binding Reason}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
-                    <WrapPanel Margin="0,10,0,0">
-                      <TextBlock Text="{x:Static vm:VocabularyViewModel.KeepLabel}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                      <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Terms}" SelectedItem="{Binding Keep}"
-                                AutomationProperties.Name="{x:Static vm:VocabularyViewModel.KeepLabel}" Margin="0,0,8,0" />
-                      <Button Content="{x:Static vm:VocabularyViewModel.CombineLabel}" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding CombineCommand}"
-                              ToolTip="{x:Static vm:VocabularyViewModel.CombineHelp}" Margin="0,0,8,0" />
-                      <Button Content="{x:Static vm:VocabularyViewModel.KeepApartLabel}" Command="{Binding KeepApartCommand}"
-                              ToolTip="{x:Static vm:VocabularyViewModel.KeepApartHelp}" />
-                    </WrapPanel>
-                  </StackPanel>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
+          <TextBlock Text="{x:Static vm:VocabularyViewModel.OverlapsAiComparing}" Style="{StaticResource Text.Small}" Margin="0,6,0,0" TextWrapping="Wrap"
+                     Visibility="{Binding IsAiComparing, Converter={StaticResource Bt.VisibleWhenTrue}}" />
 
           <!-- The pairs kept apart, each with × to have it offered again. -->
           <TextBlock Text="{Binding KeptApartNote}" Style="{StaticResource FieldLabel}" Margin="0,14,0,5"

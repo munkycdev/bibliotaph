@@ -143,6 +143,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.SessionSections.Add(section);
         db.VocabularyAliases.Add(new VocabularyAlias { TermId = term.Id, Text = "TS", Normalized = "ts" });
         db.VocabularyKeptAparts.Add(new VocabularyKeptApart { Vocabulary = "system", FirstKey = "test-system", SecondKey = "tested-system", CreatedUtc = now });
+        db.VocabularyAiOverlaps.Add(new VocabularyAiOverlap { Vocabulary = "system", Keys = "[\"test-system\",\"tested-system\"]", Reason = "Both name the test system.", CreatedUtc = now });
         await db.SaveChangesAsync(Ct);
         db.SessionItems.Add(new SessionItem { PackId = session.Id, SectionId = section.Id, Position = 0, EntryId = entry.Id, PageRefId = pages.Id, Label = "Ambush", Note = "Round 1", AddedUtc = now });
         await db.SaveChangesAsync(Ct);

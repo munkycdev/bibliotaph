@@ -2,11 +2,14 @@
 
 ## Unreleased
 
-- **Find overlaps in a list.** Settings > Vocabulary has **Find overlaps** on each list, which compares its names and
-  shows the terms that look like one thing ("Forgotten Realms" and "The Forgotten Realms", "Greyhawk" and "Grayhawk",
-  "Wizards of the Coast" and "WotC"), each with how many books use it. Pick the one to **Keep** and **Combine** folds
-  the others into it, their names becoming its other names and their books moving to it, with Undo; **Keep apart**
-  says they're not the same thing and that pair isn't offered again. On Windows and the web. See
+- **Terms that may be the same, in Needs review.** Bibliotaph finds the terms in a list that look like one thing
+  under two names ("Forgotten Realms" and "The Forgotten Realms", "Greyhawk" and "Grayhawk", "Dark Sun" and "Athas")
+  and offers each group as a card in Needs review, with how many books use each term: by comparing the names, which
+  needs no AI, and, with AI on, by asking the model about the lists it can add to, in the background, only about
+  names it hasn't seen. The term most books use is picked to keep; **Combine** folds the others into it, their names
+  becoming its other names and their books moving to it, with Undo; **Keep apart** says they're not the same thing
+  and that pair isn't offered again. **Find overlaps** in Settings > Vocabulary compares a list's names now and says
+  how many groups wait, with the pairs kept apart to offer again. On Windows and the web. See
   [Cataloging](docs/guide/cataloging.md#find-overlaps).
 - **Read every book again.** Settings > AI has a button under Reclassify that sends every book the AI has read back to
   it, so names you've added to your lists since are found in the books that use them. It asks first, since it takes as

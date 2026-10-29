@@ -15,4 +15,13 @@ public static class AiTermSettings
         settings.SetAsync(Key(vocabulary), add.ToString(), ct);
 
     static string Key(string vocabulary) => $"vocabulary.{vocabulary}.add-ai-terms";
+
+    /// <summary>A fingerprint of the names the AI was last asked to compare for a vocabulary, and the model asked, so it isn't asked the same again.</summary>
+    public static Task<string?> OverlapsAskedAsync(this SettingsStore settings, string vocabulary, CancellationToken ct = default) =>
+        settings.GetAsync(AskedKey(vocabulary), ct);
+
+    public static Task SetOverlapsAskedAsync(this SettingsStore settings, string vocabulary, string fingerprint, CancellationToken ct = default) =>
+        settings.SetAsync(AskedKey(vocabulary), fingerprint, ct);
+
+    static string AskedKey(string vocabulary) => $"vocabulary.{vocabulary}.overlaps-asked";
 }

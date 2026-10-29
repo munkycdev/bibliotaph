@@ -56,41 +56,17 @@ public static class VocabularyApi
         {
             if (!Known(key)) return Results.NotFound();
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
-            var service = lease.Library.Get<VocabularyService>();
-            var proposals = await service.FindOverlapsAsync(key, ct);
-            var kept = await service.KeptApartAsync(key, ct);
-            return Results.Ok(new TermOverlapPage(
-                [.. proposals.Select(p => new TermOverlapGroup([.. p.Terms.Select(t => new TermOverlapMember(t.Id, t.Label, t.Books))], p.Reason, p.Sure, p.KeepId))],
-                [.. kept.Select(k => new KeptApartTerms(k.Id, k.First, k.Second))]));
+            return Results.Ok(await OverlapsAsync(lease.Library.Get<VocabularyService>(), key, ct));
         });
 
-        vocabulary.MapPost("/{key}/combine", async (string key, CombineTerms combine, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        // Find overlaps: the names are compared now, and the AI compares them again in the background when they changed.
+        vocabulary.MapPost("/{key}/overlaps", async (string key, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             if (!Known(key)) return Results.NotFound();
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var service = lease.Library.Get<VocabularyService>();
-            TermCombination combined;
-            try
-            {
-                combined = await service.CombineAsync(combine.KeepId, combine.MergeIds, ct);
-            }
-            catch (ArgumentException e)
-            {
-                return Results.BadRequest(new ActionResult(e.Message));
-            }
-            return Results.Ok(new ActionResult(combined.Note, EditApi.Hold(lease.Library, () => service.UndoCombineAsync(combined, CancellationToken.None), OverlapText.UndoFailed)));
-        });
-
-        vocabulary.MapPost("/{key}/keep-apart", async (string key, KeepTermsApart apart, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
-        {
-            if (!Known(key)) return Results.NotFound();
-            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
-            var service = lease.Library.Get<VocabularyService>();
-            var listed = (await service.ListAsync(key, ct)).ToDictionary(e => e.Id);
-            var terms = apart.Ids.Where(listed.ContainsKey).Select(id => listed[id]).ToList();
-            var ids = await service.KeepApartAsync(key, [.. terms.Select(e => e.Key)], ct);
-            return Results.Ok(new ActionResult(OverlapText.KeptApartNote([.. terms.Select(e => e.Label)]),
-                EditApi.Hold(lease.Library, async () => { foreach (var id in ids) await service.ForgetKeptApartAsync(id, CancellationToken.None); }, OverlapText.UndoFailed)));
+            service.FindOverlapsWithAi();
+            return Results.Ok(await OverlapsAsync(service, key, ct));
         });
 
         vocabulary.MapDelete("/{key}/kept-apart/{id:long}", async (string key, long id, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
@@ -149,6 +125,10 @@ public static class VocabularyApi
 
     // Publishers are a vocabulary too, though their field holds free text.
     static bool Known(string key) => MetadataFields.TermVocabularies.Contains(key) || key == MetadataFields.Publisher.Vocabulary;
+
+    static async Task<TermOverlapPage> OverlapsAsync(VocabularyService service, string key, CancellationToken ct) =>
+        new((await service.FindOverlapsAsync(key, ct)).Count, service.AsksAi,
+            [.. (await service.KeptApartAsync(key, ct)).Select(k => new KeptApartTerms(k.Id, k.First, k.Second))]);
 
     static VocabularyTerm Term(VocabularyEntry e) =>
         new(e.Id, e.Label, e.ShortLabel, e.Origin == TermOrigin.User, [.. e.Aliases.Select(a => new VocabularyAlias(a.Id, a.Text))]);

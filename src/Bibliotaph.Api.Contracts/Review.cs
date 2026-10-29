@@ -8,10 +8,26 @@ namespace Bibliotaph.Api.Contracts;
 /// a decided card can still be undone, and counts what's waiting itself. <see cref="Count"/> is every card Needs
 /// review had then, as the sidebar counts them, so the page can tell when the library's suggestions have moved on.
 /// <see cref="Choices"/> are each term field's vocabulary, by field key, for Edit to pick from; sent once, not per card.
-/// <see cref="Offers"/> are the other cards, in the order the page shows them after the new terms.
+/// <see cref="Offers"/> are the other cards, in the order the page shows them after the new terms, and
+/// <see cref="Overlaps"/> the terms that may be the same thing, shown between the two.
 /// </summary>
 public sealed record ReviewSuggestions(IReadOnlyList<ReviewTermCard> Terms, IReadOnlyList<ReviewFieldCard> Fields, IReadOnlyList<ReviewShowKind> Show, int Count,
-    IReadOnlyDictionary<string, IReadOnlyList<string>> Choices, IReadOnlyList<ReviewOfferCard> Offers);
+    IReadOnlyDictionary<string, IReadOnlyList<string>> Choices, IReadOnlyList<ReviewOfferCard> Offers, IReadOnlyList<ReviewOverlapCard> Overlaps);
+
+/// <summary>
+/// Terms of one vocabulary that may be the same thing under two names, found by their names or by the AI: combine
+/// them into the one picked from <see cref="Terms"/> (<see cref="KeepId"/> first, the term most books use), or keep
+/// them apart for good. <see cref="Stamp"/> is what the card showed, so an answer isn't given to a group that changed.
+/// </summary>
+public sealed record ReviewOverlapCard(string Id, string Stamp, string Label, string Chip, string Detail, IReadOnlyList<ReviewOverlapTerm> Terms, long KeepId);
+
+/// <summary>One term of an overlap card: "Forgotten Realms · 12 books".</summary>
+public sealed record ReviewOverlapTerm(long Id, string Label, string Text);
+
+/// <summary>Combine the group's other terms into <see cref="KeepId"/>.</summary>
+public sealed record ReviewOverlapCombine(string Stamp, long KeepId);
+
+public sealed record ReviewOverlapKeepApart(string Stamp);
 
 /// <summary>
 /// A card that asks one question about a book, a folder or a collection, answered with one of its buttons: a new

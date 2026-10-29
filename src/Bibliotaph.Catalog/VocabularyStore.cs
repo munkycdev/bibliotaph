@@ -486,6 +486,32 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
         await db.VocabularyKeptAparts.Where(k => ids.Contains(k.Id)).ExecuteDeleteAsync(ct);
     }
 
+    /// <summary>The groups of a vocabulary's terms the AI said refer to the same thing, each by its keys.</summary>
+    public async Task<IReadOnlyList<AiOverlap>> GetAiOverlapsAsync(string vocabulary, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.VocabularyAiOverlaps.AsNoTracking().Where(o => o.Vocabulary == vocabulary).OrderBy(o => o.Id).ToListAsync(ct);
+        return [.. rows.Select(o => new AiOverlap(o.Id, JsonSerializer.Deserialize<string[]>(o.Keys) ?? [], o.Reason))];
+    }
+
+    /// <summary>Remembers groups the AI found, each by key; a group already known, in any order of keys, is kept as it was. Returns how many were new.</summary>
+    public async Task<int> AddAiOverlapsAsync(string vocabulary, IReadOnlyList<(IReadOnlyList<string> Keys, string Reason)> groups, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var known = (await db.VocabularyAiOverlaps.Where(o => o.Vocabulary == vocabulary).Select(o => o.Keys).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var added = 0;
+        foreach (var (keys, reason) in groups)
+        {
+            var sorted = JsonSerializer.Serialize(keys.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray());
+            if (keys.Count < 2 || !known.Add(sorted)) continue;
+            db.VocabularyAiOverlaps.Add(new VocabularyAiOverlap { Vocabulary = vocabulary, Keys = sorted, Reason = reason, CreatedUtc = now });
+            added++;
+        }
+        if (added > 0) await db.SaveChangesAsync(ct);
+        return added;
+    }
+
     /// <summary>
     /// Combines terms: every name of each source becomes a name of the target, every book value, rejection and folder
     /// rule with a source's key gets the target's, editions of a source system move to the target, and each source is
@@ -685,6 +711,9 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
 
 /// <summary>Two terms of a vocabulary the user said are not the same thing, by key.</summary>
 public sealed record KeptApart(long Id, string FirstKey, string SecondKey);
+
+/// <summary>A group of terms the AI said are the same thing, by key, with its reason.</summary>
+public sealed record AiOverlap(long Id, IReadOnlyList<string> Keys, string Reason);
 
 /// <summary>A term combined into another: what Undo gives back.</summary>
 public sealed record MergedTerm(long TermId, string Key, string Label, IReadOnlyList<string> Aliases);

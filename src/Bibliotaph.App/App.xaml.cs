@@ -309,6 +309,7 @@ public partial class App : Application
         builder.Services.AddSingleton<FolderRules>();
         builder.Services.AddSingleton<MetadataService>();
         builder.Services.AddSingleton<CorrectionService>();
+        builder.Services.AddSingleton<TermOverlapFinder>();
         builder.Services.AddSingleton<VocabularyService>();
         builder.Services.AddSingleton<UserTagService>();
         builder.Services.AddSingleton<ReviewCards>();

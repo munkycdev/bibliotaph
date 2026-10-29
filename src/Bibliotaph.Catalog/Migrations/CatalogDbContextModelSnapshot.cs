@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261029190000_CatalogCombinedTerms";
+    public override string LastMigrationId => "20261029200000_CatalogAiOverlaps";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -1503,6 +1503,40 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("vocabulary_alias");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyAiOverlap", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<string>("Keys")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("keys");
+
+                b.Property<string>("Reason")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("reason");
+
+                b.Property<string>("Vocabulary")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("vocabulary");
+
+                b.HasKey("Id");
+
+                b.HasIndex("Vocabulary", "Keys")
+                    .IsUnique();
+
+                b.ToTable("vocabulary_ai_overlap");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyKeptApart", b =>
