@@ -345,8 +345,23 @@ public sealed class VocabularyTerm
     public string? ParentKey { get; set; }
     public TermOrigin Origin { get; set; }
     public TermState State { get; set; }
+    /// <summary>For a merged term, the key of the term it was combined into.</summary>
+    public string? MergedIntoKey { get; set; }
     public DateTime CreatedUtc { get; set; }
     public List<VocabularyAlias> Aliases { get; set; } = [];
+}
+
+/// <summary>
+/// Two terms of a vocabulary the user said are not the same thing, by key, lower first, so Find overlaps never offers
+/// them again.
+/// </summary>
+public sealed class VocabularyKeptApart
+{
+    public long Id { get; set; }
+    public required string Vocabulary { get; set; }
+    public required string FirstKey { get; set; }
+    public required string SecondKey { get; set; }
+    public DateTime CreatedUtc { get; set; }
 }
 
 /// <summary>Another name for a term: "5e" and "D&amp;D 5e" for the 5th edition.</summary>

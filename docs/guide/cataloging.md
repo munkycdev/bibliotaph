@@ -239,6 +239,20 @@ campaign settings clears in one click. A name you rejected before stays rejected
 can be renamed, given other names or filed under another term here like any other. Adding names doesn't re-read the
 books the AI has already read; **Read every book again** in [Settings > AI](ai.md#day-to-day) does.
 
+### Find overlaps
+
+A list grows two names for one thing over time: "Forgotten Realms" and "The Forgotten Realms", "Greyhawk" and
+"Grayhawk", "Wizards of the Coast" and "WotC". **Find overlaps**, under New names from the AI on each list, compares
+the names and shows the groups that look like one thing, each with how many books use each term and why they were
+paired (the same name but for small words, brackets or a plural; spelt almost the same; one name is the other's
+initials; one name is the other with a word added). Nothing changes until you answer a group.
+
+**Keep** picks the term that stays, the one most books use to begin with, and **Combine** folds the others into it:
+their names become its other names, every book filed under them moves to it, and anything you rejected or any
+folder rule for them follows. **Undo** puts everything back. **Keep apart** says they are not the same thing, and
+that pair is left alone from then on; the pairs kept apart are listed under the groups, each with × to have it
+offered again. The comparison goes by names only; the AI isn't asked.
+
 ### Your tags
 
 Your tags are your own labels, and **Your tags** in **Settings > Vocabulary** can find them for you. Give a tag a

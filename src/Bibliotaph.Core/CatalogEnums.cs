@@ -127,6 +127,11 @@ public enum TermState
     Active,
     Pending,
     Rejected,
+    /// <summary>
+    /// Combined into another term of its vocabulary: out of every list and filter, its names now the other term's,
+    /// but kept with its key so Undo and the user's other devices know where it went.
+    /// </summary>
+    Merged,
 }
 
 /// <summary>Processing stages a document moves through, in pipeline order.</summary>

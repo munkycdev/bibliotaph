@@ -267,17 +267,104 @@ public sealed class ReviewService(
     }
 }
 
+/// <summary>One term of an overlap proposal: its id and key, its label, and how many books use it.</summary>
+public sealed record OverlapMember(long Id, string Key, string Label, int Books);
+
+/// <summary>Terms that look like the same thing, why, whether the names alone make it likely, and which to keep by default.</summary>
+public sealed record OverlapProposal(IReadOnlyList<OverlapMember> Terms, string Reason, bool Sure, long KeepId);
+
+/// <summary>What Combine did, for Undo, and the note it shows.</summary>
+public sealed record TermCombination(TermMerge Merge, IReadOnlyList<ChapterScanWas> Scans, string Note);
+
+/// <summary>A pair kept apart, by the labels of its terms.</summary>
+public sealed record KeptApartPair(long Id, string First, string Second);
+
 /// <summary>
 /// Settings > Vocabulary. Each edit changes catalog.db at once; bringing the library up to date with it (search
 /// names, labels, and the hints from folder and file names, which match through the vocabulary) follows in the
 /// background, once a run of edits pauses.
 /// </summary>
 public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProjector projector, IJobControl indexing, MetadataHints hints,
-    SettingsStore settings, ILogger<VocabularyService>? log = null, TimeSpan? settle = null)
+    SettingsStore settings, ILogger<VocabularyService>? log = null, TimeSpan? settle = null, ChapterScanStore? scans = null,
+    ChapterProjection? chapters = null, LibraryStore? library = null)
 {
     readonly ILogger _log = log ?? NullLogger<VocabularyService>.Instance;
     readonly TimeSpan _settle = settle ?? TimeSpan.FromSeconds(2);
     CancellationTokenSource? _scheduled;
+
+    // Find overlaps and Combine.
+
+    /// <summary>
+    /// The terms of a vocabulary that look like the same thing, by their names, each group with how many books use
+    /// each term and the term most books use as the one to keep. Pairs the user kept apart are left out.
+    /// </summary>
+    public async Task<IReadOnlyList<OverlapProposal>> FindOverlapsAsync(string vocabulary, CancellationToken ct = default)
+    {
+        var terms = await vocabularies.GetOverlapTermsAsync(vocabulary, ct);
+        var kept = await vocabularies.GetKeptApartAsync(vocabulary, ct);
+        var books = await vocabularies.CountBooksAsync(vocabulary, ct);
+        var ids = (await vocabularies.ListAsync(vocabulary, ct)).ToDictionary(e => e.Key, e => e.Id, StringComparer.Ordinal);
+        var byKey = terms.ToDictionary(t => t.Key, StringComparer.Ordinal);
+        return [.. TermOverlaps.Find(terms, [.. kept.Select(k => (k.FirstKey, k.SecondKey))]).Select(overlap =>
+        {
+            var members = overlap.Keys.Select(k => new OverlapMember(ids[k], k, byKey[k].Label, books.GetValueOrDefault(k))).ToList();
+            // The term most books use stays; among equals, the one that came with Bibliotaph, then the one made first.
+            var keep = members.OrderByDescending(m => m.Books).ThenByDescending(m => byKey[m.Key].Starter).ThenBy(m => m.Id).First();
+            return new OverlapProposal(members, overlap.Reason, overlap.Sure, keep.Id);
+        })];
+    }
+
+    /// <summary>
+    /// Combines terms into <paramref name="keepId"/>: the catalog's values, rejections, folder rules, editions and
+    /// chapter findings follow, and the library is brought up to date. Returns what Undo needs, with a note.
+    /// </summary>
+    public async Task<TermCombination> CombineAsync(long keepId, IReadOnlyList<long> mergeIds, CancellationToken ct = default)
+    {
+        var merge = await vocabularies.MergeAsync(keepId, mergeIds, ct);
+        var scansWere = new List<ChapterScanWas>();
+        if (scans is not null && ChapterFields.All.Contains(merge.Vocabulary))
+            foreach (var source in merge.Merged)
+                scansWere.AddRange(await scans.ReplaceTermAsync(merge.Vocabulary, source.Key, merge.TargetKey, merge.TargetLabel, ct));
+        await AfterCombineAsync(merge.EntryIds, scansWere, ct);
+        var books = merge.EntryIds.Count;
+        var note = $"Combined {merge.Merged.Count + 1:N0} terms into {merge.TargetLabel}" + (books > 0 ? $" · {books:N0} {(books == 1 ? "book" : "books")}" : "");
+        return new TermCombination(merge, scansWere, note);
+    }
+
+    public async Task UndoCombineAsync(TermCombination combination, CancellationToken ct = default)
+    {
+        await vocabularies.UndoMergeAsync(combination.Merge, ct);
+        if (scans is not null) await scans.RestoreAsync(combination.Scans, ct);
+        await AfterCombineAsync(combination.Merge.EntryIds, combination.Scans, ct);
+    }
+
+    async Task AfterCombineAsync(IReadOnlyList<EntryId> entryIds, IReadOnlyList<ChapterScanWas> scansChanged, CancellationToken ct)
+    {
+        await projector.ProjectVocabularyAsync(ct);
+        await projector.ProjectAsync(entryIds, ct);
+        if (scans is not null && chapters is not null && library is not null && scansChanged.Count > 0)
+        {
+            var hashes = scansChanged.Select(s => s.ContentHash).ToHashSet(StringComparer.Ordinal);
+            var records = await scans.GetManyAsync(hashes, ct);
+            foreach (var (documentId, hash) in (await library.GetDocumentHashesAsync(ct)).Where(d => hashes.Contains(d.ContentHash)))
+                if (records.TryGetValue(hash, out var record)) await chapters.ProjectAsync(documentId, record.Chapters, ct);
+        }
+        ScheduleRefresh();
+    }
+
+    /// <summary>Remembers that the terms of a proposal are not the same thing, so Find overlaps leaves every pair of them alone.</summary>
+    public Task<IReadOnlyList<long>> KeepApartAsync(string vocabulary, IReadOnlyList<string> keys, CancellationToken ct = default) =>
+        vocabularies.KeepApartAsync(vocabulary, keys, ct);
+
+    /// <summary>The pairs kept apart, each with the labels of its terms, so one can be forgotten.</summary>
+    public async Task<IReadOnlyList<KeptApartPair>> KeptApartAsync(string vocabulary, CancellationToken ct = default)
+    {
+        var labels = (await vocabularies.ListAsync(vocabulary, ct)).ToDictionary(e => e.Key, e => e.Label, StringComparer.Ordinal);
+        return [.. (await vocabularies.GetKeptApartAsync(vocabulary, ct))
+            .Select(k => new KeptApartPair(k.Id, labels.GetValueOrDefault(k.FirstKey, k.FirstKey), labels.GetValueOrDefault(k.SecondKey, k.SecondKey)))];
+    }
+
+    public Task ForgetKeptApartAsync(long id, CancellationToken ct = default) => vocabularies.ForgetKeptApartAsync([id], ct);
 
     public Task<IReadOnlyList<VocabularyEntry>> ListAsync(string vocabulary, CancellationToken ct = default) => vocabularies.ListAsync(vocabulary, ct);
 
