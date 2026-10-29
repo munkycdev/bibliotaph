@@ -103,7 +103,8 @@ themes and creatures in each chapter, with the pages they're on.
   fit, only those chapters are skipped.
 - A book is read once. It's read again only if the file changes or you ask. What it found stays on this PC, even if
   the index is rebuilt, and isn't part of sync.
-- **Settings > AI** shows how far it's got: "Scanning whole books · 12 of 40".
+- **Settings > Processing** has a bar for it, **Scanning whole books**, under the AI's, and **Settings > AI** says how
+  far it's got: "Scanning whole books · 12 of 40".
 
 ## Day to day
 
