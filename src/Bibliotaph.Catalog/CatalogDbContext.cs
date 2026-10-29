@@ -36,6 +36,8 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<Rejection> Rejections => Set<Rejection>();
     public DbSet<VocabularyTerm> VocabularyTerms => Set<VocabularyTerm>();
     public DbSet<VocabularyAlias> VocabularyAliases => Set<VocabularyAlias>();
+    public DbSet<VocabularyKeptApart> VocabularyKeptAparts => Set<VocabularyKeptApart>();
+    public DbSet<VocabularyAiOverlap> VocabularyAiOverlaps => Set<VocabularyAiOverlap>();
     public DbSet<ClassificationRun> ClassificationRuns => Set<ClassificationRun>();
     public DbSet<AskTurn> AskTurns => Set<AskTurn>();
     public DbSet<CorrectionRequest> CorrectionRequests => Set<CorrectionRequest>();
@@ -143,6 +145,10 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
         });
 
         modelBuilder.Entity<VocabularyAlias>(e => e.HasIndex(a => new { a.TermId, a.Normalized }).IsUnique());
+
+        modelBuilder.Entity<VocabularyKeptApart>(e => e.HasIndex(k => new { k.Vocabulary, k.FirstKey, k.SecondKey }).IsUnique());
+
+        modelBuilder.Entity<VocabularyAiOverlap>(e => e.HasIndex(k => new { k.Vocabulary, k.Keys }).IsUnique());
 
         modelBuilder.Entity<ClassificationRun>(e =>
         {

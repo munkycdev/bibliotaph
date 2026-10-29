@@ -354,13 +354,17 @@ public sealed partial class LibrarySyncStore
     /// <summary>
     /// A term as the other PC has it: added as the user's own when it isn't here, otherwise renamed, with exactly its
     /// aliases (an alias another term of the vocabulary has here moves, as Settings > Vocabulary moves one). A term
-    /// waiting here as a model's proposal keeps waiting: deciding it has its own consequences.
+    /// waiting here as a model's proposal keeps waiting: deciding it has its own consequences. One combined into
+    /// another there is combined the same way here, when both are active here; a term that never got here isn't made
+    /// just to be combined.
     /// </summary>
     async Task<bool?> UpsertTermAsync(string key, IReadOnlyDictionary<string, string> wanted, CancellationToken ct)
     {
         var parts = key[SyncKeys.Term.Length..].Split(':', 2);
         if (parts.Length != 2) return false;
         var (vocabulary, termKey) = (parts[0], parts[1]);
+        if (ReadOrDefault<string>(wanted, SyncFields.MergedInto) is { Length: > 0 } into)
+            return await vocabularies.MergeByKeyAsync(vocabulary, into, termKey, ct);
         await using var db = await contexts.CreateDbContextAsync(ct);
         var term = await db.VocabularyTerms.Include(t => t.Aliases).SingleOrDefaultAsync(t => t.Vocabulary == vocabulary && t.Key == termKey, ct);
         if (term is null)

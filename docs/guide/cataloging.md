@@ -92,7 +92,12 @@ usable while its card waits. It has two lists:
 
 - A field where the sources disagree, or a book with no useful title. Each button sits under the value it keeps:
   **Keep current** under what the book has, **Accept** under the suggestion, or **Edit** to type your own value.
-- A new term the AI used that your vocabulary doesn't know. Add it, file it under an existing term, or reject it.
+- A new term the AI used that your vocabulary doesn't know. Add it, file it under an existing term, or reject it. A
+  list you'd rather let the AI grow by itself, such as campaign settings, can take its new names at once instead:
+  see [Vocabulary](#vocabulary).
+- **Same setting?** Two or more terms in a list that may be the same thing under different names, "Greyhawk" and
+  "Grayhawk" say, found by comparing the names or by the AI: see [Find overlaps](#find-overlaps). Pick the one to
+  keep and **Combine**, or **Keep apart**.
 - **New version?** A file that looks like another version of a book you have: most of its pages are the book's, it
   prints the book's ISBN as its own, or it has the book's title and publisher (from a lookup too, once one names it).
   Two files are never joined by an ISBN alone, since publishers keep one ISBN across corrected printings. The card
@@ -119,8 +124,8 @@ review stays where it was, so you can read and decide side by side, on a second 
 opening the next card's book shows it in the same window rather than another. Clicking a title still opens the book
 in the main window.
 
-When there's more than one kind, **Show** narrows the list to one: New terms, New versions, Image packs, Owned
-elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field
+When there's more than one kind, **Show** narrows the list to one: New terms, Terms that may be the same, New versions,
+Image packs, Owned elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field
 such as Setting or Type. Each entry says how many are waiting, and **Everything** shows the whole list again.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
@@ -228,6 +233,41 @@ or owned elsewhere. Nothing is copied, moved or added. **Copy list** copies the 
 **Settings > Vocabulary** lists the game systems, types, themes and other terms your books are filed under, with the
 other names each goes by ("5e" for "D&D 5e", say). Add terms, rename them, and add or remove other names. Folder names,
 searches and what you type all go through these names.
+
+**New names from the AI**, at the top of each list the AI can add to (everything but editions), chooses what happens
+when the AI uses a name the list doesn't have. **Ask first**, the default, puts a card in Needs review, one per name,
+and the books that use it wait for your answer. **Add them** puts the name straight into the list, and those books get
+it as an ordinary suggestion; choosing it also adds that list's names already waiting in Needs review, so a long list of
+campaign settings clears in one click. A name you rejected before stays rejected either way, and a name the AI added
+can be renamed, given other names or filed under another term here like any other. Adding names doesn't re-read the
+books the AI has already read; **Read every book again** in [Settings > AI](ai.md#day-to-day) does.
+
+### Find overlaps
+
+A list grows two names for one thing over time: "Forgotten Realms" and "The Forgotten Realms", "Greyhawk" and
+"Grayhawk", "Wizards of the Coast" and "WotC", "Dark Sun" and "Athas". Bibliotaph looks for those in two ways, and
+each group it finds is a card in [Needs review](#needs-review), **Same setting?** say, listing the terms with how many
+books use each and why they were paired. Nothing changes until you answer a card.
+
+- **By their names**, on every list: the same name but for small words, brackets or a plural; spelt almost the same;
+  one name is the other's initials; one name is the other with a word added. This needs no AI, so the web can tidy a
+  list too.
+- **By the AI**, on the lists the AI can add to (every list but editions), whenever it is on: the model is shown the
+  list's names, with each term's other names, and asked which refer to one and the same thing, an abbreviation and
+  what it stands for, another spelling, a translation, an older name of the same line. It runs in the background once
+  a list changes or the AI has gone quiet after cataloguing, gives way to anything you ask the AI, and is asked only
+  about names it hasn't seen, so an unchanged list costs nothing. Two terms that came with Bibliotaph are never paired.
+
+The terms came from wherever they came from: the AI, a lookup in Open Library, Google Books or RPGGeek, a folder
+name, or your own typing. On the card, the term to keep is picked already, the one most books use, and **Combine**
+folds the others into it: their names become its other names, every book filed under them moves to it, and anything
+you rejected or any folder rule for them follows. **Undo** puts everything back, and the card comes back with it.
+**Keep apart** says they are not the same thing, and that pair is left alone from then on, whichever way it is found;
+a group combined one at a time, or kept apart, is gone from the list, and the AI isn't asked about it again.
+
+**Find overlaps**, under New names from the AI on each list in **Settings > Vocabulary**, compares the list's names
+now, has the AI compare them again if it is on, and says how many groups wait, with **Open Needs review** beside it.
+The pairs kept apart are listed under it, each with × to have it offered again.
 
 ### Your tags
 

@@ -108,4 +108,7 @@ public static class SyncFields
     public const string Text = "text";
     public const string ShortLabel = "short";
     public const string Aliases = "aliases";
+
+    /// <summary>A term combined into another of its vocabulary: that term's key. The other PCs combine theirs the same way.</summary>
+    public const string MergedInto = "merged";
 }

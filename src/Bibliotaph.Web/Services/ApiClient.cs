@@ -76,6 +76,8 @@ public sealed class ApiClient(HttpClient http)
 
     public Task<AiNote> ReclassifyAsync(CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Post, "api/ai/reclassify", null, ct);
 
+    public Task<AiNote> ReadAgainAsync(CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Post, "api/ai/read-again", null, ct);
+
     /// <summary>Test with a book: held open while the model reads, and cancelled with <paramref name="ct"/>.</summary>
     public Task<AiTestReport> TestAiAsync(AiTest test, CancellationToken ct = default) => SendAsync<AiTestReport>(HttpMethod.Post, "api/ai/test", test, ct);
 
@@ -517,6 +519,12 @@ public sealed class ApiClient(HttpClient http)
     public Task<LibraryPreferences> SwitchFolderRuleAsync(long id, bool enabled, CancellationToken ct = default) =>
         SendAsync<LibraryPreferences>(HttpMethod.Put, $"api/settings/folder-rules/{id}", new RuleSwitch(enabled), ct);
 
+    public Task<AiTermChoice> AiTermChoiceAsync(string vocabulary, CancellationToken ct = default) =>
+        SendAsync<AiTermChoice>(HttpMethod.Get, $"api/vocabulary/{vocabulary}/ai-terms", null, ct);
+
+    public Task<AiTermChange> SetAiTermChoiceAsync(string vocabulary, bool add, CancellationToken ct = default) =>
+        SendAsync<AiTermChange>(HttpMethod.Put, $"api/vocabulary/{vocabulary}/ai-terms", new AiTermChoice(add), ct);
+
     public Task<ReviewMode> ReviewModeAsync(CancellationToken ct = default) => SendAsync<ReviewMode>(HttpMethod.Get, "api/review/mode", null, ct);
 
     public Task<ReviewMode> SetReviewModeAsync(bool all, CancellationToken ct = default) =>
@@ -541,6 +549,16 @@ public sealed class ApiClient(HttpClient http)
 
     public Task RemoveAliasAsync(long aliasId, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Delete, $"api/vocabulary/aliases/{aliasId}", null, ct);
+
+    public Task<TermOverlapPage> TermOverlapsAsync(string vocabulary, CancellationToken ct = default) =>
+        SendAsync<TermOverlapPage>(HttpMethod.Get, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}/overlaps", null, ct);
+
+    /// <summary>Find overlaps: compares the names now and has the AI compare them in the background.</summary>
+    public Task<TermOverlapPage> FindTermOverlapsAsync(string vocabulary, CancellationToken ct = default) =>
+        SendAsync<TermOverlapPage>(HttpMethod.Post, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}/overlaps", null, ct);
+
+    public Task ForgetKeptApartAsync(string vocabulary, long id, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Delete, $"api/vocabulary/{Uri.EscapeDataString(vocabulary)}/kept-apart/{id}", null, ct);
 
     public Task<List<UserTag>> UserTagsAsync(CancellationToken ct = default) => SendAsync<List<UserTag>>(HttpMethod.Get, "api/tags", null, ct);
 
@@ -572,6 +590,12 @@ public sealed class ApiClient(HttpClient http)
 
     public Task<ActionResult> FileTermAsync(long id, string target, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Post, $"api/review/terms/{id.ToString(System.Globalization.CultureInfo.InvariantCulture)}/map", new ReviewTermMap(target), ct);
+
+    public Task<ActionResult> CombineOverlapAsync(string id, string stamp, long keepId, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"api/review/overlaps/{Uri.EscapeDataString(id)}/combine", new ReviewOverlapCombine(stamp, keepId), ct);
+
+    public Task<ActionResult> KeepOverlapApartAsync(string id, string stamp, CancellationToken ct = default) =>
+        SendAsync<ActionResult>(HttpMethod.Post, $"api/review/overlaps/{Uri.EscapeDataString(id)}/keep-apart", new ReviewOverlapKeepApart(stamp), ct);
 
     public Task<ActionResult> AnswerOfferAsync(ReviewOfferAnswer answer, CancellationToken ct = default) =>
         SendAsync<ActionResult>(HttpMethod.Post, "api/review/offers/answer", answer, ct);

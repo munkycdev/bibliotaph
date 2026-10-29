@@ -65,6 +65,10 @@ sealed class FakeReviewActions : IReviewActions
 
     public Task<Func<Task>> RejectTermAsync(PendingTerm term) => Answer($"reject {term.Term.Label}");
 
+    public Task<Func<Task>> CombineTermsAsync(OverlapProposal proposal, long keepId) => Answer($"combine into {keepId}");
+
+    public Task<Func<Task>> KeepTermsApartAsync(OverlapProposal proposal) => Answer($"keep apart {proposal.Id}");
+
     public Task<Func<Task>> AnswerVersionAsync(VersionItem item, VersionAnswer answer) => Answer($"version {answer}");
 
     public Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer) => Answer($"pack {answer}");

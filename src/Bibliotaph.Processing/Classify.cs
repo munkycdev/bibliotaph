@@ -343,10 +343,11 @@ public sealed class ClassifierInputs(LibraryStore library, IndexQueries queries,
 
 /// <summary>
 /// Turns a classifier's checked claims into stored suggestions: a new term becomes a pending term (and its values
-/// wait for the user's decision on it), a term the user rejected is dropped, and the run is recorded with its pages.
+/// wait for the user's decision on it) or, where Settings › Vocabulary says so, joins its vocabulary at once; a term
+/// the user rejected is dropped; and the run is recorded with its pages.
 /// </summary>
 public sealed class ClassificationResults(ClassificationStore runs, EntryStore entries, MetadataStore metadata, VocabularyStore vocabularies,
-    MetadataProjector projector)
+    MetadataProjector projector, SettingsStore settings)
 {
     /// <summary>Stores a run over one copy of a book, and its suggestions on the book's entry. Returns the run's id.</summary>
     public async Task<string> StoreAsync(long documentId, string contentHash, ClassifierInput input, ClassifierResult result, DateTime startedUtc, CancellationToken ct = default) =>
@@ -359,13 +360,16 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
     public async Task<string> StoreOnAsync(EntryId entry, string contentHash, ClassifierInput input, ClassifierResult result, DateTime startedUtc, CancellationToken ct = default)
     {
         var proposals = new List<MetadataProposal>();
+        var grew = false;
         foreach (var claim in result.Accepted)
         {
             var value = claim.Value;
             if (claim.IsNewTerm)
             {
-                var (term, state) = await vocabularies.ProposeTermAsync(claim.Field.Vocabulary!, claim.Value, ct);
+                var vocabulary = claim.Field.Vocabulary!;
+                var (term, state, added) = await vocabularies.ProposeTermAsync(vocabulary, claim.Value, await settings.AddsAiTermsAsync(vocabulary, ct), ct);
                 if (state == TermState.Rejected) continue;
+                grew |= added;
                 value = term.Key;
             }
             proposals.Add(new MetadataProposal(claim.Field, value, AssertionOrigin.Ai, claim.Quote, [claim.PdfPage], claim.FromSampling));
@@ -373,6 +377,9 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
         var runId = await runs.RecordAsync(new RunRecord(entry, contentHash, result.Provider, result.Model, ClassifierPrompt.Version,
             ClassifierPrompt.SchemaVersion, input.Excerpt.PdfPages, startedUtc, ClassificationStore.Complete), ct);
         await metadata.ApplyRunAsync(entry, contentHash, runId, AssertionOrigin.Ai, proposals, ct);
+        // A term added now is searchable by name at once. Folder and file names aren't read again for it, as they are
+        // for a term added by hand: that would queue every book from inside the pipeline, once per term the AI adds.
+        if (grew) await projector.ProjectVocabularyAsync(ct);
         await projector.ProjectAsync([entry], ct);
         return runId;
     }
@@ -582,8 +589,8 @@ public enum AiTestStep
 public sealed record AiTestProgress(AiTestStep Step, string? Title);
 
 /// <summary>
-/// Settings > AI's work: connecting to an endpoint and listing its models, saving the setup, the Test button, and
-/// "Reclassify N documents". Nothing here reclassifies by itself.
+/// Settings > AI's work: connecting to an endpoint and listing its models, saving the setup, the Test button,
+/// "Reclassify N documents" and "Read every book again". Nothing here reclassifies by itself.
 /// </summary>
 public sealed class AiService(
     AiSettings settings, IApiKeyStore keys, IJobControl indexing, ClassificationStore runs, ClassifierInputs inputs, IndexQueries queries,
@@ -622,6 +629,17 @@ public sealed class AiService(
     /// and prompt haven't, and those that failed. Values the user decided stay as they are.
     /// </summary>
     public Task<int> ReclassifyAsync(CancellationToken ct = default) => indexing.RerunAsync(Stage.Classify, ct);
+
+    /// <summary>
+    /// "Read every book again": every reading so far stops counting, and every book goes back to the Classify lane,
+    /// so the model reads them all with the vocabulary as it stands now. Values the user decided stay as they are.
+    /// Returns how many books were queued.
+    /// </summary>
+    public async Task<int> ReadAgainAsync(CancellationToken ct = default)
+    {
+        await runs.MarkStaleAsync(ct);
+        return await indexing.RerunAsync(Stage.Classify, ct);
+    }
 
     /// <summary>Classifies one book from the library with the setup on screen, and stores nothing.</summary>
     public Task<AiTestResult> TestAsync(string endpoint, string model, IProgress<AiTestProgress>? progress = null, CancellationToken ct = default) =>

@@ -345,8 +345,37 @@ public sealed class VocabularyTerm
     public string? ParentKey { get; set; }
     public TermOrigin Origin { get; set; }
     public TermState State { get; set; }
+    /// <summary>For a merged term, the key of the term it was combined into.</summary>
+    public string? MergedIntoKey { get; set; }
     public DateTime CreatedUtc { get; set; }
     public List<VocabularyAlias> Aliases { get; set; } = [];
+}
+
+/// <summary>
+/// Two terms of a vocabulary the user said are not the same thing, by key, lower first, so Find overlaps never offers
+/// them again.
+/// </summary>
+public sealed class VocabularyKeptApart
+{
+    public long Id { get; set; }
+    public required string Vocabulary { get; set; }
+    public required string FirstKey { get; set; }
+    public required string SecondKey { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
+/// Terms of a vocabulary the AI said refer to the same thing, by their keys sorted and as JSON, with its reason. Kept
+/// so the model isn't asked about the same names twice; whether the group is still worth showing is decided when
+/// Needs review lists it, from which of its terms are active and which pairs the user kept apart.
+/// </summary>
+public sealed class VocabularyAiOverlap
+{
+    public long Id { get; set; }
+    public required string Vocabulary { get; set; }
+    public required string Keys { get; set; }
+    public required string Reason { get; set; }
+    public DateTime CreatedUtc { get; set; }
 }
 
 /// <summary>Another name for a term: "5e" and "D&amp;D 5e" for the 5th edition.</summary>
@@ -381,6 +410,11 @@ public sealed class ClassificationRun
     public DateTime? FinishedUtc { get; set; }
     /// <summary>Null while running; otherwise "complete" or why it failed.</summary>
     public string? Outcome { get; set; }
+    /// <summary>
+    /// Set by "Read every book again": the run no longer counts as having read its content, so the Classify lane
+    /// sends the book to the model again, while its suggestions stay until that reading replaces them.
+    /// </summary>
+    public bool Stale { get; set; }
 }
 
 /// <summary>

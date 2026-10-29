@@ -264,6 +264,18 @@
       </DockPanel>
     </Border>
 
+    <!-- Read every book again, with the vocabulary as it stands now -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="0,18" Margin="0,12,0,0"
+            Visibility="{Binding CanReadAgain, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <DockPanel>
+        <Button DockPanel.Dock="Right" Content="{Binding ReadAgain.Label}" Command="{Binding ReadAgainCommand}" VerticalAlignment="Center" />
+        <StackPanel Margin="0,0,12,0">
+          <TextBlock Text="Read every book again" Style="{StaticResource Text.Row}" />
+          <TextBlock Text="{Binding ReadAgain.Text}" Style="{StaticResource Note}" Margin="0,4,0,0" />
+        </StackPanel>
+      </DockPanel>
+    </Border>
+
     <!-- Reading the whole library for meaning, for questions to the library -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="0,18" Margin="0,12,0,0"
             Visibility="{Binding HasLibraryVectors, Converter={StaticResource Bt.VisibleWhenTrue}}">

@@ -79,8 +79,8 @@ and changed files are read.
 - It only works while Bibliotaph is open. Closing the app stops it; reopening carries on where it left off.
 - The bottom of the sidebar says what it's doing now. A long status wraps to a second line, and pointing at it
   shows all of it. Click it to open **Settings > Processing**.
-- **Settings > Processing** shows each step and the time left, with **Pause indexing**, **Pause reading scans** and
-  **Pause AI**.
+- **Settings > Processing** shows each step and the time left, from finding files to the AI's scan of whole books, with
+  **Pause indexing**, **Pause reading scans** and **Pause AI**.
 - Files that couldn't be read are listed in **Needs review**, under **Files needing attention**.
 
 ### Set up AI, or not

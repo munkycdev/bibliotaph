@@ -35,6 +35,48 @@ public static class VocabularyApi
             return Results.Ok(Change(await lease.Library.Get<VocabularyService>().AddTermAsync(key, term.Label, ct)));
         });
 
+        // Only the vocabularies the AI can add to have the choice; editions never do.
+        vocabulary.MapGet("/{key}/ai-terms", async (string key, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!AiTerms.Extends(key)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Results.Ok(new AiTermChoice(await lease.Library.Get<VocabularyService>().AddsAiTermsAsync(key, ct)));
+        });
+
+        // Choosing Add them adds the terms waiting in Needs review too, so the answer waits for them.
+        vocabulary.MapPut("/{key}/ai-terms", async (string key, AiTermChoice choice, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!AiTerms.Extends(key)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var added = await lease.Library.Get<VocabularyService>().SetAddsAiTermsAsync(key, choice.Add, ct);
+            return Results.Ok(new AiTermChange(choice.Add, added));
+        });
+
+        vocabulary.MapGet("/{key}/overlaps", async (string key, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!Known(key)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return Results.Ok(await OverlapsAsync(lease.Library.Get<VocabularyService>(), key, ct));
+        });
+
+        // Find overlaps: the names are compared now, and the AI compares them again in the background when they changed.
+        vocabulary.MapPost("/{key}/overlaps", async (string key, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!Known(key)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var service = lease.Library.Get<VocabularyService>();
+            service.FindOverlapsWithAi();
+            return Results.Ok(await OverlapsAsync(service, key, ct));
+        });
+
+        vocabulary.MapDelete("/{key}/kept-apart/{id:long}", async (string key, long id, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (!Known(key)) return Results.NotFound();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            await lease.Library.Get<VocabularyService>().ForgetKeptApartAsync(id, ct);
+            return Results.NoContent();
+        });
+
         vocabulary.MapPut("/terms/{id:long}", async (long id, TermRename rename, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
@@ -83,6 +125,10 @@ public static class VocabularyApi
 
     // Publishers are a vocabulary too, though their field holds free text.
     static bool Known(string key) => MetadataFields.TermVocabularies.Contains(key) || key == MetadataFields.Publisher.Vocabulary;
+
+    static async Task<TermOverlapPage> OverlapsAsync(VocabularyService service, string key, CancellationToken ct) =>
+        new((await service.FindOverlapsAsync(key, ct)).Count, service.AsksAi,
+            [.. (await service.KeptApartAsync(key, ct)).Select(k => new KeptApartTerms(k.Id, k.First, k.Second))]);
 
     static VocabularyTerm Term(VocabularyEntry e) =>
         new(e.Id, e.Label, e.ShortLabel, e.Origin == TermOrigin.User, [.. e.Aliases.Select(a => new VocabularyAlias(a.Id, a.Text))]);

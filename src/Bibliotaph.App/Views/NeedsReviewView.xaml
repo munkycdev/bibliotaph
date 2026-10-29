@@ -226,6 +226,36 @@
       </Border>
     </DataTemplate>
 
+    <!-- Terms that may be the same thing: combine them into the one picked, or keep them apart for good. -->
+    <DataTemplate DataType="{x:Type vm:OverlapCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{Binding Chip}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <TextBlock Text="{Binding Label}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+            </DockPanel>
+            <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <WrapPanel Margin="0,16,0,0">
+              <StackPanel Orientation="Horizontal" Margin="0,0,16,8">
+                <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Terms}" SelectedItem="{Binding Keep}"
+                          MinWidth="180" MaxDropDownHeight="320" AutomationProperties.Name="{Binding Label, StringFormat='Keep, of {0}'}"
+                          ToolTip="{x:Static vm:VocabularyViewModel.CombineHelp}" Margin="0,0,8,0" />
+                <Button Style="{StaticResource Bt.Button.Primary}" Content="{x:Static vm:VocabularyViewModel.CombineLabel}" c:Ui.Icon="{StaticResource Icon.Check}"
+                        Command="{Binding CombineCommand}" ToolTip="{x:Static vm:VocabularyViewModel.CombineHelp}" />
+              </StackPanel>
+              <Button Content="{x:Static vm:VocabularyViewModel.KeepApartLabel}" Command="{Binding KeepApartCommand}" Margin="0,0,0,8"
+                      ToolTip="{x:Static vm:VocabularyViewModel.KeepApartHelp}" />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <!-- A file that looks like a new version of a book (F2): make it current, keep it as a copy, or a separate book. -->
     <DataTemplate DataType="{x:Type vm:VersionCardViewModel}">
       <Border Style="{StaticResource Card}">

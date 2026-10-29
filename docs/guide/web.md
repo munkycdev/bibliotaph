@@ -553,7 +553,9 @@ The key is kept encrypted on Bibliotaph's server, used only to ask that server, 
 which key is saved by its last four characters, and **Forget key** removes it. **Test with a book** tries the model on
 one of your books and shows what it kept, with each page and quote, and what it threw away and why. **Use AI** turns it
 **Off** or **On** without losing your setup, **Reclassify** reads again the books an earlier model read or couldn't
-read, and **Library folders sent to AI** keeps a folder's books away from the model.
+read, **Read every book again** sends every book the AI has read back to it with your lists as they stand now (asked
+first, since it takes as long as cataloguing them did), and **Library folders sent to AI** keeps a folder's books away
+from the model.
 
 **See what the AI is reading**, under **Use AI** and beside **Pause AI** in **Settings** › **Processing**, shows the book
 the AI is on, how long it has been at it, its answer as the model writes it, and the last 20 books read with what the
@@ -667,7 +669,7 @@ away, and the PC keeps its own books and work. What it already shared stays in y
 ## Processing
 
 **Settings** › **Processing** shows what Bibliotaph is doing with your library, as the Windows app's does: a bar for each
-step (finding files, reading them, making them searchable, reading scans, looking books up online and cataloguing with AI) with how far it has
+step (finding files, reading them, making them searchable, reading scans, looking books up online, cataloguing with AI and scanning whole books) with how far it has
 got and the time left, what each part is working on now, and how many files need attention, with a link to them. The
 server does the work, so it carries on with the page closed. **Pause indexing**, **Pause reading scans** and **Pause
 AI** each stop one step until you resume it, even after you sign out; pausing the AI stops its requests on your key.
@@ -686,7 +688,13 @@ Windows app, with a tab for each list. Type in **Add to types** (or whichever li
 a term by any of its names. The pencil beside a term opens it: change its **Name** or its **Short name, on covers** and
 **Save name**, and add or remove its **Other names** ("5e" for an edition, say). Folder names, searches and what you type
 all go through these names. Renaming keeps everything filed under the term, and the library catches up a few seconds
-after you stop.
+after you stop. **New names from the AI**, at the top of each list the AI can add to, chooses **Ask first** (a card in
+Needs review for each name, the default) or **Add them** (the name joins the list as the AI uses it, and the names
+already waiting are added too), as in the Windows app. **Find overlaps**, under it, compares the list's names, has the
+AI compare them too when one is set up, and says how many groups of terms that may be the same thing wait in Needs
+review, with the pairs kept apart and × to offer one again; the cards there combine a group into the term picked, with
+Undo, or keep it apart, as in the Windows app's [Find overlaps](cataloging.md#find-overlaps). Comparing names needs no
+AI, so a list can be tidied here without one.
 
 The last tab, **Your tags**, holds tags of your own, each with the words that signal it ("Undead": zombie, lich).
 **Add tag** looks through your books' pages at once and suggests the tag for each book whose pages use the words often

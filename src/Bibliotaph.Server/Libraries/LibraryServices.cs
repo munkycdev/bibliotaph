@@ -223,6 +223,7 @@ public static class LibraryServices
         services.AddSingleton<OnlineImports>();
         services.AddSingleton(new HeldOnlinePages(host.Clock, host.Uploads));
         services.AddSingleton<CollectionSuggestions>();
+        services.AddSingleton<TermOverlapFinder>();
         services.AddSingleton<VocabularyService>();
         services.AddSingleton<ReviewCards>();
         services.AddSingleton<ReviewService>();

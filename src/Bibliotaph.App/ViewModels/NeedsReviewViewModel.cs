@@ -86,6 +86,7 @@ public sealed partial class ReviewShowChoice(string key, string name) : Observab
 /// </summary>
 public sealed partial class NeedsReviewViewModel(
     ReviewService review,
+    VocabularyService vocabulary,
     IndexQueries queries,
     LibraryStore library,
     IIndexingStatus indexing,
@@ -243,6 +244,7 @@ public sealed partial class NeedsReviewViewModel(
             _fieldCards.Clear();
             List<DecidedCardViewModel> cards = [];
             foreach (var term in list.Terms) cards.Add(new TermCardViewModel(term, _vocabulary, this));
+            foreach (var overlap in list.Overlaps ?? []) cards.Add(new OverlapCardViewModel(overlap, this));
             foreach (var version in list.Versions) cards.Add(new VersionCardViewModel(version, this));
             foreach (var proposal in list.Packs) cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
             foreach (var match in list.Elsewhere ?? []) cards.Add(new ElsewhereCardViewModel(match, this));
@@ -301,6 +303,7 @@ public sealed partial class NeedsReviewViewModel(
     static string KindOf(DecidedCardViewModel card) => card switch
     {
         TermCardViewModel => "terms",
+        OverlapCardViewModel => "overlaps",
         VersionCardViewModel => "versions",
         PackCardViewModel => "packs",
         ElsewhereCardViewModel => "elsewhere",
@@ -509,6 +512,18 @@ public sealed partial class NeedsReviewViewModel(
     {
         var (problem, undo) = await review.EditAsync(item, typed);
         return (problem?.Message, undo is null ? null : () => review.UndoAsync([undo]));
+    }
+
+    public async Task<Func<Task>> CombineTermsAsync(OverlapProposal proposal, long keepId)
+    {
+        var combined = await vocabulary.CombineAsync(keepId, [.. proposal.Terms.Where(t => t.Id != keepId).Select(t => t.Id)]);
+        return () => vocabulary.UndoCombineAsync(combined);
+    }
+
+    public async Task<Func<Task>> KeepTermsApartAsync(OverlapProposal proposal)
+    {
+        var ids = await vocabulary.KeepApartAsync(proposal.Vocabulary, [.. proposal.Terms.Select(t => t.Key)]);
+        return async () => { foreach (var id in ids) await vocabulary.ForgetKeptApartAsync(id); };
     }
 
     public async Task<Func<Task>> AddTermAsync(PendingTerm term)

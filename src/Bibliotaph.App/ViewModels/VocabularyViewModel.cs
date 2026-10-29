@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -126,11 +127,24 @@ public sealed partial class UserTagRowViewModel(UserTagEntry entry, VocabularyVi
     Task Delete() => page.DeleteTagAsync(this);
 }
 
+/// <summary>A pair the user said are not the same thing, with × to have it offered again.</summary>
+public sealed partial class KeptApartRowViewModel(KeptApartPair pair, VocabularyViewModel page) : ObservableObject
+{
+    public KeptApartPair Pair { get; } = pair;
+
+    public string Text => $"{Pair.First} and {Pair.Second}";
+
+    [RelayCommand]
+    Task Forget() => page.ForgetKeptApartAsync(this);
+}
+
 /// <summary>
 /// Settings > Vocabulary: the terms Bibliotaph files books under and the other names it knows them by. Renaming
 /// keeps a term's key, so nothing filed under it moves; a name taken from another term's aliases says so. The library
 /// catches up in the background once the edits pause. Its last tab holds the user's own tags, each with the words that
-/// find it in the books' pages; saving one looks through the library's text at once.
+/// find it in the books' pages; saving one looks through the library's text at once. Find overlaps compares a list's
+/// names, and has the AI compare them, for Needs review to offer the terms that look like one thing; the pairs kept
+/// apart there can be offered again here.
 /// </summary>
 public sealed partial class VocabularyViewModel : SettingsSectionViewModel
 {
@@ -141,11 +155,15 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
     readonly UserTagService _tags;
     readonly ILogger<VocabularyViewModel> _log;
     List<TermRowViewModel> _all = [];
+    bool _aiTermsAdd;
 
-    public VocabularyViewModel(VocabularyService vocabulary, UserTagService tags, ILogger<VocabularyViewModel> log)
+    readonly INavigationService _navigation;
+
+    public VocabularyViewModel(VocabularyService vocabulary, UserTagService tags, INavigationService navigation, ILogger<VocabularyViewModel> log)
     {
         _vocabulary = vocabulary;
         _tags = tags;
+        _navigation = navigation;
         _log = log;
         Vocabularies =
         [
@@ -210,6 +228,74 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
 
     public string AddLabel => $"Add to {Selected.Label.ToLowerInvariant()}";
 
+    /// <summary>Whether the selected vocabulary is one the AI can add to, and so has the choice below.</summary>
+    public bool OffersAiTerms => AiTerms.Extends(Selected.Key);
+
+    /// <summary>A new name the AI uses waits in Needs review (the default).</summary>
+    public bool AiTermsAsk
+    {
+        get => !_aiTermsAdd;
+        set { if (value) SetAiTermsAsync(false).FireAndForget(); }
+    }
+
+    /// <summary>A new name the AI uses joins the vocabulary at once.</summary>
+    public bool AiTermsAdd
+    {
+        get => _aiTermsAdd;
+        set { if (value) SetAiTermsAsync(true).FireAndForget(); }
+    }
+
+    public static string AiTermsTitle => AiTermText.Title;
+
+    public static string AiTermsHelp => AiTermText.Help;
+
+    /// <summary>What choosing Add them did with the terms waiting in Needs review.</summary>
+    [ObservableProperty]
+    public partial string? AiTermsNote { get; set; }
+
+    public static string OverlapsTitle => OverlapText.Title;
+
+    public static string OverlapsHelp => OverlapText.Help;
+
+    public static string OverlapsComparing => OverlapText.Comparing;
+
+    public static string OverlapsAiComparing => OverlapText.AiComparing;
+
+    public static string OpenNeedsReviewLabel => OverlapText.OpenReview;
+
+    public static string CombineHelp => OverlapText.CombineHelp;
+
+    public static string KeepApartHelp => OverlapText.KeepApartHelp;
+
+    public static string ForgetKeptApart => OverlapText.Forget;
+
+    public static string CombineLabel => OverlapText.Combine;
+
+    public static string KeepApartLabel => OverlapText.KeepApart;
+
+    /// <summary>The pairs kept apart in the selected list, shown once Find overlaps has run.</summary>
+    public ObservableCollection<KeptApartRowViewModel> KeptApart { get; } = [];
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(FindOverlapsCommand))]
+    public partial bool IsFindingOverlaps { get; set; }
+
+    /// <summary>How many groups wait in Needs review, or that none were found.</summary>
+    [ObservableProperty]
+    public partial string? OverlapsNote { get; set; }
+
+    /// <summary>Whether groups wait in Needs review, so it can be opened from here.</summary>
+    [ObservableProperty]
+    public partial bool HasOverlapsWaiting { get; set; }
+
+    /// <summary>Whether the AI is comparing the names too, after the last Find overlaps.</summary>
+    [ObservableProperty]
+    public partial bool IsAiComparing { get; set; }
+
+    /// <summary>"2 pairs kept apart", heading the list of them.</summary>
+    [ObservableProperty]
+    public partial string? KeptApartNote { get; set; }
+
     public override async Task LoadAsync()
     {
         if (Selected.IsSelected) await ReloadAsync();
@@ -224,9 +310,87 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
         OnPropertyChanged(nameof(Selected));
         OnPropertyChanged(nameof(AddLabel));
         OnPropertyChanged(nameof(IsTags));
+        OnPropertyChanged(nameof(OffersAiTerms));
         Filter = "";
-        AddProblem = AddNote = null;
+        AddProblem = AddNote = AiTermsNote = null;
+        ClearOverlaps();
         ReloadAsync().FireAndForget();
+    }
+
+    void ClearOverlaps()
+    {
+        KeptApart.Clear();
+        OverlapsNote = KeptApartNote = null;
+        HasOverlapsWaiting = IsAiComparing = false;
+    }
+
+    /// <summary>Compares the names now, and has the AI compare them in the background; the groups wait in Needs review.</summary>
+    [RelayCommand(CanExecute = nameof(CanFindOverlaps))]
+    async Task FindOverlapsAsync()
+    {
+        var vocabulary = Selected.Key;
+        IsFindingOverlaps = true;
+        try
+        {
+            _vocabulary.FindOverlapsWithAi();
+            var proposals = await _vocabulary.FindOverlapsAsync(vocabulary);
+            var kept = await _vocabulary.KeptApartAsync(vocabulary);
+            if (vocabulary != Selected.Key) return; // another tab was picked meanwhile
+            ShowKeptApart(kept);
+            OverlapsNote = proposals.Count == 0 ? OverlapText.None : OverlapText.Found(proposals.Count);
+            HasOverlapsWaiting = proposals.Count > 0;
+            IsAiComparing = _vocabulary.AsksAi;
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Finding overlapping terms in {Vocabulary} failed", vocabulary);
+            OverlapsNote = "The names couldn't be compared just now. Try again in a moment.";
+        }
+        finally
+        {
+            IsFindingOverlaps = false;
+        }
+    }
+
+    bool CanFindOverlaps() => !IsFindingOverlaps;
+
+    [RelayCommand]
+    void OpenNeedsReview() => _navigation.NavigateTo(Route.NeedsReview);
+
+    void ShowKeptApart(IReadOnlyList<KeptApartPair> kept)
+    {
+        KeptApart.Clear();
+        foreach (var pair in kept) KeptApart.Add(new KeptApartRowViewModel(pair, this));
+        KeptApartNote = kept.Count == 0 ? null : OverlapText.KeptApart(kept.Count);
+    }
+
+    /// <summary>The pair is offered again in Needs review, if the names still look alike.</summary>
+    internal async Task ForgetKeptApartAsync(KeptApartRowViewModel row)
+    {
+        await _vocabulary.ForgetKeptApartAsync(row.Pair.Id);
+        await FindOverlapsAsync();
+    }
+
+    async Task SetAiTermsAsync(bool add)
+    {
+        if (_aiTermsAdd == add) return;
+        var vocabulary = Selected.Key;
+        _aiTermsAdd = add;
+        OnPropertyChanged(nameof(AiTermsAsk));
+        OnPropertyChanged(nameof(AiTermsAdd));
+        AiTermsNote = add ? "Adding the terms waiting in Needs review…" : null;
+        try
+        {
+            var added = await _vocabulary.SetAddsAiTermsAsync(vocabulary, add);
+            if (vocabulary != Selected.Key) return;
+            AiTermsNote = add ? AiTermText.Added(added) : null;
+            if (added > 0) await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Saving the AI's new names choice for {Vocabulary} failed", vocabulary);
+            AiTermsNote = "That couldn't be changed just now. Try again in a moment.";
+        }
     }
 
     /// <summary>Lists the selected vocabulary again, keeping <paramref name="editing"/>'s term open with its message.</summary>
@@ -241,7 +405,11 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
         {
             var vocabulary = Selected.Key;
             var entries = await _vocabulary.ListAsync(vocabulary);
+            var add = AiTerms.Extends(vocabulary) && await _vocabulary.AddsAiTermsAsync(vocabulary);
             if (vocabulary != Selected.Key) return; // another tab was picked meanwhile
+            _aiTermsAdd = add;
+            OnPropertyChanged(nameof(AiTermsAsk));
+            OnPropertyChanged(nameof(AiTermsAdd));
             _all = [.. entries.Select(e => new TermRowViewModel(e, this))];
             if (editing is { } id && _all.FirstOrDefault(t => t.Entry.Id == id) is { } row)
             {

@@ -1,0 +1,63 @@
+@* Terms that may be the same thing, as the Windows app's card: combine them into the one picked, with Undo, or keep
+   them apart for good. Decided, it folds to one line with Undo. *@
+@inject ApiClient Api
+
+<article class="bt-reviewitem" aria-label="@($"{Card.Chip}: {Card.Label}")">
+    @if (State.IsDone)
+    {
+        <div class="bt-decided">
+            <Icon Name="Check" Size="14" />
+            <span>@State.Done</span>
+            @if (State.Undo is not null)
+            {
+                <button class="bt-link" disabled="@State.Busy" @onclick="UndoAsync">Undo</button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="bt-reviewtitle">
+            <h3>@Card.Label</h3>
+            <span class="bt-chip">@Card.Chip</span>
+        </div>
+        <div class="bt-small bt-reviewreason">@Card.Detail</div>
+        @if (State.Problem is { } problem)
+        {
+            <div class="bt-problem" role="alert">@problem</div>
+        }
+        <div class="bt-inline bt-reviewterm">
+            <span class="bt-termfile">
+                <select class="bt-select" aria-label="@($"Keep, of {Card.Label}")" title="@OverlapText.CombineHelp" @bind="_keep">
+                    @foreach (var term in Card.Terms)
+                    {
+                        <option value="@term.Id">@term.Text</option>
+                    }
+                </select>
+                <button class="bt-button primary" disabled="@State.Busy" title="@OverlapText.CombineHelp"
+                        @onclick="() => DecideAsync(() => Api.CombineOverlapAsync(Card.Id, Card.Stamp, _keep))"><Icon Name="Check" />@OverlapText.Combine</button>
+            </span>
+            <button class="bt-button" disabled="@State.Busy" title="@OverlapText.KeepApartHelp"
+                    @onclick="() => DecideAsync(() => Api.KeepOverlapApartAsync(Card.Id, Card.Stamp))">@OverlapText.KeepApart</button>
+        </div>
+    }
+</article>
+
+@code {
+    long _keep;
+
+    [Parameter, EditorRequired] public ReviewOverlapCard Card { get; set; } = default!;
+
+    [Parameter, EditorRequired] public ReviewCardState State { get; set; } = default!;
+
+    /// <summary>Raised with -1 when the card is decided and +1 when that's undone, so the page counts what's waiting.</summary>
+    [Parameter] public EventCallback<int> Decided { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (_keep == 0 || Card.Terms.All(t => t.Id != _keep)) _keep = Card.KeepId;
+    }
+
+    Task DecideAsync(Func<Task<ActionResult>> decide) => State.DecideAsync(decide, Decided.InvokeAsync);
+
+    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+}

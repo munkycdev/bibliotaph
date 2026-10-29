@@ -7,6 +7,28 @@
   alone when what's live already includes the commit.
 - **The site says which build it is.** The footer and About Bibliotaph on bibliotaph.online now name the build
   number and commit that is deployed, as the Windows app's About does, instead of 1.4.0.
+- **Terms that may be the same, in Needs review.** Bibliotaph finds the terms in a list that look like one thing
+  under two names ("Forgotten Realms" and "The Forgotten Realms", "Greyhawk" and "Grayhawk", "Dark Sun" and "Athas")
+  and offers each group as a card in Needs review, with how many books use each term: by comparing the names, which
+  needs no AI, and, with AI on, by asking the model about the lists it can add to, in the background, only about
+  names it hasn't seen. The term most books use is picked to keep; **Combine** folds the others into it, their names
+  becoming its other names and their books moving to it, with Undo; **Keep apart** says they're not the same thing
+  and that pair isn't offered again. **Find overlaps** in Settings > Vocabulary compares a list's names now and says
+  how many groups wait, with the pairs kept apart to offer again. On Windows and the web. See
+  [Cataloging](docs/guide/cataloging.md#find-overlaps).
+- **Read every book again.** Settings > AI has a button under Reclassify that sends every book the AI has read back to
+  it, so names you've added to your lists since are found in the books that use them. It asks first, since it takes as
+  long as cataloguing them did; values you've accepted, typed or rejected stay as they are. On Windows and the web. See
+  [AI](docs/guide/ai.md#day-to-day).
+- **Let the AI grow a list by itself.** Settings > Vocabulary now has **New names from the AI** at the top of each
+  list the AI can add to (everything but editions): **Ask first**, as before, puts a card in Needs review for each
+  new name; **Add them** puts the name straight into the list as the AI uses it, with the books that use it getting
+  it as an ordinary suggestion, and adds that list's names already waiting in Needs review. Made for campaign
+  settings, where the AI only names worlds the book names and the cards pile up. Rejected names stay rejected. On
+  Windows and the web. See [Cataloging](docs/guide/cataloging.md#vocabulary).
+- **Scanning whole books has its own bar.** Settings > Processing shows the AI's chapter-by-chapter reading as a
+  step like the others, under Cataloguing with AI, with how far it has got and the time left, instead of a line of
+  text in the summary. Off when AI is, or when Scan whole books is off in Settings > AI. On Windows and the web.
 
 ## 1.4 · 28 October 2026
 

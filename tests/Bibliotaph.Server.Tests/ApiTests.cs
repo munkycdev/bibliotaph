@@ -1422,6 +1422,49 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task A_vocabulary_can_take_the_AIs_new_terms_at_once_which_adds_the_ones_waiting_in_Needs_review()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/IMG_0042.png", Png());
+        _graph.Add("RPG/Maps/IMG_0043.png", Png(SkiaSharp.SKColors.Crimson));
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
+
+        // A campaign setting the AI named on both books, which the vocabulary doesn't know yet.
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            var library = lease.Library;
+            var (reach, _) = await library.Get<VocabularyStore>().ProposeTermAsync("setting", "Thornwick Reach", ct);
+            foreach (var book in books)
+                await library.Get<MetadataStore>().AddSuggestionsAsync(new EntryId(book.EntryId), null,
+                    [new(MetadataFields.Settings, reach.Key, AssertionOrigin.Ai, "set in Thornwick Reach")], ct);
+            await library.Get<MetadataProjector>().ProjectAllAsync(ct);
+        }
+
+        var asking = await client.GetFromJsonAsync<AiTermChoice>("/api/vocabulary/setting/ai-terms", ct);
+        var waiting = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        using var chosen = await client.PutAsJsonAsync("/api/vocabulary/setting/ai-terms", new AiTermChoice(true), ct);
+        var change = await chosen.Content.ReadFromJsonAsync<AiTermChange>(ct);
+        var adding = await client.GetFromJsonAsync<AiTermChoice>("/api/vocabulary/setting/ai-terms", ct);
+        var terms = await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/setting", ct);
+        var after = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        using var editions = await client.GetAsync("/api/vocabulary/edition/ai-terms", ct);
+
+        Assert.False(asking!.Add);
+        Assert.Equal("Thornwick Reach", Assert.Single(waiting.Terms).Label);
+        Assert.Equal(new AiTermChange(true, 1), change);
+        Assert.True(adding!.Add);
+        Assert.Contains(terms!, t => t.Label == "Thornwick Reach" && !t.Yours);
+        Assert.Empty(after.Terms);
+        Assert.Equal(HttpStatusCode.NotFound, editions.StatusCode);
+    }
+
+    [Fact]
     public async Task A_backup_and_both_exports_download_named_for_the_users_day_without_the_servers_sealed_keys()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -1556,6 +1599,66 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.True((await client.GetFromJsonAsync<StartPageChoice>("/api/settings/start", ct))!.Library);
         Assert.True(after.StartOnLibrary);
         Assert.Empty(after.FolderRules);
+    }
+
+    [Fact]
+    public async Task Needs_review_offers_overlapping_terms_to_combine_with_undo_or_keep_apart_and_settings_counts_them()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = Client(await AddUserAsync(admin: false));
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using var twin = await client.PostAsJsonAsync("/api/vocabulary/setting", new NewTerm("The Forgotten Realms"), ct);
+        var twinId = (await twin.Content.ReadFromJsonAsync<VocabularyChange>(ct))!.TermId!.Value;
+        using var typo = await client.PostAsJsonAsync("/api/vocabulary/setting", new NewTerm("Grayhawk"), ct);
+        var typoId = (await typo.Content.ReadFromJsonAsync<VocabularyChange>(ct))!.TermId!.Value;
+        var terms = (await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/setting", ct))!;
+        var realmsId = terms.Single(t => t.Label == "Forgotten Realms").Id;
+        var greyhawkId = terms.Single(t => t.Label == "Greyhawk").Id;
+
+        var settings = await PostAsync<TermOverlapPage>("/api/vocabulary/setting/overlaps", null);
+        var list = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        var realms = list.Overlaps.Single(o => o.Terms.Any(t => t.Id == realmsId));
+        var hawks = list.Overlaps.Single(o => o.Terms.Any(t => t.Id == typoId));
+        var combined = await PostAsync<ActionResult>($"/api/review/overlaps/{realms.Id}/combine", new ReviewOverlapCombine(realms.Stamp, realmsId));
+        var after = (await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/setting", ct))!;
+        var afterCombine = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        using var stale = await client.PostAsJsonAsync($"/api/review/overlaps/{realms.Id}/combine", new ReviewOverlapCombine(realms.Stamp, realmsId), ct);
+        await PostAsync<ActionResult>($"/api/library/held/{combined.Undo}", null);
+        var undone = (await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/setting", ct))!;
+        var apart = await PostAsync<ActionResult>($"/api/review/overlaps/{hawks.Id}/keep-apart", new ReviewOverlapKeepApart(hawks.Stamp));
+        var kept = (await client.GetFromJsonAsync<TermOverlapPage>("/api/vocabulary/setting/overlaps", ct))!;
+        var afterApart = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        using (await client.DeleteAsync($"/api/vocabulary/setting/kept-apart/{kept.KeptApart.Single().Id}", ct)) { }
+        var forgotten = (await client.GetFromJsonAsync<TermOverlapPage>("/api/vocabulary/setting/overlaps", ct))!;
+        using var unknown = await client.GetAsync("/api/vocabulary/nonsense/overlaps", ct);
+
+        Assert.Equal((2, false), (settings.Waiting, settings.AsksAi));
+        Assert.Contains(list.Show, k => k.Key == "overlaps" && k.Name == "Terms that may be the same");
+        Assert.Equal(("Forgotten Realms · The Forgotten Realms", "Same setting?", realmsId), (realms.Label, realms.Chip, realms.KeepId));
+        Assert.Equal("The same name but for small words, brackets or a plural.", realms.Detail);
+        Assert.Equal(("Greyhawk · Grayhawk", greyhawkId), (hawks.Label, hawks.KeepId));
+        Assert.Equal("Combined 2 terms into Forgotten Realms", combined.Message);
+        Assert.NotNull(combined.Undo);
+        Assert.DoesNotContain(after, t => t.Id == twinId);
+        Assert.Contains(after.Single(t => t.Id == realmsId).Aliases, a => a.Text == "The Forgotten Realms");
+        Assert.Equal([hawks.Id], afterCombine.Overlaps.Select(o => o.Id));
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Equal("The Forgotten Realms", undone.Single(t => t.Id == twinId).Label);
+        Assert.DoesNotContain(undone.Single(t => t.Id == realmsId).Aliases, a => a.Text == "The Forgotten Realms");
+        Assert.Equal("Kept Greyhawk and Grayhawk apart.", apart.Message);
+        Assert.NotNull(apart.Undo);
+        Assert.Equal(("Grayhawk", "Greyhawk"), (kept.KeptApart.Single().First, kept.KeptApart.Single().Second));
+        Assert.Equal(1, kept.Waiting);
+        Assert.Equal([realms.Id], afterApart.Overlaps.Select(o => o.Id));
+        Assert.Equal(2, forgotten.Waiting);
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+
+        async Task<T> PostAsync<T>(string url, object? body)
+        {
+            using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
     }
 
     [Fact]
@@ -1884,6 +1987,10 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var page = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
         var classified = await WaitAsync(async () => (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.Progress is var p
             && p == "1 book classified with fake-mini. Nothing is waiting." ? p : null, ct);
+        var offered = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.ReadAgain;
+        var readingAgain = await SendAsync(HttpMethod.Post, "/api/ai/read-again");
+        var readTwice = await WaitAsync(async () => _models.Requests.Count >= 2 && (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.Progress is var p
+            && p == "1 book classified with fake-mini. Nothing is waiting." ? p : null, ct);
         string? sealedKeys;
         await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
             sealedKeys = await lease.Library.Get<SettingsStore>().GetAsync("server.ai-keys", ct);
@@ -1904,6 +2011,11 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal((true, "https://api.example.com", "fake-mini", "abcd"), (page.Enabled, page.Endpoint, page.Model, page.KeyEnding));
         Assert.Equal("RPG", Assert.Single(page.Folders).Name);
         Assert.NotEmpty(classified);
+        Assert.Null(before.ReadAgain);
+        Assert.Equal("Read 1 again", offered?.Label);
+        Assert.Equal("The books go back to the AI one at a time, in the background.", readingAgain.Note);
+        Assert.NotEmpty(readTwice);
+        Assert.Equal(2, _models.Requests.Count);
         Assert.All(_models.Requests, r => Assert.Equal(("https://api.example.com", FakeModelService.Key), (r.Endpoint, r.Key)));
         Assert.DoesNotContain(FakeModelService.Key, sealedKeys, StringComparison.Ordinal);
         // The one book is too short to be a sample, so the test says so, as the Windows dialog does.

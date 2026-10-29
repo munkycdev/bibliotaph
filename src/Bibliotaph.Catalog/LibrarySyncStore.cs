@@ -189,14 +189,18 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
             if (key is not null) records[key] = Fields((SyncFields.Position, position));
         }
 
-        foreach (var term in await db.VocabularyTerms.AsNoTracking().Include(t => t.Aliases).Where(t => t.State == TermState.Active).ToListAsync(ct))
+        foreach (var term in await db.VocabularyTerms.AsNoTracking().Include(t => t.Aliases)
+            .Where(t => t.State == TermState.Active || t.State == TermState.Merged).ToListAsync(ct))
         {
             var names = term.Aliases.Select(a => a.Text).Order(StringComparer.Ordinal).ToList();
-            records[SyncKeys.ForTerm(term.Vocabulary, term.Key)] = Fields(
-                (SyncFields.Label, Json(term.Label)),
-                (SyncFields.ShortLabel, term.ShortLabel is { } s ? Json(s) : null),
-                (SyncFields.Parent, term.ParentKey is { } p ? Json(p) : null),
-                (SyncFields.Aliases, names.Count > 0 ? Json(names) : null));
+            // A combined term says only where it went: the other PCs combine theirs the same way.
+            records[SyncKeys.ForTerm(term.Vocabulary, term.Key)] = term.State == TermState.Merged
+                ? Fields((SyncFields.Label, Json(term.Label)), (SyncFields.MergedInto, Json(term.MergedIntoKey ?? "")))
+                : Fields(
+                    (SyncFields.Label, Json(term.Label)),
+                    (SyncFields.ShortLabel, term.ShortLabel is { } s ? Json(s) : null),
+                    (SyncFields.Parent, term.ParentKey is { } p ? Json(p) : null),
+                    (SyncFields.Aliases, names.Count > 0 ? Json(names) : null));
         }
 
         foreach (var pair in await db.CopyDecisions.AsNoTracking().Where(d => d.Answer == CopyAnswer.NotSameBook).Select(d => new { d.FirstHash, d.SecondHash }).ToListAsync(ct))

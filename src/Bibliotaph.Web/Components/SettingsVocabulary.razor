@@ -16,8 +16,63 @@
         }
     </div>
 
+    @if (AiTerms.Extends(_selected))
+    {
+        <div class="bt-settingrow">
+            <div>@AiTermText.Title<small>@AiTermText.Help</small>
+                @if (_aiTermsNote is not null)
+                {
+                    <small role="status">@_aiTermsNote</small>
+                }
+            </div>
+            @if (_aiTermsAdd is { } add)
+            {
+                <div class="bt-segments" role="group" aria-label="@AiTermText.Title">
+                    <button class="@(add ? "" : "on")" aria-pressed="@(!add)" disabled="@_aiTermsSaving" @onclick="() => AiTermsAsync(false)">Ask first</button>
+                    <button class="@(add ? "on" : "")" aria-pressed="@add" disabled="@_aiTermsSaving" @onclick="() => AiTermsAsync(true)">Add them</button>
+                </div>
+            }
+        </div>
+    }
     @if (_selected != TagsKey)
     {
+        @* Find overlaps: terms that may be one thing go to Needs review; the pairs kept apart can be offered again here. *@
+        <div class="bt-settingrow bt-overlaps">
+            <div>@OverlapText.Title<small>@OverlapText.Help</small></div>
+            <button class="bt-button" disabled="@_finding" @onclick="FindOverlapsAsync"><Icon Name="Search" />@OverlapText.Title</button>
+        </div>
+        @if (_finding)
+        {
+            <p class="bt-fine bt-tight" role="status">@OverlapText.Comparing</p>
+        }
+        else if (_overlaps is { } page)
+        {
+            <p class="bt-fine bt-tight" role="status">
+                @(page.Waiting == 0 ? OverlapText.None : OverlapText.Found(page.Waiting))
+                @if (page.Waiting > 0)
+                {
+                    <a class="bt-link" href="/review">@OverlapText.OpenReview</a>
+                }
+                @if (page.AsksAi)
+                {
+                    <br />@OverlapText.AiComparing
+                }
+            </p>
+        }
+        else if (_overlapsNote is not null)
+        {
+            <p class="bt-fine bt-tight" role="status">@_overlapsNote</p>
+        }
+        @if (_overlaps is { KeptApart.Count: > 0 } kept)
+        {
+            <div class="bt-fieldlabel bt-gap">@OverlapText.KeptApart(kept.KeptApart.Count)</div>
+            <div class="bt-chips" aria-label="Pairs kept apart">
+                @foreach (var pair in kept.KeptApart)
+                {
+                    <span class="bt-chip on">@pair.First and @pair.Second<button class="bt-chipx" title="@OverlapText.Forget" aria-label="@($"Offer {pair.First} and {pair.Second} again")" @onclick="() => ForgetKeptApartAsync(pair)"><Icon Name="X" Size="11" /></button></span>
+                }
+            </div>
+        }
         <label class="bt-field">@AddLabel
             <span class="bt-inputrow">
                 <input class="bt-input" @bind="_newTerm" @bind:event="oninput" @onkeydown="e => OnEnter(e, AddTermAsync)" />
@@ -160,6 +215,16 @@
     string _filter = "", _newTerm = "", _newAlias = "", _newTagName = "", _newTagWords = "";
     string? _addProblem, _addNote, _editProblem, _editNote;
 
+    // The AI's new names, for the vocabularies it can add to.
+    bool? _aiTermsAdd;
+    bool _aiTermsSaving;
+    string? _aiTermsNote;
+
+    // Find overlaps: how many groups of the chosen list wait in Needs review, and the pairs kept apart.
+    TermOverlapPage? _overlaps;
+    string? _overlapsNote;
+    bool _finding;
+
     // One row is open at a time; its two fields are a term's name and short name, or a tag's name and words.
     long? _editing;
     string _editLabel = "", _editShort = "";
@@ -199,9 +264,71 @@
         if (key == _selected) return;
         _selected = key;
         _filter = "";
-        _addProblem = _addNote = null;
+        _addProblem = _addNote = _aiTermsNote = null;
+        _aiTermsAdd = null;
         _editing = null;
+        _overlaps = null;
+        _overlapsNote = null;
         await ReloadAsync();
+    }
+
+    async Task FindOverlapsAsync()
+    {
+        if (_finding) return;
+        var selected = _selected;
+        _finding = true;
+        try
+        {
+            var page = await Api.FindTermOverlapsAsync(selected);
+            if (selected != _selected) return;
+            _overlaps = page;
+            _overlapsNote = null;
+            Activity.Refresh();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _overlapsNote = "The names couldn't be compared just now. Try again in a moment.";
+        }
+        finally
+        {
+            _finding = false;
+        }
+    }
+
+    /// <summary>The pair is offered again in Needs review, if the names still look alike.</summary>
+    async Task ForgetKeptApartAsync(KeptApartTerms pair)
+    {
+        var selected = _selected;
+        await Api.ForgetKeptApartAsync(selected, pair.Id);
+        var page = await Api.TermOverlapsAsync(selected);
+        if (selected != _selected) return;
+        _overlaps = page;
+        Activity.Refresh();
+    }
+
+    async Task AiTermsAsync(bool add)
+    {
+        if (_aiTermsAdd == add) return;
+        _aiTermsAdd = add;
+        _aiTermsSaving = true;
+        _aiTermsNote = add ? "Adding the terms waiting in Needs review…" : null;
+        try
+        {
+            var change = await Api.SetAiTermChoiceAsync(_selected, add);
+            _aiTermsAdd = change.Add;
+            _aiTermsNote = add ? AiTermText.Added(change.Added) : null;
+            if (change.Added > 0)
+            {
+                Activity.Refresh();
+                _terms = await Api.VocabularyAsync(_selected);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _aiTermsAdd = !add;
+            _aiTermsNote = "That couldn't be changed just now. Try again in a moment.";
+        }
+        _aiTermsSaving = false;
     }
 
     async Task ReloadAsync()
@@ -214,8 +341,13 @@
             return;
         }
         _terms = null;
-        var terms = await Api.VocabularyAsync(selected);
-        if (selected == _selected) _terms = terms; // another tab may have been picked meanwhile
+        var terms = Api.VocabularyAsync(selected);
+        var choice = AiTerms.Extends(selected) ? Api.AiTermChoiceAsync(selected) : null;
+        var listed = await terms;
+        var add = choice is null ? null : (bool?)(await choice).Add;
+        if (selected != _selected) return; // another tab was picked meanwhile
+        _terms = listed;
+        _aiTermsAdd = add;
     }
 
     static async Task OnEnter(KeyboardEventArgs e, Func<Task> act)
