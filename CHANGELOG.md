@@ -2,12 +2,13 @@
 
 ## Unreleased
 
-- **A tour on the first day.** The first time Bibliotaph opens, a short tour points at the parts of the window with
-  the rest dimmed, in two chapters so it never shows an empty page: where to add your first folder and, once one is
-  in, the sidebar's status line; then, the first time your books show, a cover, the Library, books you own online, the
-  search box, Needs review, Collections and Binders, and Settings. Skip it or press Esc and it never comes back on its
-  own; **Show the tour again** in Settings > Preferences starts it over. See
-  [Getting started](docs/guide/getting-started.md#the-tour).
+- **A tour on the first day.** The first time Bibliotaph opens, on Windows or at bibliotaph.online, a short tour
+  points at the parts of the window with the rest dimmed, in two chapters so it never shows an empty page: where to
+  add your first folder (on the web, the storage to connect and the folder picker too) and, once one is in, the
+  sidebar's status line; then, the first time your books show, a cover, the Library, books you own online, the search
+  box, Needs review, Collections and Binders, and Settings. Skip it or press Esc and it never comes back on its own;
+  **Show the tour again** in Settings > Preferences starts it over. See
+  [Getting started](docs/guide/getting-started.md#the-tour) and [Bibliotaph on the web](docs/guide/web.md#the-tour).
 - **Copy an invitation's link again, and delete invitations.** On bibliotaph.online, Settings > Members now has a copy
   button beside each open invitation, which gives the same link again until it's used, and a bin on every invitation.
   Deleting an open one makes its link stop working straight away, so it asks first; deleting a used one tidies the list

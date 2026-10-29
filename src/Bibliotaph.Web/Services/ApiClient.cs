@@ -506,6 +506,11 @@ public sealed class ApiClient(HttpClient http)
     public Task SetStartPageAsync(bool library, CancellationToken ct = default) =>
         SendAsync(HttpMethod.Put, "api/settings/start", new StartPageChoice(library), ct);
 
+    public Task<TourProgress> TourProgressAsync(CancellationToken ct = default) => SendAsync<TourProgress>(HttpMethod.Get, "api/settings/tour", null, ct);
+
+    public Task SetTourProgressAsync(string stage, CancellationToken ct = default) =>
+        SendAsync(HttpMethod.Put, "api/settings/tour", new TourProgress(stage), ct);
+
     public Task<LibraryPreferences> LibraryPreferencesAsync(CancellationToken ct = default) =>
         SendAsync<LibraryPreferences>(HttpMethod.Get, "api/settings/library", null, ct);
 

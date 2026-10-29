@@ -659,6 +659,15 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-shortcutlist dt{font-weight:500}
 .bt-shortcutlist dd{margin:0;color:var(--bt-muted)}
 .bt-shortcuts .bt-dialogactions{justify-content:flex-end;margin-top:16px}
+/* The tour (.bt-tour): four dimmed strips round the step's controls and the callout beside them, placed by js/tour.js;
+   under the dialogs and drawers, so a folder picker opened from a step works over it. */
+.bt-tourdim{position:fixed;background:#00000073;z-index:11}
+.bt-tourcallout{position:fixed;z-index:11;width:min(312px,calc(100vw - 24px));background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:8px;padding:18px 20px 16px;box-shadow:0 6px 24px #00000038}
+.bt-tourhead{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.bt-tourtitle{font-family:'DM Sans',sans-serif;font-size:17px;font-weight:600;letter-spacing:0;margin-top:10px}
+.bt-tourtext{margin-top:8px;max-width:none}
+.bt-touractions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:16px}
+.bt-touractions .bt-button{margin-left:auto}
 .bt-bulkfield{padding:12px 0;border-bottom:1px solid var(--bt-line)}
 .bt-bulkline{display:flex;align-items:center;gap:10px}
 .bt-bulkwhat{flex:1;min-width:0}

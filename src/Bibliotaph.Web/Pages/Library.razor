@@ -1,6 +1,7 @@
 @page "/library"
 @implements IAsyncDisposable
 @inject ApiClient Api
+@inject TourGuide Tour
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject LibraryActivity Activity
@@ -403,7 +404,7 @@ else if (_query.IsPagesTab)
 }
 else if (_list)
 {
-    <div class="bt-booklist" aria-label="Books">
+    <div class="bt-booklist" aria-label="Books" data-tour="first-books">
         @foreach (var book in _results.Books.Take(_shown))
         {
             <div class="bt-listitem" @key="book.Id" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_selecting)">
@@ -436,7 +437,7 @@ else if (_list)
 }
 else
 {
-    <div class="bt-books" aria-label="Books">
+    <div class="bt-books" aria-label="Books" data-tour="first-books">
         @foreach (var book in _results.Books.Take(_shown))
         {
             <div class="bt-book" @key="book.Id" title="@book.Title" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_selecting)">
@@ -707,6 +708,9 @@ else
             _loaded = DateTime.UtcNow;
             _hasFolders = results.Empty?.Action != "add-folder";
             if (_selecting) await UpdateSelectionAsync();
+            // The tour's second chapter, the first time the whole library shows books.
+            if (results.Books.Count > 0 && !_query.IsSearching && Chips.Count == 0 && _query.Collection is null && _query.Binder is null && _viewId is null)
+                await Tour.OfferBooksAsync();
         }
         catch (OperationCanceledException)
         {

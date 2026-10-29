@@ -20,6 +20,19 @@ Without an invitation, signing in with an account Bibliotaph doesn't know shows 
 If the service opens sign-up later, signing in makes your account straight away, until it has as many people as it
 can take; then it shows **Bibliotaph is full for now.**, and an invitation still works.
 
+## The tour
+
+The first time you sign in, the same short tour as the Windows app's points at the parts of the page as you need
+them. On an empty library it shows where to add your first folder, then, in **Settings > Library**, the storage to
+connect and the folder picker, and once a folder is in, the sidebar's line about what Bibliotaph is doing. It picks up
+where the account is, so coming back from a storage provider's sign-in page lands on the right step. The second
+chapter waits until your first books show, then walks through them: a book's cover, the Library, books you own online,
+the search box, Needs review, Collections and Binders, and Settings. **Next**, **Back** or the arrow keys move through
+it, and **Skip tour** or **Esc** ends it for good. What a step points at can still be clicked.
+
+To see it again, open **Settings > Preferences** and click **Show the tour again**. It's the same tour, and the same
+record of how far you got, as the Windows app's.
+
 ## Settings
 
 **Settings**, at the bottom of the sidebar, is laid out as in the Windows app: *Make yourself at home.*, with a list of

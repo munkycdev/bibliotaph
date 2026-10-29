@@ -43,6 +43,21 @@ public static class PreferencesApi
             return Results.NoContent();
         });
 
+        settings.MapGet("/tour", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return new TourProgress(await lease.Library.Get<SettingsStore>().GetAsync(SettingKeys.TourStage, ct));
+        });
+
+        // The tour only ever goes forward: its first chapter seen, then the whole of it seen or skipped.
+        settings.MapPut("/tour", async (TourProgress progress, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (progress.Stage is not (Tour.StageFolders or Tour.StageBooks)) return Results.BadRequest();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            await lease.Library.Get<SettingsStore>().SetAsync(SettingKeys.TourStage, progress.Stage, ct);
+            return Results.NoContent();
+        });
+
         // Switching a rule on switches off another there for the same one-value field, so the whole list comes back.
         settings.MapPut("/folder-rules/{id:long}", async (long id, RuleSwitch change, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {

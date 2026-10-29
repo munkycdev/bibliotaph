@@ -52,7 +52,7 @@
         }
         else
         {
-            <div class="bt-actions">
+            <div class="bt-actions" data-tour="storage">
                 @foreach (var kind in _providers)
                 {
                     var look = _storage.Count == 0 && kind == _providers[0] ? "bt-button primary" : "bt-button";

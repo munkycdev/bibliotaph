@@ -52,7 +52,7 @@ else
                 @foreach (var item in Items)
                 {
                     var active = item.Href == ActiveHref;
-                    <a class="bt-nav @(active ? "active" : "")" href="@item.Href" aria-current="@(active ? "page" : null)" title="@(_folded ? item.Label : null)"><Icon Name="@item.Icon" /><span class="bt-navlabel">@item.Label</span>@if (CountOf(item.Href) is { } count)
+                    <a class="bt-nav @(active ? "active" : "")" href="@item.Href" aria-current="@(active ? "page" : null)" title="@(_folded ? item.Label : null)" data-tour="@TourName(item.Href)"><Icon Name="@item.Icon" /><span class="bt-navlabel">@item.Label</span>@if (CountOf(item.Href) is { } count)
                     {
                         <span class="bt-count" aria-label="@($"{count} to review")">@count</span>
                     }</a>
@@ -105,11 +105,11 @@ else
             <div class="bt-sidebottom">
                 @* The fold button stays at the foot: beside Settings when open, under it when folded. *@
                 <div class="bt-settingsrow">
-                    <NavLink class="bt-nav" href="settings" title="@(_folded ? "Settings" : null)"><Icon Name="Settings2" /><span class="bt-navlabel">Settings</span></NavLink>
+                    <NavLink class="bt-nav" href="settings" title="@(_folded ? "Settings" : null)" data-tour="settings"><Icon Name="Settings2" /><span class="bt-navlabel">Settings</span></NavLink>
                     <button class="bt-icon bt-fold" title="@FoldLabel" aria-label="@FoldLabel" @onclick="ToggleSidebarAsync"><Icon Name="PanelLeft" /></button>
                 </div>
                 @* As in the Windows app: one or two lines of what the library is doing, the whole text on hover. *@
-                <div class="bt-sync" role="status" title="@Activity.Current?.Text"><span class="bt-status-dot @(Activity.Current?.Busy == true ? "busy" : "")"></span><span>@(Activity.Current?.Text ?? "Opening your library")</span></div>
+                <div class="bt-sync" role="status" title="@Activity.Current?.Text" data-tour="status"><span class="bt-status-dot @(Activity.Current?.Busy == true ? "busy" : "")"></span><span>@(Activity.Current?.Text ?? "Opening your library")</span></div>
             </div>
         </aside>
         <div class="bt-workarea">
@@ -125,7 +125,7 @@ else
                     <div class="bt-breadcrumb">@Section</div>
                 }
                 <div class="bt-searchwrap">
-                    <label class="bt-search">
+                    <label class="bt-search" data-tour="search">
                         <Icon Name="Search" Size="15" />
                         <span class="visually-hidden">Search</span>
                         <input type="search" placeholder="@(_asking ? AskPanelText.Placeholder : "Search books, topics, passages…")" value="@_searchText"
@@ -193,6 +193,7 @@ else
     </div>
     <CollectionDialog />
     <BinderDialog />
+    <TourOverlay />
 }
 
 @if (_shortcuts)
@@ -211,6 +212,16 @@ else
         ("binders", "Binders", "NotebookTabs"),
         ("review", "Needs review", "Inbox"),
     ];
+
+    /// <summary>The tour's name for a page's button: the Windows app's TourAnchor, as data-tour.</summary>
+    static string? TourName(string href) => href switch
+    {
+        "library" => "library",
+        "collections" => "collections",
+        "binders" => "binders",
+        "review" => "needs-review",
+        _ => null,
+    };
 
     /// <summary>What Needs review holds, beside its name as on Windows; nothing when it's empty.</summary>
     string? CountOf(string href) =>

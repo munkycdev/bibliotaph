@@ -1,0 +1,124 @@
+@* The Windows app's tour overlay: the page dimmed but for the step's controls, found by their data-tour names, with
+   the callout beside them. The script places both and follows resizes and scrolling; a step whose controls aren't on
+   the page within a moment is passed over, as Home's covers are from the Library. *@
+@implements IAsyncDisposable
+@inject TourGuide Tour
+@inject IJSRuntime JS
+@using Bibliotaph.Core
+
+@if (Tour.IsOpen && Tour.Current is { } step)
+{
+    <div class="bt-tour" @ref="_root">
+        <div class="bt-tourdim"></div><div class="bt-tourdim"></div><div class="bt-tourdim"></div><div class="bt-tourdim"></div>
+        <div class="bt-tourcallout" role="dialog" aria-label="@Tour.StepText" @onkeydown="KeyDownAsync">
+            <div class="bt-tourhead">
+                <span class="bt-eyebrow">@Tour.StepText</span>
+                <button class="bt-link" title="Esc" @onclick="Tour.SkipAsync">Skip tour</button>
+            </div>
+            <h2 class="bt-tourtitle" aria-live="polite">@step.Title</h2>
+            <p class="bt-copy bt-tourtext">@step.Text</p>
+            <div class="bt-touractions">
+                @if (Tour.CanGoBack)
+                {
+                    <button class="bt-link" @onclick="Tour.Back">Back</button>
+                }
+                <button class="bt-button primary" @ref="_next" @onclick="Tour.NextAsync">@Tour.NextText</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>How long a step's controls get to appear after a navigation before the step is passed over.</summary>
+    static readonly TimeSpan Patience = TimeSpan.FromSeconds(2);
+
+    ElementReference _root, _next;
+    TourStep? _placed;
+    DateTime _lookingSince;
+
+    protected override void OnInitialized() => Tour.Changed += OnChanged;
+
+    void OnChanged()
+    {
+        if (!ReferenceEquals(Tour.Current, _placed))
+        {
+            _placed = null;
+            _lookingSince = DateTime.UtcNow;
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!Tour.IsOpen || Tour.Current is not { } step)
+        {
+            if (_placed is not null) await ClearAsync();
+            _placed = null;
+            return;
+        }
+        if (ReferenceEquals(step, _placed)) return;
+        bool found;
+        try
+        {
+            found = await JS.InvokeAsync<bool>("bibliotaphTour.show", _root, step.Anchors.Select(Name).ToArray(),
+                step.Anchors.Contains(TourAnchor.FirstBooks));
+        }
+        catch (JSException)
+        {
+            found = false;
+        }
+        if (found)
+        {
+            _placed = step;
+            await _next.FocusAsync();
+            return;
+        }
+        if (DateTime.UtcNow - _lookingSince > Patience)
+        {
+            _placed = step;
+            await Tour.PassOverAsync();
+            return;
+        }
+        await Task.Delay(100);
+        StateHasChanged();
+    }
+
+    /// <summary>The data-tour name of a control: "needs-review" for <see cref="TourAnchor.NeedsReview"/>.</summary>
+    public static string Name(TourAnchor anchor) => anchor switch
+    {
+        TourAnchor.AddFolder => "add-folder",
+        TourAnchor.FolderPicker => "folder-picker",
+        TourAnchor.FirstBooks => "first-books",
+        TourAnchor.NeedsReview => "needs-review",
+        _ => anchor.ToString().ToLowerInvariant(),
+    };
+
+    // The arrow keys step through the tour, and Esc skips it.
+    async Task KeyDownAsync(KeyboardEventArgs e)
+    {
+        if (e.AltKey || e.CtrlKey || e.ShiftKey || e.MetaKey) return;
+        switch (e.Key)
+        {
+            case "Escape": await Tour.SkipAsync(); break;
+            case "ArrowRight": await Tour.NextAsync(); break;
+            case "ArrowLeft": Tour.Back(); break;
+        }
+    }
+
+    async Task ClearAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("bibliotaphTour.clear");
+        }
+        catch (JSException)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Tour.Changed -= OnChanged;
+        if (_placed is not null) await ClearAsync();
+    }
+}
