@@ -24,6 +24,8 @@ public sealed partial class TourViewModel(SourceRootStore roots, SettingsStore s
     bool _stageKnown;
     /// <summary>Set when Add a folder was pressed from the tour, until a folder is in and the chapter goes on.</summary>
     bool _awaitingFolder;
+    /// <summary>The chapter Show the tour again asked for, until Home has loaded and starts it.</summary>
+    TourChapter? _replay;
 
     /// <summary>The view redraws for a new step, or on opening.</summary>
     public event EventHandler? StepChanged;
@@ -64,8 +66,24 @@ public sealed partial class TourViewModel(SourceRootStore roots, SettingsStore s
     public async Task ReplayAsync()
     {
         _awaitingFolder = false;
+        var chapter = (await roots.ListAsync()).Count > 0 ? TourChapter.Books : TourChapter.Folders;
+        if (navigation.Current?.Route == Route.Home)
+        {
+            Start(chapter);
+            return;
+        }
+        // Home starts it once its rows are in, so the first step finds the covers it points at however long they take.
+        Hook();
+        _replay = chapter;
         navigation.NavigateTo(Route.Home);
-        Start((await roots.ListAsync()).Count > 0 ? TourChapter.Books : TourChapter.Folders);
+    }
+
+    /// <summary>Home has loaded its rows: the chapter Show the tour again asked for, unless the page already opened one.</summary>
+    public void HomeLoaded()
+    {
+        if (_replay is not { } chapter) return;
+        _replay = null;
+        if (!IsOpen) Start(chapter);
     }
 
     void Start(TourChapter chapter, int at = 0)
@@ -168,6 +186,7 @@ public sealed partial class TourViewModel(SourceRootStore roots, SettingsStore s
     /// <summary>Leaving Home during Add a folder's step, by whatever route, counts as going to add one.</summary>
     void OnNavigated(object? sender, EventArgs e)
     {
+        if (navigation.Current?.Route != Route.Home) _replay = null;
         if (!IsOpen || Current is not { } step || !step.Anchors.Contains(TourAnchor.AddFolder) || navigation.Current?.Route == Route.Home) return;
         _awaitingFolder = true;
         IsOpen = false;

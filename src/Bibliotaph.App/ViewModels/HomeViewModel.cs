@@ -84,6 +84,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         await RefreshAsync();
         // The tour's first chapter, before any folder; its second once books show, here or in the Library.
         if (!HasFolders) await tour.OfferFoldersAsync();
+        tour.HomeLoaded();
     }
 
     public override void Unload()
