@@ -8,7 +8,7 @@
   RPGGeek wins wherever it has a value; your own values still beat them all, and they beat the AI's guesses, which
   beat what's read from file and folder names. RPGGeek is searched by the book's title, the one another catalogue
   gives or else the one in your library, and its record is used only when one of its versions lists an ISBN the book
-  prints. Every book is looked up once more to fill in from RPGGeek. RPGGeek's data is powered by BGG. See
+  prints. Every book is looked up once more to fill in from RPGGeek. RPGGeek's data is powered by BGG, whose logo is at the foot of every web page and in About, in Bibliotaph's own colours. See
   [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
 
 ## 1.4 ┬╖ 28 October 2026

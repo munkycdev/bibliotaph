@@ -20,7 +20,8 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   ISBN the book prints. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
   book is asked again once there's somewhere more to ask, such as when the app connects. A record is used only when
   its title is printed in the book, so a misprinted ISBN can't rename it. These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
-  come back only if you reject the looked-up value. **Settings > Processing** says where the ISBNs go.
+  come back only if you reject the looked-up value. **Settings > Processing** says where the ISBNs go. RPGGeek's data
+  comes from BoardGameGeek, whose "Powered by BGG" logo is in **About** and at the foot of every page on the web.
 - **AI**, if you turn it on: a model on your PC reads a few pages and suggests the rest. Every AI suggestion must quote
   the page it came from, or it's thrown away. See [AI](ai.md).
 - **You**: anything you type, accept or reject.

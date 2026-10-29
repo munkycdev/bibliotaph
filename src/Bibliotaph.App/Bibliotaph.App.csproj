@@ -53,6 +53,7 @@
     <!-- The e-book reader page's own stylesheet and script, served to it from memory. -->
     <EmbeddedResource Include="Assets\Ebook\*" LogicalName="Bibliotaph.App.Ebook.%(Filename)%(Extension)" />
     <Resource Include="Assets\Bibliotaph.ico" />
+    <Resource Include="Assets\powered-by-bgg.png" />
     <!-- Link, not LinkBase: LinkBase applies only to files outside the project folder, so these landed in Fonts\. -->
     <None Include="Fonts\*.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\fonts\%(Filename)%(Extension)" />
     <None Include="Icons\LICENSE-lucide.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE-lucide.txt" />
