@@ -129,7 +129,17 @@ and the update files. The draft stays private until it's published, and installe
 releases only. See "Installer", "Releases" and "Updates" in [docs/architecture.md](docs/architecture.md).
 
 PATCH is the build number: the count of commits on main at the tagged commit. The workflow refuses a tag whose PATCH
-doesn't match. To tag the head of main:
+doesn't match. `build/release.ps1` cuts a release from the head of main:
+
+```powershell
+./build/release.ps1          # -WhatIf shows what it would do without pushing anything
+```
+
+It fetches, counts the commits on `origin/main`, checks `CHANGELOG.md` and the tags, shows the version and the commit
+it will tag, and asks before anything is pushed. If `## Unreleased` still holds bullets, it moves them into a "New in
+MAJOR.MINOR.PATCH (date):" block at the top of that MAJOR.MINOR's section (the release notes are that section),
+commits "Release notes for MAJOR.MINOR.PATCH" in a temporary worktree and pushes it to main first, so the notes are in
+the tagged commit and PATCH counts it. Then it tags and pushes the tag. By hand, the same is:
 
 ```powershell
 git fetch origin
@@ -139,10 +149,8 @@ git push origin "v1.4.$n"
 ```
 
 The draft waits for CI on the tagged commit. Every push to main gets its own run, so merging more pull requests
-straight after the release commit doesn't hold the release up.
-
-Before tagging, move the `## Unreleased` bullets into a "New in MAJOR.MINOR.PATCH" block at the top of that
-MAJOR.MINOR's section of `CHANGELOG.md`: the release notes are that section.
+straight after the release commit doesn't hold the release up. Publish the draft keeping every file: Setup.exe, the
+full and delta packages and `releases.win.json`, or installed copies can't update.
 
 `Directory.Build.props` keeps `MAJOR.MINOR.0` for local builds. A new MINOR starts its own `## MAJOR.MINOR · date`
 section in `CHANGELOG.md` and changes the version in `Directory.Build.props`, the tag commands above, the README and
