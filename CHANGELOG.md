@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.4 Γö¼Γòû 28 October 2026
+
+New in 1.4.995 (29 October 2026):
+
 - **RPGGeek first.** bibliotaph.online, and a Windows app connected to it, now looks books up on
   [RPGGeek](https://rpggeek.com) too, which knows RPGs, small-press ones included, and their designers best. Every
   catalogue is asked, and each field comes from the first of RPGGeek, Open Library and Google Books that gives it, so
@@ -14,8 +18,6 @@
   System, Edition, Type, Themes, Setting and Series, in your own lists' terms: "Scenario / Adventure / Module" is
   Adventure, "Dungeons & Dragons (3.5 Edition)" is D&D 3.5. A system, theme or setting you don't have yet waits in
   Needs review like a new name from the AI. Every book is looked up once more to fill them in.
-
-## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.987 (29 October 2026):
 
@@ -144,7 +146,7 @@ New in 1.4.943 (28 October 2026):
   and dark backgrounds, drawn from the same type and shapes as the app's sidebar, for the sign-in page and anywhere
   else the name appears.
 
-## 1.3 ┬╖ 19 October 2026
+## 1.3 Γö¼Γòû 19 October 2026
 
 New in 1.3.877 (26 October 2026):
 
@@ -159,8 +161,8 @@ New in 1.3.877 (26 October 2026):
   place of **Sign in**, and the web app's Home moved to bibliotaph.online/home. **b. Bibliotaph** at the top of the
   app's sidebar goes to the front page. See [The site](docs/guide/web.md#the-site).
 - **Add to binder in the reader.** **Add page** is now **Add to binder**, in the Windows app and on the web. Its menu
-  names your binders, the one you worked on last first, so you choose where the page goes; **New binderΓÇª** and
-  **Add pagesΓÇª** are there too. See [Binders](docs/guide/binders.md#add-books-and-pages).
+  names your binders, the one you worked on last first, so you choose where the page goes; **New binder╬ô├ç┬¬** and
+  **Add pages╬ô├ç┬¬** are there too. See [Binders](docs/guide/binders.md#add-books-and-pages).
 - **Online libraries says how books come in.** **Settings > Online libraries** explains how to bring in books from
   outside, in the Windows app and on the web, and groups the services as **Books you read online** (D&D Beyond,
   Demiplane) and **PDFs you bought from stores** (Humble Bundle, DriveThruRPG). On the web the **Send to Bibliotaph**
@@ -177,8 +179,8 @@ New in 1.3.877 (26 October 2026):
 - **Sync with another PC is retired.** Connect each PC to your web library in **Settings > Devices** instead: it keeps
   your work the same on every PC and on the web. The files the old sync left in its folder aren't read any more and can
   be deleted. See [More than one PC](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
-- **Saved pages are no longer imported.** **Import a saved pageΓÇª** and **Save pageΓÇª** are gone from the Windows app,
-  and **Import a saved pageΓÇª** and **Choose picturesΓÇª** from the web: Bibliotaph's browser reads the page on Windows,
+- **Saved pages are no longer imported.** **Import a saved page╬ô├ç┬¬** and **Save page╬ô├ç┬¬** are gone from the Windows app,
+  and **Import a saved page╬ô├ç┬¬** and **Choose pictures╬ô├ç┬¬** from the web: Bibliotaph's browser reads the page on Windows,
   and **Send to Bibliotaph** brings it, covers included, on the web. See
   [Online libraries](docs/guide/online-libraries.md#without-bibliotaphs-browser).
 - **PDFs with copy or print restrictions open on the web again.** The reader failed on them. When a book can't be
@@ -194,7 +196,7 @@ New in 1.3.877 (26 October 2026):
   [Needs review](docs/guide/cataloging.md#needs-review).
 - **Connect a Windows PC to your web library.** Settings > Devices in the Windows app opens bibliotaph.online in your
   browser, where you check the code the app shows and approve the PC; it gets a key of its own, kept in Windows
-  Credential Manager. Settings ΓÇ║ Devices on the web lists connected PCs and disconnects them. See
+  Credential Manager. Settings ╬ô├çΓòæ Devices on the web lists connected PCs and disconnects them. See
   [Connecting a Windows PC](docs/guide/web.md#connecting-a-windows-pc).
 - **Your work syncs between the Windows app and the web.** A connected PC and bibliotaph.online merge your corrections,
   hearts, notes, collections, binders, saved searches, pins and Needs review answers both ways: a change goes up a few
@@ -225,10 +227,10 @@ open by invitation while it settles:
   [The site](docs/guide/web.md#the-site).
 - **A clearer tab icon on the web.** The "b." in the browser tab is bolder and bigger, and light on a dark tab bar.
 - **Weekly backups and Restore, on the web.** Bibliotaph on the web makes a backup each week and keeps the last four,
-  and Settings ΓÇ║ Backup lists them to download or restore. Restore also reads a backup you choose, made on the web or
+  and Settings ╬ô├çΓòæ Backup lists them to download or restore. Restore also reads a backup you choose, made on the web or
   by the Windows app, shows what it holds before anything changes, and keeps your current catalog first. See
   [Backup and export](docs/guide/web.md#backup-and-export).
-- **Send to Bibliotaph, on the web.** A bookmark in Settings ΓÇ║ Online libraries, dragged to the bookmarks bar and clicked
+- **Send to Bibliotaph, on the web.** A bookmark in Settings ╬ô├çΓòæ Online libraries, dragged to the bookmarks bar and clicked
   on your D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG library page, sends the page to Bibliotaph with its
   covers, so there's no saving and picking files. See [Online libraries](docs/guide/web.md#online-libraries).
 - **Send to Bibliotaph extension for Chrome and Edge.** The same from a button in the browser's toolbar, for sites that
@@ -238,16 +240,16 @@ open by invitation while it settles:
   Windows one. It is invite-only: a one-time link makes an account, signed in through Auth0 with Google, Microsoft or an email address, and admins make
   invitations in Settings. The privacy policy is published at bibliotaph.online/privacy. Your library comes to it in the
   next steps. See [Bibliotaph on the web](docs/guide/web.md).
-- **OneDrive on the web.** Connect one or more OneDrives in Settings ΓÇ║ Storage, then add library folders from them as in
+- **OneDrive on the web.** Connect one or more OneDrives in Settings ╬ô├çΓòæ Storage, then add library folders from them as in
   the Windows app. Bibliotaph looks through them, reads each new file once without keeping a copy, and notices changes
   in your OneDrive within minutes. The sidebar says what it's doing.
-- **Dropbox on the web.** Connect one or more Dropbox accounts in Settings ΓÇ║ Storage beside OneDrive, including a team's
+- **Dropbox on the web.** Connect one or more Dropbox accounts in Settings ╬ô├çΓòæ Storage beside OneDrive, including a team's
   space, and add library folders from them. Changes in your Dropbox are noticed within minutes, and books open in the
   reader as they do from OneDrive.
-- **Google Drive on the web.** Connect one or more Google Drives in Settings ΓÇ║ Storage and add library folders from
+- **Google Drive on the web.** Connect one or more Google Drives in Settings ╬ô├çΓòæ Storage and add library folders from
   them. Google Docs and Sheets are left out, two files of one name are told apart, and changes are noticed within five
   minutes.
-- **What your storage allowed, in Settings.** Each storage account in Settings ΓÇ║ Storage now says what Bibliotaph was
+- **What your storage allowed, in Settings.** Each storage account in Settings ╬ô├çΓòæ Storage now says what Bibliotaph was
   allowed to do, such as read your files and keep access while you're signed out. OneDrive no longer asks to write to a
   folder of Bibliotaph's own, as nothing on the web uses it yet.
 - **Settings on the web laid out like the Windows app's.** *Make yourself at home.*, with a list of sections beside the
@@ -255,11 +257,11 @@ open by invitation while it settles:
   Invitations and Accounts for admins. Appearance and Needs review are new on the web, with the Windows app's choices,
   and About Bibliotaph shows the version, the licence and links to the source. A new invitation's link has a Copy link
   button. See [Settings](docs/guide/web.md#settings).
-- **Backup and export on the web.** Settings ΓÇ║ Backup downloads a backup the Windows app can restore, and exports the
-  whole library as CSV or JSON, as the Windows app's Back up nowΓÇª, Export CSV and Export JSON do. The web server's
+- **Backup and export on the web.** Settings ╬ô├çΓòæ Backup downloads a backup the Windows app can restore, and exports the
+  whole library as CSV or JSON, as the Windows app's Back up now╬ô├ç┬¬, Export CSV and Export JSON do. The web server's
   sealed AI keys are left out of both, as the Windows app's keys always are. See
   [Backup and export](docs/guide/web.md#backup-and-export).
-- **Start on, folder names and folder rules on the web.** Settings ΓÇ║ Library has the Windows app's Start on (Home or
+- **Start on, folder names and folder rules on the web.** Settings ╬ô├çΓòæ Library has the Windows app's Start on (Home or
   Library), the folder names read as suggestions, each of which can be switched off, and the folder rules answered in
   Needs review, each with its switch. See [Library folders](docs/guide/web.md#library-folders).
 - **Easier to find your way on the web.** A book in the Library has the Windows app's right-click menu. On a phone,
@@ -272,11 +274,11 @@ open by invitation while it settles:
 - **Install the web version as an app.** bibliotaph.online installs from Chrome, Edge or Safari with its own icon and a
   window without the address bar, handy on a tablet at the table. While a book is open on the web, the screen stays
   on.
-- **Processing on the web.** Settings ΓÇ║ Processing shows each step of reading your library with its bar and the time
+- **Processing on the web.** Settings ╬ô├çΓòæ Processing shows each step of reading your library with its bar and the time
   left, and what is being read now, as in the Windows app, with Pause indexing, Pause reading scans and Pause AI, each
   kept until you resume it. Settings' sections now follow the Windows app's order. See
   [Processing](docs/guide/web.md#processing).
-- **Vocabulary on the web.** Settings ΓÇ║ Vocabulary has the Windows app's tabs of terms, each renamed, given a short
+- **Vocabulary on the web.** Settings ╬ô├çΓòæ Vocabulary has the Windows app's tabs of terms, each renamed, given a short
   name for covers or other names in place, and Your tags, each found in your books' pages by its words. See
   [Vocabulary](docs/guide/web.md#vocabulary).
 - **Your books read on the web.** bibliotaph.online reads each book in your library folders as the Windows app does:
@@ -290,7 +292,7 @@ open by invitation while it settles:
   got. Home shows the books opened and added last. Covers are kept with your account across server restarts. See
   [Your library and search](docs/guide/web.md#reading-a-book).
 - **Change a book's details on the web.** As in the Windows app: edit fields and choose between suggestions, Cataloged
-  wrongΓÇª and the offer to correct look-alikes, favorites, notes, adventures inside a PDF, Reprocess, a pack's cover and
+  wrong╬ô├ç┬¬ and the offer to correct look-alikes, favorites, notes, adventures inside a PDF, Reprocess, a pack's cover and
   split, and copies, with Undo. See [Changing a book's details](docs/guide/web.md#changing-a-books-details).
 - **Type to filter on the web.** More filters has the Windows app's boxes for setting, themes, environments, publisher
   and edition: type, pick from the matching values with their counts, and each pick becomes a chip. See
@@ -316,16 +318,16 @@ open by invitation while it settles:
   file that shares most of a book's pages is offered as its new version, as in the Windows app.
 - **Ask this book on the web.** The reader's Ask panel answers a question from the book's own pages, as in the Windows
   app, shown as the model writes it, with each citation opening its page, follow-ups and New conversation; an
-  embedding model in Settings ΓÇ║ AI finds pages by meaning too. See [Ask this book](docs/guide/web.md#ask-this-book).
-- **Ask in the top bar on the web.** The Γ£ª button beside the search box reads a request in plain English as a search,
+  embedding model in Settings ╬ô├çΓòæ AI finds pages by meaning too. See [Ask this book](docs/guide/web.md#ask-this-book).
+- **Ask in the top bar on the web.** The ╬ô┬ú┬¬ button beside the search box reads a request in plain English as a search,
   shown as chips to change before searching, or answers a question from the books the Library shows, each citation
-  opening its book at its page. Reading the whole library for meaning is a setting in Settings ΓÇ║ AI, off until ticked.
+  opening its book at its page. Reading the whole library for meaning is a setting in Settings ╬ô├çΓòæ AI, off until ticked.
   Search words now reach the reader on the web, so a matching page opens with them marked.
-- **Scan whole books on the web.** Settings ΓÇ║ AI's Scan whole books reads each book chapter by chapter, as in the
+- **Scan whole books on the web.** Settings ╬ô├çΓòæ AI's Scan whole books reads each book chapter by chapter, as in the
   Windows app, and a book's details show what it found under Found inside the book, with Scan again. It's off on the
   web until you tick it, since every chapter is a request on your key. See
   [Scanning whole books](docs/guide/web.md#scanning-whole-books).
-- **AI on the web, with your own key.** Settings ΓÇ║ AI catalogues your books as the Windows app's AI does, with a model
+- **AI on the web, with your own key.** Settings ╬ô├çΓòæ AI catalogues your books as the Windows app's AI does, with a model
   service you choose on the internet, such as OpenAI or OpenRouter, and your own key, kept encrypted and never shown
   again. Use AI, Test with a book, Reclassify and the folders sent to AI work as on Windows. See
   [AI](docs/guide/web.md#ai).
@@ -336,8 +338,8 @@ open by invitation while it settles:
   account, and Sign out signs you out of the sign-in page too. The privacy policy names Auth0.
 - **Discord sign-ins named in Settings.** A sign-in through Discord, or another of Auth0's custom social connections, is
   listed under its own name rather than as "Oauth2".
-- **Books you own elsewhere on the web.** The Library's Add menu has Add a book I own elsewhereΓÇª, as in the Windows
-  app, with a cover picture of your own; its details have Choose a cover imageΓÇª, Remove the cover and Remove from
+- **Books you own elsewhere on the web.** The Library's Add menu has Add a book I own elsewhere╬ô├ç┬¬, as in the Windows
+  app, with a cover picture of your own; its details have Choose a cover image╬ô├ç┬¬, Remove the cover and Remove from
   library with Undo. See [Bibliotaph on the web](docs/guide/web.md#books-you-own-elsewhere).
 - **Needs review on the web.** bibliotaph.online's Needs review has the Windows page's two tabs and its sidebar count.
   Field suggestions can be accepted, accepted for every book suggesting the same, edited or rejected, and new terms
@@ -352,7 +354,7 @@ open by invitation while it settles:
   matching page with the search's words marked. Pages come straight from your OneDrive and are kept in your browser,
   never on the server. See [Reading a book](docs/guide/web.md#reading-a-book).
 - **Keep books offline in your browser.** The reader's Keep offline button downloads a whole book to the browser, so
-  it opens without waiting on the network, and Settings ΓÇ║ Books in this browser shows the books kept there, sets how
+  it opens without waiting on the network, and Settings ╬ô├çΓòæ Books in this browser shows the books kept there, sets how
   much room the others may take, and lets them go. See [Books in this browser](docs/guide/web.md#books-in-this-browser).
 - **Pictures and packs in the web reader.** A picture opens fitted to the window, with the Windows reader's zoom, and a
   pack steps through its pictures and PDFs from the toolbar or with the arrow keys. See
@@ -363,13 +365,13 @@ open by invitation while it settles:
 - **Notes in the web reader.** Note adds a note on the page in view or the selected text's page, and the Notes panel
   lists the book's page notes to go to, change or delete with Undo, as in the Windows reader; thumbnails badge pages
   with notes. See [Reading a book](docs/guide/web.md#reading-a-book).
-- **Admins can delete accounts on the web.** Settings ΓÇ║ Accounts lists everyone who has joined; deleting one is the
+- **Admins can delete accounts on the web.** Settings ╬ô├çΓòæ Accounts lists everyone who has joined; deleting one is the
   same as its owner closing it, and signs them out everywhere. See [Inviting others](docs/guide/web.md#inviting-others).
-- **Close your account on the web.** Settings ΓÇ║ Account ΓÇ║ Close accountΓÇª deletes your account, library, covers, storage
+- **Close your account on the web.** Settings ╬ô├çΓòæ Account ╬ô├çΓòæ Close account╬ô├ç┬¬ deletes your account, library, covers, storage
   connections and the books kept in that browser, and its backups within 30 days. Nothing in your storage is touched.
   See [Signing in and out](docs/guide/web.md#signing-in-and-out).
-- **The web reader's own actions.** Add page and Add pagesΓÇª add pages, or a picture, to a binder with Undo; Mark as
-  adventure and the contents' Index as its own adventureΓÇª give pages a card of their own; Use this page as the cover
+- **The web reader's own actions.** Add page and Add pages╬ô├ç┬¬ add pages, or a picture, to a binder with Undo; Mark as
+  adventure and the contents' Index as its own adventure╬ô├ç┬¬ give pages a card of their own; Use this page as the cover
   and Use this image as the pack's cover change a card's cover, as in the Windows reader. See
   [Reading a book](docs/guide/web.md#reading-a-book).
 - **Index pages link to their pages on the web.** The page numbers on an index or contents page that has no links of
@@ -383,11 +385,11 @@ open by invitation while it settles:
 - **At hand and Pop out in the web binder reader.** At hand lists the binders kept at hand with their pages, those for
   the binder's game systems first, and opens a page in a window of its own; Pop out moves the binder into its own
   window and Return to main window brings it back. See [Binders](docs/guide/web.md#binders).
-- **WebDAV and Nextcloud on the web.** Settings ΓÇ║ Storage connects a WebDAV server, such as Nextcloud, ownCloud or a
+- **WebDAV and Nextcloud on the web.** Settings ╬ô├çΓòæ Storage connects a WebDAV server, such as Nextcloud, ownCloud or a
   NAS on the internet, with its folder's address, your user name and an app password, kept encrypted and used only to
   read. Its books open in the reader through the server, and Nextcloud's changes are noticed within five minutes. See
   [Connecting your storage](docs/guide/web.md#connecting-your-storage).
-- **Box on the web.** Settings ΓÇ║ Storage connects a Box account, read-only, once the server's Box app is set up. Its
+- **Box on the web.** Settings ╬ô├çΓòæ Storage connects a Box account, read-only, once the server's Box app is set up. Its
   books open in the reader through the server, and changes are noticed within five minutes. See
   [Connecting your storage](docs/guide/web.md#connecting-your-storage).
 - **The sidebar folds on the web, and the search guide is there.** The button beside Settings, or Ctrl+B, folds the
@@ -395,22 +397,22 @@ open by invitation while it settles:
   colon, its values in your library with their counts; the Windows app and the web now list them from the same code.
 - **The details say which storage service a file is in.** Where it is, and each copy, start with the service, such as
   OneDrive, Dropbox or Box, with a cloud mark, before the account and folders.
-- **Online libraries on the web.** Settings ΓÇ║ Online libraries imports the books you own on D&D Beyond, Demiplane,
+- **Online libraries on the web.** Settings ╬ô├çΓòæ Online libraries imports the books you own on D&D Beyond, Demiplane,
   Humble Bundle and DriveThruRPG from a library page saved with Save as, with the Windows app's preview, Import with
   Undo, covers from the pictures saved beside the page, and the books no longer listed. See
   [Online libraries](docs/guide/web.md#online-libraries).
 - **More of the Windows app's book actions on the web.** A book's menu and details have Open on the online library you
   own it on, Ask this book, Forget its text and Read it again, and Download the file for one whose protection Bibliotaph
-  can't open. Reprocess has Reprocess with OCR on every pageΓÇª, a book owned only online opens its page there, and Home
+  can't open. Reprocess has Reprocess with OCR on every page╬ô├ç┬¬, a book owned only online opens its page there, and Home
   offers to set up AI as the Windows app does.
 - **Locked PDFs on the web, as in the Windows app.** The reader's password dialog has Make its text searchable, so the
   book is read for search with it, and Remember it, which keeps the password sealed in your web library so the book
-  opens without asking. Settings ΓÇ║ Passwords lists those books and forgets their passwords, and Needs review's locked
+  opens without asking. Settings ╬ô├çΓòæ Passwords lists those books and forgets their passwords, and Needs review's locked
   files have Open to unlock, and protected ones Download the file. See [Reading a book](docs/guide/web.md#reading-a-book).
-- **See what the AI is reading, on the web.** Settings ΓÇ║ AI and Settings ΓÇ║ Processing open the Windows app's AI reading
+- **See what the AI is reading, on the web.** Settings ╬ô├çΓòæ AI and Settings ╬ô├çΓòæ Processing open the Windows app's AI reading
   page: the book the AI is on, its answer as it writes it, and what the evidence check kept from the last books. See
   [AI](docs/guide/web.md#ai).
-- **Check a download on the web.** The Library's Add button has Check a downloadΓÇª, which checks a folder or ZIP on your
+- **Check a download on the web.** The Library's Add button has Check a download╬ô├ç┬¬, which checks a folder or ZIP on your
   computer against your library as the Windows app does. Your browser reads the files and sends only their fingerprints,
   never the files. See [Check a download](docs/guide/web.md#check-a-download).
 
@@ -421,8 +423,8 @@ New in 1.3.590 (19 October 2026):
   pack it is in, opens in its pack so the arrows still step through the rest, and finds its pages under its own card.
   Filters, saved searches and its details are its pack's. The choice is remembered, for browsing and searching alike.
 - **One Add button in the Library.** **Owned elsewhere** and **Check a download** are now one **Add** button, styled
-  like **New collection**, beside **Add folder**. Its menu has **Add a book I own elsewhereΓÇª**, **Import from an
-  online libraryΓÇª** and **Check a downloadΓÇª**, which work as before.
+  like **New collection**, beside **Add folder**. Its menu has **Add a book I own elsewhere╬ô├ç┬¬**, **Import from an
+  online library╬ô├ç┬¬** and **Check a download╬ô├ç┬¬**, which work as before.
 - **Back up now starts in the backups folder.** The save dialog opens in the backups folder in Bibliotaph's data
   folder, beside the weekly backups, instead of wherever Windows last saved a file. You can still pick anywhere else.
 - The Library's **Select** button shows a stack of ticked boxes instead of a plain tick, so it reads as choosing
@@ -431,7 +433,7 @@ New in 1.3.590 (19 October 2026):
   line instead of running past the sidebar's edge and being cut off. Pointing at it shows all of it, also with the
   sidebar folded.
 
-## 1.2 ┬╖ 13 October 2026
+## 1.2 Γö¼Γòû 13 October 2026
 
 New in 1.2.573 (15 October 2026):
 
@@ -452,8 +454,8 @@ New in 1.2.573 (15 October 2026):
   its first four. Right-click an image in the pack's details and choose **Use as the pack's cover**, or click the
   picture button in the reader while stepping through the pack. **Use the mosaic** in the details goes back, and the
   card goes back by itself if that image is deleted or leaves the pack.
-- **Close a suggestion with its ├ù.** The Needs review cards that offer to make a collection, add books to one, make
-  an image pack, start a folder rule or give a file's adventures cards of their own now have a ├ù in the corner. It
+- **Close a suggestion with its Γö£├╣.** The Needs review cards that offer to make a collection, add books to one, make
+  an image pack, start a folder rule or give a file's adventures cards of their own now have a Γö£├╣ in the corner. It
   gives the card's "don't ask again" answer, so that suggestion stays closed after a restart or a rescan, while a new
   one can still come. **Undo** brings it back.
 - **Fixed: a book with only names on its pages could fail the AI every time with "The model's answer wasn't valid
@@ -469,7 +471,7 @@ New in 1.2.544 (15 October 2026):
   its own, at the page the suggestion's evidence is on, while Needs review stays put so you can read and decide side
   by side. Middle-click or **Shift+Enter** on the title does the same. The cards share the window, so going down the
   list shows each book in it instead of opening another.
-- **Adventures show who they're for.** The Library's list shows each book's players ("4ΓÇô6 players") beside its levels,
+- **Adventures show who they're for.** The Library's list shows each book's players ("4╬ô├ç├┤6 players") beside its levels,
   and the details header shows both. An adventure's details show **Players** even before anyone has set it, so you
   can fill it in straight away.
 - **Adventures pick up their party size from their blurb.** When you accept a file's proposed adventures, a blurb
@@ -514,7 +516,7 @@ New in 1.2.487 (14 October 2026):
 - **Choose from more built-in AI models.** **Settings > AI > Built in** now has one list, with the models that fit
   your graphics card first: Qwen3 4B and 8B, Phi-4 mini, **Llama 3.1 8B** and Granite 3.3 8B for most cards, and
   Qwen3 14B, Mistral Small 3.2 24B and Qwen3 30B-A3B for bigger ones. Each shows its download size, the graphics
-  memory it needs and its licence, and every download is checked against a pinned hash. **Use a model fileΓÇª** runs a
+  memory it needs and its licence, and every download is checked against a pinned hash. **Use a model file╬ô├ç┬¬** runs a
   `.gguf` model already on your PC, such as one LM Studio downloaded, where it is.
 - **Fixed: AI stopped with "request exceeds the available context size".** Pages dense with stat blocks or tables
   could make a whole-book scan ask more of the built-in AI than it has room for, and the AI then waited on those
@@ -547,10 +549,10 @@ In 1.2:
 - **Remove adventures** in the Library's Select mode takes away the cards of several adventures inside files at once,
   with one Undo for them all.
 - **Packs hold PDFs too.** Tick PDFs, such as character sheets or pregens, with images or packs in Select mode and
-  **Pack together** makes them one card, "Pack ┬╖ 6 files". Opening it steps through its files, PDFs opening as PDFs;
+  **Pack together** makes them one card, "Pack Γö¼Γòû 6 files". Opening it steps through its files, PDFs opening as PDFs;
   their pages are found under the pack; **Split into separate files** gives each its card back. Folders are still
   packed automatically only for their images.
-- **Choose a cover imageΓÇª** gives a book you own elsewhere a cover of your own, from the Add dialog or its details.
+- **Choose a cover image╬ô├ç┬¬** gives a book you own elsewhere a cover of your own, from the Add dialog or its details.
 - **Use this page as the cover** in the reader makes any page of a PDF its cover in the Library.
 - **Show** on Needs review's Metadata suggestions narrows the list to one kind of card, or to the suggestions for one
   field, with a count for each.
@@ -570,7 +572,7 @@ In 1.2:
 - **Fixed:** a pop-out window opened from a drawer or menu could stay behind the main window; it now comes to the
   front. The online reader's header matches the PDF reader's, and the details drawer's headings are easier to read.
 
-## 1.0.0 ┬╖ 12 October 2026
+## 1.0.0 Γö¼Γòû 12 October 2026
 
 Bibliotaph's first release: a Windows app that catalogs the RPG books, maps and handouts you already have, where they
 are, and finds the right book and the right page.
