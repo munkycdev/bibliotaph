@@ -21,6 +21,11 @@ public static class PcLibraryApi
     /// <summary>More ISBNs than any book prints: a request with more is no book's.</summary>
     const int MostIsbns = 20;
 
+    /// <summary>A book's own titles: its title in the library, and the one its file gives.</summary>
+    const int MostTitles = 2;
+
+    const int LongestTitle = 300;
+
     public static void MapPcLibraryApi(this IEndpointRouteBuilder app)
     {
         var pc = app.MapGroup("/api/pc").RequireAuthorization(AuthSetup.DevicePolicy);
@@ -46,9 +51,11 @@ public static class PcLibraryApi
         {
             if (request.Isbns is not { Count: > 0 and <= MostIsbns } isbns || !isbns.All(i => i is { Length: 13 } && i.All(char.IsAsciiDigit)))
                 return Results.BadRequest();
+            if (request.Titles is { } given && (given.Count > MostTitles || given.Any(t => string.IsNullOrWhiteSpace(t) || t.Length > LongestTitle)))
+                return Results.BadRequest();
             try
             {
-                var answer = await catalogue.AskAsync(isbns, ct);
+                var answer = await catalogue.AskAsync(isbns, request.Titles ?? [], ct);
                 List<PcBookRecord> records = [.. answer.Records.Select(r => new PcBookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published))];
                 return Results.Ok(new PcLookupAnswer(catalogue.Name, records.FirstOrDefault(), Records: records, AskedOf: answer.AskedOf));
             }

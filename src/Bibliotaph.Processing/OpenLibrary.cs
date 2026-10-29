@@ -21,10 +21,17 @@ public interface IBookCatalogue
     /// <summary>
     /// Every record of the book the catalogue can give, most preferred first, and where it asked: several catalogues
     /// asked together give each one's record, so each field can come from the one preferred that has it.
+    /// <paramref name="titles"/> are the book's own, for a catalogue that can only be searched by name.
     /// </summary>
     /// <exception cref="CatalogueUnavailableException">None of the catalogues could be asked right now.</exception>
-    async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
+    async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, CancellationToken ct = default) =>
         new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
+
+    /// <summary>
+    /// Whether it's searched by name, a record then taken only when it lists one of the ISBNs, as RPGGeek's is: asked
+    /// after the others, with the titles their records give before the book's own.
+    /// </summary>
+    bool SearchesByTitle => false;
 
     /// <summary>
     /// Finds out again where it asks, for a catalogue that asks somewhere else in turn, as a PC asks its web library:
@@ -83,26 +90,30 @@ public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : I
     public string Name { get; } = string.Join(" or ", catalogues.Select(c => c.Name));
 
     public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
-        (await AskAsync(isbns, ct)).Records is [var first, ..] ? first : null;
+        (await AskAsync(isbns, [], ct)).Records is [var first, ..] ? first : null;
 
-    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, CancellationToken ct = default)
+    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, CancellationToken ct = default)
     {
         CatalogueUnavailableException? unavailable = null;
-        var records = new List<BookRecord>();
-        var asked = new List<string>();
-        foreach (var catalogue in catalogues)
+        var found = new Dictionary<int, IReadOnlyList<BookRecord>>();
+        // Those searched by name last, so the titles the others' records give can be searched for first.
+        foreach (var (catalogue, at) in catalogues.Select((c, i) => (c, i)).OrderBy(c => c.c.SearchesByTitle))
         {
             try
             {
-                records.AddRange((await catalogue.AskAsync(isbns, ct)).Records);
-                asked.Add(catalogue.Name);
+                IReadOnlyList<string> searched = catalogue.SearchesByTitle
+                    ? [.. found.OrderBy(f => f.Key).SelectMany(f => f.Value).Select(r => r.Title).Concat(titles).Distinct(StringComparer.OrdinalIgnoreCase)]
+                    : titles;
+                found[at] = (await catalogue.AskAsync(isbns, searched, ct)).Records;
             }
             catch (CatalogueUnavailableException ex)
             {
                 unavailable ??= ex;
             }
         }
-        return asked.Count == 0 ? throw unavailable! : new CatalogueAnswer(records, string.Join(" or ", asked));
+        if (found.Count == 0) throw unavailable!;
+        return new CatalogueAnswer([.. found.OrderBy(f => f.Key).SelectMany(f => f.Value)],
+            string.Join(" or ", found.Keys.Order().Select(i => catalogues[i].Name)));
     }
 }
 

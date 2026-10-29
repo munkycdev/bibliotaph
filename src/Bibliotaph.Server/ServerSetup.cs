@@ -102,11 +102,15 @@ public static class ServerSetup
         return services;
     }
 
-    /// <summary>Where the server's lookups ask, one shared by every library: Open Library, then Google Books when
-    /// Lookups:GoogleBooks:ApiKey holds a key.</summary>
+    /// <summary>Where the server's lookups ask, one shared by every library: RPGGeek when Lookups:RpgGeek:Token holds a
+    /// token, Open Library, then Google Books when Lookups:GoogleBooks:ApiKey holds a key.</summary>
     static IBookCatalogue BookCatalogues(IConfiguration configuration, TimeProvider clock)
     {
-        List<IBookCatalogue> catalogues = [new OpenLibraryCatalogue(OpenLibraryCatalogue.CreateClient(PublicNetwork.Handler()), clock)];
+        List<IBookCatalogue> catalogues = [];
+        // The order the user prefers their records in: RPGGeek, then Open Library, then Google Books.
+        if (configuration["Lookups:RpgGeek:Token"] is { Length: > 0 } token)
+            catalogues.Add(new RpgGeekCatalogue(RpgGeekCatalogue.CreateClient(PublicNetwork.Handler()), token, clock));
+        catalogues.Add(new OpenLibraryCatalogue(OpenLibraryCatalogue.CreateClient(PublicNetwork.Handler()), clock));
         if (configuration["Lookups:GoogleBooks:ApiKey"] is { Length: > 0 } key)
             catalogues.Add(new GoogleBooksCatalogue(GoogleBooksCatalogue.CreateClient(PublicNetwork.Handler()), key, clock));
         return catalogues.Count == 1 ? catalogues[0] : new BookCatalogues(catalogues);

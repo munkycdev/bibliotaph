@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **RPGGeek first.** bibliotaph.online, and a Windows app connected to it, now looks books up on
+  [RPGGeek](https://rpggeek.com) too, which knows RPGs, small-press ones included, and their designers best. Every
+  catalogue is asked, and each field comes from the first of RPGGeek, Open Library and Google Books that gives it, so
+  RPGGeek wins wherever it has a value; your own values still beat them all, and they beat the AI's guesses, which
+  beat what's read from file and folder names. RPGGeek is searched by the book's title, the one another catalogue
+  gives or else the one in your library, and its record is used only when one of its versions lists an ISBN the book
+  prints. Every book is looked up once more to fill in from RPGGeek. RPGGeek's data is powered by BGG. See
+  [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.987 (29 October 2026):

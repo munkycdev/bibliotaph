@@ -64,8 +64,8 @@ public static partial class BookRecords
     public static string? Year(string? published) =>
         published is not null && YearIn().Match(published) is { Success: true } year ? year.Value : null;
 
-    /// <summary>Lower case letters and digits, each run of anything else one space.</summary>
-    static string Simplify(string text)
+    /// <summary>Lower case letters and digits, each run of anything else one space: titles compared as a reader would.</summary>
+    public static string Simplify(string text)
     {
         var simple = new StringBuilder(text.Length);
         foreach (var c in MetadataText.UnicodeForm(text, NormalizationForm.FormD))

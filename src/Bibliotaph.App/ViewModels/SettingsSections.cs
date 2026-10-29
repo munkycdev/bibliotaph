@@ -63,8 +63,10 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
     public partial string LookUpExplanation { get; set; } = Explain("Open Library");
 
     static string Explain(string catalogues) =>
-        $"Asks {catalogues} about the ISBNs your books print, and nothing else, to fill in their title, authors, publisher and year. " +
-        "A record is used only when its title is printed in the book, and the AI's guesses give way to it.";
+        $"Asks {catalogues} about the ISBNs your books print, {(catalogues.Contains("RPGGeek", StringComparison.Ordinal)
+            ? "and a book's title for RPGGeek, which is searched by name," : "and nothing else,")} to fill in their title, authors, publisher and year, " +
+        "each from the first of them that gives it. A record is used only when its title is printed in the book, and the AI's guesses give way to it." +
+        (catalogues.Contains("RPGGeek", StringComparison.Ordinal) ? " RPGGeek's data is powered by BGG, boardgamegeek.com." : "");
 
     public override async Task LoadAsync()
     {

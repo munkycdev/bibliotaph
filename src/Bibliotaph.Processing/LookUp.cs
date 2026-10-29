@@ -7,7 +7,8 @@ namespace Bibliotaph.Processing;
 
 /// <summary>
 /// Looking books up by their ISBN: the catalogue asked, and the words the Look up stage records a miss in. Always on:
-/// each catalogue is sent a book's ISBNs and nothing else, and the Processing section says where they go.
+/// each catalogue is sent a book's ISBNs, and RPGGeek, which is searched by name, its title too; the Processing
+/// section says where they go.
 /// </summary>
 public sealed class BookLookups(IBookCatalogue catalogue)
 {
@@ -81,10 +82,15 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         var isbns = await queries.GetIsbnsAsync(job.DocumentId, ct);
         if (isbns.Count == 0) return new StageOutcome.Done(StageStatus.Skipped, [], "It prints no ISBN to look up.");
 
+        // For a catalogue searched only by name, when the others' records give no title to search for.
+        var title = await queries.GetTitleAsync(job.DocumentId, ct);
+        var embedded = (await queries.GetEmbeddedInfoAsync(job.DocumentId, ct))?.Title;
+        IReadOnlyList<string> titles = [.. new[] { title, embedded }.OfType<string>().Select(t => t.Trim()).Where(t => t.Length is > 0 and <= 300)
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
         CatalogueAnswer answer;
         try
         {
-            answer = await lookups.Catalogue.AskAsync(isbns, ct);
+            answer = await lookups.Catalogue.AskAsync(isbns, titles, ct);
         }
         catch (CatalogueUnavailableException ex)
         {

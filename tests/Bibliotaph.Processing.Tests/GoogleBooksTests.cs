@@ -120,14 +120,14 @@ public sealed class GoogleBooksTests
         var openLibrary = new Fixed("Open Library", null, unavailable: true);
         var google = new Fixed("Google Books", Record("Google Books"));
 
-        var answer = await new BookCatalogues([rpggeek, openLibrary, google]).AskAsync(["9781234567897"], Ct);
-        var none = await new BookCatalogues([new Fixed("Open Library", null), new Fixed("Google Books", null)]).AskAsync(["9781234567897"], Ct);
+        var answer = await new BookCatalogues([rpggeek, openLibrary, google]).AskAsync(["9781234567897"], [], Ct);
+        var none = await new BookCatalogues([new Fixed("Open Library", null), new Fixed("Google Books", null)]).AskAsync(["9781234567897"], [], Ct);
 
         Assert.Equal(["RPGGeek", "Google Books"], answer.Records.Select(r => r.Source));
         Assert.Equal("RPGGeek or Google Books", answer.AskedOf);
         Assert.Equal((0, "Open Library or Google Books"), (none.Records.Count, none.AskedOf));
         // None could answer: the book waits.
         await Assert.ThrowsAsync<CatalogueUnavailableException>(() =>
-            new BookCatalogues([new Fixed("Open Library", null, unavailable: true), new Fixed("Google Books", null, unavailable: true)]).AskAsync(["9781234567897"], Ct));
+            new BookCatalogues([new Fixed("Open Library", null, unavailable: true), new Fixed("Google Books", null, unavailable: true)]).AskAsync(["9781234567897"], [], Ct));
     }
 }
