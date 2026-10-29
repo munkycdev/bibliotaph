@@ -27,7 +27,7 @@ public partial class MainWindow : Window
     /// <summary>Where the mouse went down on a pin, until it moves far enough to drag it or comes up.</summary>
     Point? _pinDragStart;
 
-    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, AboutBox about, ShortcutsBox shortcuts, IJobControl indexing,
+    public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, TourViewModel tour, AboutBox about, ShortcutsBox shortcuts, IJobControl indexing,
         ILogger<MainWindow> log)
     {
         InitializeComponent();
@@ -37,6 +37,7 @@ public partial class MainWindow : Window
         // Before the window's DataContext, so the guide's bindings never look for its properties on the shell.
         _guide = guide;
         SearchGuide.DataContext = guide;
+        Tour.DataContext = tour;
         DataContext = shell;
         shell.FocusPinRequested += (_, target) => FocusPin(target);
         shell.PlainSearch.PropertyChanged += OnPlainSearchChanged;

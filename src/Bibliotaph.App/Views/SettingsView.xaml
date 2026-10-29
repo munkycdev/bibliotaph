@@ -126,6 +126,18 @@
             </StackPanel>
           </DockPanel>
         </Border>
+        <!-- The first-run tour, for whoever wants it again. -->
+        <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
+          <DockPanel>
+            <Button x:Name="ShowTour" DockPanel.Dock="Right" Content="Show the tour again" VerticalAlignment="Center"
+                    Command="{Binding ShowTourCommand}" AutomationProperties.Name="Show the tour again" />
+            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+              <TextBlock Text="The tour" Style="{StaticResource Text.Row}" />
+              <TextBlock Text="A short walk round Bibliotaph's pages, as on the first day. It starts on Home." Style="{StaticResource Text.Small}"
+                         Margin="0,4,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+          </DockPanel>
+        </Border>
       </StackPanel>
     </DataTemplate>
 

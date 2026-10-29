@@ -87,6 +87,12 @@ public static class SettingKeys
     public const string AiAsked = "ai.asked";
 
     /// <summary>
+    /// How far the first-run tour has gone: absent before it, "folders" once its first chapter has been seen, "books"
+    /// once the whole tour has been seen or skipped.
+    /// </summary>
+    public const string TourStage = "tour.stage";
+
+    /// <summary>
     /// "False" stops the AI reading whole books chapter by chapter once their cataloging is done; otherwise it reads
     /// them, slowly and only while nothing else wants the AI.
     /// </summary>

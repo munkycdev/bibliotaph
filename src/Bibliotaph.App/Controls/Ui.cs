@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Bibliotaph.Core;
 
 namespace Bibliotaph.App.Controls;
 
@@ -32,6 +33,10 @@ public static class Ui
     public static readonly DependencyProperty ClearCommandProperty = DependencyProperty.RegisterAttached(
         "ClearCommand", typeof(ICommand), typeof(Ui), new FrameworkPropertyMetadata(null));
 
+    /// <summary>Which of the tour's callouts points at this element, if any; the tour finds its targets by it.</summary>
+    public static readonly DependencyProperty TourAnchorProperty = DependencyProperty.RegisterAttached(
+        "TourAnchor", typeof(TourAnchor), typeof(Ui), new FrameworkPropertyMetadata(TourAnchor.None));
+
     /// <summary>Takes keyboard focus each time the element becomes visible; a text box also selects its text.</summary>
     public static readonly DependencyProperty FocusWhenVisibleProperty = DependencyProperty.RegisterAttached(
         "FocusWhenVisible", typeof(bool), typeof(Ui), new FrameworkPropertyMetadata(false, OnFocusWhenVisibleChanged));
@@ -50,6 +55,9 @@ public static class Ui
 
     public static ICommand? GetClearCommand(DependencyObject element) => (ICommand?)element.GetValue(ClearCommandProperty);
     public static void SetClearCommand(DependencyObject element, ICommand? value) => element.SetValue(ClearCommandProperty, value);
+
+    public static TourAnchor GetTourAnchor(DependencyObject element) => (TourAnchor)element.GetValue(TourAnchorProperty);
+    public static void SetTourAnchor(DependencyObject element, TourAnchor value) => element.SetValue(TourAnchorProperty, value);
 
     public static bool GetFocusWhenVisible(DependencyObject element) => (bool)element.GetValue(FocusWhenVisibleProperty);
     public static void SetFocusWhenVisible(DependencyObject element, bool value) => element.SetValue(FocusWhenVisibleProperty, value);
