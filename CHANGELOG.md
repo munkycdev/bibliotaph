@@ -1,5 +1,11 @@
 # Changes
 
+## Unreleased
+
+- **Scanning whole books has its own bar.** Settings > Processing shows the AI's chapter-by-chapter reading as a
+  step like the others, under Cataloguing with AI, with how far it has got and the time left, instead of a line of
+  text in the summary. Off when AI is, or when Scan whole books is off in Settings > AI. On Windows and the web.
+
 ## 1.4 · 28 October 2026
 
 New in 1.4.968 (29 October 2026):

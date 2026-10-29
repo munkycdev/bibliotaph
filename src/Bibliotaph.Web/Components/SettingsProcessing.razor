@@ -95,6 +95,7 @@
     readonly ProcessingPhase _scans = new("Reading scans", "Text from scanned pages, by OCR", "pages");
     readonly ProcessingPhase _lookingUp = new("Looking up online", "Title, authors, publisher and year, by ISBN");
     readonly ProcessingPhase _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page");
+    readonly ProcessingPhase _scanning = new("Scanning whole books", "Chapter by chapter, after cataloguing");
     readonly CancellationTokenSource _stop = new();
     ProcessingPhase[] _phases = [];
     ProcessingState? _state;
@@ -105,7 +106,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _phases = [_finding, _reading, _making, _scans, _lookingUp, _classifying];
+        _phases = [_finding, _reading, _making, _scans, _lookingUp, _classifying, _scanning];
         await RefreshAsync();
         _ = PollAsync();
     }
@@ -167,6 +168,9 @@
         // AI cataloguing is off until set up, so "Off" rather than a count that never moves.
         if (!state.AiOn) _classifying.Show(PhaseState.Waiting, state.ToClassify > 0 ? $"Off · {state.ToClassify:N0} waiting" : "Off");
         else _classifying.Count(now, state.Classified, state.Classified + state.ToClassify, state.Paused.Ai, state.AiWaiting);
+        // Whole books are read on the same AI, and Settings › AI can switch that part off on its own.
+        if (!state.AiOn || !state.ScanWholeBooks) _scanning.Show(PhaseState.Waiting, state.ToScanWhole > 0 ? $"Off · {state.ToScanWhole:N0} waiting" : "Off");
+        else _scanning.Count(now, state.ScannedWhole, state.ScannedWhole + state.ToScanWhole, state.Paused.Ai, state.AiWaiting);
 
         var running = _phases.Where(p => p.State == PhaseState.Running).ToList();
         _timeLeft = state.Scanning ? "Working out what there is to do"
