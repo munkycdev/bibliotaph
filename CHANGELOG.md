@@ -1,5 +1,11 @@
 # Changes
 
+## Unreleased
+
+- **A deploy never goes backwards.** Two pushes to main close together could go live in the order their builds
+  finished, so the older build sometimes replaced the newer one on bibliotaph.online. The roll-out now leaves the site
+  alone when what's live already includes the commit.
+
 ## 1.4 · 28 October 2026
 
 New in 1.4.968 (29 October 2026):
