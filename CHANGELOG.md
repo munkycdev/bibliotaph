@@ -10,6 +10,10 @@
   gives or else the one in your library, and its record is used only when one of its versions lists an ISBN the book
   prints. Every book is looked up once more to fill in from RPGGeek. RPGGeek's data is powered by BGG, whose logo is at the foot of every web page and in About, in Bibliotaph's own colours. See
   [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+- **Filed as RPGGeek files it.** RPGGeek's game system and edition, category, genres, setting and series now fill in
+  System, Edition, Type, Themes, Setting and Series, in your own lists' terms: "Scenario / Adventure / Module" is
+  Adventure, "Dungeons & Dragons (3.5 Edition)" is D&D 3.5. A system, theme or setting you don't have yet waits in
+  Needs review like a new name from the AI. Every book is looked up once more to fill them in.
 
 ## 1.4 ┬╖ 28 October 2026
 

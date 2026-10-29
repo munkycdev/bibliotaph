@@ -1,6 +1,6 @@
 {
   "comment": "Starter vocabularies, seeded into catalog.db by version. A term or alias is added only when the stored seed version is below its 'since' (default 1), and never overwrites a term the user has changed. Add new terms with a higher 'since' and bump 'version'. Keys are stable: never rename one.",
-  "version": 6,
+  "version": 7,
   "terms": [
     { "vocabulary": "system", "key": "dnd", "label": "Dungeons & Dragons", "short": "D&D", "aliases": ["D&D", "DnD", "D and D", "Dungeons and Dragons", "AD&D", "ADnD"] },
     { "vocabulary": "edition", "key": "dnd-od", "parent": "dnd", "label": "Original edition", "short": "OD&D", "aliases": ["OD&D", "ODnD", "Original D&D", "0e"] },
@@ -179,6 +179,26 @@
     { "vocabulary": "store", "key": "game-on-tabletop", "label": "Game On Tabletop", "aliases": ["GameOn Tabletop", "gameontabletop.com"], "since": 4 },
     { "vocabulary": "store", "key": "paizo", "label": "Paizo", "aliases": ["paizo.com", "Paizo store"], "since": 6 },
     { "vocabulary": "store", "key": "dmsguild", "label": "DMs Guild", "aliases": ["DMsGuild", "DM's Guild", "Dungeon Masters Guild", "Dungeon Master's Guild", "dmsguild.com"], "since": 6 },
-    { "vocabulary": "store", "key": "other-store", "label": "Other store", "aliases": ["another store"], "since": 4 }
+    { "vocabulary": "store", "key": "other-store", "label": "Other store", "aliases": ["another store"], "since": 4 },
+
+    { "vocabulary": "edition", "key": "dnd-od", "parent": "dnd", "label": "Original edition", "aliases": ["Dungeons & Dragons (Original Edition)"], "since": 7 },
+    { "vocabulary": "edition", "key": "dnd-basic", "parent": "dnd", "label": "Basic and Expert", "aliases": ["Basic Dungeons & Dragons"], "since": 7 },
+    { "vocabulary": "edition", "key": "dnd-1e", "parent": "dnd", "label": "AD&D 1st edition", "aliases": ["Advanced Dungeons & Dragons (1st Edition)"], "since": 7 },
+    { "vocabulary": "edition", "key": "dnd-2e", "parent": "dnd", "label": "AD&D 2nd edition", "aliases": ["Advanced Dungeons & Dragons (2nd Edition)", "AD&D Second Edition (2e) Compatible Products"], "since": 7 },
+    { "vocabulary": "edition", "key": "dnd-3e", "parent": "dnd", "label": "3rd edition", "aliases": ["Dungeons & Dragons (3rd Edition)"], "since": 7 },
+    { "vocabulary": "edition", "key": "dnd-35", "parent": "dnd", "label": "3.5 edition", "aliases": ["Dungeons & Dragons (3.5 Edition)", "d20 System / OGL Product (D&D 3.5 Compatible)"], "since": 7 },
+    { "vocabulary": "edition", "key": "dnd-4e", "parent": "dnd", "label": "4th edition", "aliases": ["Dungeons & Dragons (4th Edition)"], "since": 7 },
+    { "vocabulary": "edition", "key": "dnd-5e", "parent": "dnd", "label": "5th edition", "aliases": ["5e Game System Product (D&D 5th Edition Compatible)", "5e Game System Product"], "since": 7 },
+    { "vocabulary": "edition", "key": "pathfinder-1e", "parent": "pathfinder", "label": "Pathfinder 1st edition", "aliases": ["Pathfinder 1E Compatible Product"], "since": 7 },
+    { "vocabulary": "system", "key": "traveller", "label": "Traveller", "aliases": ["MegaTraveller", "Traveller: The New Era"], "since": 7 },
+    { "vocabulary": "system", "key": "system-agnostic", "label": "System-agnostic", "aliases": ["Generic / Universal"], "since": 7 },
+    { "vocabulary": "type", "key": "adventure", "label": "Adventure", "aliases": ["Scenario / Adventure / Module"], "since": 7 },
+    { "vocabulary": "type", "key": "rulebook", "label": "Rulebook", "aliases": ["Alternate Rules (Variant Core Rules)", "Quick Start / Fast Play Rules"], "since": 7 },
+    { "vocabulary": "type", "key": "supplement", "label": "Supplement", "aliases": ["Solo Play Resource"], "since": 7 },
+    { "vocabulary": "theme", "key": "cosmic-horror", "label": "Cosmic horror", "aliases": ["Horror (Cthulhu Mythos)"], "since": 7 },
+    { "vocabulary": "theme", "key": "survival", "label": "Survival", "aliases": ["Science Fiction (Post Apocalypse)", "post apocalypse", "post-apocalyptic"], "since": 7 },
+    { "vocabulary": "theme", "key": "pirates", "label": "Pirates", "aliases": ["Action / Adventure (Swashbuckling / Pirates)"], "since": 7 },
+    { "vocabulary": "theme", "key": "comedy", "label": "Comedy", "aliases": ["Comedy / Satire", "satire"], "since": 7 },
+    { "vocabulary": "theme", "key": "intrigue", "label": "Political intrigue", "aliases": ["espionage", "spies"], "since": 7 }
   ]
 }

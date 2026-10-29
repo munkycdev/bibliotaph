@@ -7,10 +7,24 @@ namespace Bibliotaph.Core.Metadata;
 /// <summary>
 /// A book's record in an online catalogue, found by one of its ISBNs: <paramref name="Source"/> names the catalogue
 /// ("Open Library"), <paramref name="Key"/> is the record's own id there, and <paramref name="Published"/> is the date
-/// as the catalogue writes it ("1985", "March 2019").
+/// as the catalogue writes it ("1985", "March 2019"). <paramref name="Values"/> are what the catalogue files it under, in
+/// its own words, for a catalogue that knows games (RPGGeek's systems, categories, genres, settings and series).
 /// </summary>
 public sealed record BookRecord(
-    string Source, string Key, string Isbn, string Title, IReadOnlyList<string> Authors, IReadOnlyList<string> Publishers, string? Published);
+    string Source, string Key, string Isbn, string Title, IReadOnlyList<string> Authors, IReadOnlyList<string> Publishers, string? Published,
+    IReadOnlyList<CatalogueValue>? Values = null);
+
+/// <summary>
+/// Something a catalogue files a book under, in its own words ("Fantasy (High Fantasy)"), by the key of the field it
+/// would fill: system, type, theme, setting or series.
+/// </summary>
+public sealed record CatalogueValue(string Field, string Value);
+
+/// <summary>
+/// A term a catalogue's record files the book under: one of the vocabulary's (<paramref name="Term"/>), or, when none
+/// of them is named, <paramref name="Label"/> to propose as a new one. <paramref name="Quote"/> names the record.
+/// </summary>
+public sealed record CatalogueTerm(MetadataField Field, Term? Term, string Label, string Quote);
 
 /// <summary>Turning a catalogue's record into suggestions, once it is known to be this book's.</summary>
 public static partial class BookRecords
@@ -33,10 +47,10 @@ public static partial class BookRecords
     }
 
     /// <summary>
-    /// What the records suggest: a title, authors, first publisher and year, each field from the first of
+    /// What the records suggest: a title, authors, first publisher, year and series, each field from the first of
     /// <paramref name="records"/> that gives it, so the catalogue the user prefers wins field by field and the next fills
-    /// what it lacks. Nothing else: a catalogue's subjects are a librarian's shelving, not a game's system or type, so
-    /// those stay for the rules and the AI.
+    /// what it lacks. A library catalogue's subjects are a librarian's shelving, not a game's system or type, so they
+    /// aren't used; a game catalogue's terms are, through <see cref="Terms"/>.
     /// </summary>
     public static IReadOnlyList<MetadataProposal> Proposals(IReadOnlyList<BookRecord> records)
     {
@@ -47,8 +61,7 @@ public static partial class BookRecords
             {
                 var given = values(record).Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!.Trim()).ToList();
                 if (given.Count == 0) continue;
-                var quote = $"{record.Source}'s record for ISBN {record.Isbn}";
-                proposals.AddRange(given.Select(v => new MetadataProposal(field, v, AssertionOrigin.Lookup, quote)));
+                proposals.AddRange(given.Select(v => new MetadataProposal(field, v, AssertionOrigin.Lookup, Quote(record))));
                 return;
             }
         }
@@ -57,8 +70,81 @@ public static partial class BookRecords
         Add(MetadataFields.Authors, r => r.Authors);
         Add(MetadataFields.Publisher, r => [r.Publishers.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p))]);
         Add(MetadataFields.Year, r => [Year(r.Published)]);
+        Add(MetadataFields.Series, r => [ValuesOf(r, MetadataFields.Series).FirstOrDefault(v => Simplify(v) is not ("misc" or "miscellaneous"))]);
         return proposals;
     }
+
+    static string Quote(BookRecord record) => $"{record.Source}'s record for ISBN {record.Isbn}";
+
+    static IEnumerable<string> ValuesOf(BookRecord record, MetadataField field) =>
+        (record.Values ?? []).Where(v => v.Field == field.Key && !string.IsNullOrWhiteSpace(v.Value)).Select(v => v.Value.Trim());
+
+    /// <summary>Genres so wide that nearly every book has them, so as a theme they'd say nothing.</summary>
+    static readonly HashSet<string> TooWide = [.. new[] { "Fantasy", "Generic / Universal", "Action / Adventure" }.Select(MetadataText.Normalize)];
+
+    /// <summary>
+    /// The terms the records file the book under: its system and edition, types, themes and settings, each field from
+    /// the first record that gives it. A catalogue's words ("Dungeons &amp; Dragons (3.5 Edition)") are matched to the
+    /// vocabulary as a whole, then by the part before the bracket; a system also by any system or edition named in it,
+    /// and its edition by the bracket read with the system's name ("Pathfinder" and "2nd Edition"). A name none of the
+    /// vocabulary's terms stands for comes back to propose as a new term, by the part before its bracket, except for a
+    /// type, since the types are a fixed list, and a genre too wide to tell books apart.
+    /// </summary>
+    public static IReadOnlyList<CatalogueTerm> Terms(IReadOnlyList<BookRecord> records, Vocabulary vocabulary)
+    {
+        var terms = new List<CatalogueTerm>();
+        foreach (var field in new[] { MetadataFields.System, MetadataFields.Types, MetadataFields.Themes, MetadataFields.Settings })
+        {
+            if (records.FirstOrDefault(r => ValuesOf(r, field).Any()) is not { } record) continue;
+            var quote = Quote(record);
+            foreach (var value in ValuesOf(record, field))
+                terms.AddRange(field == MetadataFields.System ? SystemTerms(value, vocabulary, quote) : FieldTerms(field, value, vocabulary, quote));
+        }
+        return [.. terms.DistinctBy(t => (t.Field.Key, t.Term?.Key, t.Term is null ? MetadataText.Normalize(t.Label) : null))];
+    }
+
+    static IEnumerable<CatalogueTerm> FieldTerms(MetadataField field, string value, Vocabulary vocabulary, string quote)
+    {
+        var vocabularyName = field.Vocabulary!;
+        var (head, _) = Split(value);
+        var found = new[] { vocabulary.Resolve(vocabularyName, value), vocabulary.Resolve(vocabularyName, head) }.OfType<Term>().Distinct().ToList();
+        if (found.Count > 0) return found.Select(t => new CatalogueTerm(field, t, t.Label, quote));
+        if (field == MetadataFields.Types || head.Length == 0 || TooWide.Contains(MetadataText.Normalize(head))) return [];
+        return [new CatalogueTerm(field, null, head, quote)];
+    }
+
+    static IEnumerable<CatalogueTerm> SystemTerms(string value, Vocabulary vocabulary, string quote)
+    {
+        var (head, brackets) = Split(value);
+        var edition = vocabulary.Resolve("edition", value);
+        var system = vocabulary.Resolve("system", value) ?? vocabulary.Resolve("system", head);
+        if (system is null && edition is null)
+        {
+            var named = vocabulary.Match(value).Select(m => m.Term).Where(t => t.Vocabulary is "system" or "edition").ToList();
+            system = named.FirstOrDefault(t => t.Vocabulary == "system");
+            edition = named.FirstOrDefault(t => t.Vocabulary == "edition" && (system is null || t.ParentKey == system.Key));
+        }
+        if (edition?.ParentKey is { } parent && system is null) system = vocabulary.Find("system", parent);
+        if (system is null)
+            return head.Length == 0 || TooWide.Contains(MetadataText.Normalize(head)) ? [] : [new CatalogueTerm(MetadataFields.System, null, head, quote)];
+
+        if (edition is null || edition.ParentKey != system.Key)
+            edition = brackets.SelectMany(b => new[] { system.Label, system.Brief }.Select(name => vocabulary.Resolve("edition", $"{name} {b}")))
+                .FirstOrDefault(t => t?.ParentKey == system.Key);
+        return edition is null
+            ? [new CatalogueTerm(MetadataFields.System, system, system.Label, quote)]
+            : [new CatalogueTerm(MetadataFields.System, system, system.Label, quote), new CatalogueTerm(MetadataFields.Edition, edition, edition.Label, quote)];
+    }
+
+    /// <summary>"Call of Cthulhu (7th Edition)": the name before the brackets, and what each bracket holds.</summary>
+    static (string Head, IReadOnlyList<string> Brackets) Split(string value)
+    {
+        var at = value.IndexOf('(', StringComparison.Ordinal);
+        return at < 0 ? (value.Trim(), []) : (value[..at].Trim(), [.. Bracketed().Matches(value).Select(m => m.Groups[1].Value.Trim()).Where(b => b.Length > 0)]);
+    }
+
+    [GeneratedRegex(@"\(([^()]*)\)")]
+    private static partial Regex Bracketed();
 
     /// <summary>The year in a catalogue's date ("March 2019", "c1985"), or null when it has none.</summary>
     public static string? Year(string? published) =>

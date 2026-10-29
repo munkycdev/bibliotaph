@@ -28,7 +28,7 @@ public static class AiTermText
 {
     public const string Title = "New names from the AI";
 
-    public const string Help = "Ask first: a name the AI uses that isn't in this list waits in Needs review. "
+    public const string Help = "Ask first: a name the AI or RPGGeek uses that isn't in this list waits in Needs review. "
         + "Add them: it joins the list at once, and the books that use it get it as a suggestion. Either way, you can rename or merge it here later.";
 
     /// <summary>The note after choosing Add them: what was waiting is in.</summary>

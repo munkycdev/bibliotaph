@@ -39,6 +39,11 @@ public sealed class RpgGeekTests
             <link type="rpgpublisher" id="2" value="Example Press" />
             <link type="rpgdesigner" id="3" value="A. Example" />
             <link type="rpgdesigner" id="4" value="(Uncredited)" />
+            <link type="rpgcategory" id="6" value="Scenario / Adventure / Module" />
+            <link type="rpggenre" id="7" value="Horror (Supernatural)" />
+            <link type="rpgsetting" id="8" value="Example World" />
+            <link type="rpgseries" id="9" value="Example Line" />
+            <link type="rpgmechanic" id="10" value="Dice (Various)" />
             <versions>
               <item type="rpgitemversion" id="9001"><name type="primary" value="PDF" /><yearpublished value="0" />
                 <productcode value="" /><isbn10 value="" /><isbn13 value="" /></item>
@@ -72,6 +77,10 @@ public sealed class RpgGeekTests
         Assert.Equal(("RPGGeek", "302", "9781234567897", "The Owlbear Mill", "2020"), (record.Source, record.Key, record.Isbn, record.Title, record.Published));
         Assert.Equal(["A. Example"], record.Authors);
         Assert.Equal(["Sample Games"], record.Publishers);
+        // What it's filed under, in RPGGeek's words; mechanics aren't used.
+        Assert.Equal(
+            [("system", "Example System"), ("type", "Scenario / Adventure / Module"), ("theme", "Horror (Supernatural)"), ("setting", "Example World"), ("series", "Example Line")],
+            record.Values!.Select(v => (v.Field, v.Value)));
         Assert.Equal("RPGGeek", answer.AskedOf);
         // The exact name first, then those starting with it, then those holding it; one that doesn't is left out.
         Assert.Equal("https://boardgamegeek.com/xmlapi2/search?query=The+Owlbear+Mill&type=rpgitem", server.Asked[0].RequestUri!.AbsoluteUri);

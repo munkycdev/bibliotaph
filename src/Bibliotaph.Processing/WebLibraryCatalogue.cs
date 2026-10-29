@@ -36,7 +36,8 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
         await LearnAsync(answer.Catalogues, ct);
         if (answer.Problem is { } problem) throw new CatalogueUnavailableException(problem);
         var records = answer.Records ?? (answer.Record is { } first ? [first] : []);
-        return new CatalogueAnswer([.. records.Select(r => new BookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published))],
+        return new CatalogueAnswer([.. records.Select(r => new BookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
+            r.Values?.Select(v => new CatalogueValue(v.Field, v.Value)).ToList()))],
             answer.AskedOf ?? answer.Catalogues);
     }
 

@@ -678,7 +678,8 @@ pause.
 
 **Looking up online**, under the steps, says where books are looked up: the server asks RPGGeek, Open Library and
 Google Books about the ISBNs your books print (RPGGeek, searched by name, with the book's title), and suggests each
-book's title, authors, publisher and year, each field from the first of them that has it, as the Windows app does.
+book's title, authors, publisher and year, each field from the first of them that has it, as the Windows app does,
+and from RPGGeek its system, edition, type, themes, setting and series.
 This is always on; a book is asked again once there's somewhere more to ask. RPGGeek's data is powered by
 [BGG](https://boardgamegeek.com), whose logo is at the foot of every page. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
@@ -690,7 +691,7 @@ a term by any of its names. The pencil beside a term opens it: change its **Name
 **Save name**, and add or remove its **Other names** ("5e" for an edition, say). Folder names, searches and what you type
 all go through these names. Renaming keeps everything filed under the term, and the library catches up a few seconds
 after you stop. **New names from the AI**, at the top of each list the AI can add to, chooses **Ask first** (a card in
-Needs review for each name, the default) or **Add them** (the name joins the list as the AI uses it, and the names
+Needs review for each name the AI or RPGGeek uses that the list doesn't have, the default) or **Add them** (the name joins the list as the AI uses it, and the names
 already waiting are added too), as in the Windows app. **Find overlaps**, under it, compares the list's names, has the
 AI compare them too when one is set up, and says how many groups of terms that may be the same thing wait in Needs
 review, with the pairs kept apart and × to offer one again; the cards there combine a group into the term picked, with
