@@ -33,22 +33,30 @@ public static partial class BookRecords
     }
 
     /// <summary>
-    /// What the record suggests: its title, authors, first publisher and year. Nothing else: a catalogue's subjects
-    /// are a librarian's shelving, not a game's system or type, so those stay for the rules and the AI.
+    /// What the records suggest: a title, authors, first publisher and year, each field from the first of
+    /// <paramref name="records"/> that gives it, so the catalogue the user prefers wins field by field and the next fills
+    /// what it lacks. Nothing else: a catalogue's subjects are a librarian's shelving, not a game's system or type, so
+    /// those stay for the rules and the AI.
     /// </summary>
-    public static IReadOnlyList<MetadataProposal> Proposals(BookRecord record)
+    public static IReadOnlyList<MetadataProposal> Proposals(IReadOnlyList<BookRecord> records)
     {
-        var quote = $"{record.Source}'s record for ISBN {record.Isbn}";
         var proposals = new List<MetadataProposal>();
-        void Add(MetadataField field, string? value)
+        void Add(MetadataField field, Func<BookRecord, IEnumerable<string?>> values)
         {
-            if (!string.IsNullOrWhiteSpace(value)) proposals.Add(new MetadataProposal(field, value.Trim(), AssertionOrigin.Lookup, quote));
+            foreach (var record in records)
+            {
+                var given = values(record).Where(v => !string.IsNullOrWhiteSpace(v)).Select(v => v!.Trim()).ToList();
+                if (given.Count == 0) continue;
+                var quote = $"{record.Source}'s record for ISBN {record.Isbn}";
+                proposals.AddRange(given.Select(v => new MetadataProposal(field, v, AssertionOrigin.Lookup, quote)));
+                return;
+            }
         }
 
-        Add(MetadataFields.Title, record.Title);
-        foreach (var author in record.Authors) Add(MetadataFields.Authors, author);
-        Add(MetadataFields.Publisher, record.Publishers.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)));
-        Add(MetadataFields.Year, Year(record.Published));
+        Add(MetadataFields.Title, r => [r.Title]);
+        Add(MetadataFields.Authors, r => r.Authors);
+        Add(MetadataFields.Publisher, r => [r.Publishers.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p))]);
+        Add(MetadataFields.Year, r => [Year(r.Published)]);
         return proposals;
     }
 
@@ -56,8 +64,8 @@ public static partial class BookRecords
     public static string? Year(string? published) =>
         published is not null && YearIn().Match(published) is { Success: true } year ? year.Value : null;
 
-    /// <summary>Lower case letters and digits, each run of anything else one space.</summary>
-    static string Simplify(string text)
+    /// <summary>Lower case letters and digits, each run of anything else one space: titles compared as a reader would.</summary>
+    public static string Simplify(string text)
     {
         var simple = new StringBuilder(text.Length);
         foreach (var c in MetadataText.UnicodeForm(text, NormalizationForm.FormD))

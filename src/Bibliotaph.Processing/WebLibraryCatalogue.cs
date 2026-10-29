@@ -24,15 +24,20 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
         if (await web.LookupCataloguesAsync(ct) is { } catalogues) await LearnAsync(catalogues, ct);
     }
 
-    public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default)
+    public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
+        (await AskAsync(isbns, [], ct)).Records is [var first, ..] ? first : null;
+
+    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, CancellationToken ct = default)
     {
-        if (!web.HasKey) return await direct.FindAsync(isbns, ct);
+        if (!web.HasKey) return await direct.AskAsync(isbns, titles, ct);
         await LoadAsync(ct);
-        var answer = await web.LookUpAsync(isbns, ct)
+        var answer = await web.LookUpAsync(isbns, titles, ct)
             ?? throw new CatalogueUnavailableException($"{(await web.AddressAsync(ct)).Host} can't be reached just now, so books wait to be looked up.");
         await LearnAsync(answer.Catalogues, ct);
         if (answer.Problem is { } problem) throw new CatalogueUnavailableException(problem);
-        return answer.Record is { } r ? new BookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published) : null;
+        var records = answer.Records ?? (answer.Record is { } first ? [first] : []);
+        return new CatalogueAnswer([.. records.Select(r => new BookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published))],
+            answer.AskedOf ?? answer.Catalogues);
     }
 
     async Task LoadAsync(CancellationToken ct)

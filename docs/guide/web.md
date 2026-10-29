@@ -645,8 +645,8 @@ other web library book says it needs one. **Open in another app** opens the down
 offline, and disconnecting deletes them too; the ones kept offline stay for when you connect again.
 
 A connected PC looks its books up through bibliotaph.online, which
-asks Open Library and then Google Books, so the PC's own books are found in both, as the web library's are; the ISBNs
-are all it sends. The books it couldn't find before it connected are asked again. Disconnected, it asks Open Library
+asks RPGGeek, Open Library and Google Books, so the PC's own books are found in all three, as the web library's are; it
+sends the ISBNs, and the book's title for RPGGeek. The books it looked up before it connected are asked again. Disconnected, it asks Open Library
 itself. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
@@ -676,10 +676,11 @@ AI** each stop one step until you resume it, even after you sign out; pausing th
 The library comes first: while you're using it, reading books in the background steps aside, and carries on when you
 pause.
 
-**Looking up online**, under the steps, says where books are looked up: the server asks Open Library about the ISBNs
-your books print, and nothing else, and suggests each book's title, authors, publisher and year from its record, as the
-Windows app does. A book Open Library doesn't know is looked for in Google Books next. This is always on; a book
-neither knew is asked again once there's somewhere more to ask. See [Cataloging](cataloging.md#where-suggestions-come-from).
+**Looking up online**, under the steps, says where books are looked up: the server asks RPGGeek, Open Library and
+Google Books about the ISBNs your books print (RPGGeek, searched by name, with the book's title), and suggests each
+book's title, authors, publisher and year, each field from the first of them that has it, as the Windows app does.
+This is always on; a book is asked again once there's somewhere more to ask. RPGGeek's data is powered by
+[BGG](https://boardgamegeek.com). See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 ## Vocabulary
 

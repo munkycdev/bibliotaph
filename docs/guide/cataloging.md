@@ -10,12 +10,15 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
 - **Folder and file names**: a folder called "Adventures" or "D&D 5e" suggests the type or system of the books in it.
 - **The file itself**: the title, author and other details a PDF or e-book carries (an e-book's description and
   cover too), and party sizes and levels in the file name.
-- **Open Library**: Bibliotaph sends the ISBNs a book prints, and nothing else, to
-  [Open Library](https://openlibrary.org) and suggests the title, authors, publisher and year its record gives. On bibliotaph.online, and in the Windows app while it's
-  [connected to bibliotaph.online](web.md#connecting-a-windows-pc), a book Open Library doesn't know is looked for in
-  [Google Books](https://books.google.com) too, which knows many more small-press books; the app then asks through
-  bibliotaph.online, and **Settings > Processing** names where it asks. A book none of them knew is asked again once
-  there's somewhere more to ask, such as when the app connects. A record is used only when
+- **Book catalogues**: Bibliotaph sends the ISBNs a book prints, and nothing else, to
+  [Open Library](https://openlibrary.org) and suggests the title, authors, publisher and year its record gives. On
+  bibliotaph.online, and in the Windows app while it's [connected to bibliotaph.online](web.md#connecting-a-windows-pc),
+  [RPGGeek](https://rpggeek.com) and [Google Books](https://books.google.com) are asked too, and each field comes from
+  the first of RPGGeek, Open Library and Google Books that gives it, so RPGGeek, which knows RPGs and their designers
+  best, wins wherever it has a value. RPGGeek can only be searched by name, so it gets the title Open Library or Google
+  Books gives, or else the book's title in your library, and its record is used only when one of its versions lists an
+  ISBN the book prints. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
+  book is asked again once there's somewhere more to ask, such as when the app connects. A record is used only when
   its title is printed in the book, so a misprinted ISBN can't rename it. These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
   come back only if you reject the looked-up value. **Settings > Processing** says where the ISBNs go.
 - **AI**, if you turn it on: a model on your PC reads a few pages and suggests the rest. Every AI suggestion must quote

@@ -31,12 +31,25 @@ public class BookRecordsTests
     [Fact]
     public void A_record_suggests_its_title_authors_first_publisher_and_year()
     {
-        var proposals = BookRecords.Proposals(Record("The Owlbear Mill"));
+        var proposals = BookRecords.Proposals([Record("The Owlbear Mill")]);
 
         Assert.Equal(
             [("title", "The Owlbear Mill"), ("authors", "A. Example"), ("authors", "B. Example"), ("publisher", "Example Press"), ("year", "2019")],
             proposals.Select(p => (p.Field.Key, p.Value)));
         Assert.All(proposals, p => Assert.Equal((AssertionOrigin.Lookup, "Open Library's record for ISBN 9781234567897"), (p.Origin, p.Quote)));
+    }
+
+    [Fact]
+    public void Each_field_comes_from_the_first_record_that_gives_it()
+    {
+        var rpggeek = new BookRecord("RPGGeek", "1", "9781234567897", "The Owlbear Mill", ["C. Designer"], [], null);
+        var openLibrary = Record("Owlbear Mill") with { Authors = [] };
+
+        var proposals = BookRecords.Proposals([rpggeek, openLibrary]);
+
+        Assert.Equal(
+            [("title", "The Owlbear Mill", "RPGGeek"), ("authors", "C. Designer", "RPGGeek"), ("publisher", "Example Press", "Open Library"), ("year", "2019", "Open Library")],
+            proposals.Select(p => (p.Field.Key, p.Value, p.Quote![..p.Quote!.IndexOf('\'', StringComparison.Ordinal)])));
     }
 
     [Theory]
