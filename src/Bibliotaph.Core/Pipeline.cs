@@ -42,8 +42,8 @@ public static class Pipeline
         // 2: files printing the same ISBN get new-version cards, so a library identified before gets them.
         Stage.Identify => 2,
         // 2: every catalogue is asked and each field comes from the one preferred, RPGGeek first, so books looked up
-        // before are asked again.
-        Stage.LookUp => 2,
+        // before are asked again. 3: RPGGeek's systems, categories, genres, settings and series are used too.
+        Stage.LookUp => 3,
         // Never bumped for a new prompt: a finished scan is kept until the file changes or the user asks again.
         Stage.ChapterScan => 1,
         _ => 1,

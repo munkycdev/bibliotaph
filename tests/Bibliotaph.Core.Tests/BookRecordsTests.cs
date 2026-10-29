@@ -60,4 +60,31 @@ public class BookRecordsTests
     [InlineData(null, null)]
     public void The_year_is_read_from_the_catalogues_date(string? published, string? year) =>
         Assert.Equal(year, BookRecords.Year(published));
+
+    [Fact]
+    public void A_series_comes_from_the_first_record_that_files_the_book_in_one_and_a_catch_all_isnt_one()
+    {
+        var rpggeek = new BookRecord("RPGGeek", "1", "9781234567897", "The Owlbear Mill", [], [], null,
+            [new CatalogueValue("series", "Misc."), new CatalogueValue("series", "Example Line"), new CatalogueValue("theme", "Horror")]);
+
+        var series = Assert.Single(BookRecords.Proposals([Record("The Owlbear Mill"), rpggeek]), p => p.Field == MetadataFields.Series);
+
+        Assert.Equal(("Example Line", "RPGGeek's record for ISBN 9781234567897"), (series.Value, series.Quote));
+    }
+
+    [Fact]
+    public void Terms_come_from_the_first_record_that_files_the_book_under_that_field()
+    {
+        var vocabulary = new Vocabulary([new Term("theme", "horror", "Horror"), new Term("system", "example", "Example System", "ES"),
+            new Term("edition", "example-2e", "2nd edition", "2e", "example")], [("edition", "example-2e", "ES 2nd Edition")]);
+        var first = new BookRecord("RPGGeek", "1", "9781234567897", "The Owlbear Mill", [], [], null,
+            [new CatalogueValue("theme", "Horror (Supernatural)"), new CatalogueValue("theme", "Fantasy (High Fantasy)"), new CatalogueValue("system", "Example System (2nd Edition)")]);
+        var second = first with { Source = "Other", Values = [new CatalogueValue("theme", "Mystery"), new CatalogueValue("setting", "Example World")] };
+
+        var terms = BookRecords.Terms([first, second], vocabulary);
+
+        Assert.Equal(["system=example", "edition=example-2e", "theme=horror", "setting:Example World"],
+            terms.Select(t => t.Term is { } term ? $"{t.Field.Key}={term.Key}" : $"{t.Field.Key}:{t.Label}"));
+        Assert.Equal(["RPGGeek", "RPGGeek", "RPGGeek", "Other"], terms.Select(t => t.Quote.Split('\'')[0]));
+    }
 }

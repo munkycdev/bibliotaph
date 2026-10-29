@@ -88,9 +88,17 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
             .Take(MostItems) ?? []];
     }
 
+    /// <summary>What an item's links file it under, by the field each fills; mechanics, artists and the rest aren't used.</summary>
+    static readonly (string Link, MetadataField Field)[] Filed =
+    [
+        ("rpg", MetadataFields.System), ("rpgcategory", MetadataFields.Types), ("rpggenre", MetadataFields.Themes),
+        ("rpgsetting", MetadataFields.Settings), ("rpgseries", MetadataFields.Series),
+    ];
+
     /// <summary>
     /// The record of the first item one of whose versions lists one of <paramref name="isbns"/>: its name, designers,
-    /// the version's publisher (or the item's) and year (or the item's).
+    /// the version's publisher (or the item's) and year (or the item's), and the systems, categories, genres, settings
+    /// and series it is filed under.
     /// </summary>
     internal static BookRecord? Read(XDocument things, IReadOnlyList<string> isbns)
     {
@@ -103,7 +111,8 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
                 if (PrimaryName(item) is not { } title) continue;
                 var publishers = Links(version, "rpgpublisher");
                 return new BookRecord("RPGGeek", (string?)item.Attribute("id") ?? isbn, isbn, title, Links(item, "rpgdesigner"),
-                    publishers.Count > 0 ? publishers : Links(item, "rpgpublisher"), Year(version) ?? Year(item));
+                    publishers.Count > 0 ? publishers : Links(item, "rpgpublisher"), Year(version) ?? Year(item),
+                    [.. Filed.SelectMany(f => Links(item, f.Link).Select(v => new CatalogueValue(f.Field.Key, v)))]);
             }
         }
         return null;

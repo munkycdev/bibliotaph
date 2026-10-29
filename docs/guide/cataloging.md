@@ -15,7 +15,11 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   bibliotaph.online, and in the Windows app while it's [connected to bibliotaph.online](web.md#connecting-a-windows-pc),
   [RPGGeek](https://rpggeek.com) and [Google Books](https://books.google.com) are asked too, and each field comes from
   the first of RPGGeek, Open Library and Google Books that gives it, so RPGGeek, which knows RPGs and their designers
-  best, wins wherever it has a value. RPGGeek can only be searched by name, so it gets the title Open Library or Google
+  best, wins wherever it has a value. RPGGeek also says what it files the book under, and that fills in the game
+  system and edition, type, themes, setting and series, in your lists' own terms: its "Scenario / Adventure / Module"
+  is your Adventure, its "Dungeons & Dragons (3.5 Edition)" your D&D 3.5. A system, theme or setting your lists don't
+  have is treated as a new name from the AI (see [Vocabulary](#vocabulary)); a category none of the types stands for, and
+  genres nearly every book has, such as Fantasy, are left out. RPGGeek can only be searched by name, so it gets the title Open Library or Google
   Books gives, or else the book's title in your library, and its record is used only when one of its versions lists an
   ISBN the book prints. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
   book is asked again once there's somewhere more to ask, such as when the app connects. A record is used only when
@@ -239,7 +243,7 @@ other names each goes by ("5e" for "D&D 5e", say). Add terms, rename them, and a
 searches and what you type all go through these names.
 
 **New names from the AI**, at the top of each list the AI can add to (everything but editions), chooses what happens
-when the AI uses a name the list doesn't have. **Ask first**, the default, puts a card in Needs review, one per name,
+when the AI, or RPGGeek, uses a name the list doesn't have. **Ask first**, the default, puts a card in Needs review, one per name,
 and the books that use it wait for your answer. **Add them** puts the name straight into the list, and those books get
 it as an ordinary suggestion; choosing it also adds that list's names already waiting in Needs review, so a long list of
 campaign settings clears in one click. A name you rejected before stays rejected either way, and a name the AI added

@@ -43,14 +43,17 @@ public sealed class BookLookups(IBookCatalogue catalogue)
 
 /// <summary>
 /// Look up: asks the online catalogues about the ISBNs a book prints (<see cref="IdentifyStage"/>), and suggests the
-/// title, authors, publisher and year their records give, above the AI's (<see cref="AssertionOrigin.Lookup"/>), each
-/// field from the catalogue the user prefers that has it. A record is used only when its title is printed in the book,
+/// title, authors, publisher, year and series their records give, above the AI's (<see cref="AssertionOrigin.Lookup"/>),
+/// each field from the catalogue the user prefers that has it, and the system, edition, types, themes and settings a
+/// game catalogue files it under, as the vocabulary names them. A name the vocabulary doesn't have is proposed as a new
+/// term the way the AI's are, so Settings › Vocabulary's choice for the AI's new names holds for it too. A record is
+/// used only when its title is printed in the book,
 /// so a misprinted or reused ISBN can't rename it. A book the record
 /// renames is looked at again for another file with its new title and publisher. Runs in its own lane, and waits with
 /// a notice while the catalogue can't be reached. A book is asked again once there are more catalogues to ask.
 /// </summary>
 public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, EntryStore entries, MetadataStore metadata, MetadataProjector projector,
-    VersionFinder versions) : IRevisitedStage
+    VersionFinder versions, VocabularyStore vocabularies, SettingsStore settings) : IRevisitedStage
 {
     public Stage Stage => Stage.LookUp;
 
@@ -110,13 +113,39 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         var asked = BookLookups.AskedOf(answer.AskedOf);
         if (await entries.GetEntryAsync(job.DocumentId, ct) is not { } entry) return new StageOutcome.Done(StageStatus.Complete, [], asked);
         var run = string.Join('+', named.Select(r => $"{r.Source.ToLowerInvariant().Replace(" ", "", StringComparison.Ordinal)}:{r.Key}"));
-        if (await metadata.ApplyRunAsync(entry.EntryId, job.ContentHash, run, AssertionOrigin.Lookup, BookRecords.Proposals(named), ct))
+        List<MetadataProposal> proposals = [.. BookRecords.Proposals(named), .. await TermProposalsAsync(named, ct)];
+        if (await metadata.ApplyRunAsync(entry.EntryId, job.ContentHash, run, AssertionOrigin.Lookup, proposals, ct))
         {
             await projector.ProjectAsync([entry.EntryId], ct);
             // Match looked for a book of the same title and publisher before the record named this one properly.
             await versions.ProposeByTitleAndPublisherAsync(job.DocumentId, ct);
         }
         return new StageOutcome.Done(StageStatus.Complete, [], asked);
+    }
+
+    /// <summary>
+    /// The terms the records file the book under, by their keys. A new name is proposed as the AI's are: it waits in Needs
+    /// review, or joins the vocabulary at once where Settings › Vocabulary says so; one the user rejected is left out.
+    /// </summary>
+    async Task<List<MetadataProposal>> TermProposalsAsync(IReadOnlyList<BookRecord> records, CancellationToken ct)
+    {
+        var proposals = new List<MetadataProposal>();
+        var grew = false;
+        foreach (var term in BookRecords.Terms(records, await vocabularies.GetAsync(ct)))
+        {
+            var key = term.Term?.Key;
+            if (key is null)
+            {
+                var vocabulary = term.Field.Vocabulary!;
+                var (proposed, state, added) = await vocabularies.ProposeTermAsync(vocabulary, term.Label, await settings.AddsAiTermsAsync(vocabulary, ct), ct);
+                if (state == TermState.Rejected) continue;
+                grew |= added;
+                key = proposed.Key;
+            }
+            proposals.Add(new MetadataProposal(term.Field, key, AssertionOrigin.Lookup, term.Quote));
+        }
+        if (grew) await projector.ProjectVocabularyAsync(ct);
+        return proposals;
     }
 
     /// <summary>Where a book names itself: its front pages, its file's name and the title its file gives.</summary>

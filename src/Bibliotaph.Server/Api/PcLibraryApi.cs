@@ -56,7 +56,8 @@ public static class PcLibraryApi
             try
             {
                 var answer = await catalogue.AskAsync(isbns, request.Titles ?? [], ct);
-                List<PcBookRecord> records = [.. answer.Records.Select(r => new PcBookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published))];
+                List<PcBookRecord> records = [.. answer.Records.Select(r => new PcBookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
+                    r.Values?.Select(v => new PcCatalogueValue(v.Field, v.Value)).ToList()))];
                 return Results.Ok(new PcLookupAnswer(catalogue.Name, records.FirstOrDefault(), Records: records, AskedOf: answer.AskedOf));
             }
             catch (CatalogueUnavailableException ex)

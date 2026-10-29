@@ -15,6 +15,13 @@ public sealed record PcLookupRequest(IReadOnlyList<string> Isbns, IReadOnlyList<
 public sealed record PcLookupAnswer(string Catalogues, PcBookRecord? Record = null, string? Problem = null,
     IReadOnlyList<PcBookRecord>? Records = null, string? AskedOf = null);
 
-/// <summary>A book's record in an online catalogue, as the server found it.</summary>
+/// <summary>
+/// A book's record in an online catalogue, as the server found it, with what a game catalogue files it under
+/// (<see cref="Values"/>, none from a server before it did).
+/// </summary>
 public sealed record PcBookRecord(
-    string Source, string Key, string Isbn, string Title, IReadOnlyList<string> Authors, IReadOnlyList<string> Publishers, string? Published);
+    string Source, string Key, string Isbn, string Title, IReadOnlyList<string> Authors, IReadOnlyList<string> Publishers, string? Published,
+    IReadOnlyList<PcCatalogueValue>? Values = null);
+
+/// <summary>Something a catalogue files a book under, in its words, by the key of the field it fills ("system", "theme").</summary>
+public sealed record PcCatalogueValue(string Field, string Value);
