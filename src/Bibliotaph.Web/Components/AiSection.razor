@@ -1,7 +1,7 @@
 @* Settings › AI, as the Windows app's with a model server: Use AI on and off with how far it has got, Scan whole
    books, the server's address, Connect and its models, the embedding model for Ask, the key (never shown again), Save,
-   Test with a book, Reclassify, and the folders sent to AI. The server only reaches a model service on the internet,
-   over https. *@
+   Test with a book, Reclassify, Read every book again, and the folders sent to AI. The server only reaches a model
+   service on the internet, over https. *@
 @implements IDisposable
 @inject ApiClient Api
 @inject LibraryActivity Activity
@@ -158,6 +158,33 @@
             </div>
         }
 
+        @if (_page.ReadAgain is { } readAgain)
+        {
+            @* Costs a pass over the whole library, so it asks first, as the Windows app does. *@
+            <div class="bt-settingrow bt-topline">
+                <div>
+                    Read every book again<small>@readAgain.Text</small>
+                </div>
+                @if (!_readingAgain)
+                {
+                    <button class="bt-button" @onclick="() => _readingAgain = true">@readAgain.Label</button>
+                }
+            </div>
+            @if (_readingAgain)
+            {
+                <div class="bt-source bt-pending" role="alertdialog" aria-label="Read every book again?">
+                    <div class="bt-sourcerow">
+                        <Icon Name="RotateCcw" />
+                        <div>Read every book again?<small>@readAgain.Question</small></div>
+                    </div>
+                    <div class="bt-actions">
+                        <button class="bt-button primary" @onclick="ReadAgainAsync">@readAgain.Label</button>
+                        <button class="bt-button" @onclick="() => _readingAgain = false">Cancel</button>
+                    </div>
+                </div>
+            }
+        }
+
         @if (_page.LibraryProgress is { } libraryProgress)
         {
             @* Reading the whole library for meaning, for questions to the library. *@
@@ -249,7 +276,7 @@
     const string NoEmbedding = "None: find passages by their words";
 
     string _endpoint = "", _model = "", _key = "", _embedding = "";
-    bool _remoteAllowed, _dirty, _connecting, _saving;
+    bool _remoteAllowed, _dirty, _connecting, _saving, _readingAgain;
     List<string> _models = [];
     AiConnection? _connection;
     string? _switchNote, _switchProblem, _saveNote, _saveProblem;
@@ -366,6 +393,13 @@
     async Task ReclassifyAsync()
     {
         _saveNote = (await Api.ReclassifyAsync()).Note;
+        await RefreshAsync();
+    }
+
+    async Task ReadAgainAsync()
+    {
+        _readingAgain = false;
+        _saveNote = (await Api.ReadAgainAsync()).Note;
         await RefreshAsync();
     }
 

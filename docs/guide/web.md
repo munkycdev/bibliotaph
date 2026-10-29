@@ -553,7 +553,9 @@ The key is kept encrypted on Bibliotaph's server, used only to ask that server, 
 which key is saved by its last four characters, and **Forget key** removes it. **Test with a book** tries the model on
 one of your books and shows what it kept, with each page and quote, and what it threw away and why. **Use AI** turns it
 **Off** or **On** without losing your setup, **Reclassify** reads again the books an earlier model read or couldn't
-read, and **Library folders sent to AI** keeps a folder's books away from the model.
+read, **Read every book again** sends every book the AI has read back to it with your lists as they stand now (asked
+first, since it takes as long as cataloguing them did), and **Library folders sent to AI** keeps a folder's books away
+from the model.
 
 **See what the AI is reading**, under **Use AI** and beside **Pause AI** in **Settings** › **Processing**, shows the book
 the AI is on, how long it has been at it, its answer as the model writes it, and the last 20 books read with what the

@@ -76,6 +76,8 @@ public sealed class ApiClient(HttpClient http)
 
     public Task<AiNote> ReclassifyAsync(CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Post, "api/ai/reclassify", null, ct);
 
+    public Task<AiNote> ReadAgainAsync(CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Post, "api/ai/read-again", null, ct);
+
     /// <summary>Test with a book: held open while the model reads, and cancelled with <paramref name="ct"/>.</summary>
     public Task<AiTestReport> TestAiAsync(AiTest test, CancellationToken ct = default) => SendAsync<AiTestReport>(HttpMethod.Post, "api/ai/test", test, ct);
 

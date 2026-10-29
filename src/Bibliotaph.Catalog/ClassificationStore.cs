@@ -18,13 +18,17 @@ public sealed record RunRecord(
 public sealed record FinishedRun(string Id, EntryId EntryId, string ContentHash, string Provider, string Model, int PromptVersion, int SchemaVersion,
     IReadOnlyList<int> Pages, DateTime StartedUtc, DateTime FinishedUtc);
 
-/// <summary>How much of the library the current model and prompt have classified, and how much an earlier one did.</summary>
-public sealed record ClassificationSummary(int Current, int Earlier);
+/// <summary>
+/// How much of the library the current model and prompt have classified, how much only an earlier one did, and how much
+/// "Read every book again" has sent back to the model and the model hasn't read yet.
+/// </summary>
+public sealed record ClassificationSummary(int Current, int Earlier, int Stale = 0);
 
 /// <summary>
 /// Classification runs in catalog.db: which model and prompt read which content, and with what outcome. The Classify
 /// stage skips content the current model and prompt have already classified, so neither an index.db rebuild nor a
-/// restart sends a book to the model again.
+/// restart sends a book to the model again. A run marked stale by "Read every book again" no longer counts as having
+/// read anything, so the book goes to the model once more.
 /// </summary>
 public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {
@@ -48,7 +52,7 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         return await db.ClassificationRuns.AnyAsync(r => r.ContentHash == contentHash && r.Model == model && r.PromptVersion == promptVersion
-            && r.Outcome == Complete && r.Entry.Kind != EntryKind.Part, ct);
+            && r.Outcome == Complete && !r.Stale && r.Entry.Kind != EntryKind.Part, ct);
     }
 
     /// <summary>Whether a run taken from another device has classified this content as a whole with this prompt version.</summary>
@@ -56,18 +60,21 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         return await db.ClassificationRuns.AnyAsync(r => r.ContentHash == contentHash && r.Provider == Shared && r.PromptVersion == promptVersion
-            && r.Outcome == Complete && r.Entry.Kind != EntryKind.Part, ct);
+            && r.Outcome == Complete && !r.Stale && r.Entry.Kind != EntryKind.Part, ct);
     }
 
     /// <summary>
     /// The newest finished run over each copy as a whole, of those with <paramref name="contentHashes"/>, or of every
-    /// copy; with <paramref name="ownSince"/>, only this device's own runs that finished after it.
+    /// copy; with <paramref name="ownSince"/>, only this device's own runs that finished after it. A stale run is left
+    /// out: a reading taken from another device before "Read every book again" mustn't count as read, and a newer one
+    /// from there should take its place.
     /// </summary>
     public async Task<IReadOnlyList<FinishedRun>> GetLatestAsync(IReadOnlyCollection<string>? contentHashes = null, DateTime? ownSince = null,
         CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var complete = db.ClassificationRuns.AsNoTracking().Where(r => r.Outcome == Complete && r.FinishedUtc != null && r.Entry.Kind != EntryKind.Part);
+        var complete = db.ClassificationRuns.AsNoTracking()
+            .Where(r => r.Outcome == Complete && !r.Stale && r.FinishedUtc != null && r.Entry.Kind != EntryKind.Part);
         // Asked every minute, so the usual answer, nothing new, comes without reading every run.
         if (ownSince is { } after && !await complete.AnyAsync(r => r.Provider != Shared && r.FinishedUtc > after, ct)) return [];
         var rows = new List<ClassificationRun>();
@@ -102,7 +109,7 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         return await db.ClassificationRuns.AnyAsync(r => r.EntryId == partId.Value && r.Model == model && r.PromptVersion == promptVersion
-            && r.Outcome == Complete, ct);
+            && r.Outcome == Complete && !r.Stale, ct);
     }
 
     /// <summary>Records a run and returns its id, which the assertions it produced point at.</summary>
@@ -154,8 +161,20 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     }
 
     /// <summary>
+    /// "Read every book again": every finished run, over books and the adventures inside them, stops counting as having
+    /// read its content, so the Classify lane sends each book to the model again. The suggestions stay until the new
+    /// reading replaces them, and a book still shows which model read it. Returns how many runs it marked.
+    /// </summary>
+    public async Task<int> MarkStaleAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.ClassificationRuns.Where(r => r.Outcome == Complete && !r.Stale)
+            .ExecuteUpdateAsync(set => set.SetProperty(r => r.Stale, true), ct);
+    }
+
+    /// <summary>
     /// The model of each entry's latest finished run, for the entries a model has read: all of them, or those of
-    /// <paramref name="entryIds"/>.
+    /// <paramref name="entryIds"/>. A stale run still counts: the book was read, and its suggestions are still there.
     /// </summary>
     public async Task<Dictionary<EntryId, string>> GetReadByAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
     {
@@ -174,14 +193,17 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
     /// Content classified by <paramref name="model"/> with this prompt version, and content classified only by
     /// another model or an earlier prompt: the count "Reclassify N documents" offers. Runs are counted by the copy
     /// they read, since Reclassify queues documents; the runs over an adventure inside a file don't count. A run taken
-    /// from another device with this prompt version counts as current, as Reclassify leaves it alone.
+    /// from another device with this prompt version counts as current, as Reclassify leaves it alone. Content whose
+    /// every run is stale is counted as waiting to be read again, not as current or earlier, until the model reads it.
     /// </summary>
     public async Task<ClassificationSummary> SummarizeAsync(string model, int promptVersion, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         var runs = await db.ClassificationRuns.AsNoTracking().Where(r => r.Outcome == Complete && r.Entry.Kind != EntryKind.Part)
-            .Select(r => new { r.ContentHash, Current = (r.Model == model || r.Provider == Shared) && r.PromptVersion == promptVersion }).ToListAsync(ct);
-        var byDocument = runs.GroupBy(r => r.ContentHash).Select(g => g.Any(r => r.Current)).ToList();
-        return new ClassificationSummary(byDocument.Count(c => c), byDocument.Count(c => !c));
+            .Select(r => new { r.ContentHash, r.Stale, Current = (r.Model == model || r.Provider == Shared) && r.PromptVersion == promptVersion })
+            .ToListAsync(ct);
+        var byDocument = runs.GroupBy(r => r.ContentHash)
+            .Select(g => g.Any(r => r.Current && !r.Stale) ? 0 : g.All(r => r.Stale) ? 2 : 1).ToList();
+        return new ClassificationSummary(byDocument.Count(c => c == 0), byDocument.Count(c => c == 1), byDocument.Count(c => c == 2));
     }
 }

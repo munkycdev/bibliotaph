@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Read every book again.** Settings > AI has a button under Reclassify that sends every book the AI has read back to
+  it, so names you've added to your lists since are found in the books that use them. It asks first, since it takes as
+  long as cataloguing them did; values you've accepted, typed or rejected stay as they are. On Windows and the web. See
+  [AI](docs/guide/ai.md#day-to-day).
 - **Let the AI grow a list by itself.** Settings > Vocabulary now has **New names from the AI** at the top of each
   list the AI can add to (everything but editions): **Ask first**, as before, puts a card in Needs review for each
   new name; **Add them** puts the name straight into the list as the AI uses it, with the books that use it getting

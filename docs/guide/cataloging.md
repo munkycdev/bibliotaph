@@ -236,7 +236,8 @@ when the AI uses a name the list doesn't have. **Ask first**, the default, puts 
 and the books that use it wait for your answer. **Add them** puts the name straight into the list, and those books get
 it as an ordinary suggestion; choosing it also adds that list's names already waiting in Needs review, so a long list of
 campaign settings clears in one click. A name you rejected before stays rejected either way, and a name the AI added
-can be renamed, given other names or filed under another term here like any other.
+can be renamed, given other names or filed under another term here like any other. Adding names doesn't re-read the
+books the AI has already read; **Read every book again** in [Settings > AI](ai.md#day-to-day) does.
 
 ### Your tags
 

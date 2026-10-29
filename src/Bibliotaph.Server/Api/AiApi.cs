@@ -13,7 +13,7 @@ namespace Bibliotaph.Server.Api;
 
 /// <summary>
 /// /api/ai: Settings › AI, as the Windows app's model server setup has it, over <see cref="AiService"/>: Connect,
-/// Save with a key, Use AI on and off, the folders sent to AI, Reclassify and Test with a book. Only a model service on
+/// Save with a key, Use AI on and off, the folders sent to AI, Reclassify, Read every book again and Test with a book. Only a model service on
 /// the internet, over https, can be used (<see cref="ModelServices"/>), and a key is never sent back.
 /// </summary>
 public static class AiApi
@@ -134,6 +134,12 @@ public static class AiApi
             return new AiNote(AiText.Reclassified(await lease.Library.Get<AiService>().ReclassifyAsync(ct)), null);
         });
 
+        ai.MapPost("/read-again", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return new AiNote(AiText.ReadingAgain(await lease.Library.Get<AiService>().ReadAgainAsync(ct)), null);
+        });
+
         // Holds the request while the model reads, as the Windows dialog waits; closing the dialog cancels it.
         // Asked for every second while the page shows, as the Windows page looks at the feed on a timer.
         ai.MapGet("/reading", async (ClaimsPrincipal principal, UserLibraries libraries, TimeProvider clock, CancellationToken ct) =>
@@ -198,6 +204,6 @@ public static class AiApi
             setup.Endpoint is { } endpoint ? library.Get<ServerApiKeys>().Ending(endpoint) : null,
             AiText.Progress(setup, summary, progress), waiting, reclassify, folders, scan,
             AiText.ScanProgress(setup, scan, progress), setup.EmbeddingModel, setup.LibraryVectors,
-            AiText.LibraryVectors(library.Get<LibraryVectors>().Status));
+            AiText.LibraryVectors(library.Get<LibraryVectors>().Status), AiText.ReadAgain(summary));
     }
 }

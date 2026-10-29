@@ -1927,6 +1927,10 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var page = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
         var classified = await WaitAsync(async () => (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.Progress is var p
             && p == "1 book classified with fake-mini. Nothing is waiting." ? p : null, ct);
+        var offered = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.ReadAgain;
+        var readingAgain = await SendAsync(HttpMethod.Post, "/api/ai/read-again");
+        var readTwice = await WaitAsync(async () => _models.Requests.Count >= 2 && (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.Progress is var p
+            && p == "1 book classified with fake-mini. Nothing is waiting." ? p : null, ct);
         string? sealedKeys;
         await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
             sealedKeys = await lease.Library.Get<SettingsStore>().GetAsync("server.ai-keys", ct);
@@ -1947,6 +1951,11 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal((true, "https://api.example.com", "fake-mini", "abcd"), (page.Enabled, page.Endpoint, page.Model, page.KeyEnding));
         Assert.Equal("RPG", Assert.Single(page.Folders).Name);
         Assert.NotEmpty(classified);
+        Assert.Null(before.ReadAgain);
+        Assert.Equal("Read 1 again", offered?.Label);
+        Assert.Equal("The books go back to the AI one at a time, in the background.", readingAgain.Note);
+        Assert.NotEmpty(readTwice);
+        Assert.Equal(2, _models.Requests.Count);
         Assert.All(_models.Requests, r => Assert.Equal(("https://api.example.com", FakeModelService.Key), (r.Endpoint, r.Key)));
         Assert.DoesNotContain(FakeModelService.Key, sealedKeys, StringComparison.Ordinal);
         // The one book is too short to be a sample, so the test says so, as the Windows dialog does.

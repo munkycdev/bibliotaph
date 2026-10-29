@@ -589,8 +589,8 @@ public enum AiTestStep
 public sealed record AiTestProgress(AiTestStep Step, string? Title);
 
 /// <summary>
-/// Settings > AI's work: connecting to an endpoint and listing its models, saving the setup, the Test button, and
-/// "Reclassify N documents". Nothing here reclassifies by itself.
+/// Settings > AI's work: connecting to an endpoint and listing its models, saving the setup, the Test button,
+/// "Reclassify N documents" and "Read every book again". Nothing here reclassifies by itself.
 /// </summary>
 public sealed class AiService(
     AiSettings settings, IApiKeyStore keys, IJobControl indexing, ClassificationStore runs, ClassifierInputs inputs, IndexQueries queries,
@@ -629,6 +629,17 @@ public sealed class AiService(
     /// and prompt haven't, and those that failed. Values the user decided stay as they are.
     /// </summary>
     public Task<int> ReclassifyAsync(CancellationToken ct = default) => indexing.RerunAsync(Stage.Classify, ct);
+
+    /// <summary>
+    /// "Read every book again": every reading so far stops counting, and every book goes back to the Classify lane,
+    /// so the model reads them all with the vocabulary as it stands now. Values the user decided stay as they are.
+    /// Returns how many books were queued.
+    /// </summary>
+    public async Task<int> ReadAgainAsync(CancellationToken ct = default)
+    {
+        await runs.MarkStaleAsync(ct);
+        return await indexing.RerunAsync(Stage.Classify, ct);
+    }
 
     /// <summary>Classifies one book from the library with the setup on screen, and stores nothing.</summary>
     public Task<AiTestResult> TestAsync(string endpoint, string model, IProgress<AiTestProgress>? progress = null, CancellationToken ct = default) =>

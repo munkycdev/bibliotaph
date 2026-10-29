@@ -1,4 +1,5 @@
 using System.Globalization;
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Classification;
 using Bibliotaph.Core.Metadata;
@@ -83,6 +84,24 @@ public static class AiText
         : $"{failed:N0} {Books(failed)} couldn't be classified.";
 
     public static string ReclassifyLabel(int earlier, long failed) => earlier > 0 ? $"Reclassify {earlier + failed:N0}" : "Try again";
+
+    /// <summary>
+    /// "Read every book again", for the books the AI has read so far: those the current model read, those an earlier
+    /// one read, and those waiting to be read again. Null before the AI has read anything.
+    /// </summary>
+    public static AiReadAgain? ReadAgain(ClassificationSummary summary)
+    {
+        var read = summary.Current + summary.Earlier + summary.Stale;
+        if (read == 0) return null;
+        var text = $"Sends all {read:N0} {Books(read)} the AI has read back to it, so the names you've added to your lists since are " +
+            "found in the books that use them. It takes as long as cataloguing them did.";
+        if (summary.Stale > 0) text += $" {summary.Stale:N0} {(summary.Stale == 1 ? "is" : "are")} waiting to be read again now.";
+        return new AiReadAgain(text, $"Read {read:N0} again",
+            $"{read:N0} {Books(read)} will go back to the AI one at a time, in the background, which takes as long as cataloguing them did. " +
+            "Values you've accepted, typed or rejected stay as they are.");
+    }
+
+    public static string ReadingAgain(int queued) => queued == 0 ? "There are no books to read." : "The books go back to the AI one at a time, in the background.";
 
     /// <summary>What a test is doing now, and a line more about it.</summary>
     public static (string Text, string? Detail) Step(AiTestProgress progress, string model) => progress.Step switch
