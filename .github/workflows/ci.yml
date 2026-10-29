@@ -85,12 +85,22 @@ jobs:
       IMAGE: ghcr.io/${{ github.repository_owner }}/bibliotaph-server
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The whole history, so the build can number itself as a release would.
+          fetch-depth: 0
 
+      # The image names its build as the Windows app does, MAJOR.MINOR from Directory.Build.props and the commit count
+      # behind it, with the commit, so the site's footer and About say exactly what is deployed.
       - name: Build
         # The source label links the package to this repository, so this workflow's token can push to it.
-        run: >-
-          docker build -f src/Bibliotaph.Server/Container/Dockerfile -t bibliotaph-server
-          --label org.opencontainers.image.source=https://github.com/${{ github.repository }} .
+        run: |
+          minor=$(sed -n 's:.*<Version>\([0-9]*\.[0-9]*\)\.[0-9]*</Version>.*:\1:p' Directory.Build.props | head -1)
+          version="$minor.$(git rev-list --count HEAD)"
+          echo "Building $version ($GITHUB_SHA)"
+          docker build -f src/Bibliotaph.Server/Container/Dockerfile -t bibliotaph-server \
+            --build-arg VERSION="$version" --build-arg COMMIT="$GITHUB_SHA" \
+            --label org.opencontainers.image.source=https://github.com/${{ github.repository }} \
+            --label org.opencontainers.image.version="$version" --label org.opencontainers.image.revision="$GITHUB_SHA" .
 
       - name: Starts and answers
         run: |

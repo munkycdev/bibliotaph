@@ -5,6 +5,8 @@
 - **A deploy never goes backwards.** Two pushes to main close together could go live in the order their builds
   finished, so the older build sometimes replaced the newer one on bibliotaph.online. The roll-out now leaves the site
   alone when what's live already includes the commit.
+- **The site says which build it is.** The footer and About Bibliotaph on bibliotaph.online now name the build
+  number and commit that is deployed, as the Windows app's About does, instead of 1.4.0.
 
 ## 1.4 · 28 October 2026
 
