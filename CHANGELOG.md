@@ -1,5 +1,14 @@
 # Changes
 
+## Unreleased
+
+- **Let the AI grow a list by itself.** Settings > Vocabulary now has **New names from the AI** at the top of each
+  list the AI can add to (everything but editions): **Ask first**, as before, puts a card in Needs review for each
+  new name; **Add them** puts the name straight into the list as the AI uses it, with the books that use it getting
+  it as an ordinary suggestion, and adds that list's names already waiting in Needs review. Made for campaign
+  settings, where the AI only names worlds the book names and the cards pile up. Rejected names stay rejected. On
+  Windows and the web. See [Cataloging](docs/guide/cataloging.md#vocabulary).
+
 ## 1.4 · 28 October 2026
 
 New in 1.4.968 (29 October 2026):

@@ -16,6 +16,24 @@
         }
     </div>
 
+    @if (AiTerms.Extends(_selected))
+    {
+        <div class="bt-settingrow">
+            <div>@AiTermText.Title<small>@AiTermText.Help</small>
+                @if (_aiTermsNote is not null)
+                {
+                    <small role="status">@_aiTermsNote</small>
+                }
+            </div>
+            @if (_aiTermsAdd is { } add)
+            {
+                <div class="bt-segments" role="group" aria-label="@AiTermText.Title">
+                    <button class="@(add ? "" : "on")" aria-pressed="@(!add)" disabled="@_aiTermsSaving" @onclick="() => AiTermsAsync(false)">Ask first</button>
+                    <button class="@(add ? "on" : "")" aria-pressed="@add" disabled="@_aiTermsSaving" @onclick="() => AiTermsAsync(true)">Add them</button>
+                </div>
+            }
+        </div>
+    }
     @if (_selected != TagsKey)
     {
         <label class="bt-field">@AddLabel
@@ -160,6 +178,11 @@
     string _filter = "", _newTerm = "", _newAlias = "", _newTagName = "", _newTagWords = "";
     string? _addProblem, _addNote, _editProblem, _editNote;
 
+    // The AI's new names, for the vocabularies it can add to.
+    bool? _aiTermsAdd;
+    bool _aiTermsSaving;
+    string? _aiTermsNote;
+
     // One row is open at a time; its two fields are a term's name and short name, or a tag's name and words.
     long? _editing;
     string _editLabel = "", _editShort = "";
@@ -199,9 +222,35 @@
         if (key == _selected) return;
         _selected = key;
         _filter = "";
-        _addProblem = _addNote = null;
+        _addProblem = _addNote = _aiTermsNote = null;
+        _aiTermsAdd = null;
         _editing = null;
         await ReloadAsync();
+    }
+
+    async Task AiTermsAsync(bool add)
+    {
+        if (_aiTermsAdd == add) return;
+        _aiTermsAdd = add;
+        _aiTermsSaving = true;
+        _aiTermsNote = add ? "Adding the terms waiting in Needs review…" : null;
+        try
+        {
+            var change = await Api.SetAiTermChoiceAsync(_selected, add);
+            _aiTermsAdd = change.Add;
+            _aiTermsNote = add ? AiTermText.Added(change.Added) : null;
+            if (change.Added > 0)
+            {
+                Activity.Refresh();
+                _terms = await Api.VocabularyAsync(_selected);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _aiTermsAdd = !add;
+            _aiTermsNote = "That couldn't be changed just now. Try again in a moment.";
+        }
+        _aiTermsSaving = false;
     }
 
     async Task ReloadAsync()
@@ -214,8 +263,13 @@
             return;
         }
         _terms = null;
-        var terms = await Api.VocabularyAsync(selected);
-        if (selected == _selected) _terms = terms; // another tab may have been picked meanwhile
+        var terms = Api.VocabularyAsync(selected);
+        var choice = AiTerms.Extends(selected) ? Api.AiTermChoiceAsync(selected) : null;
+        var listed = await terms;
+        var add = choice is null ? null : (bool?)(await choice).Add;
+        if (selected != _selected) return; // another tab was picked meanwhile
+        _terms = listed;
+        _aiTermsAdd = add;
     }
 
     static async Task OnEnter(KeyboardEventArgs e, Func<Task> act)

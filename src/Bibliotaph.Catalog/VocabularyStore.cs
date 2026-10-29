@@ -160,25 +160,42 @@ public sealed class VocabularyStore(IDbContextFactory<CatalogDbContext> contexts
     /// </summary>
     public async Task<(Term Term, TermState State)> ProposeTermAsync(string vocabulary, string label, CancellationToken ct = default)
     {
-        if ((await GetAsync(ct)).Resolve(vocabulary, label) is { } known) return (known, TermState.Active);
+        var (term, state, _) = await ProposeTermAsync(vocabulary, label, addAtOnce: false, ct);
+        return (term, state);
+    }
+
+    /// <summary>
+    /// As <see cref="ProposeTermAsync(string, string, CancellationToken)"/>, but with <paramref name="addAtOnce"/> a
+    /// new term joins the vocabulary as the AI uses it, and one still pending is added now; a rejected one stays
+    /// rejected. <c>Added</c> says the vocabulary just grew.
+    /// </summary>
+    public async Task<(Term Term, TermState State, bool Added)> ProposeTermAsync(string vocabulary, string label, bool addAtOnce, CancellationToken ct = default)
+    {
+        if ((await GetAsync(ct)).Resolve(vocabulary, label) is { } known) return (known, TermState.Active, false);
         label = MetadataText.Tidy(label);
         var normalized = MetadataText.Normalize(label);
         await using var db = await contexts.CreateDbContextAsync(ct);
         var proposed = (await db.VocabularyTerms.AsNoTracking().Where(t => t.Vocabulary == vocabulary && t.State != TermState.Active).ToListAsync(ct))
             .FirstOrDefault(t => MetadataText.Normalize(t.Label) == normalized);
-        if (proposed is not null) return (ToTerm(proposed), proposed.State);
+        if (proposed is not null)
+        {
+            if (proposed.State != TermState.Pending || !addAtOnce) return (ToTerm(proposed), proposed.State, false);
+            await DecidePendingAsync(proposed.Id, target: null, accept: true, ct);
+            return (ToTerm(proposed), TermState.Active, true);
+        }
         var row = new VocabularyTerm
         {
             Vocabulary = vocabulary,
             Key = await NewKeyAsync(db, vocabulary, label, ct),
             Label = label,
             Origin = TermOrigin.Model,
-            State = TermState.Pending,
+            State = addAtOnce ? TermState.Active : TermState.Pending,
             CreatedUtc = _clock.GetUtcNow().UtcDateTime,
         };
         db.VocabularyTerms.Add(row);
         await db.SaveChangesAsync(ct);
-        return (ToTerm(row), TermState.Pending);
+        if (addAtOnce) _cached = null;
+        return (ToTerm(row), row.State, addAtOnce);
     }
 
     static Term ToTerm(VocabularyTerm t) => new(t.Vocabulary, t.Key, t.Label, t.ShortLabel, t.ParentKey);

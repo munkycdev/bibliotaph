@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -141,6 +142,7 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
     readonly UserTagService _tags;
     readonly ILogger<VocabularyViewModel> _log;
     List<TermRowViewModel> _all = [];
+    bool _aiTermsAdd;
 
     public VocabularyViewModel(VocabularyService vocabulary, UserTagService tags, ILogger<VocabularyViewModel> log)
     {
@@ -210,6 +212,31 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
 
     public string AddLabel => $"Add to {Selected.Label.ToLowerInvariant()}";
 
+    /// <summary>Whether the selected vocabulary is one the AI can add to, and so has the choice below.</summary>
+    public bool OffersAiTerms => AiTerms.Extends(Selected.Key);
+
+    /// <summary>A new name the AI uses waits in Needs review (the default).</summary>
+    public bool AiTermsAsk
+    {
+        get => !_aiTermsAdd;
+        set { if (value) SetAiTermsAsync(false).FireAndForget(); }
+    }
+
+    /// <summary>A new name the AI uses joins the vocabulary at once.</summary>
+    public bool AiTermsAdd
+    {
+        get => _aiTermsAdd;
+        set { if (value) SetAiTermsAsync(true).FireAndForget(); }
+    }
+
+    public static string AiTermsTitle => AiTermText.Title;
+
+    public static string AiTermsHelp => AiTermText.Help;
+
+    /// <summary>What choosing Add them did with the terms waiting in Needs review.</summary>
+    [ObservableProperty]
+    public partial string? AiTermsNote { get; set; }
+
     public override async Task LoadAsync()
     {
         if (Selected.IsSelected) await ReloadAsync();
@@ -224,9 +251,32 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
         OnPropertyChanged(nameof(Selected));
         OnPropertyChanged(nameof(AddLabel));
         OnPropertyChanged(nameof(IsTags));
+        OnPropertyChanged(nameof(OffersAiTerms));
         Filter = "";
-        AddProblem = AddNote = null;
+        AddProblem = AddNote = AiTermsNote = null;
         ReloadAsync().FireAndForget();
+    }
+
+    async Task SetAiTermsAsync(bool add)
+    {
+        if (_aiTermsAdd == add) return;
+        var vocabulary = Selected.Key;
+        _aiTermsAdd = add;
+        OnPropertyChanged(nameof(AiTermsAsk));
+        OnPropertyChanged(nameof(AiTermsAdd));
+        AiTermsNote = add ? "Adding the terms waiting in Needs review…" : null;
+        try
+        {
+            var added = await _vocabulary.SetAddsAiTermsAsync(vocabulary, add);
+            if (vocabulary != Selected.Key) return;
+            AiTermsNote = add ? AiTermText.Added(added) : null;
+            if (added > 0) await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Saving the AI's new names choice for {Vocabulary} failed", vocabulary);
+            AiTermsNote = "That couldn't be changed just now. Try again in a moment.";
+        }
     }
 
     /// <summary>Lists the selected vocabulary again, keeping <paramref name="editing"/>'s term open with its message.</summary>
@@ -241,7 +291,11 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
         {
             var vocabulary = Selected.Key;
             var entries = await _vocabulary.ListAsync(vocabulary);
+            var add = AiTerms.Extends(vocabulary) && await _vocabulary.AddsAiTermsAsync(vocabulary);
             if (vocabulary != Selected.Key) return; // another tab was picked meanwhile
+            _aiTermsAdd = add;
+            OnPropertyChanged(nameof(AiTermsAsk));
+            OnPropertyChanged(nameof(AiTermsAdd));
             _all = [.. entries.Select(e => new TermRowViewModel(e, this))];
             if (editing is { } id && _all.FirstOrDefault(t => t.Entry.Id == id) is { } row)
             {
