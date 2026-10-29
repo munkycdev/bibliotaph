@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:c="clr-namespace:Bibliotaph.App.Controls"
         xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+        xmlns:v="clr-namespace:Bibliotaph.App.Views"
         xmlns:services="clr-namespace:Bibliotaph.App.Services"
         xmlns:search="clr-namespace:Bibliotaph.Core.Search;assembly=Bibliotaph.Core"
         mc:Ignorable="d"
@@ -100,7 +101,7 @@
             <ItemsControl.ItemTemplate>
               <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
                 <Button Style="{StaticResource Bt.NavButton}" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
-                        c:Ui.IsActive="{Binding IsActive}" c:Ui.Count="{Binding Count}" AutomationProperties.Name="{Binding Label}"
+                        c:Ui.IsActive="{Binding IsActive}" c:Ui.Count="{Binding Count}" c:Ui.TourAnchor="{Binding Anchor}" AutomationProperties.Name="{Binding Label}"
                         AutomationProperties.ItemStatus="{Binding Count}"
                         Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                         CommandParameter="{Binding Route}" />
@@ -220,7 +221,7 @@
             </DockPanel>
           </Button>
           <!-- Opens Settings > Processing, where the details and pause buttons are. -->
-          <Button x:Name="StatusButton" Margin="4" Cursor="Hand" HorizontalContentAlignment="Left"
+          <Button x:Name="StatusButton" Margin="4" Cursor="Hand" HorizontalContentAlignment="Left" c:Ui.TourAnchor="Status"
                   FocusVisualStyle="{StaticResource Bt.FocusVisual}" Command="{Binding OpenProcessingCommand}"
                   AutomationProperties.Name="{Binding Activity.StatusName, StringFormat='{}{0}. Open processing in Settings'}"
                   ToolTip="{Binding Activity.StatusName, StringFormat='{}{0}. Open processing in Settings'}">
@@ -269,7 +270,7 @@
                     Command="{Binding ToggleSidebarCommand}" ToolTip="{Binding SidebarToggleLabel}" AutomationProperties.Name="{Binding SidebarToggleLabel}"
                     c:Ui.Icon="{StaticResource Icon.PanelLeft}" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
             <Button Style="{StaticResource Bt.NavButton}" DataContext="{Binding Settings}" Content="{Binding Label}"
-                    c:Ui.Icon="{Binding Icon}" c:Ui.IsActive="{Binding IsActive}"
+                    c:Ui.Icon="{Binding Icon}" c:Ui.IsActive="{Binding IsActive}" c:Ui.TourAnchor="{Binding Anchor}"
                     Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     CommandParameter="{Binding Route}" />
           </DockPanel>
@@ -332,7 +333,7 @@
                   Command="{Binding ToggleAppearanceCommand}" Margin="15,0,0,0"
                   ToolTip="{Binding AppearanceToggleLabel}" AutomationProperties.Name="{Binding AppearanceToggleLabel}" />
           <TextBox x:Name="Search" Grid.Column="2" Style="{StaticResource Bt.SearchBox}" MaxWidth="324" HorizontalAlignment="Right"
-                   Margin="15,0,0,0" Width="324" Tag="{Binding SearchPlaceholder}"
+                   Margin="15,0,0,0" Width="324" Tag="{Binding SearchPlaceholder}" c:Ui.TourAnchor="Search"
                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" c:Ui.ClearCommand="{Binding ClearSearchCommand}"
                    AutomationProperties.Name="Search your library" PreviewKeyDown="Search_PreviewKeyDown" />
         </Grid>
@@ -591,5 +592,8 @@
       <TextBlock x:Name="SearchGuideAnnouncement" Width="1" Height="1" Opacity="0" IsHitTestVisible="False" Focusable="False"
                  HorizontalAlignment="Left" VerticalAlignment="Top" AutomationProperties.LiveSetting="Assertive" />
     </Grid>
+
+    <!-- The first-run tour over the whole window; its DataContext is the TourViewModel, set in code. -->
+    <v:TourView x:Name="Tour" Grid.ColumnSpan="2" Panel.ZIndex="10" />
   </Grid>
 </Window>

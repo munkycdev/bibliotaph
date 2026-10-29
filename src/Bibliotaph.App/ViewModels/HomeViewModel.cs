@@ -18,7 +18,7 @@ namespace Bibliotaph.App.ViewModels;
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
-    PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, ILogger<HomeViewModel> log)
+    PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, TourViewModel tour, ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity), ICollectionChoices, ISessionChoices, IPinState
 {
     /// <summary>How many covers each row shows.</summary>
@@ -82,6 +82,9 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         await Sessions.Directory.LoadAsync();
         Sessions.Directory.Changed += OnActivityRefreshed;
         await RefreshAsync();
+        // The tour's first chapter, before any folder; its second once books show, here or in the Library.
+        if (!HasFolders) await tour.OfferFoldersAsync();
+        tour.HomeLoaded();
     }
 
     public override void Unload()
@@ -125,6 +128,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
             ContinuePreparing = preparing.Count > 0 ? preparing[0] : null;
             HasRecentlyOpened = opened.Count > 0;
             HasBooks = added.Count > 0;
+            if (HasBooks) await tour.OfferBooksAsync();
         }
         catch (Exception ex)
         {

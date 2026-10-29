@@ -66,6 +66,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     readonly LibrarySorts _sorts;
     readonly LibraryPackView _packView;
     readonly WebShelfCache _shelf;
+    readonly TourViewModel _tour;
     // Whether the order shown was chosen for a search, so the order changes only when searching starts or stops.
     bool _sortSearching;
 
@@ -74,10 +75,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         PackService packs, ElsewhereService elsewhere, FavoritesService favorites, CollectionActions collections, SessionActions sessions,
         SmartViewDirectory views, LibraryPages pages, BookTextActions text, PinDirectory pins, CorrectionService corrections, AskService ask,
         ChosenCovers chosenCovers, LibraryAskScope askScope, IFilePicker files, InspectorFactory inspectors, LibrarySelectionFactory selection,
-        LibrarySorts sorts, LibraryPackView packView, WebShelfCache shelf, TimeProvider time, ILogger<LibraryViewModel> log)
+        LibrarySorts sorts, LibraryPackView packView, WebShelfCache shelf, TourViewModel tour, TimeProvider time, ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
         _shelf = shelf;
+        _tour = tour;
         _files = files;
         _inspectors = inspectors;
         _chosenCovers = chosenCovers;
@@ -503,7 +505,12 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             CountText = documents.Count.ToString("N0", CultureInfo.CurrentCulture);
             CountLabel = documents.Count == 1 ? "document" : "documents";
             Coverage = null;
-            if (documents.Count > 0) SetEmpty(null);
+            if (documents.Count > 0)
+            {
+                SetEmpty(null);
+                // The tour's second chapter, the first time the whole library shows books.
+                if (!filtered && Scope is null) _tour.OfferBooksAsync().FireAndForget();
+            }
             else if (!HasFolders) SetEmpty(("No folders yet.", "Add a folder of RPG books, maps or handouts to start your library. Bibliotaph reads them where they are.",
                 "Add a folder", AddFolderCommand));
             else if (filtered) SetEmpty(("Nothing here. Yet.", "No books match these filters.", "Clear filters", Filters.ClearFiltersCommand));

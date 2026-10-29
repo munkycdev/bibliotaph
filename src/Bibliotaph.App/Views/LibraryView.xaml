@@ -655,7 +655,7 @@
     <Grid Grid.Row="2">
       <!-- .bt-books: the cover grid. Only the covers in view are created. -->
       <ListBox x:Name="CoverGrid" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
-               AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
+               AutomationProperties.Name="Books" c:Ui.TourAnchor="FirstBooks" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding Selection.SelectRangeCommand}"
                c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource CoverItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
@@ -703,7 +703,7 @@
 
       <!-- .bt-listrow: the detail list. -->
       <ListBox x:Name="DetailList" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
-               AutomationProperties.Name="Books" c:ItemActivation.Command="{Binding ActivateCommand}"
+               AutomationProperties.Name="Books" c:Ui.TourAnchor="FirstBooks" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding Selection.SelectRangeCommand}"
                c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"

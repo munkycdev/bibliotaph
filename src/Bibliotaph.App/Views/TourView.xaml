@@ -1,0 +1,49 @@
+<UserControl x:Class="Bibliotaph.App.Views.TourView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:TourViewModel}"
+             Visibility="{Binding IsOpen, Converter={StaticResource Bt.VisibleWhenTrue}}"
+             KeyboardNavigation.TabNavigation="Cycle" KeyboardNavigation.ControlTabNavigation="Cycle"
+             FocusManager.IsFocusScope="True" PreviewKeyDown="OnPreviewKeyDown"
+             AutomationProperties.Name="{Binding StepText}">
+  <UserControl.InputBindings>
+    <KeyBinding Key="Escape" Command="{Binding SkipCommand}" />
+  </UserControl.InputBindings>
+  <Grid>
+    <!--
+      The window dimmed, except for the controls the step points at: the hole lets them be seen and clicked. The
+      geometry is set in code from where those controls are.
+    -->
+    <Path x:Name="Backdrop" Fill="#73000000" Stretch="None" />
+    <Canvas>
+      <!-- .bt-tourcallout: beside the spotlight, placed in code. -->
+      <Border x:Name="Callout" Width="312" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
+              CornerRadius="8" Padding="20,18,20,16" AutomationProperties.Name="{Binding StepText}">
+        <Border.Effect>
+          <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.22" />
+        </Border.Effect>
+        <StackPanel>
+          <DockPanel>
+            <Button x:Name="SkipTour" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Skip tour" VerticalAlignment="Center"
+                    Command="{Binding SkipCommand}" AutomationProperties.Name="Skip tour" ToolTip="Esc" />
+            <TextBlock Text="{Binding StepText}" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+          </DockPanel>
+          <TextBlock x:Name="StepTitle" Text="{Binding Current.Title}" FontSize="17" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}"
+                     TextWrapping="Wrap" Margin="0,10,0,0" AutomationProperties.LiveSetting="Polite" />
+          <TextBlock Text="{Binding Current.Text}" Style="{StaticResource Text.Copy}" Margin="0,8,0,0" />
+          <DockPanel Margin="0,16,0,0">
+            <Button x:Name="TourNext" DockPanel.Dock="Right" Style="{StaticResource Bt.Button.Primary}" Content="{Binding NextText}"
+                    Command="{Binding NextCommand}" AutomationProperties.Name="{Binding NextText}" />
+            <Button x:Name="TourBack" Style="{StaticResource Bt.Link}" Content="Back" VerticalAlignment="Center" Command="{Binding BackCommand}"
+                    Visibility="{Binding CanGoBack, Converter={StaticResource Bt.VisibleWhenTrue}}" AutomationProperties.Name="Back" />
+          </DockPanel>
+        </StackPanel>
+      </Border>
+    </Canvas>
+  </Grid>
+</UserControl>

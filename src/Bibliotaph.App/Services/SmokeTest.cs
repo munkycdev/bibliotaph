@@ -65,6 +65,7 @@ static partial class SmokeTest
             if (window.Icon is null) throw new InvalidOperationException("The main window has no icon.");
             // Covers are encoded on indexing threads, so check the codec off the UI thread.
             await Task.Run(CheckImageCodec);
+            await Check("the first-run tour on Home, at Add a folder, and skipped for good", () => ShowFirstRunTourAsync(services, window));
             var theme = services.GetRequiredService<ThemeService>();
             foreach (var preference in new[] { ThemePreference.Light, ThemePreference.Dark })
             {
@@ -116,6 +117,8 @@ static partial class SmokeTest
             await Check("every route drawn in the Windows contrast theme's colours", () => ShowContrastAsync(services, window));
             await Check("the Keyboard shortcuts popup, from Ctrl+/ and from the Settings link", () => ShowShortcutsAsync(services, window));
             await Check("the sidebar collapsed to its icons and expanded again", () => CollapseSidebarAsync(window));
+            await Check("the tour shown again from Settings > Preferences, every step of its Books chapter with a spotlight, Back, and Done",
+                () => ReplayTourAsync(services, window));
             await Check("Ask with AI off saying it needs AI, its link to Settings > AI, and the search box searching as before",
                 () => PlainSearchWithoutAiAsync(services, window, books));
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));

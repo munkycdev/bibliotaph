@@ -405,6 +405,7 @@ public partial class App : Application
         builder.Services.AddSingleton<Func<SessionReaderViewModel>>(sp => () => sp.GetRequiredService<SessionReaderViewModel>());
         builder.Services.AddSingleton<SessionPages>();
         builder.Services.AddSingleton<ShellViewModel>();
+        builder.Services.AddSingleton<TourViewModel>();
         builder.Services.AddTransient<HomeViewModel>();
         builder.Services.AddTransient<LibraryViewModel>();
         builder.Services.AddTransient<CollectionsViewModel>();

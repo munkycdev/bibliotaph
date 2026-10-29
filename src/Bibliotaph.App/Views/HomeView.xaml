@@ -68,7 +68,7 @@
         <TextBlock Text="Good stories begin with something you already own." Style="{StaticResource Text.H1}" />
         <TextBlock Style="{StaticResource Text.Copy}" Margin="0,18,0,0"
                    Text="Bibliotaph builds a catalog of the RPG books, maps and handouts already on this PC, then helps you find the right book and the right page. Your files stay exactly where they are: nothing is moved, renamed or changed." />
-        <Button Style="{StaticResource Bt.Button.Primary}" Margin="0,26,0,0" Content="Add a folder"
+        <Button Style="{StaticResource Bt.Button.Primary}" Margin="0,26,0,0" Content="Add a folder" c:Ui.TourAnchor="AddFolder"
                 c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
         <StackPanel Orientation="Horizontal" Margin="0,25,0,0">
           <c:LucideIcon Data="{StaticResource Icon.ShieldCheck}" Size="13" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,8,0" />
@@ -134,7 +134,7 @@
                     Visibility="{Binding HasRecentlyOpened, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
             <TextBlock Text="Recently added" Style="{StaticResource Text.Row}" />
           </DockPanel>
-          <ItemsControl x:Name="RecentlyAdded" ItemsSource="{Binding RecentlyAdded}" ItemTemplate="{StaticResource HomeBook}"
+          <ItemsControl x:Name="RecentlyAdded" ItemsSource="{Binding RecentlyAdded}" ItemTemplate="{StaticResource HomeBook}" c:Ui.TourAnchor="FirstBooks"
                         Focusable="False" AutomationProperties.Name="Recently added" KeyboardNavigation.TabNavigation="Continue">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>

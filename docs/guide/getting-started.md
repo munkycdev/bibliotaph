@@ -30,6 +30,18 @@ Uninstall Bibliotaph from Windows' **Settings > Apps** like any other app. Your 
 again. Delete that folder if you want it gone too. It also holds the built-in AI's model, if you downloaded one, and
 the sign-ins of Bibliotaph's browser.
 
+## The tour
+
+The first time Bibliotaph opens, a short tour points at the parts of the window as you need them, in two chapters.
+On an empty library it shows only where to add your first folder and, once one is in, the sidebar's line about what
+Bibliotaph is doing. The second chapter waits until your first books show, then walks through them: a book's cover,
+the Library, books you own online, the search box, Needs review, Collections and Binders, and Settings. **Next**,
+**Back** or the arrow keys move through it, and **Skip tour** or **Esc** ends it for good. The dimmed window still
+lets you click what a step points at.
+
+To see it again, open **Settings > Preferences** and click **Show the tour again**: it starts on Home, with the chapter
+your library is ready for.
+
 ## Add your folders
 
 The first time Bibliotaph opens, Home says **Welcome to Bibliotaph**.
