@@ -116,6 +116,11 @@ themes and creatures in each chapter, with the pages they're on.
 - If the model isn't answering, AI waits and tries again every minute. Nothing else stops.
 - Changing the model never re-reads your books on its own. **Settings > AI** counts the books an earlier model read and
   offers **Reclassify**, with the number, to read them again.
+- Adding names to your lists doesn't re-read your books either: a name the AI used is kept with the books it used it on,
+  but a name it never used isn't found in a book it has already read. **Read every book again**, under Reclassify in
+  **Settings > AI**, sends every book the AI has read back to it with your lists as they stand now, and asks first,
+  since it takes as long as cataloguing them did. Values you've accepted, typed or rejected stay as they are, and the
+  rest of the suggestions are replaced as each book is read. Nothing re-reads your library unless you press it.
 - **An answer that runs out of room still counts.** Each value and quote the AI writes has a length limit, so a page of
   nothing but names, such as a map's labels, can't keep it writing. If an answer still stops part way, what the model
   finished is checked and kept like any other; a book cut off before it finished anything says "The model's answer was

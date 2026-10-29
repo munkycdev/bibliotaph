@@ -121,6 +121,36 @@ public abstract partial class PipelineTests
         }
 
         [Fact]
+        public async Task Reading_every_book_again_sends_a_book_another_device_read_to_the_model_here_and_the_old_reading_isnt_taken_back()
+        {
+            _model.Answer = _ => ObedientAnswer;
+            Copy(_pdfs.Injected, "Adventures/Lantern.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            var hash = await OnlyHashAsync();
+            _hub.Add(Reading(hash, new DateTime(2026, 10, 20, 9, 0, 0, DateTimeKind.Utc),
+                new SharedClaim("levels", "3", null, "characters of 3rd level", [0], false)));
+            await _shared.SyncNowAsync(Ct);
+            await SwitchAiOnAsync();
+            await SettleClassifyAsync();
+            Assert.Empty(_model.Requests);
+
+            await _runs.MarkStaleAsync(Ct);
+            await _shared.SyncNowAsync(Ct);
+            Assert.False(await _runs.HasSharedRunAsync(hash, ClassifierPrompt.Version, Ct));
+            await _service.RerunAsync(Stage.Classify, Ct);
+            await SettleClassifyAsync();
+            await _shared.SyncNowAsync(Ct);
+
+            // This device's own reading replaces the other's, and goes to the hub as any reading here does.
+            Assert.Single(_model.Requests);
+            Assert.True(await _runs.HasRunAsync(hash, "fake-8b", ClassifierPrompt.Version, Ct));
+            Assert.Equal(new ClassificationSummary(1, 0), await _runs.SummarizeAsync("fake-8b", ClassifierPrompt.Version, Ct));
+            Assert.Single(_hub.Sent);
+        }
+
+        [Fact]
         public async Task A_book_read_here_is_shared_once_and_a_newer_reading_from_elsewhere_replaces_it()
         {
             _model.Answer = _ => ObedientAnswer;

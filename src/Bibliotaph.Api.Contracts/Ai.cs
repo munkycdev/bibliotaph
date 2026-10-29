@@ -2,15 +2,22 @@ namespace Bibliotaph.Api.Contracts;
 
 /// <summary>
 /// Settings › AI: the model service saved, with only the end of its key, whether AI is on and how far it has got,
-/// Reclassify when an earlier model or a failure leaves books to read again, the folders sent to AI, and whether books
+/// Reclassify when an earlier model or a failure leaves books to read again, Read every book again once anything has
+/// been read, the folders sent to AI, and whether books
 /// are scanned whole, with how far that has got. With an embedding model, whether the whole library is read for meaning
 /// and how far that has got (<see cref="LibraryProgress"/>, null without one).
 /// </summary>
 public sealed record AiPage(bool Enabled, string? Endpoint, string? Model, bool RemoteAllowed, string? KeyEnding, string Progress,
     string? Waiting, AiReclassify? Reclassify, IReadOnlyList<AiFolder> Folders, bool ScanWholeBooks, string ScanProgress, string? EmbeddingModel,
-    bool ReadLibrary = false, string? LibraryProgress = null);
+    bool ReadLibrary = false, string? LibraryProgress = null, AiReadAgain? ReadAgain = null);
 
 public sealed record AiReclassify(string Text, string Label, bool HasFailed);
+
+/// <summary>
+/// Read every book again, offered once the AI has read anything: what it does, its button, and the question asked
+/// before it starts, since it costs a pass over the whole library.
+/// </summary>
+public sealed record AiReadAgain(string Text, string Label, string Question);
 
 public sealed record AiFolder(long Id, string Name, string Location, bool Send);
 

@@ -381,6 +381,11 @@ public sealed class ClassificationRun
     public DateTime? FinishedUtc { get; set; }
     /// <summary>Null while running; otherwise "complete" or why it failed.</summary>
     public string? Outcome { get; set; }
+    /// <summary>
+    /// Set by "Read every book again": the run no longer counts as having read its content, so the Classify lane
+    /// sends the book to the model again, while its suggestions stay until that reading replaces them.
+    /// </summary>
+    public bool Stale { get; set; }
 }
 
 /// <summary>

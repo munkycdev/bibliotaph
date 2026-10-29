@@ -278,6 +278,44 @@ public abstract partial class PipelineTests
         }
 
         [Fact]
+        public async Task Reading_every_book_again_sends_the_books_already_read_back_to_the_same_model_and_keeps_the_users_values()
+        {
+            _model.Answer = _ => """
+                {
+                  "title": [{"value": "The Sunken Lantern", "page": 1, "quote": "THE SUNKEN LANTERN"}],
+                  "setting": [{"value": "Lantern Coast", "page": 1, "quote": "on the Lantern Coast"}],
+                  "year": [{"value": "2019", "page": 3, "quote": "Copyright 2019 Lantern Works"}]
+                }
+                """;
+            Copy(_pdfs.Injected, "Lantern.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await SwitchAiOnAsync();
+            await _service.StartAsync(Ct);
+            await SettleClassifyAsync();
+            var entryId = await OnlyEntryAsync();
+            await _metadata.RejectAsync(entryId, MetadataFields.Year, "2019", Ct);
+            var ai = new AiService(_ai, new NoApiKeys(), _service, _runs, Inputs(), _queries, _libraryStore, _vocabulary);
+            Assert.Equal(new ClassificationSummary(1, 0), await ai.SummarizeAsync(Ct));
+
+            // The same model and prompt read the book again only when asked to read every book again.
+            Assert.Equal(1, await ai.ReadAgainAsync(Ct));
+            var waiting = await ai.SummarizeAsync(Ct);
+            await SettleClassifyAsync();
+
+            Assert.Equal(new ClassificationSummary(0, 0, 1), waiting);
+            Assert.Equal(["fake-8b", "fake-8b"], _model.Requests.Select(r => r.Model));
+            Assert.Equal(new ClassificationSummary(1, 0), await ai.SummarizeAsync(Ct));
+            var metadata = (await _metadataStore.GetAsync(entryId, Ct)).Compute();
+            Assert.Equal("The Sunken Lantern", metadata[MetadataFields.Title].First?.Value);
+            Assert.False(metadata[MetadataFields.Year].IsKnown);
+            // Asked again, it reads the book once more; the first reading still says which model read it.
+            Assert.Equal(1, await ai.ReadAgainAsync(Ct));
+            await SettleClassifyAsync();
+            Assert.Equal(3, _model.Requests.Count);
+            Assert.Equal("fake-8b", Assert.Single(await _runs.GetReadByAsync(ct: Ct)).Value);
+        }
+
+        [Fact]
         public async Task With_the_model_server_down_everything_else_works_and_classify_waits_until_it_is_back()
         {
             _model.Down = true;
