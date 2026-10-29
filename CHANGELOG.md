@@ -1,6 +1,8 @@
 # Changes
 
-## Unreleased
+## 1.4 · 28 October 2026
+
+New in 1.4.968 (29 October 2026):
 
 - **A tour on the first day.** The first time Bibliotaph opens, on Windows or at bibliotaph.online, a short tour
   points at the parts of the window with the rest dimmed, in two chapters so it never shows an empty page: where to
@@ -28,8 +30,6 @@
   for those who can invite, ADMIN (Members). Each page is headed as its entry is: Library, not Library folders; Devices,
   not Web library or Windows PCs; and a page of several parts (Library, Devices, Members) has a subheading for each.
   See [Bibliotaph on the web](docs/guide/web.md#settings).
-
-## 1.4 · 28 October 2026
 
 New in 1.4.947 (28 October 2026):
 
