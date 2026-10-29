@@ -138,6 +138,7 @@ else
         if (HasLibrary) await LoadAsync();
         // The tour's first chapter, before any folder; its second once books show, here or in the Library.
         else await Tour.OfferFoldersAsync();
+        Tour.HomeLoaded();
         Activity.Changed += OnActivityChanged;
         Pins.Changed += OnPinsChanged;
     }

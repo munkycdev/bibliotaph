@@ -19,6 +19,8 @@ public sealed class TourGuide(ApiClient api, NavigationManager navigation)
     int _index;
     string? _stage;
     bool _stageKnown;
+    /// <summary>The chapter Show the tour again asked for, until Home has loaded and starts it.</summary>
+    TourChapter? _replay;
 
     public bool IsOpen { get; private set; }
 
@@ -76,8 +78,23 @@ public sealed class TourGuide(ApiClient api, NavigationManager navigation)
     public async Task ReplayAsync()
     {
         var summary = await api.LibrarySummaryAsync();
+        var chapter = summary.Folders > 0 ? TourChapter.Books : TourChapter.Folders;
+        if (navigation.ToBaseRelativePath(navigation.Uri).TrimEnd('/') == "home")
+        {
+            Start(chapter);
+            return;
+        }
+        // Home starts it once its rows are in, so the first step finds the covers it points at however long they take.
+        _replay = chapter;
         navigation.NavigateTo("home");
-        Start(summary.Folders > 0 ? TourChapter.Books : TourChapter.Folders);
+    }
+
+    /// <summary>Home has loaded its rows: the chapter Show the tour again asked for, unless the page already opened one.</summary>
+    public void HomeLoaded()
+    {
+        if (_replay is not { } chapter) return;
+        _replay = null;
+        if (!IsOpen) Start(chapter);
     }
 
     public async Task NextAsync()
