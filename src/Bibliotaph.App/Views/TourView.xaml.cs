@@ -65,13 +65,26 @@ public partial class TourView
         {
             _targets.Clear();
             _targets.AddRange(Targets(window, step.Anchors));
+            // A row of covers below the fold scrolls up first; the next layout pass places the spotlight.
+            if (_targets.Count > 0) _targets[0].BringIntoView();
         }
         var spot = Rect.Empty;
         foreach (var element in _targets)
         {
             var size = element.RenderSize;
             if (step.Anchors.Contains(TourAnchor.FirstBooks)) size.Height = Math.Min(size.Height, RowHeight);
-            var bounds = element.TransformToAncestor(this).TransformBounds(new Rect(size));
+            Rect bounds;
+            try
+            {
+                // The controls are beside this overlay in the window's tree, not under it, so the transform goes by way of the window.
+                bounds = element.TransformToVisual(this).TransformBounds(new Rect(size));
+            }
+            catch (InvalidOperationException)
+            {
+                // Taken out of the tree between the walk and the measure: found again next time.
+                _targets.Clear();
+                return;
+            }
             spot = spot.IsEmpty ? bounds : Rect.Union(spot, bounds);
         }
         if (spot.IsEmpty)

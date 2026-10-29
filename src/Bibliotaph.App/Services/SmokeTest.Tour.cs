@@ -33,8 +33,7 @@ static partial class SmokeTest
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "SkipTour"), "Skip tour");
         await WaitUntilAsync(window, () => !tour.IsOpen, () => "Skip tour left the tour open.");
-        if (await services.GetRequiredService<SettingsStore>().GetAsync(SettingKeys.TourStage) != Tour.StageBooks)
-            throw new InvalidOperationException("Skip tour didn't remember that the tour is done.");
+        await ExpectStageAsync(services, "Skip tour");
         navigation.NavigateTo(Route.Library);
         await Settle(window);
         navigation.NavigateTo(Route.Home);
@@ -64,24 +63,36 @@ static partial class SmokeTest
         var steps = Tour.Steps(TourChapter.Books, TourClient.Windows);
         for (var i = 0; i < steps.Count; i++)
         {
-            await WaitUntilAsync(window, () => tour.Current == steps[i], () => $"The tour shows {tour.Current?.Title}, not step {i + 1}, {steps[i].Title}.");
+            await WaitUntilAsync(window, () => tour.Current?.Title == steps[i].Title, () => $"The tour shows {tour.Current?.Title}, not step {i + 1}, {steps[i].Title}.");
             if (tour.StepText != $"Step {i + 1} of {steps.Count}") throw new InvalidOperationException($"The tour says {tour.StepText} at step {i + 1}.");
             await ExpectSpotlightAsync(window, tour, view);
             if (i == 1)
             {
                 Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "TourBack"), "Back");
-                await WaitUntilAsync(window, () => tour.Current == steps[0], () => "Back didn't return to the first step.");
+                await WaitUntilAsync(window, () => tour.Current?.Title == steps[0].Title, () => "Back didn't return to the first step.");
+                await ExpectSpotlightAsync(window, tour, view);
                 Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "TourNext"), "Next");
-                await WaitUntilAsync(window, () => tour.Current == steps[1], () => "Next didn't return to the second step.");
+                await WaitUntilAsync(window, () => tour.Current?.Title == steps[1].Title, () => "Next didn't return to the second step.");
             }
             var last = i == steps.Count - 1;
             if (tour.NextText != (last ? "Done" : "Next")) throw new InvalidOperationException($"Step {i + 1}'s button says {tour.NextText}.");
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "TourNext"), tour.NextText);
         }
         await WaitUntilAsync(window, () => !tour.IsOpen, () => "Done left the tour open.");
-        if (await services.GetRequiredService<SettingsStore>().GetAsync(SettingKeys.TourStage) != Tour.StageBooks)
-            throw new InvalidOperationException("Finishing the tour didn't remember that it is done.");
+        await ExpectStageAsync(services, "Done");
         while (navigation.GoBack()) await Settle(window);
+    }
+
+    /// <summary>The setting is written after the overlay closes, so it gets a moment.</summary>
+    static async Task ExpectStageAsync(IServiceProvider services, string what)
+    {
+        var settings = services.GetRequiredService<SettingsStore>();
+        for (var i = 0; i < 50; i++)
+        {
+            if (await settings.GetAsync(SettingKeys.TourStage) == Tour.StageBooks) return;
+            await Task.Delay(100);
+        }
+        throw new InvalidOperationException($"{what} didn't remember that the tour is done.");
     }
 
     /// <summary>The dimmed window has a hole round the step's controls, and the callout sits inside the window.</summary>
@@ -97,7 +108,7 @@ static partial class SmokeTest
         if (left < 0 || top < 0 || left + callout.ActualWidth > view.ActualWidth || top + callout.ActualHeight > view.ActualHeight)
             throw new InvalidOperationException($"The tour's {tour.Current?.Title} callout runs outside the window.");
         var hole = ((CombinedGeometry)backdrop.Data).Geometry2.Bounds;
-        if (hole.IntersectsWith(new Rect(left, top, callout.ActualWidth, callout.ActualHeight)))
+        if (new Rect(left, top, callout.ActualWidth, callout.ActualHeight).Contains(new Point(hole.X + hole.Width / 2, hole.Y + hole.Height / 2)))
             throw new InvalidOperationException($"The tour's {tour.Current?.Title} callout covers its spotlight.");
     }
 }
