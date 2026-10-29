@@ -1,4 +1,5 @@
 using System.Globalization;
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
@@ -18,6 +19,8 @@ public interface IReviewActions
     Task<Func<Task>> AddTermAsync(PendingTerm term);
     Task<Func<Task>> MapTermAsync(PendingTerm term, Term target);
     Task<Func<Task>> RejectTermAsync(PendingTerm term);
+    Task<Func<Task>> CombineTermsAsync(OverlapProposal proposal, long keepId);
+    Task<Func<Task>> KeepTermsApartAsync(OverlapProposal proposal);
     Task<Func<Task>> AnswerVersionAsync(VersionItem item, VersionAnswer answer);
     Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer);
     Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer);
@@ -314,6 +317,51 @@ public sealed partial class TermCardViewModel : DecidedCardViewModel
 
     [RelayCommand]
     Task Reject() => DecideAsync(() => Actions.RejectTermAsync(Term), ReviewText.TermRejected(Term));
+}
+
+/// <summary>One term of an overlap card, as the Keep list shows it: "Forgotten Realms · 12 books".</summary>
+public sealed record OverlapTermChoice(long Id, string Key, string Label, int Books)
+{
+    public override string ToString() => OverlapText.Member(Label, Books);
+}
+
+/// <summary>
+/// Terms that may be the same thing, found by their names or by the AI: combine them into the one picked, the term
+/// most books use unless another is chosen, or keep them apart so they're never offered again.
+/// </summary>
+public sealed partial class OverlapCardViewModel : DecidedCardViewModel
+{
+    public OverlapCardViewModel(OverlapProposal proposal, IReviewActions actions) : base(actions)
+    {
+        Proposal = proposal;
+        Terms = [.. proposal.Terms.Select(t => new OverlapTermChoice(t.Id, t.Key, t.Label, t.Books))];
+        Keep = Terms.First(t => t.Id == proposal.KeepId);
+    }
+
+    public OverlapProposal Proposal { get; }
+
+    public string Label => ReviewText.OverlapTitle(Proposal);
+
+    public string Chip => ReviewText.OverlapChip(Proposal);
+
+    public string Detail => ReviewText.OverlapDetail(Proposal);
+
+    public IReadOnlyList<OverlapTermChoice> Terms { get; }
+
+    /// <summary>The term that stays; the others fold into it.</summary>
+    [ObservableProperty]
+    public partial OverlapTermChoice Keep { get; set; }
+
+    [RelayCommand]
+    Task Combine() => RunAsync(async () =>
+    {
+        var keep = Keep;
+        var undo = await Actions.CombineTermsAsync(Proposal, keep.Id);
+        MarkDone(ReviewText.OverlapCombined(Proposal, keep.Label), undo);
+    });
+
+    [RelayCommand]
+    Task KeepApart() => DecideAsync(() => Actions.KeepTermsApartAsync(Proposal), OverlapText.KeptApartNote([.. Terms.Select(t => t.Label)]));
 }
 
 /// <summary>

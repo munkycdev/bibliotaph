@@ -47,39 +47,29 @@ public static class AiTermText
 public sealed record VocabularyChange(long? TermId, string? Problem, string? Note);
 
 /// <summary>
-/// Find overlaps, GET /api/vocabulary/{key}/overlaps: the terms that look like the same thing, in groups, and the
-/// pairs the user kept apart.
+/// Find overlaps, GET and POST /api/vocabulary/{key}/overlaps: how many groups of this list's terms wait in Needs
+/// review, whether the AI is comparing the names too, and the pairs the user kept apart. POST has the AI compare
+/// the names again when they changed.
 /// </summary>
-public sealed record TermOverlapPage(IReadOnlyList<TermOverlapGroup> Proposals, IReadOnlyList<KeptApartTerms> KeptApart);
-
-/// <summary>Terms that look like the same thing: each with how many books use it, why, whether the names alone make it likely, and which to keep by default.</summary>
-public sealed record TermOverlapGroup(IReadOnlyList<TermOverlapMember> Terms, string Reason, bool Sure, long KeepId);
-
-public sealed record TermOverlapMember(long Id, string Label, int Books);
+public sealed record TermOverlapPage(int Waiting, bool AsksAi, IReadOnlyList<KeptApartTerms> KeptApart);
 
 /// <summary>A pair the user said are not the same thing, by their labels.</summary>
 public sealed record KeptApartTerms(long Id, string First, string Second);
-
-/// <summary>Combine: the term that stays and the terms folded into it.</summary>
-public sealed record CombineTerms(long KeepId, IReadOnlyList<long> MergeIds);
-
-/// <summary>Keep apart: the terms of a proposal, every pair of which is remembered.</summary>
-public sealed record KeepTermsApart(IReadOnlyList<long> Ids);
 
 /// <summary>What both clients say about overlaps.</summary>
 public static class OverlapText
 {
     public const string Title = "Find overlaps";
 
-    public const string Help = "Looks for terms in this list that may be the same thing under two names, and offers to combine them.";
+    public const string Help = "Looks for terms in this list that may be the same thing under two names. Each group goes to Needs review, where you combine the terms or keep them apart.";
 
     public const string None = "No overlaps found.";
 
-    public const string NoneLeft = "No overlaps left.";
-
     public const string Comparing = "Comparing names…";
 
-    public const string Keep = "Keep";
+    public const string AiComparing = "The AI is comparing the names in the background; more may turn up in Needs review.";
+
+    public const string OpenReview = "Open Needs review";
 
     public const string Combine = "Combine";
 
@@ -91,11 +81,10 @@ public static class OverlapText
 
     public const string Forget = "Offer this pair again";
 
-    public const string NamesOnly = "By names only. With AI on, it also asks the model what each name refers to.";
-
     public const string UndoFailed = "The terms couldn't be put back.";
 
-    public static string Found(int groups) => groups == 1 ? "1 group of terms may be the same thing." : $"{groups:N0} groups of terms may be the same thing.";
+    /// <summary>"2 groups of terms may be the same thing. They wait in Needs review."</summary>
+    public static string Found(int groups) => groups == 1 ? "1 group of terms may be the same thing. It waits in Needs review." : $"{groups:N0} groups of terms may be the same thing. They wait in Needs review.";
 
     public static string Books(int count) => count == 1 ? "1 book" : $"{count:N0} books";
 

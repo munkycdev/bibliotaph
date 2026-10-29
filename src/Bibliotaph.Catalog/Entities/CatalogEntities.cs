@@ -364,6 +364,20 @@ public sealed class VocabularyKeptApart
     public DateTime CreatedUtc { get; set; }
 }
 
+/// <summary>
+/// Terms of a vocabulary the AI said refer to the same thing, by their keys sorted and as JSON, with its reason. Kept
+/// so the model isn't asked about the same names twice; whether the group is still worth showing is decided when
+/// Needs review lists it, from which of its terms are active and which pairs the user kept apart.
+/// </summary>
+public sealed class VocabularyAiOverlap
+{
+    public long Id { get; set; }
+    public required string Vocabulary { get; set; }
+    public required string Keys { get; set; }
+    public required string Reason { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
 /// <summary>Another name for a term: "5e" and "D&amp;D 5e" for the 5th edition.</summary>
 public sealed class VocabularyAlias
 {

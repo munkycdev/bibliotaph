@@ -23,11 +23,11 @@ public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<P
     IReadOnlyList<PackProposal> Packs, IReadOnlyList<ElsewhereItem>? Elsewhere = null, IReadOnlyList<RevisionItem>? Revisions = null,
     IReadOnlyList<CorrectionItem>? Corrections = null, IReadOnlyList<FolderRuleInfo>? Rules = null, IReadOnlyList<UnplacedPart>? Parts = null,
     IReadOnlyList<PartProposalItem>? Proposals = null, IReadOnlyList<FolderCollectionProposal>? Folders = null,
-    IReadOnlyList<CollectionSuggestion>? Suggestions = null)
+    IReadOnlyList<CollectionSuggestion>? Suggestions = null, IReadOnlyList<OverlapProposal>? Overlaps = null)
 {
     public int Count => Items.Count + Terms.Count + Versions.Count + Packs.Count + (Elsewhere?.Count ?? 0) + (Revisions?.Count ?? 0)
         + (Corrections?.Count ?? 0) + (Rules?.Count ?? 0) + (Parts?.Count ?? 0)
-        + (Proposals?.Count ?? 0) + (Folders?.Count ?? 0) + (Suggestions?.Count ?? 0);
+        + (Proposals?.Count ?? 0) + (Folders?.Count ?? 0) + (Suggestions?.Count ?? 0) + (Overlaps?.Count ?? 0);
 }
 
 /// <summary>
@@ -77,8 +77,8 @@ public sealed class ReviewService(
     /// How many cards there are, for the sidebar: as last projected, plus the new terms, the "new version?" cards, the
     /// folders proposed as packs, the files that may be those of books owned elsewhere, the new versions with places
     /// that need a look, the books said to be cataloged wrong, the folder rules proposed, the adventures whose pages
-    /// weren't found, the files that look like they hold adventures, the folders that could be collections, and the
-    /// books that could join collections.
+    /// weren't found, the files that look like they hold adventures, the folders that could be collections, the
+    /// books that could join collections, and the terms that may be the same thing.
     /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default)
     {
@@ -90,7 +90,8 @@ public sealed class ReviewService(
             + (await cards.Parts.GetUnplacedAsync(ct)).Count
             + await cards.Proposals.CountPendingAsync(ct)
             + await cards.Folders.CountAsync(ct)
-            + await cards.Suggestions.CountAsync(ct);
+            + await cards.Suggestions.CountAsync(ct)
+            + (await vocabulary.FindAllOverlapsAsync(ct)).Count;
     }
 
     /// <summary>
@@ -130,7 +131,7 @@ public sealed class ReviewService(
             await cards.Packs.GetProposalsAsync(ct), await cards.Elsewhere.GetPendingAsync(ct), await cards.Places.GetRevisionsAsync(ct),
             await cards.Corrections.GetWaitingAsync(ct), await cards.Rules.GetProposedAsync(ct),
             await cards.Parts.GetUnplacedAsync(ct), await cards.Proposals.GetPendingAsync(ct),
-            await cards.Folders.GetProposalsAsync(ct), await cards.Suggestions.GetSuggestionsAsync(ct));
+            await cards.Folders.GetProposalsAsync(ct), await cards.Suggestions.GetSuggestionsAsync(ct), await vocabulary.FindAllOverlapsAsync(ct));
 
     /// <summary>One entry's card for a field, as the queue would make it now; null when it isn't waiting any more.</summary>
     public async Task<ReviewIssue?> FindAsync(EntryId entryId, string fieldKey, ReviewKind kind, CancellationToken ct = default)
@@ -270,8 +271,21 @@ public sealed class ReviewService(
 /// <summary>One term of an overlap proposal: its id and key, its label, and how many books use it.</summary>
 public sealed record OverlapMember(long Id, string Key, string Label, int Books);
 
-/// <summary>Terms that look like the same thing, why, whether the names alone make it likely, and which to keep by default.</summary>
-public sealed record OverlapProposal(IReadOnlyList<OverlapMember> Terms, string Reason, bool Sure, long KeepId);
+/// <summary>
+/// Terms that may be the same thing: which, why, whether the AI said so (<see cref="FromAi"/>) or the names alone,
+/// and which to keep by default. <see cref="Id"/> names the group by its vocabulary and keys, so a card can find it
+/// again; <see cref="Stamp"/> says what the card showed, so an answer isn't given to a group that changed.
+/// </summary>
+public sealed record OverlapProposal(string Id, string Vocabulary, IReadOnlyList<OverlapMember> Terms, string Reason, bool FromAi, long KeepId)
+{
+    public string Stamp => Hash([Reason, .. Terms.Select(t => $"{t.Id}|{t.Label}")]);
+
+    /// <summary>The id of a group of these keys in a vocabulary.</summary>
+    public static string IdOf(string vocabulary, IEnumerable<string> keys) => Hash([vocabulary, .. keys.Order(StringComparer.Ordinal)]);
+
+    static string Hash(IEnumerable<string> parts) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join('\n', parts))))[..16];
+}
 
 /// <summary>What Combine did, for Undo, and the note it shows.</summary>
 public sealed record TermCombination(TermMerge Merge, IReadOnlyList<ChapterScanWas> Scans, string Note);
@@ -286,32 +300,85 @@ public sealed record KeptApartPair(long Id, string First, string Second);
 /// </summary>
 public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProjector projector, IJobControl indexing, MetadataHints hints,
     SettingsStore settings, ILogger<VocabularyService>? log = null, TimeSpan? settle = null, ChapterScanStore? scans = null,
-    ChapterProjection? chapters = null, LibraryStore? library = null)
+    ChapterProjection? chapters = null, LibraryStore? library = null, TermOverlapFinder? finder = null)
 {
     readonly ILogger _log = log ?? NullLogger<VocabularyService>.Instance;
     readonly TimeSpan _settle = settle ?? TimeSpan.FromSeconds(2);
     CancellationTokenSource? _scheduled;
+    readonly Lock _overlapLock = new();
+    readonly Dictionary<string, (string Names, IReadOnlyList<TermOverlap> Groups)> _nameGroups = new(StringComparer.Ordinal);
 
     // Find overlaps and Combine.
 
+    /// <summary>The vocabularies Find overlaps compares: every list of terms, and publishers, whose field holds free text.</summary>
+    public static IReadOnlyList<string> OverlapVocabularies { get; } = [.. MetadataFields.TermVocabularies, MetadataFields.Publisher.Vocabulary!];
+
+    /// <summary>Whether the AI will compare the names too, in the background, or only the names are compared.</summary>
+    public bool AsksAi => finder?.CanAsk ?? false;
+
+    /// <summary>Has the AI compare the names again once things settle, when it is set up and the names have changed.</summary>
+    public void FindOverlapsWithAi() => finder?.Schedule();
+
     /// <summary>
-    /// The terms of a vocabulary that look like the same thing, by their names, each group with how many books use
-    /// each term and the term most books use as the one to keep. Pairs the user kept apart are left out.
+    /// The groups of a vocabulary's terms that may be the same thing: those the names alone say so, and those the AI
+    /// said so, each with how many books use each term and the term most books use as the one to keep. A group
+    /// whose terms were combined, or any pair of which the user kept apart, is left out.
     /// </summary>
     public async Task<IReadOnlyList<OverlapProposal>> FindOverlapsAsync(string vocabulary, CancellationToken ct = default)
     {
         var terms = await vocabularies.GetOverlapTermsAsync(vocabulary, ct);
-        var kept = await vocabularies.GetKeptApartAsync(vocabulary, ct);
+        var kept = (await vocabularies.GetKeptApartAsync(vocabulary, ct)).Select(k => (k.FirstKey, k.SecondKey)).ToList();
+        var apart = kept.ToHashSet();
+        var byName = NameGroups(vocabulary, terms, kept);
+        var groups = byName.Select(g => (g.Keys, g.Reason, FromAi: false)).ToList();
+        var byKey = terms.ToDictionary(t => t.Key, StringComparer.Ordinal);
+        foreach (var found in await vocabularies.GetAiOverlapsAsync(vocabulary, ct))
+        {
+            // In the list's order, as a name group is, so the term that came first reads first.
+            var keys = terms.Where(t => found.Keys.Contains(t.Key, StringComparer.Ordinal)).Select(t => t.Key).ToList();
+            if (keys.Count < 2 || keys.Any(a => keys.Any(b => apart.Contains((a, b)) || apart.Contains((b, a))))) continue;
+            // The names already say so: one card, not two.
+            if (byName.Any(g => keys.All(g.Keys.Contains))) continue;
+            groups.Add((keys, found.Reason, true));
+        }
+        if (groups.Count == 0) return [];
+
         var books = await vocabularies.CountBooksAsync(vocabulary, ct);
         var ids = (await vocabularies.ListAsync(vocabulary, ct)).ToDictionary(e => e.Key, e => e.Id, StringComparer.Ordinal);
-        var byKey = terms.ToDictionary(t => t.Key, StringComparer.Ordinal);
-        return [.. TermOverlaps.Find(terms, [.. kept.Select(k => (k.FirstKey, k.SecondKey))]).Select(overlap =>
+        return [.. groups.Select(group =>
         {
-            var members = overlap.Keys.Select(k => new OverlapMember(ids[k], k, byKey[k].Label, books.GetValueOrDefault(k))).ToList();
+            var members = group.Keys.Select(k => new OverlapMember(ids[k], k, byKey[k].Label, books.GetValueOrDefault(k))).ToList();
             // The term most books use stays; among equals, the one that came with Bibliotaph, then the one made first.
             var keep = members.OrderByDescending(m => m.Books).ThenByDescending(m => byKey[m.Key].Starter).ThenBy(m => m.Id).First();
-            return new OverlapProposal(members, overlap.Reason, overlap.Sure, keep.Id);
+            return new OverlapProposal(OverlapProposal.IdOf(vocabulary, group.Keys), vocabulary, members, group.Reason, group.FromAi, keep.Id);
         })];
+    }
+
+    /// <summary>The groups of every vocabulary, in the order Settings lists them.</summary>
+    public async Task<IReadOnlyList<OverlapProposal>> FindAllOverlapsAsync(CancellationToken ct = default)
+    {
+        var all = new List<OverlapProposal>();
+        foreach (var vocabulary in OverlapVocabularies) all.AddRange(await FindOverlapsAsync(vocabulary, ct));
+        return all;
+    }
+
+    /// <summary>A group as it is now, by id, or null once it isn't proposed any more.</summary>
+    public async Task<OverlapProposal?> FindOverlapAsync(string id, CancellationToken ct = default) =>
+        (await FindAllOverlapsAsync(ct)).FirstOrDefault(p => p.Id == id);
+
+    /// <summary>
+    /// Comparing names is the slow part and the sidebar counts often, so a vocabulary's groups are kept until a
+    /// name, or a pair kept apart, changes.
+    /// </summary>
+    IReadOnlyList<TermOverlap> NameGroups(string vocabulary, IReadOnlyList<OverlapTerm> terms, IReadOnlyList<(string First, string Second)> kept)
+    {
+        var names = string.Join('\n', terms.Select(t => $"{t.Key}={string.Join('|', t.Names)}{(t.Starter ? "*" : "")}")) + "\n"
+            + string.Join('\n', kept.Select(k => $"{k.First}~{k.Second}"));
+        lock (_overlapLock)
+            if (_nameGroups.TryGetValue(vocabulary, out var cached) && cached.Names == names) return cached.Groups;
+        var groups = TermOverlaps.Find(terms, kept);
+        lock (_overlapLock) _nameGroups[vocabulary] = (names, groups);
+        return groups;
     }
 
     /// <summary>
@@ -443,5 +510,6 @@ public sealed class VocabularyService(VocabularyStore vocabularies, MetadataProj
         var queued = await indexing.RerunAsync(Stage.RuleHints, ct);
         await projector.ProjectAsync(await hints.StorePacksAsync(ct: ct), ct);
         _log.LogInformation("Vocabulary changed; reading names again for {Count} documents", queued);
+        finder?.Schedule();
     }
 }

@@ -317,6 +317,25 @@ public sealed class ReviewStoreTests : IAsyncLifetime
         Assert.Contains(terms, t => t.Key == "forgotten-realms" && t.Starter && t.OtherNames.Contains("FR"));
     }
 
+    [Fact]
+    public async Task Groups_the_AI_found_are_kept_once_each_whatever_the_order_of_their_keys()
+    {
+        var added = await _vocabulary.AddAiOverlapsAsync("setting", [
+            (["greyhawk", "forgotten-realms"], "Both are the same world."),
+            (["forgotten-realms", "greyhawk"], "Said twice."),
+            (["greyhawk"], "One term is no group."),
+            (["greyhawk", "ravenloft", "greyhawk"], "A key twice counts once."),
+        ], Ct);
+        var again = await _vocabulary.AddAiOverlapsAsync("setting", [(["ravenloft", "greyhawk"], "Again.")], Ct);
+        var found = await _vocabulary.GetAiOverlapsAsync("setting", Ct);
+
+        Assert.Equal(2, added);
+        Assert.Equal(0, again);
+        Assert.Equal([(new[] { "forgotten-realms", "greyhawk" }, "Both are the same world."), (new[] { "greyhawk", "ravenloft" }, "A key twice counts once.")],
+            found.Select(f => (f.Keys.ToArray(), f.Reason)));
+        Assert.Empty(await _vocabulary.GetAiOverlapsAsync("theme", Ct));
+    }
+
     sealed class SnapshotComparer : IEqualityComparer<FieldSnapshot>
     {
         public static readonly SnapshotComparer Instance = new();

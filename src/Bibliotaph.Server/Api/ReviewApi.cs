@@ -110,6 +110,22 @@ public static class ReviewApi
                 return (await reviews.MapTermAsync(term, target.Key, ct), ReviewText.TermFiled(term, target.Label));
             }, ct));
 
+        review.MapPost("/overlaps/{id}/combine", (string id, ReviewOverlapCombine combine, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+            OverlapAsync(libraries, principal, id, combine.Stamp, async (library, vocabulary, proposal) =>
+            {
+                if (proposal.Terms.All(t => t.Id != combine.KeepId)) return Results.NotFound();
+                var combined = await vocabulary.CombineAsync(combine.KeepId, [.. proposal.Terms.Where(t => t.Id != combine.KeepId).Select(t => t.Id)], ct);
+                return Results.Ok(new ActionResult(combined.Note, EditApi.Hold(library, () => vocabulary.UndoCombineAsync(combined, CancellationToken.None), OverlapText.UndoFailed)));
+            }, ct));
+
+        review.MapPost("/overlaps/{id}/keep-apart", (string id, ReviewOverlapKeepApart apart, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+            OverlapAsync(libraries, principal, id, apart.Stamp, async (library, vocabulary, proposal) =>
+            {
+                var ids = await vocabulary.KeepApartAsync(proposal.Vocabulary, [.. proposal.Terms.Select(t => t.Key)], ct);
+                return Results.Ok(new ActionResult(OverlapText.KeptApartNote([.. proposal.Terms.Select(t => t.Label)]),
+                    EditApi.Hold(library, async () => { foreach (var kept in ids) await vocabulary.ForgetKeptApartAsync(kept, CancellationToken.None); }, OverlapText.UndoFailed)));
+            }, ct));
+
         review.MapGet("/files", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
@@ -146,6 +162,7 @@ public static class ReviewApi
         var fields = list.Items.Select(i => FieldCard(i, list.Vocabulary)).ToList();
         var shown = offers.Select(o => o.Kind).ToHashSet(StringComparer.Ordinal);
         if (list.Terms.Count > 0) shown.Add("terms");
+        if (list.Overlaps is { Count: > 0 }) shown.Add("overlaps");
         IReadOnlyList<ReviewShowKind> kinds =
         [
             .. ReviewText.Kinds.Where(k => shown.Contains(k.Key)).Select(k => new ReviewShowKind(k.Key, k.Name)),
@@ -157,7 +174,9 @@ public static class ReviewApi
         var choices = list.Items.Select(i => i.Issue.Field).DistinctBy(f => f.Key)
             .Select(f => (f.Key, Values: FieldText.Choices(f, list.Vocabulary))).Where(c => c.Values.Count > 0)
             .ToDictionary(c => c.Key, c => c.Values);
-        return new ReviewSuggestions(terms, fields, kinds, list.Count, choices, offers);
+        var overlaps = (list.Overlaps ?? []).Select(p => new ReviewOverlapCard(p.Id, p.Stamp, ReviewText.OverlapTitle(p), ReviewText.OverlapChip(p), ReviewText.OverlapDetail(p),
+            [.. p.Terms.Select(t => new ReviewOverlapTerm(t.Id, t.Label, OverlapText.Member(t.Label, t.Books)))], p.KeepId)).ToList();
+        return new ReviewSuggestions(terms, fields, kinds, list.Count, choices, offers, overlaps);
     }
 
     static ReviewFieldCard FieldCard(ReviewItem item, Vocabulary vocabulary)
@@ -191,6 +210,24 @@ public static class ReviewApi
         if (await reviews.FindTermAsync(id, ct) is not { } term) return Results.Problem(Changed, statusCode: StatusCodes.Status409Conflict);
         if (await decide(reviews, term) is not var (decision, message)) return Results.NotFound();
         return Results.Ok(new ActionResult(message, EditApi.Hold(library, () => reviews.UndoTermAsync(decision, CancellationToken.None), ReviewText.UndoFailed)));
+    }
+
+    /// <summary>Finds the group again and checks it still proposes what the page showed, then decides it.</summary>
+    static async Task<IResult> OverlapAsync(UserLibraries libraries, ClaimsPrincipal principal, string id, string stamp,
+        Func<UserLibrary, VocabularyService, OverlapProposal, Task<IResult>> decide, CancellationToken ct)
+    {
+        await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+        var vocabulary = lease.Library.Get<VocabularyService>();
+        if (await vocabulary.FindOverlapAsync(id, ct) is not { } proposal || proposal.Stamp != stamp)
+            return Results.Problem(Changed, statusCode: StatusCodes.Status409Conflict);
+        try
+        {
+            return await decide(lease.Library, vocabulary, proposal);
+        }
+        catch (ArgumentException e)
+        {
+            return Results.BadRequest(new ActionResult(e.Message));
+        }
     }
 
     static string? Hold(UserLibrary library, ReviewService reviews, IReadOnlyList<FieldSnapshot> undo) =>

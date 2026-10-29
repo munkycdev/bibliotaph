@@ -36,7 +36,7 @@
     }
     @if (_selected != TagsKey)
     {
-        @* Find overlaps: terms that look like one thing, to combine (with Undo) or keep apart. *@
+        @* Find overlaps: terms that may be one thing go to Needs review; the pairs kept apart can be offered again here. *@
         <div class="bt-settingrow bt-overlaps">
             <div>@OverlapText.Title<small>@OverlapText.Help</small></div>
             <button class="bt-button" disabled="@_finding" @onclick="FindOverlapsAsync"><Icon Name="Search" />@OverlapText.Title</button>
@@ -45,39 +45,29 @@
         {
             <p class="bt-fine bt-tight" role="status">@OverlapText.Comparing</p>
         }
+        else if (_overlaps is { } page)
+        {
+            <p class="bt-fine bt-tight" role="status">
+                @(page.Waiting == 0 ? OverlapText.None : OverlapText.Found(page.Waiting))
+                @if (page.Waiting > 0)
+                {
+                    <a class="bt-link" href="/review">@OverlapText.OpenReview</a>
+                }
+                @if (page.AsksAi)
+                {
+                    <br />@OverlapText.AiComparing
+                }
+            </p>
+        }
         else if (_overlapsNote is not null)
         {
             <p class="bt-fine bt-tight" role="status">@_overlapsNote</p>
         }
-        <DoneNote Result="_overlapDone" UndoName="Undo the change to the terms" Dismissed="() => _overlapDone = null" Undone="AfterOverlapUndoAsync" />
-        @if (_overlaps is { Count: > 0 } groups)
+        @if (_overlaps is { KeptApart.Count: > 0 } kept)
         {
-            <div class="bt-overlaplist" aria-label="Terms that may be the same thing">
-                @foreach (var group in groups)
-                {
-                    <div class="bt-editpanel bt-overlap">
-                        <div class="bt-row">@string.Join(", ", group.Terms.Select(t => OverlapText.Member(t.Label, t.Books)))<small>@group.Reason</small></div>
-                        <div class="bt-actions bt-overlapactions">
-                            <label class="bt-small">@OverlapText.Keep
-                                <select class="bt-select" aria-label="@OverlapText.Keep" @bind="_keep[group.KeepId]" disabled="@_answering">
-                                    @foreach (var term in group.Terms)
-                                    {
-                                        <option value="@term.Id">@OverlapText.Member(term.Label, term.Books)</option>
-                                    }
-                                </select>
-                            </label>
-                            <button class="bt-button" title="@OverlapText.CombineHelp" disabled="@_answering" @onclick="() => CombineAsync(group)"><Icon Name="Check" />@OverlapText.Combine</button>
-                            <button class="bt-button" title="@OverlapText.KeepApartHelp" disabled="@_answering" @onclick="() => KeepApartAsync(group)">@OverlapText.KeepApart</button>
-                        </div>
-                    </div>
-                }
-            </div>
-        }
-        @if (_keptApart is { Count: > 0 } pairs)
-        {
-            <div class="bt-fieldlabel bt-gap">@OverlapText.KeptApart(pairs.Count)</div>
+            <div class="bt-fieldlabel bt-gap">@OverlapText.KeptApart(kept.KeptApart.Count)</div>
             <div class="bt-chips" aria-label="Pairs kept apart">
-                @foreach (var pair in pairs)
+                @foreach (var pair in kept.KeptApart)
                 {
                     <span class="bt-chip on">@pair.First and @pair.Second<button class="bt-chipx" title="@OverlapText.Forget" aria-label="@($"Offer {pair.First} and {pair.Second} again")" @onclick="() => ForgetKeptApartAsync(pair)"><Icon Name="X" Size="11" /></button></span>
                 }
@@ -230,14 +220,10 @@
     bool _aiTermsSaving;
     string? _aiTermsNote;
 
-    // Find overlaps: the groups proposed for the chosen list, the term to keep in each (by the group's default keep id),
-    // the pairs kept apart, and what the last Combine or Keep apart did.
-    List<TermOverlapGroup>? _overlaps;
-    List<KeptApartTerms>? _keptApart;
-    readonly Dictionary<long, long> _keep = [];
+    // Find overlaps: how many groups of the chosen list wait in Needs review, and the pairs kept apart.
+    TermOverlapPage? _overlaps;
     string? _overlapsNote;
-    bool _finding, _answering;
-    ActionResult? _overlapDone;
+    bool _finding;
 
     // One row is open at a time; its two fields are a term's name and short name, or a tag's name and words.
     long? _editing;
@@ -282,10 +268,7 @@
         _aiTermsAdd = null;
         _editing = null;
         _overlaps = null;
-        _keptApart = null;
-        _keep.Clear();
         _overlapsNote = null;
-        _overlapDone = null;
         await ReloadAsync();
     }
 
@@ -296,9 +279,11 @@
         _finding = true;
         try
         {
-            var page = await Api.TermOverlapsAsync(selected);
+            var page = await Api.FindTermOverlapsAsync(selected);
             if (selected != _selected) return;
-            ShowOverlaps(page);
+            _overlaps = page;
+            _overlapsNote = null;
+            Activity.Refresh();
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
@@ -310,82 +295,14 @@
         }
     }
 
-    void ShowOverlaps(TermOverlapPage page)
-    {
-        _overlaps = [.. page.Proposals];
-        _keptApart = [.. page.KeptApart];
-        _keep.Clear();
-        foreach (var group in page.Proposals) _keep[group.KeepId] = group.KeepId;
-        _overlapsNote = page.Proposals.Count == 0 ? OverlapText.None : OverlapText.Found(page.Proposals.Count);
-    }
-
-    /// <summary>A proposal is answered: the rest stay, and the note says how many are left.</summary>
-    void Answered(TermOverlapGroup group)
-    {
-        _overlaps?.Remove(group);
-        _overlapsNote = _overlaps is { Count: > 0 } left ? OverlapText.Found(left.Count) : OverlapText.NoneLeft;
-    }
-
-    async Task CombineAsync(TermOverlapGroup group)
-    {
-        if (_answering) return;
-        var selected = _selected;
-        var keep = _keep.GetValueOrDefault(group.KeepId, group.KeepId);
-        _answering = true;
-        try
-        {
-            var done = await Api.CombineTermsAsync(selected, keep, [.. group.Terms.Where(t => t.Id != keep).Select(t => t.Id)]);
-            if (selected != _selected) return;
-            Answered(group);
-            _overlapDone = done;
-            await ReloadAsync();
-            Activity.Refresh();
-        }
-        catch (ApiProblemException e)
-        {
-            _overlapDone = new ActionResult(e.Message);
-        }
-        finally
-        {
-            _answering = false;
-        }
-    }
-
-    async Task KeepApartAsync(TermOverlapGroup group)
-    {
-        if (_answering) return;
-        var selected = _selected;
-        _answering = true;
-        try
-        {
-            var done = await Api.KeepTermsApartAsync(selected, [.. group.Terms.Select(t => t.Id)]);
-            if (selected != _selected) return;
-            Answered(group);
-            _overlapDone = done;
-            _keptApart = [.. (await Api.TermOverlapsAsync(selected)).KeptApart];
-        }
-        catch (ApiProblemException e)
-        {
-            _overlapDone = new ActionResult(e.Message);
-        }
-        finally
-        {
-            _answering = false;
-        }
-    }
-
+    /// <summary>The pair is offered again in Needs review, if the names still look alike.</summary>
     async Task ForgetKeptApartAsync(KeptApartTerms pair)
     {
-        await Api.ForgetKeptApartAsync(_selected, pair.Id);
-        _overlapDone = null;
-        await FindOverlapsAsync(); // offered again, if the names still look alike
-    }
-
-    /// <summary>Undone, the terms are as they were, so the list and the proposals are read again.</summary>
-    async Task AfterOverlapUndoAsync()
-    {
-        await ReloadAsync();
-        await FindOverlapsAsync();
+        var selected = _selected;
+        await Api.ForgetKeptApartAsync(selected, pair.Id);
+        var page = await Api.TermOverlapsAsync(selected);
+        if (selected != _selected) return;
+        _overlaps = page;
         Activity.Refresh();
     }
 

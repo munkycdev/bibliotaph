@@ -127,51 +127,6 @@ public sealed partial class UserTagRowViewModel(UserTagEntry entry, VocabularyVi
     Task Delete() => page.DeleteTagAsync(this);
 }
 
-/// <summary>One term of an overlap proposal, as the Keep list shows it: "Forgotten Realms · 12 books".</summary>
-public sealed record OverlapTermChoice(long Id, string Key, string Label, int Books)
-{
-    public override string ToString() => OverlapText.Member(Label, Books);
-}
-
-/// <summary>Terms that look like the same thing: which one to keep, then Combine, or Keep apart so they're not offered again.</summary>
-public sealed partial class OverlapGroupViewModel : ObservableObject
-{
-    readonly VocabularyViewModel _page;
-
-    public OverlapGroupViewModel(OverlapProposal proposal, VocabularyViewModel page)
-    {
-        _page = page;
-        Terms = [.. proposal.Terms.Select(t => new OverlapTermChoice(t.Id, t.Key, t.Label, t.Books))];
-        Keep = Terms.First(t => t.Id == proposal.KeepId);
-        Reason = proposal.Reason;
-    }
-
-    public IReadOnlyList<OverlapTermChoice> Terms { get; }
-
-    /// <summary>"Forgotten Realms · 12 books, The Forgotten Realms · 2 books".</summary>
-    public string Names => string.Join(", ", Terms);
-
-    /// <summary>Why the names look like one thing.</summary>
-    public string Reason { get; }
-
-    /// <summary>The term that stays; the others fold into it.</summary>
-    [ObservableProperty]
-    public partial OverlapTermChoice Keep { get; set; }
-
-    [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CombineCommand))]
-    [NotifyCanExecuteChangedFor(nameof(KeepApartCommand))]
-    public partial bool IsBusy { get; set; }
-
-    [RelayCommand(CanExecute = nameof(CanAct))]
-    Task Combine() => _page.CombineAsync(this);
-
-    [RelayCommand(CanExecute = nameof(CanAct))]
-    Task KeepApart() => _page.KeepApartAsync(this);
-
-    bool CanAct() => !IsBusy;
-}
-
 /// <summary>A pair the user said are not the same thing, with × to have it offered again.</summary>
 public sealed partial class KeptApartRowViewModel(KeptApartPair pair, VocabularyViewModel page) : ObservableObject
 {
@@ -188,7 +143,8 @@ public sealed partial class KeptApartRowViewModel(KeptApartPair pair, Vocabulary
 /// keeps a term's key, so nothing filed under it moves; a name taken from another term's aliases says so. The library
 /// catches up in the background once the edits pause. Its last tab holds the user's own tags, each with the words that
 /// find it in the books' pages; saving one looks through the library's text at once. Find overlaps compares a list's
-/// names and offers to combine the terms that look like one thing, with Undo, or to keep them apart for good.
+/// names, and has the AI compare them, for Needs review to offer the terms that look like one thing; the pairs kept
+/// apart there can be offered again here.
 /// </summary>
 public sealed partial class VocabularyViewModel : SettingsSectionViewModel
 {
@@ -201,12 +157,14 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
     List<TermRowViewModel> _all = [];
     bool _aiTermsAdd;
 
-    public VocabularyViewModel(VocabularyService vocabulary, UserTagService tags, ILogger<VocabularyViewModel> log)
+    readonly INavigationService _navigation;
+
+    public VocabularyViewModel(VocabularyService vocabulary, UserTagService tags, INavigationService navigation, ILogger<VocabularyViewModel> log)
     {
         _vocabulary = vocabulary;
         _tags = tags;
+        _navigation = navigation;
         _log = log;
-        OverlapUndo = new UndoSlot(log);
         Vocabularies =
         [
             new("system", "Game systems", OnSelected),
@@ -301,34 +259,38 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
 
     public static string OverlapsComparing => OverlapText.Comparing;
 
+    public static string OverlapsAiComparing => OverlapText.AiComparing;
+
+    public static string OpenNeedsReviewLabel => OverlapText.OpenReview;
+
     public static string CombineHelp => OverlapText.CombineHelp;
 
     public static string KeepApartHelp => OverlapText.KeepApartHelp;
 
     public static string ForgetKeptApart => OverlapText.Forget;
 
-    public static string KeepLabel => OverlapText.Keep;
-
     public static string CombineLabel => OverlapText.Combine;
 
     public static string KeepApartLabel => OverlapText.KeepApart;
 
-    /// <summary>The groups Find overlaps proposed for the selected list, each gone once combined or kept apart.</summary>
-    public ObservableCollection<OverlapGroupViewModel> Overlaps { get; } = [];
-
     /// <summary>The pairs kept apart in the selected list, shown once Find overlaps has run.</summary>
     public ObservableCollection<KeptApartRowViewModel> KeptApart { get; } = [];
-
-    /// <summary>What the last Combine or Keep apart did, with Undo.</summary>
-    public UndoSlot OverlapUndo { get; }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(FindOverlapsCommand))]
     public partial bool IsFindingOverlaps { get; set; }
 
-    /// <summary>How many groups Find overlaps found, or that it found none.</summary>
+    /// <summary>How many groups wait in Needs review, or that none were found.</summary>
     [ObservableProperty]
     public partial string? OverlapsNote { get; set; }
+
+    /// <summary>Whether groups wait in Needs review, so it can be opened from here.</summary>
+    [ObservableProperty]
+    public partial bool HasOverlapsWaiting { get; set; }
+
+    /// <summary>Whether the AI is comparing the names too, after the last Find overlaps.</summary>
+    [ObservableProperty]
+    public partial bool IsAiComparing { get; set; }
 
     /// <summary>"2 pairs kept apart", heading the list of them.</summary>
     [ObservableProperty]
@@ -357,12 +319,12 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
 
     void ClearOverlaps()
     {
-        Overlaps.Clear();
         KeptApart.Clear();
         OverlapsNote = KeptApartNote = null;
-        OverlapUndo.Clear();
+        HasOverlapsWaiting = IsAiComparing = false;
     }
 
+    /// <summary>Compares the names now, and has the AI compare them in the background; the groups wait in Needs review.</summary>
     [RelayCommand(CanExecute = nameof(CanFindOverlaps))]
     async Task FindOverlapsAsync()
     {
@@ -370,13 +332,14 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
         IsFindingOverlaps = true;
         try
         {
+            _vocabulary.FindOverlapsWithAi();
             var proposals = await _vocabulary.FindOverlapsAsync(vocabulary);
             var kept = await _vocabulary.KeptApartAsync(vocabulary);
             if (vocabulary != Selected.Key) return; // another tab was picked meanwhile
-            Overlaps.Clear();
-            foreach (var proposal in proposals) Overlaps.Add(new OverlapGroupViewModel(proposal, this));
             ShowKeptApart(kept);
             OverlapsNote = proposals.Count == 0 ? OverlapText.None : OverlapText.Found(proposals.Count);
+            HasOverlapsWaiting = proposals.Count > 0;
+            IsAiComparing = _vocabulary.AsksAi;
         }
         catch (Exception ex)
         {
@@ -391,6 +354,9 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
 
     bool CanFindOverlaps() => !IsFindingOverlaps;
 
+    [RelayCommand]
+    void OpenNeedsReview() => _navigation.NavigateTo(Route.NeedsReview);
+
     void ShowKeptApart(IReadOnlyList<KeptApartPair> kept)
     {
         KeptApart.Clear();
@@ -398,75 +364,11 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
         KeptApartNote = kept.Count == 0 ? null : OverlapText.KeptApart(kept.Count);
     }
 
-    /// <summary>A proposal is answered: the rest stay, and the note says how many are left.</summary>
-    void Answered(OverlapGroupViewModel group)
-    {
-        Overlaps.Remove(group);
-        OverlapsNote = Overlaps.Count == 0 ? OverlapText.NoneLeft : OverlapText.Found(Overlaps.Count);
-    }
-
-    internal async Task CombineAsync(OverlapGroupViewModel group)
-    {
-        var vocabulary = Selected.Key;
-        group.IsBusy = true;
-        try
-        {
-            var combined = await _vocabulary.CombineAsync(group.Keep.Id, [.. group.Terms.Where(t => t.Id != group.Keep.Id).Select(t => t.Id)]);
-            if (vocabulary != Selected.Key) return;
-            Answered(group);
-            OverlapUndo.Offer(combined.Note, async () =>
-            {
-                await _vocabulary.UndoCombineAsync(combined);
-                if (vocabulary != Selected.Key) return;
-                await ReloadAsync();
-                await FindOverlapsAsync(); // offered again
-            }, OverlapText.UndoFailed);
-            await ReloadAsync();
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Combining terms in {Vocabulary} failed", vocabulary);
-            OverlapUndo.Say("Those terms couldn't be combined. The log has the details.");
-        }
-        finally
-        {
-            group.IsBusy = false;
-        }
-    }
-
-    internal async Task KeepApartAsync(OverlapGroupViewModel group)
-    {
-        var vocabulary = Selected.Key;
-        group.IsBusy = true;
-        try
-        {
-            var ids = await _vocabulary.KeepApartAsync(vocabulary, [.. group.Terms.Select(t => t.Key)]);
-            if (vocabulary != Selected.Key) return;
-            Answered(group);
-            ShowKeptApart(await _vocabulary.KeptApartAsync(vocabulary));
-            OverlapUndo.Offer(OverlapText.KeptApartNote([.. group.Terms.Select(t => t.Label)]), async () =>
-            {
-                foreach (var id in ids) await _vocabulary.ForgetKeptApartAsync(id);
-                if (vocabulary != Selected.Key) return;
-                await FindOverlapsAsync(); // offered again
-            }, OverlapText.UndoFailed);
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Keeping terms apart in {Vocabulary} failed", vocabulary);
-            OverlapUndo.Say("That couldn't be remembered. The log has the details.");
-        }
-        finally
-        {
-            group.IsBusy = false;
-        }
-    }
-
+    /// <summary>The pair is offered again in Needs review, if the names still look alike.</summary>
     internal async Task ForgetKeptApartAsync(KeptApartRowViewModel row)
     {
         await _vocabulary.ForgetKeptApartAsync(row.Pair.Id);
-        OverlapUndo.Clear();
-        await FindOverlapsAsync(); // offered again, if the names still look alike
+        await FindOverlapsAsync();
     }
 
     async Task SetAiTermsAsync(bool add)

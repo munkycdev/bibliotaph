@@ -47,7 +47,7 @@ public static class ReviewText
     /// <summary>The Show menu's kinds of card, in the order the page lists them; field suggestions follow, by field.</summary>
     public static IReadOnlyList<(string Key, string Name)> Kinds { get; } =
     [
-        ("terms", "New terms"), ("versions", "New versions"), ("packs", "Image packs"), ("elsewhere", "Owned elsewhere"),
+        ("terms", "New terms"), ("overlaps", "Terms that may be the same"), ("versions", "New versions"), ("packs", "Image packs"), ("elsewhere", "Owned elsewhere"),
         ("revisions", "Places to check"), ("parts", "Adventures"), ("corrections", "Corrections"), ("rules", "Folder rules"),
         ("folders", "Collections from folders"), ("suggestions", "Books for collections"),
     ];
@@ -82,6 +82,26 @@ public static class ReviewText
     /// <summary>The terms a new one can be filed under: same vocabulary, by label.</summary>
     public static IReadOnlyList<Term> TermTargets(PendingTerm term, Vocabulary vocabulary) =>
         [.. vocabulary.InVocabulary(term.Term.Vocabulary).OrderBy(t => t.Label, StringComparer.CurrentCultureIgnoreCase)];
+
+    /// <summary>"Greyhawk · Grayhawk": the terms of a group that may be the same thing.</summary>
+    public static string OverlapTitle(OverlapProposal proposal) => string.Join(" · ", proposal.Terms.Select(t => t.Label));
+
+    /// <summary>"Same setting?"</summary>
+    public static string OverlapChip(OverlapProposal proposal) => $"Same {VocabularyNoun(proposal.Vocabulary)}?";
+
+    /// <summary>What one term of a vocabulary is: "game system", "theme", "publisher".</summary>
+    public static string VocabularyNoun(string vocabulary)
+    {
+        var label = (MetadataFields.ForVocabulary(vocabulary)?.Label ?? vocabulary).ToLower(CultureInfo.CurrentCulture);
+        return label.EndsWith('s') ? label[..^1] : label;
+    }
+
+    /// <summary>Why the group was proposed, and by whom: the names alone, or the AI.</summary>
+    public static string OverlapDetail(OverlapProposal proposal) =>
+        proposal.FromAi ? $"The AI says they are the same thing: {proposal.Reason.TrimEnd('.')}." : $"{proposal.Reason}.";
+
+    /// <summary>"Combined 2 terms into Greyhawk."</summary>
+    public static string OverlapCombined(OverlapProposal proposal, string kept) => $"Combined {N(proposal.Terms.Count)} terms into {kept}.";
 
     /// <summary>What an edit on a field card says once saved.</summary>
     public static string Edited(ReviewItem item, string typed) =>

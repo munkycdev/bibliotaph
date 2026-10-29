@@ -690,9 +690,11 @@ a term by any of its names. The pencil beside a term opens it: change its **Name
 all go through these names. Renaming keeps everything filed under the term, and the library catches up a few seconds
 after you stop. **New names from the AI**, at the top of each list the AI can add to, chooses **Ask first** (a card in
 Needs review for each name, the default) or **Add them** (the name joins the list as the AI uses it, and the names
-already waiting are added too), as in the Windows app. **Find overlaps**, under it, compares the list's names and shows
-the groups that look like one thing, each with **Keep**, **Combine** (with Undo) and **Keep apart**, and the pairs kept
-apart with × to offer one again, as in the Windows app's [Find overlaps](cataloging.md#find-overlaps).
+already waiting are added too), as in the Windows app. **Find overlaps**, under it, compares the list's names, has the
+AI compare them too when one is set up, and says how many groups of terms that may be the same thing wait in Needs
+review, with the pairs kept apart and × to offer one again; the cards there combine a group into the term picked, with
+Undo, or keep it apart, as in the Windows app's [Find overlaps](cataloging.md#find-overlaps). Comparing names needs no
+AI, so a list can be tidied here without one.
 
 The last tab, **Your tags**, holds tags of your own, each with the words that signal it ("Undead": zombie, lich).
 **Add tag** looks through your books' pages at once and suggests the tag for each book whose pages use the words often

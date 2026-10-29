@@ -1602,7 +1602,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
-    public async Task Settings_vocabulary_finds_overlapping_terms_combines_them_with_undo_and_keeps_pairs_apart()
+    public async Task Needs_review_offers_overlapping_terms_to_combine_with_undo_or_keep_apart_and_settings_counts_them()
     {
         var ct = TestContext.Current.CancellationToken;
         var client = Client(await AddUserAsync(admin: false));
@@ -1613,31 +1613,44 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var typoId = (await typo.Content.ReadFromJsonAsync<VocabularyChange>(ct))!.TermId!.Value;
         var terms = (await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/setting", ct))!;
         var realmsId = terms.Single(t => t.Label == "Forgotten Realms").Id;
+        var greyhawkId = terms.Single(t => t.Label == "Greyhawk").Id;
 
-        var found = (await client.GetFromJsonAsync<TermOverlapPage>("/api/vocabulary/setting/overlaps", ct))!;
-        var combined = await PostAsync<ActionResult>("/api/vocabulary/setting/combine", new CombineTerms(realmsId, [twinId]));
+        var settings = await PostAsync<TermOverlapPage>("/api/vocabulary/setting/overlaps", null);
+        var list = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        var realms = list.Overlaps.Single(o => o.Terms.Any(t => t.Id == realmsId));
+        var hawks = list.Overlaps.Single(o => o.Terms.Any(t => t.Id == typoId));
+        var combined = await PostAsync<ActionResult>($"/api/review/overlaps/{realms.Id}/combine", new ReviewOverlapCombine(realms.Stamp, realmsId));
         var after = (await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/setting", ct))!;
+        var afterCombine = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        using var stale = await client.PostAsJsonAsync($"/api/review/overlaps/{realms.Id}/combine", new ReviewOverlapCombine(realms.Stamp, realmsId), ct);
         await PostAsync<ActionResult>($"/api/library/held/{combined.Undo}", null);
         var undone = (await client.GetFromJsonAsync<List<VocabularyTerm>>("/api/vocabulary/setting", ct))!;
-        var apart = await PostAsync<ActionResult>("/api/vocabulary/setting/keep-apart", new KeepTermsApart([typoId, terms.Single(t => t.Label == "Greyhawk").Id]));
+        var apart = await PostAsync<ActionResult>($"/api/review/overlaps/{hawks.Id}/keep-apart", new ReviewOverlapKeepApart(hawks.Stamp));
         var kept = (await client.GetFromJsonAsync<TermOverlapPage>("/api/vocabulary/setting/overlaps", ct))!;
+        var afterApart = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
         using (await client.DeleteAsync($"/api/vocabulary/setting/kept-apart/{kept.KeptApart.Single().Id}", ct)) { }
         var forgotten = (await client.GetFromJsonAsync<TermOverlapPage>("/api/vocabulary/setting/overlaps", ct))!;
         using var unknown = await client.GetAsync("/api/vocabulary/nonsense/overlaps", ct);
 
-        Assert.Equal([("Forgotten Realms", "The Forgotten Realms"), ("Greyhawk", "Grayhawk")], found.Proposals.Select(g => (g.Terms[0].Label, g.Terms[1].Label)));
-        Assert.Equal([realmsId, terms.Single(t => t.Label == "Greyhawk").Id], found.Proposals.Select(g => g.KeepId));
+        Assert.Equal((2, false), (settings.Waiting, settings.AsksAi));
+        Assert.Contains(list.Show, k => k.Key == "overlaps" && k.Name == "Terms that may be the same");
+        Assert.Equal(("Forgotten Realms · The Forgotten Realms", "Same setting?", realmsId), (realms.Label, realms.Chip, realms.KeepId));
+        Assert.Equal("The same name but for small words, brackets or a plural.", realms.Detail);
+        Assert.Equal(("Greyhawk · Grayhawk", greyhawkId), (hawks.Label, hawks.KeepId));
         Assert.Equal("Combined 2 terms into Forgotten Realms", combined.Message);
         Assert.NotNull(combined.Undo);
         Assert.DoesNotContain(after, t => t.Id == twinId);
         Assert.Contains(after.Single(t => t.Id == realmsId).Aliases, a => a.Text == "The Forgotten Realms");
+        Assert.Equal([hawks.Id], afterCombine.Overlaps.Select(o => o.Id));
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
         Assert.Equal("The Forgotten Realms", undone.Single(t => t.Id == twinId).Label);
         Assert.DoesNotContain(undone.Single(t => t.Id == realmsId).Aliases, a => a.Text == "The Forgotten Realms");
-        Assert.Equal("Kept Grayhawk and Greyhawk apart.", apart.Message);
+        Assert.Equal("Kept Greyhawk and Grayhawk apart.", apart.Message);
         Assert.NotNull(apart.Undo);
         Assert.Equal(("Grayhawk", "Greyhawk"), (kept.KeptApart.Single().First, kept.KeptApart.Single().Second));
-        Assert.Equal(["Forgotten Realms"], kept.Proposals.Select(g => g.Terms[0].Label));
-        Assert.Equal(2, forgotten.Proposals.Count);
+        Assert.Equal(1, kept.Waiting);
+        Assert.Equal([realms.Id], afterApart.Overlaps.Select(o => o.Id));
+        Assert.Equal(2, forgotten.Waiting);
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
 
         async Task<T> PostAsync<T>(string url, object? body)
