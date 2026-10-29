@@ -12,5 +12,8 @@ public sealed record FolderRuleSwitch(long Id, string Folder, string Meaning, st
 
 public sealed record StartPageChoice(bool Library);
 
+/// <summary>How far the first-run tour has gone: null before it, then "folders" and "books", as the Windows app keeps it.</summary>
+public sealed record TourProgress(string? Stage);
+
 
 public sealed record RuleSwitch(bool Enabled);

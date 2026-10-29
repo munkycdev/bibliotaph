@@ -1518,6 +1518,24 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Settings_tour_remembers_how_far_it_went()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var client = Client(await AddUserAsync(admin: false));
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+
+        var before = (await client.GetFromJsonAsync<TourProgress>("/api/settings/tour", ct))!;
+        using var refused = await client.PutAsJsonAsync("/api/settings/tour", new TourProgress("elsewhere"), ct);
+        using var seen = await client.PutAsJsonAsync("/api/settings/tour", new TourProgress(Tour.StageFolders), ct);
+        var after = (await client.GetFromJsonAsync<TourProgress>("/api/settings/tour", ct))!;
+
+        Assert.Null(before.Stage);
+        Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, seen.StatusCode);
+        Assert.Equal(Tour.StageFolders, after.Stage);
+    }
+
+    [Fact]
     public async Task Settings_library_chooses_the_start_page_and_lists_the_folder_rules()
     {
         var ct = TestContext.Current.CancellationToken;

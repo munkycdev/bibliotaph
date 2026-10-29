@@ -2,6 +2,7 @@
    connected storage, removing one, Look for changes, and the folder rules answered in Needs review. *@
 @inject ApiClient Api
 @inject LibraryActivity Activity
+@inject TourGuide Tour
 
 <section class="bt-section bt-subsection" aria-labelledby="folders-heading">
     <h3 class="bt-subheading" id="folders-heading">Folders</h3>
@@ -43,7 +44,7 @@
     }
     <div class="bt-actions">
         <button class="bt-button primary" disabled="@(_storage is not { Count: > 0 })" title="@(_storage is { Count: 0 } ? "Connect your storage above first." : null)"
-                @onclick="() => _picking = true"><Icon Name="FolderPlus" />Add a folder</button>
+                data-tour="folder-picker" @onclick="() => _picking = true"><Icon Name="FolderPlus" />Add a folder</button>
         @if (_folders.Count > 0)
         {
             <button class="bt-button" @onclick="Rescan"><Icon Name="RotateCcw" />Look for changes</button>
@@ -92,6 +93,8 @@
         _folders = await Api.LibraryFoldersAsync();
         _storage = await Api.StorageAsync();
         await LoadPreferencesAsync();
+        // The tour's first chapter goes on here: connect a storage, then pick a folder.
+        await Tour.OfferSetupAsync(_storage.Count > 0, _folders.Count > 0);
     }
 
     async Task LoadPreferencesAsync() => await ChangeAsync(() => Api.LibraryPreferencesAsync());
@@ -129,6 +132,7 @@
         {
             _folders = await Api.AddLibraryFolderAsync(new AddLibraryFolder(_pending.Storage.Id, _pending.Path));
             Activity.Refresh();
+            if (_folders.Count == 1) await Tour.FolderAddedAsync();
         }
         catch (ApiProblemException problem)
         {

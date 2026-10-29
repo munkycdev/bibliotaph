@@ -4,6 +4,7 @@
 @inject NavigationManager Navigation
 @inject LibraryActivity Activity
 @inject Pins Pins
+@inject TourGuide Tour
 
 <PageTitle>Bibliotaph</PageTitle>
 @if (_summary is null)
@@ -22,7 +23,7 @@ else if (!HasLibrary)
             right book and the right page. Your files stay exactly where they are: nothing is moved, renamed or changed.
         </p>
         <div class="bt-actions">
-            <a class="bt-button primary" href="settings#library"><Icon Name="FolderPlus" />Add a folder</a>
+            <a class="bt-button primary" href="settings#library" data-tour="add-folder"><Icon Name="FolderPlus" />Add a folder</a>
         </div>
         <p class="bt-note"><Icon Name="ShieldCheck" />Your catalog, notes and collections are kept in your Bibliotaph account. Your books stay in your storage.</p>
     </div>
@@ -87,7 +88,9 @@ else
                     <a class="bt-link bt-inline" href="library">Browse your library<Icon Name="ArrowRight" Size="13" /></a>
                 }
             </div>
-            <Shelf Books="shelves.Added" Label="Recently added" Open="ShowDetails" Correct="CorrectBook" Changed="LoadAsync" Done="r => _note = r" />
+            <div data-tour="first-books">
+                <Shelf Books="shelves.Added" Label="Recently added" Open="ShowDetails" Correct="CorrectBook" Changed="LoadAsync" Done="r => _note = r" />
+            </div>
         }
         @if (Pins.Items.Count > 0)
         {
@@ -133,6 +136,9 @@ else
     {
         _summary = await Api.LibrarySummaryAsync();
         if (HasLibrary) await LoadAsync();
+        // The tour's first chapter, before any folder; its second once books show, here or in the Library.
+        else await Tour.OfferFoldersAsync();
+        Tour.HomeLoaded();
         Activity.Changed += OnActivityChanged;
         Pins.Changed += OnPinsChanged;
     }
@@ -143,6 +149,7 @@ else
     {
         _shelves = await Api.HomeAsync();
         _loaded = DateTime.UtcNow;
+        if (_shelves.Added.Count > 0) await Tour.OfferBooksAsync();
     }
 
     /// <summary>The rows follow the books being read, as the Library's cards do: every so often, and once more when it's done.</summary>

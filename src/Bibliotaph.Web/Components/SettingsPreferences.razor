@@ -6,6 +6,7 @@
 @inject Theme Theme
 @inject ApiClient Api
 @inject LibraryActivity Activity
+@inject TourGuide Tour
 
 <section class="bt-section" aria-labelledby="preferences-heading">
     <h2 id="preferences-heading">Preferences</h2>
@@ -43,6 +44,10 @@
                 <button class="@(all ? "on" : "")" aria-pressed="@all" disabled="@_counting" @onclick="() => ReviewAsync(true)">All suggestions</button>
             </div>
         }
+    </div>
+    <div class="bt-settingrow">
+        <div>The tour<small>A short walk round Bibliotaph's pages, as on the first day. It starts on Home.</small></div>
+        <button class="bt-button" @onclick="Tour.ReplayAsync">Show the tour again</button>
     </div>
     @if (_problem is not null)
     {
