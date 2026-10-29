@@ -91,6 +91,8 @@ public partial class AboutDialog
 
     void Issues_Click(object sender, RoutedEventArgs e) => OpenInBrowser(AboutInfo.IssuesUrl);
 
+    void Bgg_Click(object sender, RoutedEventArgs e) => OpenInBrowser("https://boardgamegeek.com");
+
     static void OpenInBrowser(string url) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })?.Dispose();
 
     void Copy_Click(object sender, RoutedEventArgs e)

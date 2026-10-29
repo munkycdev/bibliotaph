@@ -680,7 +680,7 @@ pause.
 Google Books about the ISBNs your books print (RPGGeek, searched by name, with the book's title), and suggests each
 book's title, authors, publisher and year, each field from the first of them that has it, as the Windows app does.
 This is always on; a book is asked again once there's somewhere more to ask. RPGGeek's data is powered by
-[BGG](https://boardgamegeek.com). See [Cataloging](cataloging.md#where-suggestions-come-from).
+[BGG](https://boardgamegeek.com), whose logo is at the foot of every page. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 ## Vocabulary
 
