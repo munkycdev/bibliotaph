@@ -48,9 +48,9 @@ public static class PcLibraryApi
                 return Results.BadRequest();
             try
             {
-                return await catalogue.FindAsync(isbns, ct) is { } r
-                    ? Results.Ok(new PcLookupAnswer(catalogue.Name, new PcBookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published)))
-                    : Results.Ok(new PcLookupAnswer(catalogue.Name));
+                var answer = await catalogue.AskAsync(isbns, ct);
+                List<PcBookRecord> records = [.. answer.Records.Select(r => new PcBookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published))];
+                return Results.Ok(new PcLookupAnswer(catalogue.Name, records.FirstOrDefault(), Records: records, AskedOf: answer.AskedOf));
             }
             catch (CatalogueUnavailableException ex)
             {

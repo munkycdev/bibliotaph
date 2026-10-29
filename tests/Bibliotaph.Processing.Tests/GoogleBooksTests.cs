@@ -82,7 +82,7 @@ public sealed class GoogleBooksTests
     static BookRecord Record(string source) => new(source, "k", "9781234567897", "The Owlbear Mill", [], [], null);
 
     [Fact]
-    public async Task The_first_catalogue_with_a_record_wins_and_the_next_is_asked_only_without_one()
+    public async Task The_preferred_catalogues_record_comes_first_and_the_next_is_asked_too()
     {
         var first = new Fixed("Open Library", Record("Open Library"));
         var second = new Fixed("Google Books", Record("Google Books"));
@@ -90,7 +90,8 @@ public sealed class GoogleBooksTests
 
         Assert.Equal("Open Library or Google Books", catalogues.Name);
         Assert.Equal("Open Library", (await catalogues.FindAsync(["9781234567897"], Ct))!.Source);
-        Assert.Equal(0, second.Asked);
+        // Asked anyway, for the fields the first's record lacks.
+        Assert.Equal(1, second.Asked);
 
         Assert.Equal("Google Books", (await new BookCatalogues([new Fixed("Open Library", null), second]).FindAsync(["9781234567897"], Ct))!.Source);
     }
@@ -98,6 +99,10 @@ public sealed class GoogleBooksTests
     [Theory]
     [InlineData("No record of its ISBN in Open Library.", "Open Library or Google Books", true)]
     [InlineData("No record of its ISBN in Open Library or Google Books.", "Open Library or Google Books", false)]
+    // Found, a book is asked again too once a catalogue preferred to the one that found it can be asked.
+    [InlineData("Looked up in Open Library or Google Books.", "RPGGeek or Open Library or Google Books", true)]
+    [InlineData("Looked up in RPGGeek or Open Library or Google Books.", "RPGGeek or Open Library or Google Books", false)]
+    [InlineData("Open Library's record for its ISBN is of “X”, which isn't printed in it, so it wasn't used. Looked up in Open Library.", "RPGGeek or Open Library", true)]
     // A PC that can't reach its web library asks Open Library alone, and doesn't ask the books its web library didn't know.
     [InlineData("No record of its ISBN in Open Library or Google Books.", "Open Library", false)]
     [InlineData("It prints no ISBN to look up.", "Open Library or Google Books", false)]
@@ -109,12 +114,20 @@ public sealed class GoogleBooksTests
     }
 
     [Fact]
-    public async Task A_book_none_knows_waits_while_one_couldnt_answer()
+    public async Task Every_catalogue_is_asked_and_one_that_couldnt_answer_is_left_out_of_where_it_asked()
     {
-        Assert.Null(await new BookCatalogues([new Fixed("Open Library", null), new Fixed("Google Books", null)]).FindAsync(["9781234567897"], Ct));
-        Assert.Equal("Google Books", (await new BookCatalogues([new Fixed("Open Library", null, unavailable: true), new Fixed("Google Books", Record("Google Books"))])
-            .FindAsync(["9781234567897"], Ct))!.Source);
+        var rpggeek = new Fixed("RPGGeek", Record("RPGGeek"));
+        var openLibrary = new Fixed("Open Library", null, unavailable: true);
+        var google = new Fixed("Google Books", Record("Google Books"));
+
+        var answer = await new BookCatalogues([rpggeek, openLibrary, google]).AskAsync(["9781234567897"], Ct);
+        var none = await new BookCatalogues([new Fixed("Open Library", null), new Fixed("Google Books", null)]).AskAsync(["9781234567897"], Ct);
+
+        Assert.Equal(["RPGGeek", "Google Books"], answer.Records.Select(r => r.Source));
+        Assert.Equal("RPGGeek or Google Books", answer.AskedOf);
+        Assert.Equal((0, "Open Library or Google Books"), (none.Records.Count, none.AskedOf));
+        // None could answer: the book waits.
         await Assert.ThrowsAsync<CatalogueUnavailableException>(() =>
-            new BookCatalogues([new Fixed("Open Library", null, unavailable: true), new Fixed("Google Books", null)]).FindAsync(["9781234567897"], Ct));
+            new BookCatalogues([new Fixed("Open Library", null, unavailable: true), new Fixed("Google Books", null, unavailable: true)]).AskAsync(["9781234567897"], Ct));
     }
 }

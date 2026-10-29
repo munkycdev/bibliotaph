@@ -74,10 +74,14 @@ param(
     # for a book Open Library doesn't know. Once set, a later run without it keeps it.
     [switch] $GoogleBooksKey,
 
+    # Asks once for the token of the app registered at boardgamegeek.com/applications, kept in Key Vault, so lookups ask
+    # RPGGeek first. Once set, a later run without it keeps it.
+    [switch] $RpgGeekToken,
+
     # Asks again for these secrets and replaces them in Key Vault, rather than keeping the ones it has: Microsoft makes
     # the OneDrive app registration a new client secret; the rest ask for theirs, with the IDs the app already has
     # unless they're given too. A new Dropbox, Google or Box ID, or Auth0 client ID, asks for its secret anyway.
-    [ValidateSet('Microsoft', 'Auth0', 'Dropbox', 'GoogleDrive', 'Box', 'GoogleBooks')] [string[]] $Replace = @(),
+    [ValidateSet('Microsoft', 'Auth0', 'Dropbox', 'GoogleDrive', 'Box', 'GoogleBooks', 'RpgGeek')] [string[]] $Replace = @(),
 
     # Adds the domain and www to the app and issues managed certificates. Needs the DNS records in place first.
     [switch] $BindDomain
@@ -309,6 +313,20 @@ else {
     Write-Host '  Lookups ask Open Library only until this runs with -GoogleBooksKey.' -ForegroundColor Yellow
 }
 Write-Host "  In Google Cloud: enable the Books API; an API key with API restrictions set to the Books API only"
+
+Step 'RPGGeek'
+if ($Replace -contains 'RpgGeek' -or ($RpgGeekToken -and -not (SecretExists 'lookup-rpggeek'))) {
+    WriteSecret 'lookup-rpggeek' (Plain (Read-Host '  Token of the app registered with BoardGameGeek' -AsSecureString))
+}
+if (SecretExists 'lookup-rpggeek') {
+    $providers += 'Lookups__RpgGeek__Token=secretref:lookup-rpggeek'
+    $secrets += SecretRef 'lookup-rpggeek'
+    Write-Host '  Lookups ask RPGGeek first'
+}
+else {
+    Write-Host '  Lookups ask RPGGeek once this runs with -RpgGeekToken.' -ForegroundColor Yellow
+}
+Write-Host "  At boardgamegeek.com/applications: the app's Tokens"
 
 $settings = @(
     "REPLICA_URL=abs://$StorageAccount@replica"

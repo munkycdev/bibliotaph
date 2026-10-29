@@ -19,6 +19,14 @@ public interface IBookCatalogue
     Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default);
 
     /// <summary>
+    /// Every record of the book the catalogue can give, most preferred first, and where it asked: several catalogues
+    /// asked together give each one's record, so each field can come from the one preferred that has it.
+    /// </summary>
+    /// <exception cref="CatalogueUnavailableException">None of the catalogues could be asked right now.</exception>
+    async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
+        new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
+
+    /// <summary>
     /// Finds out again where it asks, for a catalogue that asks somewhere else in turn, as a PC asks its web library:
     /// <see cref="Name"/> may change, raising <see cref="NameChanged"/>. Never throws for a catalogue out of reach.
     /// </summary>
@@ -31,6 +39,12 @@ public interface IBookCatalogue
         remove { }
     }
 }
+
+/// <summary>
+/// The records of a book, most preferred first, and the catalogues that answered (<see cref="AskedOf"/>, "Open Library
+/// or Google Books"): fewer than were meant to be asked when one couldn't answer just then.
+/// </summary>
+public sealed record CatalogueAnswer(IReadOnlyList<BookRecord> Records, string AskedOf);
 
 /// <summary>The catalogue can't be reached, or is too busy to answer: nothing to do with the book asked about.</summary>
 public sealed class CatalogueUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
@@ -59,28 +73,36 @@ public sealed class RequestPace(TimeSpan pace, TimeProvider? clock = null)
 }
 
 /// <summary>
-/// Several catalogues asked in turn, the first record found winning: Open Library first, as it needs no key, then any
-/// the server has a key for. A book none of them knows waits to be asked again when one of them couldn't answer.
+/// Several catalogues asked in turn, in the order the user prefers their records: RPGGeek, which knows RPGs best, then
+/// Open Library, then Google Books, each where the server holds a key. Every one is asked, so a field the first's
+/// record lacks can come from the next's. One that can't answer just then is left out of the answer, which says where
+/// it asked, so the book is asked again once all of them can be; when none can, the book waits.
 /// </summary>
 public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : IBookCatalogue
 {
     public string Name { get; } = string.Join(" or ", catalogues.Select(c => c.Name));
 
-    public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default)
+    public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
+        (await AskAsync(isbns, ct)).Records is [var first, ..] ? first : null;
+
+    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, CancellationToken ct = default)
     {
         CatalogueUnavailableException? unavailable = null;
+        var records = new List<BookRecord>();
+        var asked = new List<string>();
         foreach (var catalogue in catalogues)
         {
             try
             {
-                if (await catalogue.FindAsync(isbns, ct) is { } record) return record;
+                records.AddRange((await catalogue.AskAsync(isbns, ct)).Records);
+                asked.Add(catalogue.Name);
             }
             catch (CatalogueUnavailableException ex)
             {
                 unavailable ??= ex;
             }
         }
-        return unavailable is null ? null : throw unavailable;
+        return asked.Count == 0 ? throw unavailable! : new CatalogueAnswer(records, string.Join(" or ", asked));
     }
 }
 

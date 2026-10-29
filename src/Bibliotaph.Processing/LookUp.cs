@@ -15,30 +15,38 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     public IBookCatalogue Catalogue => catalogue;
 
     const string NoRecordBefore = "No record of its ISBN in ";
+    const string AskedBefore = "Looked up in ";
 
     /// <summary>Why a book none of <paramref name="catalogues"/> ("Open Library or Google Books") knows wasn't looked up.</summary>
     public static string NoRecordIn(string catalogues) => $"{NoRecordBefore}{catalogues}.";
 
+    /// <summary>Where a book was looked up, at the end of how its lookup ended, so it is asked again where more can be asked.</summary>
+    public static string AskedOf(string catalogues) => $"{AskedBefore}{catalogues}.";
+
     /// <summary>
-    /// Whether a book was found in none of fewer catalogues than <paramref name="catalogues"/> names, as one asked only of
-    /// Open Library is once Google Books can be asked too: it's worth asking again. One asked of more isn't, so a PC
-    /// that can't reach its web library for a while doesn't ask the books it asked there all over again.
+    /// Whether a book was looked up in fewer catalogues than <paramref name="catalogues"/> names, as one asked only of
+    /// Open Library is once RPGGeek or Google Books can be asked too: it's worth asking again, whether it was found or
+    /// not, since each field comes from the catalogue the user prefers. One asked of more isn't, so a PC that can't
+    /// reach its web library for a while doesn't ask the books it asked there all over again.
     /// </summary>
     public static bool AskedOfFewer(string? reason, string catalogues)
     {
-        if (reason is null || !reason.StartsWith(NoRecordBefore, StringComparison.Ordinal) || !reason.EndsWith('.')) return false;
-        var asked = reason[NoRecordBefore.Length..^1].Split(" or ");
-        return catalogues.Split(" or ").Except(asked, StringComparer.Ordinal).Any();
+        if (reason is null || !reason.EndsWith('.')) return false;
+        string list;
+        if (reason.StartsWith(NoRecordBefore, StringComparison.Ordinal)) list = reason[NoRecordBefore.Length..^1];
+        else if (reason.LastIndexOf(AskedBefore, StringComparison.Ordinal) is var at and >= 0) list = reason[(at + AskedBefore.Length)..^1];
+        else return false;
+        return catalogues.Split(" or ").Except(list.Split(" or "), StringComparer.Ordinal).Any();
     }
 }
 
 /// <summary>
-/// Look up: asks an online catalogue about the ISBNs a book prints (<see cref="IdentifyStage"/>), and suggests the
-/// title, authors, publisher and year its record gives, above the AI's (<see cref="AssertionOrigin.Lookup"/>). A record
-/// is used only when its title is printed in the book, so a misprinted or reused ISBN can't rename it. A book the record
+/// Look up: asks the online catalogues about the ISBNs a book prints (<see cref="IdentifyStage"/>), and suggests the
+/// title, authors, publisher and year their records give, above the AI's (<see cref="AssertionOrigin.Lookup"/>), each
+/// field from the catalogue the user prefers that has it. A record is used only when its title is printed in the book,
+/// so a misprinted or reused ISBN can't rename it. A book the record
 /// renames is looked at again for another file with its new title and publisher. Runs in its own lane, and waits with
-/// a notice while the catalogue can't be reached. A book no catalogue knew is asked again once there are more
-/// catalogues to ask.
+/// a notice while the catalogue can't be reached. A book is asked again once there are more catalogues to ask.
 /// </summary>
 public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, EntryStore entries, MetadataStore metadata, MetadataProjector projector,
     VersionFinder versions) : IRevisitedStage
@@ -73,31 +81,36 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         var isbns = await queries.GetIsbnsAsync(job.DocumentId, ct);
         if (isbns.Count == 0) return new StageOutcome.Done(StageStatus.Skipped, [], "It prints no ISBN to look up.");
 
-        var catalogue = lookups.Catalogue;
-        BookRecord? record;
+        CatalogueAnswer answer;
         try
         {
-            record = await catalogue.FindAsync(isbns, ct);
+            answer = await lookups.Catalogue.AskAsync(isbns, ct);
         }
         catch (CatalogueUnavailableException ex)
         {
             return new StageOutcome.Unavailable(ex.Message);
         }
-        if (record is null) return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NoRecordIn(catalogue.Name));
+        if (answer.Records.Count == 0) return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NoRecordIn(answer.AskedOf));
 
-        if (!BookRecords.IsNamedIn(record, await PlacesAsync(job.DocumentId, ct)))
+        var places = await PlacesAsync(job.DocumentId, ct);
+        var named = answer.Records.Where(r => BookRecords.IsNamedIn(r, places)).ToList();
+        if (named.Count == 0)
+        {
+            var record = answer.Records[0];
             return new StageOutcome.Done(StageStatus.Skipped, [],
-                $"{record.Source}'s record for its ISBN is of “{record.Title}”, which isn't printed in it, so it wasn't used.");
+                $"{record.Source}'s record for its ISBN is of “{record.Title}”, which isn't printed in it, so it wasn't used. {BookLookups.AskedOf(answer.AskedOf)}");
+        }
 
-        if (await entries.GetEntryAsync(job.DocumentId, ct) is not { } entry) return StageOutcome.Complete();
-        var source = record.Source.ToLowerInvariant().Replace(" ", "", StringComparison.Ordinal);
-        if (await metadata.ApplyRunAsync(entry.EntryId, job.ContentHash, $"{source}:{record.Key}", AssertionOrigin.Lookup, BookRecords.Proposals(record), ct))
+        var asked = BookLookups.AskedOf(answer.AskedOf);
+        if (await entries.GetEntryAsync(job.DocumentId, ct) is not { } entry) return new StageOutcome.Done(StageStatus.Complete, [], asked);
+        var run = string.Join('+', named.Select(r => $"{r.Source.ToLowerInvariant().Replace(" ", "", StringComparison.Ordinal)}:{r.Key}"));
+        if (await metadata.ApplyRunAsync(entry.EntryId, job.ContentHash, run, AssertionOrigin.Lookup, BookRecords.Proposals(named), ct))
         {
             await projector.ProjectAsync([entry.EntryId], ct);
             // Match looked for a book of the same title and publisher before the record named this one properly.
             await versions.ProposeByTitleAndPublisherAsync(job.DocumentId, ct);
         }
-        return StageOutcome.Complete();
+        return new StageOutcome.Done(StageStatus.Complete, [], asked);
     }
 
     /// <summary>Where a book names itself: its front pages, its file's name and the title its file gives.</summary>
