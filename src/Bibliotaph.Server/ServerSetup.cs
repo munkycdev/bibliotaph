@@ -84,6 +84,7 @@ public static class ServerSetup
         services.AddHostedService(sp => sp.GetRequiredService<AccountPurge>());
         services.AddSingleton<AccountClosing>();
         services.AddSingleton<DeviceService>();
+        services.AddSingleton<PcActivityBoard>();
 
         var keys = services.AddDataProtection().SetApplicationName("bibliotaph");
         if (options.KeyRingBlob is { Length: > 0 } blob && options.KeyRingKey is { Length: > 0 } key)

@@ -4,6 +4,7 @@ using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Processing;
+using Bibliotaph.Server.Accounts;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
@@ -14,7 +15,8 @@ namespace Bibliotaph.Server.Api;
 /// <summary>
 /// /api/pc: the web library as a connected PC sees it, so the books in the user's storage show on the PC beside its own
 /// folders' without the PC holding a storage sign-in. Only a PC's key reaches it. The PC lists the files (the shelf),
-/// takes what the server read from each instead of reading the file itself, and downloads a file only to open it.
+/// takes what the server read from each instead of reading the file itself, and downloads a file only to open it. It
+/// also says what its own AI is doing, for Settings › Processing on the web (<see cref="PcActivityBoard"/>).
 /// </summary>
 public static class PcLibraryApi
 {
@@ -25,6 +27,11 @@ public static class PcLibraryApi
     const int MostTitles = 2;
 
     const int LongestTitle = 300;
+
+    /// <summary>Longer than any reason the Windows app gives for its AI waiting.</summary>
+    const int LongestWaiting = 300;
+
+    static readonly string[] AiSteps = [nameof(Stage.Classify), nameof(Stage.ChapterScan)];
 
     public static void MapPcLibraryApi(this IEndpointRouteBuilder app)
     {
@@ -64,6 +71,21 @@ public static class PcLibraryApi
             {
                 return Results.Json(new PcLookupAnswer(catalogue.Name, Problem: ex.Message), statusCode: StatusCodes.Status503ServiceUnavailable);
             }
+        });
+
+        // Every half minute while the PC's AI has work, and once more when it has none or the app closes.
+        pc.MapPut("/activity", async (PcActivity activity, ClaimsPrincipal principal, DeviceService devices, PcActivityBoard board, CancellationToken ct) =>
+        {
+            if (!IsActivity(activity)) return Results.BadRequest();
+            var (userId, deviceId) = (principal.UserId()!, principal.DeviceId()!);
+            if (await devices.FindAsync(userId, deviceId, ct) is not { } device) return Results.Unauthorized();
+            board.Report(userId, deviceId, device.Name, activity);
+            return Results.NoContent();
+        });
+        pc.MapDelete("/activity", (ClaimsPrincipal principal, PcActivityBoard board) =>
+        {
+            board.Forget(principal.UserId()!, principal.DeviceId()!);
+            return Results.NoContent();
         });
 
         pc.MapGet("/books/{hash}/reading", async (string hash, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
@@ -128,4 +150,10 @@ public static class PcLibraryApi
             return Results.NotFound();
         });
     }
+
+    static bool IsActivity(PcActivity activity) =>
+        (activity.Step is null || AiSteps.Contains(activity.Step))
+        && (activity.ContentHash is null || ContentHash.TryParse(activity.ContentHash, out _))
+        && activity.Waiting is not { Length: > LongestWaiting }
+        && activity is { Classified: >= 0, ToClassify: >= 0, ScannedWhole: >= 0, ToScanWhole: >= 0 };
 }

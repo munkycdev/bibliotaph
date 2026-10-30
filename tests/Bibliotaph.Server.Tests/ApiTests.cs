@@ -2465,6 +2465,46 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task What_a_connected_PCs_AI_is_doing_shows_in_processing_naming_only_the_web_librarys_books()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(_pdfs.KnownText, ct));
+        var web = Client(user);
+        web.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await web.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var (pc, key) = await ConnectPcAsync(web, ct);
+        var hash = await WaitAsync(async () => (await pc.ReadShelfAsync(null, ct)).Shelf?.Folders.SelectMany(f => f.Files).FirstOrDefault()?.ContentHash, ct);
+        var title = await WaitAsync(async () => (await web.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 1 } one ? one[0].Title : null, ct);
+        async Task<IReadOnlyList<PcProcessing>> PcsAsync() => (await web.GetFromJsonAsync<ProcessingState>("/api/processing", ct))!.Pcs!;
+
+        var before = await PcsAsync();
+        var said = await pc.ReportActivityAsync(new PcActivity("Classify", hash, false, null, 40, 260, 0, 12), ct);
+        var cataloguing = await PcsAsync();
+        // A book only the PC has is never named.
+        await pc.ReportActivityAsync(new PcActivity("ChapterScan", new string('b', 64), false, null, 300, 0, 3, 9), ct);
+        var scanning = await PcsAsync();
+        var keyed = new HttpClient(_factory.Server.CreateHandler()) { BaseAddress = new Uri("http://localhost") };
+        keyed.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+        using var notAStep = await keyed.PutAsJsonAsync("/api/pc/activity", new PcActivity("Probe", null, false, null, 0, 1, 0, 0), ct);
+        using var session = await web.PutAsJsonAsync("/api/pc/activity", new PcActivity(null, null, false, null, 0, 1, 0, 0), ct);
+        await pc.ReportActivityAsync(null, ct);
+        var done = await PcsAsync();
+
+        Assert.True(said);
+        Assert.Empty(before);
+        var shown = Assert.Single(cataloguing);
+        Assert.Equal(("DESKTOP-1", "Classify", $"Asking the AI about {title}"), (shown.Name, shown.Step, shown.Doing));
+        Assert.Equal((40L, 260L, 0L, 12L), (shown.Classified, shown.ToClassify, shown.ScannedWhole, shown.ToScanWhole));
+        Assert.Equal("Scanning the chapters of one of its own books", Assert.Single(scanning).Doing);
+        Assert.Equal(HttpStatusCode.BadRequest, notAStep.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, session.StatusCode);
+        Assert.Empty(done);
+    }
+
+    [Fact]
     public async Task A_connected_PC_downloads_a_book_from_storage_without_read_links_through_the_server()
     {
         var ct = TestContext.Current.CancellationToken;

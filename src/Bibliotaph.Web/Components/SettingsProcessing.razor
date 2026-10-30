@@ -1,5 +1,6 @@
 @* Settings › Processing, as the Windows app's: indexing step by step with the time left, what each part is on now, and
-   pause and resume for each lane. It asks the server again every couple of seconds while it shows. *@
+   pause and resume for each lane, and what the AI on the user's connected PCs is doing. It asks the server again every
+   couple of seconds while it shows. *@
 @using Bibliotaph.Core.Progress
 @implements IDisposable
 @inject ApiClient Api
@@ -49,6 +50,16 @@
                 @foreach (var line in _state.Now)
                 {
                     <small>@line</small>
+                }
+            </div>
+        }
+        @if (_state.Pcs is { Count: > 0 } pcs)
+        {
+            <div class="bt-now">
+                <span class="bt-eyebrow">ON YOUR PCS</span>
+                @foreach (var pc in pcs)
+                {
+                    <small>@PcLine(pc)</small>
                 }
             </div>
         }
@@ -172,12 +183,21 @@
         _making.Count(now, state.Indexed, state.Queued, state.Paused.Indexing);
         _scans.Count(now, state.OcrPagesDone, state.OcrPages, state.Paused.Scans);
         _lookingUp.Count(now, state.LookedUp, state.LookedUp + state.ToLookUp, paused: false, state.LookupWaiting);
-        // AI cataloguing is off until set up, so "Off" rather than a count that never moves.
-        if (!state.AiOn) _classifying.Show(PhaseState.Waiting, state.ToClassify > 0 ? $"Off · {state.ToClassify:N0} waiting" : "Off");
-        else _classifying.Count(now, state.Classified, state.Classified + state.ToClassify, state.Paused.Ai, state.AiWaiting);
+        // AI cataloguing is off until set up, so "Off" rather than a count that never moves, unless a PC's own AI is
+        // doing it: its results reach the library as they come, so its count is the one that moves.
+        var pcs = state.Pcs ?? [];
+        var cataloguing = pcs.Where(p => p.Step == "Classify" || p.ToClassify > 0).ToList();
+        if (state.AiOn) _classifying.Count(now, state.Classified, state.Classified + state.ToClassify, state.Paused.Ai, state.AiWaiting);
+        else if (cataloguing.Count > 0) CountOnPcs(_classifying, now, cataloguing, p => p.Classified, p => p.ToClassify);
+        else _classifying.Show(PhaseState.Waiting, state.ToClassify > 0 ? $"Off · {state.ToClassify:N0} waiting" : "Off");
+        _classifying.On(Names(cataloguing), alsoHere: state.AiOn);
         // Whole books are read on the same AI, and Settings › AI can switch that part off on its own.
-        if (!state.AiOn || !state.ScanWholeBooks) _scanning.Show(PhaseState.Waiting, state.ToScanWhole > 0 ? $"Off · {state.ToScanWhole:N0} waiting" : "Off");
-        else _scanning.Count(now, state.ScannedWhole, state.ScannedWhole + state.ToScanWhole, state.Paused.Ai, state.AiWaiting);
+        var scanning = pcs.Where(p => p.Step == "ChapterScan" || p.ToScanWhole > 0).ToList();
+        var scanHere = state.AiOn && state.ScanWholeBooks;
+        if (scanHere) _scanning.Count(now, state.ScannedWhole, state.ScannedWhole + state.ToScanWhole, state.Paused.Ai, state.AiWaiting);
+        else if (scanning.Count > 0) CountOnPcs(_scanning, now, scanning, p => p.ScannedWhole, p => p.ToScanWhole);
+        else _scanning.Show(PhaseState.Waiting, state.ToScanWhole > 0 ? $"Off · {state.ToScanWhole:N0} waiting" : "Off");
+        _scanning.On(Names(scanning), alsoHere: scanHere);
 
         var running = _phases.Where(p => p.State == PhaseState.Running).ToList();
         _timeLeft = state.Scanning ? "Working out what there is to do"
@@ -185,6 +205,26 @@
             // The steps run side by side, so the slowest one says when everything is done.
             : running.Any(p => p.Left is null) ? "Working out how long this will take"
             : $"About {TimeLeft.Describe(running.Max(p => p.Left!.Value))} left";
+    }
+
+    /// <summary>The PCs' own counts, added up: waiting or paused only when none of them is getting on with it.</summary>
+    static void CountOnPcs(ProcessingPhase phase, DateTimeOffset now, IReadOnlyList<PcProcessing> pcs, Func<PcProcessing, long> done, Func<PcProcessing, long> toDo)
+    {
+        var going = pcs.Any(p => !p.Paused && p.Waiting is null);
+        phase.Count(now, pcs.Sum(done), pcs.Sum(p => done(p) + toDo(p)), paused: !going && pcs.All(p => p.Paused),
+            waiting: going ? null : pcs.Select(p => p.Waiting).FirstOrDefault(w => w is not null));
+    }
+
+    static string? Names(IReadOnlyList<PcProcessing> pcs) => pcs.Count == 0 ? null : string.Join(" and ", pcs.Select(p => p.Name));
+
+    /// <summary>"Attic PC: Asking the AI about The Sunken Lantern · 40 of 300 catalogued", in that PC's own counts.</summary>
+    static string PcLine(PcProcessing pc)
+    {
+        var doing = pc.Paused ? "AI paused" : pc.Waiting is { } waiting ? $"AI waiting: {waiting}" : pc.Doing ?? "Between books";
+        var line = $"{pc.Name}: {doing}";
+        if (pc.ToClassify > 0) line += $" · {pc.Classified:N0} of {pc.Classified + pc.ToClassify:N0} catalogued";
+        if (pc.ToScanWhole > 0) line += $" · {pc.ScannedWhole:N0} of {pc.ScannedWhole + pc.ToScanWhole:N0} whole books scanned";
+        return line;
     }
 
     static string Bar(ProcessingPhase phase) => phase.State switch
