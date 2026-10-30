@@ -623,7 +623,8 @@ corrections, hearts, notes, collections, saved searches, binders, pins, vocabula
 answers in Needs review. A change in the app reaches the web a few seconds after you make it, and one on the web
 reaches the app within a minute or so; where both changed the same thing, the newer change wins. Settings stay on each
 side, and so do the PC's own library folders. The app keeps working offline and catches up when it's back, and its
-**Settings > Devices** says when it last merged.
+**Settings > Devices** says when it last merged. While it can't reach bibliotaph.online, the status at the bottom of
+its sidebar says so on a line of its own, and books wait to be looked up until it can.
 
 Your web library's books show in the app too. Each of its library folders is a library folder in the app's
 **Settings > Library**, with a cloud icon and where it is, such as **bibliotaph.online › OneDrive · Dana › RPG**, and its
