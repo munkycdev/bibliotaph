@@ -45,6 +45,8 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
     readonly SettingsStore _settings;
     readonly CatalogWrites? _writes;
     readonly MetadataProjector? _projector;
+    readonly UserTagService? _userTags;
+    readonly MetadataHints? _hints;
     readonly TimeProvider _clock;
     readonly ILogger _log;
     readonly IReadOnlyList<ISyncChannel> _channels;
@@ -59,8 +61,11 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
     bool _started;
 
     public LibrarySync(LibrarySyncStore store, SettingsStore settings, CatalogDatabase? catalog = null, MetadataProjector? projector = null,
-        TimeProvider? clock = null, ILogger<LibrarySync>? log = null, string? machineName = null, IEnumerable<ISyncChannel>? channels = null)
+        TimeProvider? clock = null, ILogger<LibrarySync>? log = null, string? machineName = null, IEnumerable<ISyncChannel>? channels = null,
+        UserTagService? userTags = null, MetadataHints? hints = null)
     {
+        _userTags = userTags;
+        _hints = hints;
         _store = store;
         _settings = settings;
         _writes = catalog?.Writes;
