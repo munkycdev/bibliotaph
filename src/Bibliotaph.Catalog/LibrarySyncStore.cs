@@ -190,18 +190,28 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
         }
 
         foreach (var term in await db.VocabularyTerms.AsNoTracking().Include(t => t.Aliases)
-            .Where(t => t.State == TermState.Active || t.State == TermState.Merged).ToListAsync(ct))
+            .Where(t => t.State != TermState.Pending).ToListAsync(ct))
         {
             var names = term.Aliases.Select(a => a.Text).Order(StringComparer.Ordinal).ToList();
-            // A combined term says only where it went: the other PCs combine theirs the same way.
-            records[SyncKeys.ForTerm(term.Vocabulary, term.Key)] = term.State == TermState.Merged
-                ? Fields((SyncFields.Label, Json(term.Label)), (SyncFields.MergedInto, Json(term.MergedIntoKey ?? "")))
-                : Fields(
+            // A combined term says only where it went: the other PCs combine theirs the same way. One turned down says
+            // only that, so the other PCs answer the same proposal the same way; a proposal still waiting isn't the
+            // user's work yet, and each device makes its own from the AI's shared readings.
+            records[SyncKeys.ForTerm(term.Vocabulary, term.Key)] = term.State switch
+            {
+                TermState.Merged => Fields((SyncFields.Label, Json(term.Label)), (SyncFields.MergedInto, Json(term.MergedIntoKey ?? ""))),
+                TermState.Rejected => Fields((SyncFields.Label, Json(term.Label)), (SyncFields.Rejected, Json(true))),
+                _ => Fields(
                     (SyncFields.Label, Json(term.Label)),
                     (SyncFields.ShortLabel, term.ShortLabel is { } s ? Json(s) : null),
                     (SyncFields.Parent, term.ParentKey is { } p ? Json(p) : null),
-                    (SyncFields.Aliases, names.Count > 0 ? Json(names) : null));
+                    (SyncFields.Aliases, names.Count > 0 ? Json(names) : null)),
+            };
         }
+        foreach (var pair in await db.VocabularyKeptAparts.AsNoTracking().ToListAsync(ct))
+            records[SyncKeys.ForKeptApart(pair.Vocabulary, pair.FirstKey, pair.SecondKey)] = Fields((SyncFields.Exists, Json(true)));
+        foreach (var tag in await db.UserTags.AsNoTracking().ToListAsync(ct))
+            records[SyncKeys.ForUserTag(tag.NormalizedName)] = Fields((SyncFields.Name, Json(tag.Name)),
+                (SyncFields.Words, Json(JsonSerializer.Deserialize<List<string>>(tag.WordsJson) ?? [])));
 
         foreach (var pair in await db.CopyDecisions.AsNoTracking().Where(d => d.Answer == CopyAnswer.NotSameBook).Select(d => new { d.FirstHash, d.SecondHash }).ToListAsync(ct))
             records[SyncKeys.ForNotSameBook(pair.FirstHash, pair.SecondHash)] = Fields((SyncFields.Exists, Json(true)));

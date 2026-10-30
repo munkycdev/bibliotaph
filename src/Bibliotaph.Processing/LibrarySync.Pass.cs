@@ -75,6 +75,8 @@ public sealed partial class LibrarySync
             {
                 var applied = await _store.ApplyAsync(changes, resolver.FindCard, ct);
                 changed = applied.Changed;
+                // Another device's tags are guessed here from this device's own pages.
+                if (applied.Tags.Count > 0 && _userTags is not null) await _userTags.RefreshAsync(applied.Tags, ct);
                 waiting.UnionWith(applied.NotApplied);
                 snapshot = await _store.ReadAsync(ct);
                 // What couldn't be used, or was used but doesn't show here, waits rather than reading as deleted here.

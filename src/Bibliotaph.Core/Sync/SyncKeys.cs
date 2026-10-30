@@ -28,6 +28,12 @@ public static class SyncKeys
     /// <summary>A vocabulary term, by vocabulary and key: "t:system:dnd-5e". Keys never change, so they name terms everywhere.</summary>
     public const string Term = "t:";
 
+    /// <summary>Two terms the user said aren't the same thing, by vocabulary and keys, lower first: "ka:setting:eberron:khorvaire".</summary>
+    public const string KeptApart = "ka:";
+
+    /// <summary>One of the user's own tags, by its name in comparison form: "ut:undead".</summary>
+    public const string UserTag = "ut:";
+
     /// <summary>"Not the same book" for two files, by their content hashes, lower first.</summary>
     public const string NotSameBook = "nsb:";
 
@@ -49,6 +55,16 @@ public static class SyncKeys
     public static string For(string prefix, Guid syncId) => prefix + syncId.ToString("D", CultureInfo.InvariantCulture);
 
     public static string ForTerm(string vocabulary, string key) => Term + vocabulary + ":" + key;
+
+    public static string ForKeptApart(string vocabulary, string firstKey, string secondKey) =>
+        string.CompareOrdinal(firstKey, secondKey) <= 0 ? KeptApart + vocabulary + ":" + firstKey + ":" + secondKey : KeptApart + vocabulary + ":" + secondKey + ":" + firstKey;
+
+    /// <summary>The vocabulary and keys in a key made by <see cref="ForKeptApart"/>, or null.</summary>
+    public static (string Vocabulary, string First, string Second)? KeptApartOf(string key) =>
+        key.StartsWith(KeptApart, StringComparison.Ordinal) && key[KeptApart.Length..].Split(':', 3) is [{ Length: > 0 } vocabulary, { Length: > 0 } first, { Length: > 0 } second]
+            ? (vocabulary, first, second) : null;
+
+    public static string ForUserTag(string normalizedName) => UserTag + normalizedName;
 
     public static string ForNotSameBook(string firstHash, string secondHash) =>
         string.CompareOrdinal(firstHash, secondHash) <= 0 ? NotSameBook + firstHash + ":" + secondHash : NotSameBook + secondHash + ":" + firstHash;
@@ -121,6 +137,12 @@ public static class SyncFields
     public const string Text = "text";
     public const string ShortLabel = "short";
     public const string Aliases = "aliases";
+
+    /// <summary>A term the user turned down in Needs review: always true. The other PCs turn it down too, unless they use it.</summary>
+    public const string Rejected = "rejected";
+
+    /// <summary>A tag's words, as a list.</summary>
+    public const string Words = "words";
 
     /// <summary>A term combined into another of its vocabulary: that term's key. The other PCs combine theirs the same way.</summary>
     public const string MergedInto = "merged";

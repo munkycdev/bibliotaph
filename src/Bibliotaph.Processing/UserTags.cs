@@ -81,6 +81,30 @@ public sealed class UserTagService(UserTagStore tags, MetadataStore metadata, Us
     }
 
     /// <summary>
+    /// Guesses again the tags another device added, changed or deleted, by name: a tag that is here now is guessed
+    /// across the library, and one that isn't takes its undecided guesses away.
+    /// </summary>
+    public async Task RefreshAsync(IReadOnlyCollection<string> names, CancellationToken ct = default)
+    {
+        var changed = new HashSet<EntryId>();
+        await _gate.WaitAsync(ct);
+        try
+        {
+            var all = await tags.GetAllAsync(ct);
+            foreach (var name in names)
+            {
+                var tag = all.FirstOrDefault(t => MetadataText.Normalize(t.Name) == MetadataText.Normalize(name));
+                changed.UnionWith(await metadata.ReplaceTagGuessesAsync(name, tag is null ? [] : await GuessAsync(tag, null, ct), ct));
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+        await projector.ProjectAsync(changed, ct);
+    }
+
+    /// <summary>
     /// Checks the books showing a document whose text has just been read against every tag, from the pages already in
     /// the index: the tags their pages earn are guessed, and guesses their pages no longer earn go.
     /// </summary>
