@@ -96,6 +96,18 @@ public sealed class SummaryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task An_empty_scope_counts_nothing()
+    {
+        var summary = await _summary.GetAsync([], Today, Ct);
+
+        Assert.Equal((0L, 0L), (summary.Books, summary.Pages));
+        Assert.Empty(summary.Systems);
+        Assert.Empty(summary.Growth);
+        Assert.Empty(summary.Decades);
+        Assert.Null(summary.BiggestDay);
+    }
+
+    [Fact]
     public async Task Only_the_cards_in_scope_count()
     {
         var summary = await SummaryAsync(EntryOf(Novel), Printed);

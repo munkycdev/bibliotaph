@@ -203,7 +203,15 @@ public sealed class SummaryQueries(IndexDatabase database)
 
     sealed record PagesRow(long Pages, long Ocr);
 
-    sealed record ValueRow(string Field, string Value, string Label, long Count, long Confirmed);
+    // Settable rather than positional: with no rows SQLite reports the aggregates' columns as blobs, which Dapper won't match to a constructor.
+    sealed class ValueRow
+    {
+        public string Field { get; init; } = "";
+        public string Value { get; init; } = "";
+        public string Label { get; init; } = "";
+        public long Count { get; init; }
+        public long Confirmed { get; init; }
+    }
 
     sealed record OtherRow(long SystemUnknown, long StoreWaiting, long StoreDownloaded, long LevelsUnknown);
 }
