@@ -9,7 +9,8 @@
   were published; and how many you've opened, your favorites, notes, collections and binders, and how the library has
   grown month by month. Every figure opens the Library at the books it counts. Home shows the library's size under the
   welcome, with a link to it. The search box has a new field, `opened:`, so `opened:no` finds the books you haven't
-  opened yet. See [Your library in numbers](docs/guide/summary.md).
+  opened yet. It's on bibliotaph.online too, the same page with the same links. See
+  [Your library in numbers](docs/guide/summary.md).
 - **Monsters, items, and what an adventure includes.** Three new fields, filled by AdventureLookup and by you: an
   adventure's monsters (bosses first) and its magic items, which plain search finds ("owlbear"), and **Includes**, a
   short list of pre-generated characters, handouts, battle maps and playable solo. The AI isn't asked for them. See

@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using Bibliotaph.Api.Contracts;
+using Bibliotaph.Core;
+using Bibliotaph.Processing;
 using Bibliotaph.Server.Accounts;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
@@ -44,7 +46,18 @@ public static class ApiEndpoints
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             await using var db = lease.Library.Catalog.CreateContext();
-            return new LibrarySummary(await db.Entries.CountAsync(ct), await db.SourceRoots.CountAsync(ct));
+            var (cards, bytes) = await lease.Library.Get<LibrarySummaryService>().GetTotalsAsync(ct);
+            return new LibraryOverview(await db.Entries.CountAsync(ct), await db.SourceRoots.CountAsync(ct), cards > 0 ? SummaryText.Totals(cards, bytes) : null);
+        });
+
+        // The Summary page's figures, counted as the Windows app counts them. A folder's path is where it is in the user's
+        // storage, as the web names it ("OneDrive · Dana › RPG"), never the server's own form of it.
+        api.MapGet("/library/numbers", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var summary = await lease.Library.Get<LibrarySummaryService>().GetAsync(ct);
+            var drives = lease.Library.Drives;
+            return summary with { Folders = [.. summary.Folders.Select(f => f with { Path = FolderText.Location(f.Path, drives) })] };
         });
 
         api.MapStorageApi();

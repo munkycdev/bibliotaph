@@ -3,7 +3,8 @@
 [Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Your library in numbers
 
 **Summary**, in the sidebar under Binders, is your library by the numbers: how much you have, where it came from, what
-it is and what you've done with it. Home links to it too, under the welcome, beside your library's size.
+it is and what you've done with it. Home links to it too, under the welcome, beside your library's size. It's the same page on
+[bibliotaph.online](web.md#your-library-in-numbers), where a folder is named as it is in your storage.
 
 Every figure on the page opens the Library at the books it counts. Click a game system and the Library opens with that
 system picked; click the number still waiting their turn and it opens at the books you haven't opened yet. Point at a

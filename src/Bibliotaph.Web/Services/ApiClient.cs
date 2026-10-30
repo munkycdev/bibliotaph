@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.AspNetCore.Components.WebAssembly.Http;
 using Bibliotaph.Api.Contracts;
+using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 
 namespace Bibliotaph.Web.Services;
@@ -41,8 +42,12 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<SignInProvider>> ProvidersAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<SignInProvider>>("auth/providers", ct) ?? [];
 
-    public async Task<LibrarySummary> LibrarySummaryAsync(CancellationToken ct = default) =>
-        await http.GetFromJsonAsync<LibrarySummary>("api/library/summary", ct) ?? new LibrarySummary(0, 0);
+    public async Task<LibraryOverview> LibraryOverviewAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<LibraryOverview>("api/library/summary", ct) ?? new LibraryOverview(0, 0);
+
+    /// <summary>The Summary page's figures, each folder named where it is in the user's storage.</summary>
+    public Task<LibrarySummary> LibraryNumbersAsync(CancellationToken ct = default) =>
+        SendAsync<LibrarySummary>(HttpMethod.Get, "api/library/numbers", null, ct);
 
     public async Task<IReadOnlyList<InviteInfo>> InvitesAsync(CancellationToken ct = default) =>
         await http.GetFromJsonAsync<List<InviteInfo>>("api/invites", ct) ?? [];
