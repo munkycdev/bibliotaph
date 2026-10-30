@@ -261,6 +261,10 @@
                 <!-- Folders that can't be reached (4g): their books stay, dimmed and marked Offline. -->
                 <TextBlock x:Name="OfflineFolders" Text="{Binding Activity.OfflineText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0"
                            TextTrimming="CharacterEllipsis" Visibility="{Binding Activity.HasOfflineFolders, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <!-- This PC can't reach its web library: lookups, sync and web books wait on it. -->
+                <TextBlock x:Name="WebUnreachable" Text="{Binding Activity.WebText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0"
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding Activity.HasWebProblem, Converter={StaticResource Bt.VisibleWhenTrue}}" />
               </StackPanel>
             </DockPanel>
           </Button>

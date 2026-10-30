@@ -32,7 +32,7 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
         if (!web.HasKey) return await direct.AskAsync(isbns, titles, ct);
         await LoadAsync(ct);
         var answer = await web.LookUpAsync(isbns, titles, ct)
-            ?? throw new CatalogueUnavailableException($"{(await web.AddressAsync(ct)).Host} can't be reached just now, so books wait to be looked up.");
+            ?? throw new CatalogueUnavailableException($"Waiting for {(await web.AddressAsync(ct)).Host}.");
         await LearnAsync(answer.Catalogues, ct);
         if (answer.Problem is { } problem) throw new CatalogueUnavailableException(problem);
         var records = answer.Records ?? (answer.Record is { } first ? [first] : []);
