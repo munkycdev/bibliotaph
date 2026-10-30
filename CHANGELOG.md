@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Privacy policy: notice is for personal data.** The 14 days' notice before a change now covers what we collect
+  about you and who we share your personal data with. A new public book catalogue, which only ever receives book
+  titles, ISBNs or product codes, is added to the policy's list when we start asking it.
 - **The "Powered by BGG" logo has moved** from the foot of every web page to where RPGGeek's data shows: under a
   book's details when some of them came from RPGGeek, on Windows and the web. It's also in About on Windows and on the
   website's licences page. See [Cataloging](docs/guide/cataloging.md).
