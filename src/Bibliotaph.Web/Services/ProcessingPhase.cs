@@ -59,6 +59,15 @@ public sealed class ProcessingPhase(string label, string detail, string unit = "
         Set(PhaseState.Running, done, total, $"{counted} · {(left is { } l ? TimeLeft.Describe(l) + " left" : "estimating time left")}", left);
     }
 
+    /// <summary>
+    /// Says the step is being done on the user's PCs (<paramref name="pcs"/>, by name), as well as by the server when
+    /// <paramref name="alsoHere"/>. Called after the count; nothing when no PC is.
+    /// </summary>
+    public void On(string? pcs, bool alsoHere)
+    {
+        if (pcs is not null) Status = $"{(alsoHere ? "Also on" : "On")} {pcs} · {Status}";
+    }
+
     void Set(PhaseState state, long done, long total, string status, TimeSpan? left)
     {
         State = state;

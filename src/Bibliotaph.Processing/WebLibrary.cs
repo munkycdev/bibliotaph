@@ -49,9 +49,10 @@ public enum WebConnectOutcome
 /// opens the approval page in the browser, where the user is signed in, and asks again until the user answers. The
 /// PC then has a key of its own, kept in Credential Manager, which the web can disconnect at any time. While connected,
 /// it is also library sync's way to the web library: this PC's sync file goes up, and the web library's comes down; and
-/// what the AI worked out about the PC's files goes up, and the user's other devices' comes down (<see cref="SharedResults"/>).
+/// what the AI worked out about the PC's files goes up, and the user's other devices' comes down (<see cref="SharedResults"/>),
+/// and what the AI is doing now goes up for the web's Settings › Processing (<see cref="PcActivityReport"/>).
 /// </summary>
-public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStore settings, TimeProvider clock, ILogger<WebLibrary> log) : ISyncChannel, IResultChannel, IWebBooks
+public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStore settings, TimeProvider clock, ILogger<WebLibrary> log) : ISyncChannel, IResultChannel, IWebBooks, IPcActivityChannel
 {
     /// <summary>The other devices' files as last fetched, by device, so an unchanged one isn't fetched again.</summary>
     readonly ConcurrentDictionary<string, (long Version, SyncFileContent Content)> _peers = new(StringComparer.Ordinal);
@@ -293,6 +294,24 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         catch (Exception ex) when (Unreachable(ex, ct))
         {
             log.LogInformation(ex, "Couldn't reach the web library to share results");
+        }
+        return false;
+    }
+
+    public async Task<bool> ReportActivityAsync(PcActivity? activity, CancellationToken ct)
+    {
+        try
+        {
+            using var response = activity is null
+                ? await SendAsync(HttpMethod.Delete, "api/pc/activity", null, withKey: true, ct)
+                : await SendAsync(HttpMethod.Put, "api/pc/activity", activity, withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.IsSuccessStatusCode) return true;
+            log.LogWarning("Telling the web library what the AI is doing got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library to say what the AI is doing");
         }
         return false;
     }

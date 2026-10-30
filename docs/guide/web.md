@@ -676,6 +676,13 @@ AI** each stop one step until you resume it, even after you sign out; pausing th
 The library comes first: while you're using it, reading books in the background steps aside, and carries on when you
 pause.
 
+When a connected Windows PC's own AI is cataloguing, the page says so. **On your PCs** names each one with the book
+it's on and its own counts ("Attic PC: Asking the AI about The Sunken Lantern · 40 of 300 catalogued"), and
+**Cataloguing with AI** and **Scanning whole books** say **On Attic PC** in place of **Off** when the server's AI isn't
+set up, with that PC's count and time left. A book only that PC has isn't named. The PC's results reach your web
+library as it finishes each book. A PC that's closed or asleep drops off within a couple of minutes, and pausing the AI
+on the web pauses only the server's; pause a PC's AI in the app.
+
 **Looking up online**, under the steps, says where books are looked up: the server asks RPGGeek, Open Library and
 Google Books about the ISBNs your books print (RPGGeek, searched by name, with the book's title), and suggests each
 book's title, authors, publisher and year, each field from the first of them that has it, as the Windows app does,

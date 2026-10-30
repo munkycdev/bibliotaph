@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **See your PC's AI at work on the web.** When a Windows PC connected to bibliotaph.online is cataloguing with its own
+  AI, Settings › Processing on the web now says so: **On your PCs** shows the book it's on and how far it has got, and
+  Cataloguing with AI and Scanning whole books say **On** and the PC's name instead of **Off** when the server's AI
+  isn't set up. The PC sends only the book's fingerprint, so a book only the PC has is never named. Needs this
+  version of the Windows app. See [Bibliotaph on the web](docs/guide/web.md#processing).
+
 ## 1.4 Γö¼Γòû 28 October 2026
 
 New in 1.4.995 (29 October 2026):

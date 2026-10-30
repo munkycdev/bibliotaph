@@ -49,6 +49,7 @@ sealed class SmokeWebLibrary : HttpMessageHandler
             : get && path == "/api/pc/library" ? Json(Shelf)
             : get && path == $"/api/pc/books/{Hash}/reading" ? Json(Reading)
             : get && path == $"/api/pc/books/{Hash}/file" ? new(HttpStatusCode.OK) { Content = new ByteArrayContent(Book) }
+            : path == "/api/pc/activity" ? new(HttpStatusCode.NoContent)
             : new(HttpStatusCode.ServiceUnavailable);
         response.RequestMessage = request;
         return Task.FromResult(response);
