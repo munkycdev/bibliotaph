@@ -76,7 +76,7 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
             List<string> keys = entry.Kind switch
             {
                 EntryKind.Pack => [.. members[entry.Id].SelectMany(m => hashes[m]).Distinct().Order(StringComparer.Ordinal).Select(SyncKeys.ForPack)],
-                EntryKind.Part => [],
+                EntryKind.Part => [SyncKeys.For(SyncKeys.Adventure, entry.SyncId)],
                 _ => [.. hashes[entry.Id].Distinct().Order(StringComparer.Ordinal).Select(SyncKeys.ForBook)],
             };
             var fields = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -91,6 +91,27 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
             aliases[keys[0]] = keys[1..];
             cardFields[entry.Id] = fields;
         }
+
+        // Copies on one card, and a file that joined a book owned elsewhere (its join records the file as matching itself).
+        foreach (var entry in entries.Where(e => e.Kind == EntryKind.Whole && cardKeys.ContainsKey(e.Id)))
+        {
+            var own = cardKeys[entry.Id];
+            if (SyncKeys.HashOf(own) is not { } lowest) continue;
+            foreach (var other in aliases[own].Select(SyncKeys.HashOf).OfType<string>())
+                records[SyncKeys.ForSameBook(lowest, other)] = Fields((SyncFields.Exists, Json(true)));
+        }
+        var wasElsewhere = await db.EntryJoins.AsNoTracking().Where(j => j.DocumentId != null && j.DocumentId == j.MatchedDocumentId).Select(j => j.EntryId).Distinct().ToListAsync(ct);
+        foreach (var entry in entries.Where(e => e.Kind == EntryKind.Whole && wasElsewhere.Contains(e.Id) && cardKeys.ContainsKey(e.Id)))
+            if (SyncKeys.HashOf(cardKeys[entry.Id]) is { } hash) records[SyncKeys.ForSameBook(Id(entry.SyncId), hash)] = Fields((SyncFields.Exists, Json(true)));
+
+        // An adventure's pages, in the copy it opens in, which find them in another copy or a new version.
+        var partIds = entries.Where(e => e.Kind == EntryKind.Part).Select(e => e.Id).ToList();
+        foreach (var span in (await db.EntrySources.AsNoTracking().Where(s => s.FirstPdfPage != null && partIds.Contains(s.EntryId))
+                .Select(s => new { s.EntryId, s.IsCurrent, s.Document.ContentHash, First = s.FirstPdfPage!.Value, Last = s.LastPdfPage!.Value, s.FirstFingerprint, s.LastFingerprint })
+                .ToListAsync(ct))
+            .GroupBy(s => s.EntryId).Select(g => g.OrderByDescending(s => s.IsCurrent).ThenBy(s => s.ContentHash, StringComparer.Ordinal).First()))
+            if (cardFields.TryGetValue(span.EntryId, out var fields))
+                fields[SyncFields.Pages] = Json(new SyncedPages(span.ContentHash, span.First, span.Last, FirstFingerprint: span.FirstFingerprint, LastFingerprint: span.LastFingerprint));
 
         // Which pack each file is in, by the pack's sync id, and the images kept on cards of their own; a pack's cover.
         var packSyncIds = entries.Where(e => e.Kind == EntryKind.Pack).ToDictionary(e => e.Id, e => e.SyncId);
@@ -227,6 +248,14 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
 
         foreach (var pair in await db.CopyDecisions.AsNoTracking().Where(d => d.Answer == CopyAnswer.NotSameBook).Select(d => new { d.FirstHash, d.SecondHash }).ToListAsync(ct))
             records[SyncKeys.ForNotSameBook(pair.FirstHash, pair.SecondHash)] = Fields((SyncFields.Exists, Json(true)));
+
+        foreach (var answered in await db.PartProposals.AsNoTracking().Where(p => p.Answer != null).Select(p => new { p.ContentHash, p.Answer }).ToListAsync(ct))
+            records[SyncKeys.PartProposal + answered.ContentHash] = Fields((SyncFields.Answer, Json(answered.Answer!.Value.ToString())));
+
+        foreach (var apart in await db.ElsewhereMatches.AsNoTracking().Where(m => m.Answer == ElsewhereAnswer.SeparateBook)
+            .Join(db.Entries, m => m.EntryId, e => e.Id, (m, e) => new { e.SyncId, m.DocumentId })
+            .Join(db.Documents, m => m.DocumentId, d => d.Id, (m, d) => new { m.SyncId, d.ContentHash }).ToListAsync(ct))
+            records[SyncKeys.ForSeparateFromElsewhere(apart.SyncId, apart.ContentHash)] = Fields((SyncFields.Exists, Json(true)));
 
         foreach (var answered in await db.LookupRecords.AsNoTracking().Where(r => r.Answer != null).Select(r => new { r.ContentHash, r.Source, r.RecordKey, r.Answer })
             .ToListAsync(ct))

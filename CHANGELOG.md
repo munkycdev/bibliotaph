@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Same book, adventures and their answers now sync.** Files you joined as one book (with Same book, as a new version,
+  or by matching a file to a book you own elsewhere) are joined on your other devices too, and Not the same book parts
+  them everywhere. Adventures you mark in a file reach the web and your other PCs with their pages and values, and
+  removing one removes it everywhere. Your answers to adventure proposals and to "Is this its file?" travel as well.
+  See [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
 - **Packs now sync between the web and your PCs.** Files you pack together, a pack you split, your Make a pack and
   Keep separate answers in Needs review, packs merged into one and a pack's chosen cover reach every device that has
   those files. A pack's title, hearts and collections, which waited for a matching pack, now arrive with it. Where the

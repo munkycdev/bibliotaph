@@ -123,7 +123,7 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         {
             await using var db = catalog.CreateContext();
             var hex = new string(hash, 64);
-            return new EntryId(await db.EntrySources.Where(s => s.Document.ContentHash == hex).Select(s => s.EntryId).SingleAsync(Ct));
+            return new EntryId(await db.EntrySources.Where(s => s.Document.ContentHash == hex && s.FirstPdfPage == null).Select(s => s.EntryId).SingleAsync(Ct));
         }
 
         public async Task<string?> TitleAsync(char hash)
@@ -535,5 +535,75 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         Assert.Empty(await _laptop.Packs.GetProposalsAsync(Ct));
         var pack = Assert.Single(await _laptop.PackCardsAsync());
         Assert.Equal(6, pack.Members!.Count);
+    }
+
+    [Fact]
+    public async Task Two_files_joined_as_one_book_on_one_PC_are_joined_on_the_other_until_Not_the_same_book_parts_them()
+    {
+        var deskAbbey = await _desk.AddBookAsync('a');
+        await _desk.AddBookAsync('b');
+        await _laptop.AddBookAsync('a');
+        await _laptop.AddBookAsync('b');
+        await using (var db = _desk.Catalog.CreateContext())
+        {
+            var opens = await db.EntrySources.Where(s => s.EntryId == deskAbbey.Value).Select(s => s.DocumentId).SingleAsync(Ct);
+            await new EntryStore(_desk.Contexts).JoinAsOneBookAsync([deskAbbey, await _desk.BookAsync('b')], opens, Ct);
+        }
+
+        await RoundAsync();
+
+        Assert.Equal(await _laptop.BookAsync('a'), await _laptop.BookAsync('b'));
+
+        _laptop.Later(5);
+        var book = await _laptop.BookAsync('a');
+        await using (var db = _laptop.Catalog.CreateContext())
+        {
+            var leaving = await db.EntrySources.Where(s => s.EntryId == book.Value && s.Document.ContentHash == new string('b', 64)).Select(s => s.DocumentId).SingleAsync(Ct);
+            await new EntryStore(_laptop.Contexts).SplitCopyAsync(book, leaving, ct: Ct);
+        }
+        await RoundAsync();
+        await RoundAsync();
+
+        Assert.NotEqual(await _desk.BookAsync('a'), await _desk.BookAsync('b'));
+        Assert.NotEqual(await _laptop.BookAsync('a'), await _laptop.BookAsync('b'));
+    }
+
+    [Fact]
+    public async Task An_adventure_marked_on_one_PC_is_marked_on_the_other_and_removing_it_removes_it_there()
+    {
+        var deskBook = await _desk.AddBookAsync('a');
+        await _laptop.AddBookAsync('a');
+        long document;
+        await using (var db = _desk.Catalog.CreateContext())
+            document = await db.EntrySources.Where(s => s.EntryId == deskBook.Value).Select(s => s.DocumentId).SingleAsync(Ct);
+        var parts = new PartStore(_desk.Contexts, _desk.Clock);
+        var part = (await parts.AddAsync(deskBook, new PartSource(document, new PartPages(4, 19)), "The Sunken Bell", Ct))!.Value;
+        await _desk.Metadata.SetValuesAsync(part, MetadataFields.Levels, ["3-5"], Ct);
+
+        await RoundAsync();
+
+        var onLaptop = Assert.Single(await new PartStore(_laptop.Contexts).GetPartsAsync(await _laptop.BookAsync('a'), Ct));
+        Assert.Equal(new PartPages(4, 19), onLaptop.Sources.Single().Pages);
+        var values = (await _laptop.Metadata.GetAsync(onLaptop.EntryId, Ct)).Compute();
+        Assert.Equal("The Sunken Bell", values[MetadataFields.Title].First?.Value);
+        Assert.Equal("3-5", values[MetadataFields.Levels].First?.Value);
+
+        _desk.Later(5);
+        await parts.RemoveAsync(part, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await new PartStore(_laptop.Contexts).GetPartsAsync(await _laptop.BookAsync('a'), Ct));
+    }
+
+    [Fact]
+    public async Task Not_split_for_a_files_adventures_is_answered_on_the_other_PC_too()
+    {
+        var deskBook = await _desk.AddBookAsync('a');
+        await _laptop.AddBookAsync('a');
+        await new PartProposalStore(_desk.Contexts).AnswerAsync(deskBook, PartProposalAnswer.NotSplit, Ct);
+
+        await RoundAsync();
+
+        Assert.True(await new PartProposalStore(_laptop.Contexts).IsAnsweredAsync(new string('a', 64), Ct));
     }
 }

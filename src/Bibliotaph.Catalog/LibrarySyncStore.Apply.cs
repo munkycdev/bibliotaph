@@ -132,11 +132,14 @@ public sealed partial class LibrarySyncStore
         _ when key.StartsWith(SyncKeys.SavedSearch, StringComparison.Ordinal) => 2,
         _ when key.StartsWith(SyncKeys.Binder, StringComparison.Ordinal) => 3,
         _ when key.StartsWith(SyncKeys.Section, StringComparison.Ordinal) => 4,
+        // An adventure after the cards, as it is made in its file's, and after joins, which may bring its file.
+        _ when key.StartsWith(SyncKeys.Adventure, StringComparison.Ordinal) => 7,
         _ when SyncKeys.IsCard(key) => 5,
-        _ when key.StartsWith(SyncKeys.Item, StringComparison.Ordinal) => 6,
-        _ when key.StartsWith(SyncKeys.PageNote, StringComparison.Ordinal) => 7,
-        _ when key.StartsWith(SyncKeys.Pin, StringComparison.Ordinal) => 8,
-        _ => 9,
+        _ when key.StartsWith(SyncKeys.SameBook, StringComparison.Ordinal) => 6,
+        _ when key.StartsWith(SyncKeys.Item, StringComparison.Ordinal) => 8,
+        _ when key.StartsWith(SyncKeys.PageNote, StringComparison.Ordinal) => 9,
+        _ when key.StartsWith(SyncKeys.Pin, StringComparison.Ordinal) => 10,
+        _ => 11,
     };
 
     static T Read<T>(IReadOnlyDictionary<string, string> fields, string name) => SyncJson.Read<T>(fields[name])!;
@@ -156,6 +159,10 @@ public sealed partial class LibrarySyncStore
         if (key.StartsWith(SyncKeys.UserTag, StringComparison.Ordinal)) return await UpsertUserTagAsync(key[SyncKeys.UserTag.Length..], wanted, tags, ct);
         if (key.StartsWith(SyncKeys.Term, StringComparison.Ordinal)) return await UpsertTermAsync(key, wanted, ct);
         if (key.StartsWith(SyncKeys.NotSameBook, StringComparison.Ordinal)) return await UpsertNotSameBookAsync(key, ct);
+        if (SyncKeys.SameBookOf(key) is { } same) return await JoinAsync(same.First, same.Second, card, ct);
+        if (key.StartsWith(SyncKeys.PartProposal, StringComparison.Ordinal))
+            return await UpsertPartProposalAsync(key[SyncKeys.PartProposal.Length..], Enum.Parse<PartProposalAnswer>(Read<string>(wanted, SyncFields.Answer)), ct);
+        if (SyncKeys.SeparateFromElsewhereOf(key) is { } separate) return await UpsertSeparateFromElsewhereAsync(separate.Elsewhere, separate.Hash, ct);
         if (SyncKeys.LookupRecordOf(key) is { } record)
             return lookups is not null && await lookups.ApplySyncedAsync(record.Hash, record.Source, record.RecordKey,
                 Read<bool>(wanted, SyncFields.SameBook) ? LookupAnswer.SameBook : LookupAnswer.NotThisBook, ct);
@@ -311,6 +318,18 @@ public sealed partial class LibrarySyncStore
         Dictionary<string, long> created, CancellationToken ct)
     {
         var changed = false;
+        if (card(key) is null && SyncKeys.IdOf(key, SyncKeys.Adventure) is { } partSyncId)
+        {
+            if (await AddAdventureAsync(partSyncId, wanted, ct) is not { } partId) return null;
+            created[key] = partId;
+            current = null;
+            changed = true;
+        }
+        else if (SyncKeys.IdOf(key, SyncKeys.Adventure) is not null && current?.GetValueOrDefault(SyncFields.Pages) != wanted.GetValueOrDefault(SyncFields.Pages))
+        {
+            if (await MoveAdventureAsync(card(key)!.Value, wanted, ct) is not { } moved) return null;
+            changed |= moved;
+        }
         if (card(key) is not { } entryId)
         {
             if (SyncKeys.IdOf(key, SyncKeys.Elsewhere) is not { } syncId) return null;
@@ -560,14 +579,117 @@ public sealed partial class LibrarySyncStore
         return true;
     }
 
+    /// <summary>
+    /// "Not the same book" from another device: remembered, and when the two files are still one card here, the second
+    /// leaves it, as Not the same book takes a copy out there.
+    /// </summary>
     async Task<bool> UpsertNotSameBookAsync(string key, CancellationToken ct)
     {
         var parts = key[SyncKeys.NotSameBook.Length..].Split(':');
         if (parts.Length != 2) return false;
+        var changed = false;
+        await using (var db = await contexts.CreateDbContextAsync(ct))
+        {
+            if (!await db.CopyDecisions.AnyAsync(d => d.FirstHash == parts[0] && d.SecondHash == parts[1], ct))
+            {
+                db.CopyDecisions.Add(new CopyDecision { FirstHash = parts[0], SecondHash = parts[1], Answer = CopyAnswer.NotSameBook, CreatedUtc = Now });
+                changed = await SaveAsync(db, ct);
+            }
+            var copies = await db.EntrySources.AsNoTracking().Where(s => s.FirstPdfPage == null && (s.Document.ContentHash == parts[0] || s.Document.ContentHash == parts[1])
+                    && s.Entry.MergedIntoEntryId == null)
+                .Select(s => new { s.EntryId, s.DocumentId, s.Document.ContentHash }).ToListAsync(ct);
+            if (copies.Select(c => c.EntryId).Distinct().Count() != 1 || copies.FirstOrDefault(c => c.ContentHash == parts[1]) is not { } leaving
+                || copies.All(c => c.ContentHash != parts[0])) return changed;
+            return await new EntryStore(contexts, _clock).SplitCopyAsync(new EntryId(leaving.EntryId), leaving.DocumentId, remember: false, ct) is not null || changed;
+        }
+    }
+
+    /// <summary>
+    /// Two cards that are one book on another device (Same book, a new version, a file that met its book owned
+    /// elsewhere) become one here, as Same book joins them. Cards the user said aren't the same book stay apart, as do
+    /// packs, images in packs and adventures. Null while either isn't here.
+    /// </summary>
+    async Task<bool?> JoinAsync(string first, string second, Func<string, long?> card, CancellationToken ct)
+    {
+        static string KeyOf(string name) => Guid.TryParseExact(name, "D", out var id) ? SyncKeys.For(SyncKeys.Elsewhere, id) : SyncKeys.ForBook(name);
+        if (card(KeyOf(first)) is not { } one || card(KeyOf(second)) is not { } other) return null;
+        if (one == other) return false;
         await using var db = await contexts.CreateDbContextAsync(ct);
-        if (await db.CopyDecisions.AnyAsync(d => d.FirstHash == parts[0] && d.SecondHash == parts[1], ct)) return false;
-        db.CopyDecisions.Add(new CopyDecision { FirstHash = parts[0], SecondHash = parts[1], Answer = CopyAnswer.NotSameBook, CreatedUtc = Now });
+        List<long> group = [one, other];
+        var cards = await db.Entries.AsNoTracking().Where(e => group.Contains(e.Id)).ToListAsync(ct);
+        if (cards.Count != 2 || cards.Any(c => c.MergedIntoEntryId is not null || c.ParentEntryId is not null || c.Kind is not (EntryKind.Whole or EntryKind.Elsewhere)))
+            return false;
+        var copies = await db.EntrySources.AsNoTracking().Where(s => group.Contains(s.EntryId) && s.FirstPdfPage == null)
+            .Select(s => new { s.EntryId, s.DocumentId, s.IsCurrent, s.Document.ContentHash }).ToListAsync(ct);
+        var hashes = copies.Select(c => c.ContentHash).Distinct().ToList();
+        if (await db.CopyDecisions.AnyAsync(d => d.Answer == CopyAnswer.NotSameBook && hashes.Contains(d.FirstHash) && hashes.Contains(d.SecondHash), ct)) return false;
+        // The copy that opens is the one the older card opens, as joining copies keeps it.
+        if (copies.OrderBy(c => c.EntryId).ThenByDescending(c => c.IsCurrent).Select(c => (long?)c.DocumentId).FirstOrDefault() is not { } opens) return false;
+        return await new EntryStore(contexts, _clock).JoinAsOneBookAsync([new EntryId(one), new EntryId(other)], opens, ct) is not null;
+    }
+
+    async Task<bool> UpsertPartProposalAsync(string hash, PartProposalAnswer answer, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var row = await db.PartProposals.SingleOrDefaultAsync(p => p.ContentHash == hash, ct);
+        if (row?.Answer == answer) return false;
+        if (row is null)
+            row = db.PartProposals.Add(new PartProposal { ContentHash = hash, Source = PartProposalSource.Rules, PartsJson = "[]", CreatedUtc = Now }).Entity;
+        row.Answer = answer;
+        row.DecidedUtc = Now;
         return await SaveAsync(db, ct);
+    }
+
+    /// <summary>"Separate book" for a file and a book owned elsewhere: the pair isn't asked about here either, now or when the file arrives.</summary>
+    async Task<bool?> UpsertSeparateFromElsewhereAsync(Guid elsewhere, string hash, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var entryId = await db.Entries.Where(e => e.SyncId == elsewhere).Select(e => (long?)e.Id).SingleOrDefaultAsync(ct);
+        var documentId = await db.Documents.Where(d => d.ContentHash == hash).Select(d => (long?)d.Id).SingleOrDefaultAsync(ct);
+        if (entryId is null || documentId is null) return null;
+        var rows = await db.ElsewhereMatches.Where(m => m.EntryId == entryId && m.DocumentId == documentId).ToListAsync(ct);
+        if (rows.Count == 0) db.ElsewhereMatches.Add(new ElsewhereMatch { EntryId = entryId.Value, DocumentId = documentId.Value, Answer = ElsewhereAnswer.SeparateBook, CreatedUtc = Now });
+        foreach (var row in rows) row.Answer = ElsewhereAnswer.SeparateBook;
+        return await SaveAsync(db, ct);
+    }
+
+    static async Task<List<ElsewhereMatch>> SeparateMatchesAsync(CatalogDbContext db, Guid elsewhere, string hash, CancellationToken ct) =>
+        await db.ElsewhereMatches.Where(m => m.Answer == ElsewhereAnswer.SeparateBook
+            && db.Entries.Any(e => e.Id == m.EntryId && e.SyncId == elsewhere) && db.Documents.Any(d => d.Id == m.DocumentId && d.ContentHash == hash)).ToListAsync(ct);
+
+    /// <summary>
+    /// An adventure another device marked, made here in the copy of its file with the same content, under the same
+    /// sync id. Null when that copy isn't here, or the pages overlap an adventure marked here.
+    /// </summary>
+    async Task<long?> AddAdventureAsync(Guid syncId, IReadOnlyDictionary<string, string> wanted, CancellationToken ct)
+    {
+        if (ReadOrDefault<SyncedPages>(wanted, SyncFields.Pages) is not { } pages) return null;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var copy = await db.EntrySources.AsNoTracking().Where(s => s.FirstPdfPage == null && s.Document.ContentHash == pages.Hash && s.Entry.MergedIntoEntryId == null)
+            .Select(s => new { s.EntryId, s.DocumentId }).FirstOrDefaultAsync(ct);
+        if (copy is null) return null;
+        var title = ReadOrDefault<SyncedMetadata>(wanted, SyncFields.MetadataPrefix + MetadataFields.Title.Key)?.Values is [var first, ..] ? first : "";
+        var source = new PartSource(copy.DocumentId, new PartPages(pages.First, pages.Last), pages.FirstFingerprint, pages.LastFingerprint);
+        if (await new PartStore(contexts, _clock).AddAsync(new EntryId(copy.EntryId), source, title, ct) is not { } part) return null;
+        var row = await db.Entries.SingleAsync(e => e.Id == part.Value, ct);
+        row.SyncId = syncId;
+        await db.SaveChangesAsync(ct);
+        return part.Value;
+    }
+
+    /// <summary>An adventure whose pages the other device changed: its pages in that copy are changed here too. Null when they can't be.</summary>
+    async Task<bool?> MoveAdventureAsync(long partId, IReadOnlyDictionary<string, string> wanted, CancellationToken ct)
+    {
+        if (ReadOrDefault<SyncedPages>(wanted, SyncFields.Pages) is not { } pages) return false;
+        var parts = new PartStore(contexts, _clock);
+        if (await parts.GetPartAsync(new EntryId(partId), ct) is not { } part) return null;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (await db.Documents.Where(d => d.ContentHash == pages.Hash).Select(d => (long?)d.Id).SingleOrDefaultAsync(ct) is not { } documentId) return null;
+        var moved = new PartSource(documentId, new PartPages(pages.First, pages.Last), pages.FirstFingerprint, pages.LastFingerprint);
+        if (part.On(documentId) is { } there && there.Pages == moved.Pages) return false;
+        var sources = part.Sources.Where(s => s.DocumentId != documentId).Append(moved).ToList();
+        var current = part.Sources.FirstOrDefault(s => s.IsCurrent)?.DocumentId ?? documentId;
+        return await parts.SetSourcesAsync(new EntryId(partId), sources, current, ct) ? true : null;
     }
 
     /// <summary>
@@ -643,6 +765,32 @@ public sealed partial class LibrarySyncStore
             {
                 db.UserTags.Remove(row);
                 tags.Add(row.Name);
+                deleted = true;
+            }
+        }
+        // Two files that stopped being one book are parted by Not the same book, which travels on its own.
+        else if (SyncKeys.SameBookOf(key) is not null) { }
+        else if (SyncKeys.IdOf(key, SyncKeys.Adventure) is { } && card(key) is { } partId)
+        {
+            await transaction.CommitAsync(ct);
+            return await new PartStore(contexts, _clock).RemoveAsync(new EntryId(partId), ct) is not null;
+        }
+        else if (key.StartsWith(SyncKeys.PartProposal, StringComparison.Ordinal))
+        {
+            var hash = key[SyncKeys.PartProposal.Length..];
+            if (await db.PartProposals.SingleOrDefaultAsync(p => p.ContentHash == hash && p.Answer != null, ct) is { } row)
+            {
+                // Asked about again, as Undo leaves it; one made only to hold the answer goes.
+                if (row.PartsJson == "[]") db.PartProposals.Remove(row);
+                else (row.Answer, row.DecidedUtc) = (null, null);
+                deleted = true;
+            }
+        }
+        else if (SyncKeys.SeparateFromElsewhereOf(key) is { } separate)
+        {
+            foreach (var row in await SeparateMatchesAsync(db, separate.Elsewhere, separate.Hash, ct))
+            {
+                row.Answer = null;
                 deleted = true;
             }
         }

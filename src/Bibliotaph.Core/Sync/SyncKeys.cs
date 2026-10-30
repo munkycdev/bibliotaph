@@ -18,6 +18,9 @@ public static class SyncKeys
     /// <summary>A pack of images: the lowest content hash among its images.</summary>
     public const string Pack = "p:";
 
+    /// <summary>An adventure inside a file: its entry's sync id, so changing its pages doesn't change its name.</summary>
+    public const string Adventure = "a:";
+
     public const string Collection = "c:";
     public const string SavedSearch = "s:";
     public const string Binder = "b:";
@@ -33,6 +36,18 @@ public static class SyncKeys
 
     /// <summary>One of the user's own tags, by its name in comparison form: "ut:undead".</summary>
     public const string UserTag = "ut:";
+
+    /// <summary>The user's answer to a file's adventure proposal, by the file's content hash: "pp:ab12…".</summary>
+    public const string PartProposal = "pp:";
+
+    /// <summary>"Separate book" for a file that seemed to be a book owned elsewhere: "es:" + the book's sync id + ":" + the file's hash.</summary>
+    public const string SeparateFromElsewhere = "es:";
+
+    /// <summary>
+    /// Two files on one card, or a file and the book owned elsewhere it joined: "sb:" + the card's lowest hash (or the
+    /// book's sync id) + ":" + the other file's hash. The other devices join their cards for them too.
+    /// </summary>
+    public const string SameBook = "sb:";
 
     /// <summary>"Not the same book" for two files, by their content hashes, lower first.</summary>
     public const string NotSameBook = "nsb:";
@@ -66,6 +81,19 @@ public static class SyncKeys
 
     public static string ForUserTag(string normalizedName) => UserTag + normalizedName;
 
+    public static string ForSeparateFromElsewhere(Guid elsewhere, string contentHash) => For(SeparateFromElsewhere, elsewhere) + ":" + contentHash;
+
+    /// <summary>The book owned elsewhere and the file's hash in a key made by <see cref="ForSeparateFromElsewhere"/>, or null.</summary>
+    public static (Guid Elsewhere, string Hash)? SeparateFromElsewhereOf(string key) =>
+        key.StartsWith(SeparateFromElsewhere, StringComparison.Ordinal) && key[SeparateFromElsewhere.Length..].Split(':', 2) is [var id, { Length: > 0 } hash]
+            && Guid.TryParseExact(id, "D", out var guid) ? (guid, hash) : null;
+
+    public static string ForSameBook(string first, string second) => SameBook + first + ":" + second;
+
+    /// <summary>The two names in a key made by <see cref="ForSameBook"/>: content hashes, or a book owned elsewhere's sync id first.</summary>
+    public static (string First, string Second)? SameBookOf(string key) =>
+        key.StartsWith(SameBook, StringComparison.Ordinal) && key[SameBook.Length..].Split(':') is [{ Length: > 0 } first, { Length: > 0 } second] ? (first, second) : null;
+
     public static string ForNotSameBook(string firstHash, string secondHash) =>
         string.CompareOrdinal(firstHash, secondHash) <= 0 ? NotSameBook + firstHash + ":" + secondHash : NotSameBook + secondHash + ":" + firstHash;
 
@@ -76,9 +104,9 @@ public static class SyncKeys
         key.StartsWith(LookupRecord, StringComparison.Ordinal) && key[LookupRecord.Length..].Split(':', 3) is [{ Length: > 0 } hash, { Length: > 0 } source, { Length: > 0 } recordKey]
             ? (hash, source, recordKey) : null;
 
-    /// <summary>A book, a book owned elsewhere or a pack: a card, whose fields are its metadata and the user's marks.</summary>
+    /// <summary>A book, a book owned elsewhere, a pack or an adventure: a card, whose fields are its metadata and the user's marks.</summary>
     public static bool IsCard(string key) => key.StartsWith(Book, StringComparison.Ordinal) || key.StartsWith(Elsewhere, StringComparison.Ordinal)
-        || key.StartsWith(Pack, StringComparison.Ordinal);
+        || key.StartsWith(Pack, StringComparison.Ordinal) || key.StartsWith(Adventure, StringComparison.Ordinal);
 
     /// <summary>
     /// Whether the record exists only while the user keeps it, so its going away on one PC is a deletion to send to the
@@ -155,6 +183,9 @@ public static class SyncFields
 
     /// <summary>A term combined into another of its vocabulary: that term's key. The other PCs combine theirs the same way.</summary>
     public const string MergedInto = "merged";
+
+    /// <summary>An adventure proposal's answer: "Accepted" or "NotSplit".</summary>
+    public const string Answer = "answer";
 
     /// <summary>A catalogue's record for a file: true when the user said it is the book's, false when they said it isn't.</summary>
     public const string SameBook = "same";
