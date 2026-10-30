@@ -40,7 +40,7 @@
       </Style.Triggers>
     </Style>
 
-    <DataTemplate x:Key="Tile" DataType="{x:Type vm:SummaryTile}">
+    <DataTemplate x:Key="Tile" DataType="{x:Type core:SummaryTile}">
       <Button Style="{StaticResource Figure}" Margin="0,0,12,12" AutomationProperties.Name="{Binding Label}">
         <Button.Template>
           <ControlTemplate TargetType="Button">
@@ -72,7 +72,7 @@
     </ItemsPanelTemplate>
 
     <!-- A bar: the confirmed share in the accent over the suggested share in its lighter step. -->
-    <DataTemplate x:Key="Bar" DataType="{x:Type vm:SummaryBar}">
+    <DataTemplate x:Key="Bar" DataType="{x:Type core:SummaryBar}">
       <Button Style="{StaticResource Figure}" ToolTip="{Binding ToolTip}" AutomationProperties.Name="{Binding ToolTip}">
         <Button.Template>
           <ControlTemplate TargetType="Button">
@@ -112,14 +112,18 @@
     </DataTemplate>
 
     <!-- A column of a strip: its bar standing on the baseline, its tick under it. -->
-    <DataTemplate x:Key="Column" DataType="{x:Type vm:SummaryColumn}">
+    <DataTemplate x:Key="Column" DataType="{x:Type core:SummaryColumn}">
       <Button Style="{StaticResource Figure}" ToolTip="{Binding ToolTip}" AutomationProperties.Name="{Binding ToolTip}">
         <Button.Template>
           <ControlTemplate TargetType="Button">
             <StackPanel Background="Transparent">
               <Grid Height="{x:Static vm:SummaryViewModel.StripHeight}">
-                <Border x:Name="Bar" Height="{Binding Height}" VerticalAlignment="Bottom" Margin="2,0" CornerRadius="3,3,0,0"
-                        Background="{DynamicResource Bt.Accent}" Opacity="0.85" />
+                <Border x:Name="Bar" Margin="2,0" CornerRadius="3,3,0,0" Background="{DynamicResource Bt.Accent}" Opacity="0.85"
+                        RenderTransformOrigin="0.5,1">
+                  <Border.RenderTransform>
+                    <ScaleTransform ScaleY="{Binding Share}" />
+                  </Border.RenderTransform>
+                </Border>
               </Grid>
               <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" />
               <TextBlock Text="{Binding Tick}" Style="{StaticResource Text.Small}" FontSize="10" TextAlignment="Center" Margin="0,5,0,0" />
@@ -153,13 +157,13 @@
         <StackPanel>
           <TextBlock Text="THE HOARD" Style="{StaticResource Text.Eyebrow}" />
           <TextBlock FontFamily="{StaticResource Font.Display}" FontSize="28" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,10,0,0">
-            <Run Text="You own " /><Hyperlink Command="{Binding OpenCommand}" CommandParameter="{Binding Everything}" Foreground="{DynamicResource Bt.Accent}"
-              TextDecorations="{x:Null}" AutomationProperties.Name="Every book in the Library"><Run Text="{Binding BooksText, Mode=OneWay}" /></Hyperlink><Run
-              Text=", " /><Run Text="{Binding PagesText, Mode=OneWay}" /><Run Text=" and " /><Run Text="{Binding SizeText, Mode=OneWay}" /><Run Text=" of RPG material." />
+            <Run Text="You own " /><Hyperlink Command="{Binding OpenCommand}" CommandParameter="{x:Static vm:SummaryViewModel.Everything}" Foreground="{DynamicResource Bt.Accent}"
+              TextDecorations="{x:Null}" AutomationProperties.Name="Every book in the Library"><Run Text="{Binding Page.BooksText, Mode=OneWay}" /></Hyperlink><Run
+              Text=", " /><Run Text="{Binding Page.PagesText, Mode=OneWay}" /><Run Text=" and " /><Run Text="{Binding Page.SizeText, Mode=OneWay}" /><Run Text=" of RPG material." />
           </TextBlock>
-          <TextBlock Text="{Binding ReadingTime}" Style="{StaticResource Text.Subtitle}"
-                     Visibility="{Binding ReadingTime, Converter={StaticResource Bt.VisibleWhenSet}}" />
-          <ItemsControl ItemsSource="{Binding Hoard}" ItemTemplate="{StaticResource Tile}" ItemsPanel="{StaticResource Tiles}" Focusable="False"
+          <TextBlock Text="{Binding Page.ReadingTime}" Style="{StaticResource Text.Subtitle}"
+                     Visibility="{Binding Page.ReadingTime, Converter={StaticResource Bt.VisibleWhenSet}}" />
+          <ItemsControl ItemsSource="{Binding Page.Hoard}" ItemTemplate="{StaticResource Tile}" ItemsPanel="{StaticResource Tiles}" Focusable="False"
                         Margin="0,20,0,0" AutomationProperties.Name="What the library holds" />
         </StackPanel>
       </Border>
@@ -174,15 +178,15 @@
               <ColumnDefinition Width="40" />
               <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <StackPanel Visibility="{Binding Folders, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <StackPanel Visibility="{Binding Page.Folders, Converter={StaticResource Bt.VisibleWhenSet}}">
               <DockPanel Margin="0,0,0,8">
                 <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Manage folders" Command="{Binding ManageFoldersCommand}" />
-                <TextBlock Text="{Binding Folders.Heading}" Style="{StaticResource ListHeading}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.Folders.Heading}" Style="{StaticResource ListHeading}" VerticalAlignment="Center" />
               </DockPanel>
-              <ItemsControl ItemsSource="{Binding Folders.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False"
-                            AutomationProperties.Name="{Binding Folders.Heading}" />
-              <TextBlock Text="{Binding OfflineText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
-                         Visibility="{Binding OfflineText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <ItemsControl ItemsSource="{Binding Page.Folders.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False"
+                            AutomationProperties.Name="{Binding Page.Folders.Heading}" />
+              <TextBlock Text="{Binding Page.OfflineText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                         Visibility="{Binding Page.OfflineText, Converter={StaticResource Bt.VisibleWhenSet}}" />
             </StackPanel>
             <StackPanel Grid.Column="2">
               <DockPanel Margin="0,0,0,8">
@@ -190,11 +194,11 @@
                 <TextBlock Text="Online libraries and stores" Style="{StaticResource ListHeading}" VerticalAlignment="Center" />
               </DockPanel>
               <TextBlock Text="No book says where else you own it, or where it came from, yet." Style="{StaticResource Text.Small}"
-                         Visibility="{Binding Sources, Converter={StaticResource Bt.CollapsedWhenSet}}" />
-              <ItemsControl ItemsSource="{Binding Sources.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False"
+                         Visibility="{Binding Page.Sources, Converter={StaticResource Bt.CollapsedWhenSet}}" />
+              <ItemsControl ItemsSource="{Binding Page.Sources.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False"
                             AutomationProperties.Name="Online libraries and stores" />
-              <TextBlock Text="{Binding StoresText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
-                         Visibility="{Binding StoresText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock Text="{Binding Page.StoresText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                         Visibility="{Binding Page.StoresText, Converter={StaticResource Bt.VisibleWhenSet}}" />
             </StackPanel>
           </Grid>
         </StackPanel>
@@ -213,26 +217,26 @@
             <TextBlock Text="WHAT IT IS" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
           </DockPanel>
           <UniformGrid Columns="3" Margin="0,14,0,0">
-            <StackPanel Margin="0,0,28,0" Visibility="{Binding Systems, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <StackPanel Margin="0,0,28,0" Visibility="{Binding Page.Systems, Converter={StaticResource Bt.VisibleWhenSet}}">
               <DockPanel Margin="0,0,0,8">
-                <TextBlock DockPanel.Dock="Right" Text="{Binding Systems.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Systems.Heading}" Style="{StaticResource ListHeading}" />
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Page.Systems.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.Systems.Heading}" Style="{StaticResource ListHeading}" />
               </DockPanel>
-              <ItemsControl ItemsSource="{Binding Systems.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Game systems" />
+              <ItemsControl ItemsSource="{Binding Page.Systems.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Game systems" />
             </StackPanel>
-            <StackPanel Margin="0,0,28,0" Visibility="{Binding Types, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <StackPanel Margin="0,0,28,0" Visibility="{Binding Page.Types, Converter={StaticResource Bt.VisibleWhenSet}}">
               <DockPanel Margin="0,0,0,8">
-                <TextBlock DockPanel.Dock="Right" Text="{Binding Types.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Types.Heading}" Style="{StaticResource ListHeading}" />
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Page.Types.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.Types.Heading}" Style="{StaticResource ListHeading}" />
               </DockPanel>
-              <ItemsControl ItemsSource="{Binding Types.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Types" />
+              <ItemsControl ItemsSource="{Binding Page.Types.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Types" />
             </StackPanel>
-            <StackPanel Visibility="{Binding Settings, Converter={StaticResource Bt.VisibleWhenSet}}">
+            <StackPanel Visibility="{Binding Page.Settings, Converter={StaticResource Bt.VisibleWhenSet}}">
               <DockPanel Margin="0,0,0,8">
-                <TextBlock DockPanel.Dock="Right" Text="{Binding Settings.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
-                <TextBlock Text="{Binding Settings.Heading}" Style="{StaticResource ListHeading}" />
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Page.Settings.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.Settings.Heading}" Style="{StaticResource ListHeading}" />
               </DockPanel>
-              <ItemsControl ItemsSource="{Binding Settings.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Settings" />
+              <ItemsControl ItemsSource="{Binding Page.Settings.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Settings" />
             </StackPanel>
           </UniformGrid>
 
@@ -244,28 +248,28 @@
             </Grid.ColumnDefinitions>
             <StackPanel>
               <DockPanel Margin="0,0,0,10">
-                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="{Binding LevelsUnknownText}" Command="{Binding OpenCommand}"
-                        CommandParameter="{Binding LevelsUnknownLink}" Visibility="{Binding LevelsUnknownText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="{Binding Page.LevelsUnknownText}" Command="{Binding OpenCommand}"
+                        CommandParameter="{Binding Page.LevelsUnknownLink}" Visibility="{Binding Page.LevelsUnknownText, Converter={StaticResource Bt.VisibleWhenSet}}" />
                 <TextBlock Text="By character level" Style="{StaticResource ListHeading}" />
               </DockPanel>
               <TextBlock Text="No book or adventure has its levels yet." Style="{StaticResource Text.Small}"
-                         Visibility="{Binding LevelsText, Converter={StaticResource Bt.CollapsedWhenSet}}" />
-              <ItemsControl ItemsSource="{Binding Levels}" ItemTemplate="{StaticResource Column}" ItemsPanel="{StaticResource Strip}" Focusable="False"
+                         Visibility="{Binding Page.LevelsText, Converter={StaticResource Bt.CollapsedWhenSet}}" />
+              <ItemsControl ItemsSource="{Binding Page.Levels}" ItemTemplate="{StaticResource Column}" ItemsPanel="{StaticResource Strip}" Focusable="False"
                             AutomationProperties.Name="Books and adventures by character level" />
-              <TextBlock Text="{Binding LevelsText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
-                         Visibility="{Binding LevelsText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock Text="{Binding Page.LevelsText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                         Visibility="{Binding Page.LevelsText, Converter={StaticResource Bt.VisibleWhenSet}}" />
             </StackPanel>
             <StackPanel Grid.Column="2">
               <DockPanel Margin="0,0,0,10">
-                <TextBlock DockPanel.Dock="Right" Text="{Binding YearUnknownText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Page.YearUnknownText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
                 <TextBlock Text="Published, by decade" Style="{StaticResource ListHeading}" />
               </DockPanel>
               <TextBlock Text="No book has its year yet." Style="{StaticResource Text.Small}"
-                         Visibility="{Binding YearsText, Converter={StaticResource Bt.CollapsedWhenSet}}" />
-              <ItemsControl ItemsSource="{Binding Decades}" ItemTemplate="{StaticResource Column}" ItemsPanel="{StaticResource Strip}" Focusable="False"
+                         Visibility="{Binding Page.YearsText, Converter={StaticResource Bt.CollapsedWhenSet}}" />
+              <ItemsControl ItemsSource="{Binding Page.Decades}" ItemTemplate="{StaticResource Column}" ItemsPanel="{StaticResource Strip}" Focusable="False"
                             AutomationProperties.Name="Books by the decade they were published" />
-              <TextBlock Text="{Binding YearsText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
-                         Visibility="{Binding YearsText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <TextBlock Text="{Binding Page.YearsText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                         Visibility="{Binding Page.YearsText, Converter={StaticResource Bt.VisibleWhenSet}}" />
             </StackPanel>
           </Grid>
         </StackPanel>
@@ -275,28 +279,28 @@
       <Border Style="{StaticResource Band}">
         <StackPanel>
           <TextBlock Text="WHAT YOU’VE DONE WITH IT" Style="{StaticResource Text.Eyebrow}" />
-          <TextBlock Text="{Binding OpenedText}" FontFamily="{StaticResource Font.Display}" FontSize="28" Foreground="{DynamicResource Bt.Text}"
+          <TextBlock Text="{Binding Page.OpenedText}" FontFamily="{StaticResource Font.Display}" FontSize="28" Foreground="{DynamicResource Bt.Text}"
                      TextWrapping="Wrap" Margin="0,10,0,0" />
-          <Button Style="{StaticResource Bt.Link}" FontSize="12" Content="{Binding WaitingText}" Command="{Binding OpenCommand}"
-                  CommandParameter="{Binding NeverOpened}" AutomationProperties.HelpText="Opens the Library at the books not opened yet" />
-          <ProgressBar Style="{StaticResource Bt.ProgressBar}" Height="10" Maximum="1" Value="{Binding OpenedShare, Mode=OneWay}" MaxWidth="620"
-                       HorizontalAlignment="Stretch" Background="{DynamicResource Bt.Soft}" Margin="0,10,0,0" AutomationProperties.Name="{Binding OpenedText}" />
-          <ItemsControl ItemsSource="{Binding Work}" ItemTemplate="{StaticResource Tile}" ItemsPanel="{StaticResource Tiles}" Focusable="False"
+          <Button Style="{StaticResource Bt.Link}" FontSize="12" Content="{Binding Page.WaitingText}" Command="{Binding OpenCommand}"
+                  CommandParameter="{x:Static vm:SummaryViewModel.NeverOpened}" AutomationProperties.HelpText="Opens the Library at the books not opened yet" />
+          <ProgressBar Style="{StaticResource Bt.ProgressBar}" Height="10" Maximum="1" Value="{Binding Page.OpenedShare, Mode=OneWay}" MaxWidth="620"
+                       HorizontalAlignment="Stretch" Background="{DynamicResource Bt.Soft}" Margin="0,10,0,0" AutomationProperties.Name="{Binding Page.OpenedText}" />
+          <ItemsControl ItemsSource="{Binding Page.Work}" ItemTemplate="{StaticResource Tile}" ItemsPanel="{StaticResource Tiles}" Focusable="False"
                         Margin="0,20,0,0" AutomationProperties.Name="What you have made of it" />
-          <TextBlock Text="{Binding ReadingText}" Style="{StaticResource Text.Small}" />
+          <TextBlock Text="{Binding Page.ReadingText}" Style="{StaticResource Text.Small}" />
 
-          <StackPanel Margin="0,24,0,0" Visibility="{Binding HasGrowth, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <StackPanel Margin="0,24,0,0" Visibility="{Binding Page.HasGrowth, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <TextBlock Text="Growth since your first book" Style="{StaticResource ListHeading}" Margin="0,0,0,10" />
-            <c:GrowthChart Height="140" Values="{Binding Growth}" Labels="{Binding GrowthLabels}" Stroke="{DynamicResource Bt.Accent}"
+            <c:GrowthChart Height="140" Values="{Binding Page.Growth}" Labels="{Binding Page.GrowthLabels}" Stroke="{DynamicResource Bt.Accent}"
                            Fill="{DynamicResource Bt.Soft}" Grid="{DynamicResource Bt.Line}"
-                           AutomationProperties.Name="Books in the library each month" AutomationProperties.HelpText="{Binding GrowthEnd}" />
+                           AutomationProperties.Name="Books in the library each month" AutomationProperties.HelpText="{Binding Page.GrowthEnd}" />
             <Grid Margin="0,5,0,0">
-              <TextBlock Text="{Binding GrowthStart}" Style="{StaticResource Text.Small}" FontSize="10" HorizontalAlignment="Left" />
-              <TextBlock Text="{Binding GrowthMiddle}" Style="{StaticResource Text.Small}" FontSize="10" HorizontalAlignment="Center" />
-              <TextBlock Text="{Binding GrowthEnd}" Style="{StaticResource Text.Small}" FontSize="10" HorizontalAlignment="Right" />
+              <TextBlock Text="{Binding Page.GrowthStart}" Style="{StaticResource Text.Small}" FontSize="10" HorizontalAlignment="Left" />
+              <TextBlock Text="{Binding Page.GrowthMiddle}" Style="{StaticResource Text.Small}" FontSize="10" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding Page.GrowthEnd}" Style="{StaticResource Text.Small}" FontSize="10" HorizontalAlignment="Right" />
             </Grid>
-            <TextBlock Text="{Binding BiggestDayText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
-                       Visibility="{Binding BiggestDayText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            <TextBlock Text="{Binding Page.BiggestDayText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                       Visibility="{Binding Page.BiggestDayText, Converter={StaticResource Bt.VisibleWhenSet}}" />
           </StackPanel>
         </StackPanel>
       </Border>

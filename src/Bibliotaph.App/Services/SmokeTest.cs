@@ -1671,26 +1671,26 @@ static partial class SmokeTest
         home.OpenSummaryCommand.Execute(null);
         await Settle(window);
         var page = shell.CurrentPage as SummaryViewModel ?? throw new InvalidOperationException("Home's link didn't open Summary.");
-        await WaitUntilAsync(window, () => page.HasBooks && page.BooksText == count && page.Folders is { Bars.Count: > 0 },
-            () => $"Summary says “{page.BooksText}”, not {count}, or lists no folder.");
+        await WaitUntilAsync(window, () => page.Page is { HasBooks: true, Folders.Bars.Count: > 0 } shown && shown.BooksText == count,
+            () => $"Summary says “{page.Page?.BooksText}”, not {count}, or lists no folder.");
         if (!shell.NavItems.Single(n => n.Route == Route.Summary).IsActive) throw new InvalidOperationException("The sidebar doesn't mark Summary as the page shown.");
         await AuditAsync(window, "Summary");
 
-        page.OpenCommand.Execute(page.Everything);
+        page.OpenCommand.Execute(SummaryPage.Everything);
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Items.Count: var shown } && shown == books && search.Text.Length == 0,
             () => "The hero line's count didn't open the whole Library.");
         navigation.GoBack();
         await Settle(window);
 
-        var folder = page.Folders!.Bars[0];
+        var folder = page.Page!.Folders!.Bars[0];
         page.OpenCommand.Execute(folder.Link);
-        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel library && library.Filters.FolderChoice.Value == folder.Link!.Filters!.Folder
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel library && library.Filters.FolderChoice.Value == folder.Link!.Filter!.Folder
                 && library.Items.Count.ToString("N0", CultureInfo.InvariantCulture) == folder.Count.Split(' ')[0],
             () => $"The bar for {folder.Label} didn't open the Library at its {folder.Count}.");
         navigation.GoBack();
         await Settle(window);
 
-        page.OpenCommand.Execute(page.NeverOpened);
+        page.OpenCommand.Execute(SummaryPage.NeverOpened);
         await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel && search.Text == "opened:no",
             () => $"The books still waiting opened the Library searching “{search.Text}”.");
         search.Search("");
