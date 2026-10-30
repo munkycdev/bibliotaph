@@ -79,8 +79,9 @@
                     </Style>
                   </ProgressBar.Style>
                 </ProgressBar>
+                <!-- The status gives up the run-again button's width, so the row still fits the smallest window. -->
                 <TextBlock Grid.Column="2" Text="{Binding Status}" Style="{StaticResource Text.Small}" VerticalAlignment="Center"
-                           MinWidth="190" TextAlignment="Right" />
+                           MinWidth="156" TextAlignment="Right" />
                 <!-- Runs the step again for every book, asked first where it costs a pass over the library. -->
                 <Button Grid.Column="3" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.RotateCcw}" HorizontalAlignment="Right"
                         VerticalAlignment="Center" ToolTip="{Binding RunAgain.Hint}" AutomationProperties.Name="{Binding RunAgain.Hint}"
