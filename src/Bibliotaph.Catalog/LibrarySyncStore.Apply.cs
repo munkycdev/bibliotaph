@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
@@ -14,8 +15,12 @@ namespace Bibliotaph.Catalog;
 /// </summary>
 public sealed record SyncChange(string Key, IReadOnlyDictionary<string, string>? Wanted, IReadOnlyDictionary<string, string>? Current);
 
-/// <summary>What applying merged records did: the keys that couldn't be applied yet (their book isn't here, say), and whether anything changed.</summary>
-public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Changed);
+/// <summary>
+/// What applying merged records did: the keys that couldn't be applied yet (their book isn't here, say), whether
+/// anything changed, the names of the user's own tags that were added, changed or deleted, whose guesses across the
+/// library are to be made again, and the cards whose packs changed, whose folder hints are to be stored again.
+/// </summary>
+public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Changed, IReadOnlySet<string> Tags, IReadOnlyList<EntryId> Packed);
 
 public sealed partial class LibrarySyncStore
 {
@@ -32,15 +37,18 @@ public sealed partial class LibrarySyncStore
         using var quiet = CatalogWrites.Quiet();
         var notApplied = new HashSet<string>(StringComparer.Ordinal);
         var created = new Dictionary<string, long>(StringComparer.Ordinal);
+        var tags = new HashSet<string>(StringComparer.Ordinal);
         long? Card(string key) => created.TryGetValue(key, out var id) ? id : findCard(key);
         var changed = false;
 
-        var upserts = changes.Where(c => c.Wanted is not null).OrderBy(c => Rank(c.Key)).ThenBy(c => c.Key, StringComparer.Ordinal).ToList();
+        // A term turned down goes after the others, which may have taken its name, as the other PC filed it under one of them.
+        var upserts = changes.Where(c => c.Wanted is not null).OrderBy(c => Rank(c.Key)).ThenBy(c => c.Wanted!.ContainsKey(SyncFields.Rejected))
+            .ThenBy(c => c.Key, StringComparer.Ordinal).ToList();
         foreach (var change in upserts)
         {
             try
             {
-                var applied = await UpsertAsync(change.Key, change.Wanted!, change.Current, Card, created, ct);
+                var applied = await UpsertAsync(change.Key, change.Wanted!, change.Current, Card, created, tags, ct);
                 if (applied is null) notApplied.Add(change.Key);
                 else changed |= applied.Value;
             }
@@ -51,6 +59,8 @@ public sealed partial class LibrarySyncStore
                 notApplied.Add(change.Key);
             }
         }
+        var packed = new List<EntryId>();
+        changed |= await ApplyPacksAsync(upserts, Card, notApplied, packed, ct);
         // A collection's parent may have been made after it, so parents are set once every collection is there.
         foreach (var change in upserts.Where(c => c.Key.StartsWith(SyncKeys.Collection, StringComparison.Ordinal) && !notApplied.Contains(c.Key)))
             changed |= await SetParentAsync(change.Key, change.Wanted!, ct);
@@ -59,7 +69,7 @@ public sealed partial class LibrarySyncStore
         {
             try
             {
-                changed |= await DeleteAsync(change.Key, Card, ct);
+                changed |= await DeleteAsync(change.Key, Card, tags, ct);
             }
             catch (DbUpdateException ex)
             {
@@ -68,7 +78,50 @@ public sealed partial class LibrarySyncStore
             }
         }
         if (changed) vocabularies.Forget();
-        return new SyncApplyResult(notApplied, changed);
+        return new SyncApplyResult(notApplied, changed, tags, packed);
+    }
+
+    /// <summary>
+    /// Packs, once every card is in place: files are put in the packs the other device has them in, or on cards of their
+    /// own (<see cref="PackStore.ApplySyncedAsync"/>), then packs take the covers chosen there. A file that couldn't be
+    /// put as it was there, or a pack whose cover file isn't in it here, waits.
+    /// </summary>
+    async Task<bool> ApplyPacksAsync(IReadOnlyList<SyncChange> upserts, Func<string, long?> card, HashSet<string> notApplied, List<EntryId> packed,
+        CancellationToken ct)
+    {
+        static bool Differs(SyncChange c, string name) => c.Current?.GetValueOrDefault(name) != c.Wanted!.GetValueOrDefault(name);
+        var wishes = new Dictionary<long, Guid?>();
+        var keys = new Dictionary<long, string>();
+        foreach (var change in upserts.Where(c => c.Key.StartsWith(SyncKeys.Book, StringComparison.Ordinal) && !notApplied.Contains(c.Key) && Differs(c, SyncFields.InPack)))
+        {
+            if (card(change.Key) is not { } entryId) continue;
+            wishes[entryId] = ReadOrDefault<string>(change.Wanted, SyncFields.InPack) is { Length: > 0 } text && Guid.TryParse(text, out var pack) ? pack : null;
+            keys[entryId] = change.Key;
+        }
+        var changed = false;
+        if (wishes.Count > 0)
+        {
+            var (moved, unsettled) = await new PackStore(contexts, _clock).ApplySyncedAsync(wishes, ct);
+            changed = moved.Count > 0;
+            packed.AddRange(moved);
+            foreach (var entryId in unsettled) notApplied.Add(keys[entryId]);
+        }
+
+        foreach (var change in upserts.Where(c => c.Key.StartsWith(SyncKeys.Pack, StringComparison.Ordinal) && !notApplied.Contains(c.Key) && Differs(c, SyncFields.Cover)))
+        {
+            if (card(change.Key) is not { } packId) continue;
+            long? fileId = ReadOrDefault<string>(change.Wanted, SyncFields.Cover) is { } coverKey ? card(coverKey) : null;
+            await using var db = await contexts.CreateDbContextAsync(ct);
+            if (await db.Entries.SingleOrDefaultAsync(e => e.Id == packId && e.Kind == EntryKind.Pack, ct) is not { } pack) continue;
+            if (fileId is not null && !await db.Entries.AnyAsync(e => e.Id == fileId && e.ParentEntryId == packId, ct))
+            {
+                notApplied.Add(change.Key);
+                continue;
+            }
+            pack.CoverEntryId = fileId;
+            changed |= await SaveAsync(db, ct);
+        }
+        return changed;
     }
 
     /// <summary>The order records are applied in: what others point at first.</summary>
@@ -96,9 +149,11 @@ public sealed partial class LibrarySyncStore
 
     /// <summary>Applies one record. Null when it can't be yet; otherwise whether anything changed.</summary>
     async Task<bool?> UpsertAsync(string key, IReadOnlyDictionary<string, string> wanted, IReadOnlyDictionary<string, string>? current, Func<string, long?> card,
-        Dictionary<string, long> created, CancellationToken ct)
+        Dictionary<string, long> created, HashSet<string> tags, CancellationToken ct)
     {
         if (SyncKeys.IsCard(key)) return await UpsertCardAsync(key, wanted, current, card, created, ct);
+        if (SyncKeys.KeptApartOf(key) is { } apart) return await UpsertKeptApartAsync(apart.Vocabulary, apart.First, apart.Second, ct);
+        if (key.StartsWith(SyncKeys.UserTag, StringComparison.Ordinal)) return await UpsertUserTagAsync(key[SyncKeys.UserTag.Length..], wanted, tags, ct);
         if (key.StartsWith(SyncKeys.Term, StringComparison.Ordinal)) return await UpsertTermAsync(key, wanted, ct);
         if (key.StartsWith(SyncKeys.NotSameBook, StringComparison.Ordinal)) return await UpsertNotSameBookAsync(key, ct);
         if (SyncKeys.LookupRecordOf(key) is { } record)
@@ -356,10 +411,13 @@ public sealed partial class LibrarySyncStore
 
     /// <summary>
     /// A term as the other PC has it: added as the user's own when it isn't here, otherwise renamed, with exactly its
-    /// aliases (an alias another term of the vocabulary has here moves, as Settings > Vocabulary moves one). A term
-    /// waiting here as a model's proposal keeps waiting: deciding it has its own consequences. One combined into
-    /// another there is combined the same way here, when both are active here; a term that never got here isn't made
-    /// just to be combined.
+    /// aliases (an alias another term of the vocabulary has here moves, as Settings > Vocabulary moves one). A term the
+    /// AI proposed here too is decided as it was there, so Needs review is answered once for every device: accepted,
+    /// it joins the vocabulary and the values waiting on it become suggestions; one whose name the other PC filed under
+    /// another term is filed the same way; turned down, it and its values are turned down. A term turned down there
+    /// that never got here is kept as turned down, so the AI proposing it here asks nothing. A term in use here is
+    /// never turned down by sync. One combined into another there is combined the same way here, when both are here; a
+    /// term that never got here isn't made just to be combined.
     /// </summary>
     async Task<bool?> UpsertTermAsync(string key, IReadOnlyDictionary<string, string> wanted, CancellationToken ct)
     {
@@ -367,9 +425,20 @@ public sealed partial class LibrarySyncStore
         if (parts.Length != 2) return false;
         var (vocabulary, termKey) = (parts[0], parts[1]);
         if (ReadOrDefault<string>(wanted, SyncFields.MergedInto) is { Length: > 0 } into)
+        {
+            if (await PendingTermAsync(vocabulary, termKey, ct) is { } waiting && await ActiveTermAsync(vocabulary, into, ct))
+            {
+                await vocabularies.MapPendingAsync(waiting, into, ct);
+                return true;
+            }
             return await vocabularies.MergeByKeyAsync(vocabulary, into, termKey, ct);
+        }
+        var label = Read<string>(wanted, SyncFields.Label);
+        if (ReadOrDefault<bool>(wanted, SyncFields.Rejected)) return await RejectTermAsync(vocabulary, termKey, label, ct);
+
         await using var db = await contexts.CreateDbContextAsync(ct);
         var term = await db.VocabularyTerms.Include(t => t.Aliases).SingleOrDefaultAsync(t => t.Vocabulary == vocabulary && t.Key == termKey, ct);
+        var changed = false;
         if (term is null)
         {
             term = db.VocabularyTerms.Add(new VocabularyTerm
@@ -382,8 +451,20 @@ public sealed partial class LibrarySyncStore
                 CreatedUtc = Now,
             }).Entity;
         }
+        else if (term.State == TermState.Pending)
+        {
+            await vocabularies.AcceptPendingAsync(term.Id, ct);
+            db.ChangeTracker.Clear();
+            term = await db.VocabularyTerms.Include(t => t.Aliases).SingleAsync(t => t.Id == term.Id, ct);
+            changed = true;
+        }
+        else if (term.State == TermState.Rejected)
+        {
+            term.State = TermState.Active;
+            changed = true;
+        }
         else if (term.State != TermState.Active) return false;
-        term.Label = Read<string>(wanted, SyncFields.Label);
+        term.Label = label;
         term.ShortLabel = ReadOrDefault<string>(wanted, SyncFields.ShortLabel);
         term.ParentKey = ReadOrDefault<string>(wanted, SyncFields.Parent);
         var names = ReadOrDefault<List<string>>(wanted, SyncFields.Aliases) ?? [];
@@ -395,7 +476,88 @@ public sealed partial class LibrarySyncStore
             db.VocabularyAliases.RemoveRange(others.Where(a => a.Normalized == normalized));
             term.Aliases.Add(new VocabularyAlias { Text = name, Normalized = normalized });
         }
+        changed |= await SaveAsync(db, ct);
+
+        // A proposal here with one of the term's names was filed under it there: it is filed under it here too.
+        var named = names.Append(label).Append(term.ShortLabel ?? "").Where(n => n.Length > 0).Select(MetadataText.Normalize).ToHashSet(StringComparer.Ordinal);
+        var proposals = await db.VocabularyTerms.AsNoTracking().Where(t => t.Vocabulary == vocabulary && t.State == TermState.Pending && t.Id != term.Id)
+            .Select(t => new { t.Id, t.Label }).ToListAsync(ct);
+        foreach (var proposal in proposals.Where(p => named.Contains(MetadataText.Normalize(p.Label))))
+        {
+            await vocabularies.MapPendingAsync(proposal.Id, termKey, ct);
+            changed = true;
+        }
+        return changed;
+    }
+
+    /// <summary>A term turned down on another PC: turned down here if it waits here, kept as turned down if it was never here.</summary>
+    async Task<bool> RejectTermAsync(string vocabulary, string termKey, string label, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var term = await db.VocabularyTerms.SingleOrDefaultAsync(t => t.Vocabulary == vocabulary && t.Key == termKey, ct);
+        if (term is null)
+        {
+            db.VocabularyTerms.Add(new VocabularyTerm
+            {
+                Vocabulary = vocabulary,
+                Key = termKey,
+                Label = label,
+                Origin = TermOrigin.Model,
+                State = TermState.Rejected,
+                CreatedUtc = Now,
+            });
+            return await SaveAsync(db, ct);
+        }
+        if (term.State != TermState.Pending) return false;
+        // Turned down there because its name was filed under another term: filed the same way here.
+        var name = MetadataText.Normalize(label);
+        var filedUnder = (await db.VocabularyTerms.AsNoTracking().Include(t => t.Aliases).Where(t => t.Vocabulary == vocabulary && t.State == TermState.Active).ToListAsync(ct))
+            .FirstOrDefault(t => MetadataText.Normalize(t.Label) == name || t.Aliases.Any(a => a.Normalized == name));
+        if (filedUnder is not null) await vocabularies.MapPendingAsync(term.Id, filedUnder.Key, ct);
+        else await vocabularies.RejectPendingAsync(term.Id, ct);
+        return true;
+    }
+
+    async Task<long?> PendingTermAsync(string vocabulary, string termKey, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.VocabularyTerms.Where(t => t.Vocabulary == vocabulary && t.Key == termKey && t.State == TermState.Pending)
+            .Select(t => (long?)t.Id).SingleOrDefaultAsync(ct);
+    }
+
+    async Task<bool> ActiveTermAsync(string vocabulary, string termKey, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.VocabularyTerms.AnyAsync(t => t.Vocabulary == vocabulary && t.Key == termKey && t.State == TermState.Active, ct);
+    }
+
+    async Task<bool> UpsertKeptApartAsync(string vocabulary, string first, string second, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (await db.VocabularyKeptAparts.AnyAsync(k => k.Vocabulary == vocabulary && k.FirstKey == first && k.SecondKey == second, ct)) return false;
+        db.VocabularyKeptAparts.Add(new VocabularyKeptApart { Vocabulary = vocabulary, FirstKey = first, SecondKey = second, CreatedUtc = Now });
         return await SaveAsync(db, ct);
+    }
+
+    /// <summary>One of the user's own tags as the other PC has it, by its name in comparison form; its name joins <paramref name="tags"/> when it changed here.</summary>
+    async Task<bool> UpsertUserTagAsync(string normalized, IReadOnlyDictionary<string, string> wanted, HashSet<string> tags, CancellationToken ct)
+    {
+        var name = Read<string>(wanted, SyncFields.Name);
+        var words = JsonSerializer.Serialize(ReadOrDefault<List<string>>(wanted, SyncFields.Words) ?? []);
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var row = await db.UserTags.SingleOrDefaultAsync(t => t.NormalizedName == normalized, ct);
+        if (row is null)
+            row = db.UserTags.Add(new UserTag { Name = name, NormalizedName = normalized, WordsJson = words, CreatedUtc = Now, UpdatedUtc = Now }).Entity;
+        else if (row.Name == name && row.WordsJson == words) return false;
+        else
+        {
+            row.Name = name;
+            row.WordsJson = words;
+            row.UpdatedUtc = Now;
+        }
+        await db.SaveChangesAsync(ct);
+        tags.Add(name);
+        return true;
     }
 
     async Task<bool> UpsertNotSameBookAsync(string key, CancellationToken ct)
@@ -413,7 +575,7 @@ public sealed partial class LibrarySyncStore
     /// a binder's and an item's page references go with them, a book owned elsewhere goes with everything set on it.
     /// A card with files is never deleted this way. Returns whether anything was there to delete.
     /// </summary>
-    async Task<bool> DeleteAsync(string key, Func<string, long?> card, CancellationToken ct)
+    async Task<bool> DeleteAsync(string key, Func<string, long?> card, HashSet<string> tags, CancellationToken ct)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -468,6 +630,19 @@ public sealed partial class LibrarySyncStore
             if (await db.Entries.SingleOrDefaultAsync(e => e.Id == entryId && e.Kind == EntryKind.Elsewhere && !e.Sources.Any(), ct) is { } row)
             {
                 db.Entries.Remove(row);
+                deleted = true;
+            }
+        }
+        else if (SyncKeys.KeptApartOf(key) is { } apart)
+            deleted = await db.VocabularyKeptAparts.Where(k => k.Vocabulary == apart.Vocabulary && k.FirstKey == apart.First && k.SecondKey == apart.Second)
+                .ExecuteDeleteAsync(ct) > 0;
+        else if (key.StartsWith(SyncKeys.UserTag, StringComparison.Ordinal))
+        {
+            var normalized = key[SyncKeys.UserTag.Length..];
+            if (await db.UserTags.SingleOrDefaultAsync(t => t.NormalizedName == normalized, ct) is { } row)
+            {
+                db.UserTags.Remove(row);
+                tags.Add(row.Name);
                 deleted = true;
             }
         }

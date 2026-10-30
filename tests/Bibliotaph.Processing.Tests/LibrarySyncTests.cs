@@ -93,6 +93,17 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         public LibrarySync Sync { get; private set; } = null!;
         public MetadataStore Metadata => new(Contexts, clock);
         public CollectionStore Collections => new(Contexts, clock);
+        public VocabularyStore Vocabulary => new(Contexts, clock);
+
+        /// <summary>A type the AI proposed for the book, as a pending term with the book's value waiting on it.</summary>
+        public async Task ProposeTypeAsync(EntryId book, char hash, string label)
+        {
+            var (term, _) = await Vocabulary.ProposeTermAsync("type", label, Ct);
+            await Metadata.AddSuggestionsAsync(book, new string(hash, 64), [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai)], Ct);
+        }
+
+        public async Task<IReadOnlyList<string>> TypesAsync(char hash) =>
+            [.. (await Metadata.GetAsync(await BookAsync(hash), Ct)).Compute()[MetadataFields.Types].Values.Select(v => v.Value)];
 
         public void Start() => Sync = new LibrarySync(new LibrarySyncStore(Contexts, Metadata, new VocabularyStore(Contexts), clock), new SettingsStore(Contexts),
             catalog, null, clock, null, name, [new Channel(hub, name)]);
@@ -122,6 +133,36 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         }
 
         public void Later(int minutes) => clock.Now = clock.Now.AddMinutes(minutes);
+
+        public PackStore Packs => new(Contexts, clock);
+
+        readonly List<ScannedFile> _files = [];
+        long? _root;
+
+        /// <summary>
+        /// Scans files into a library folder and hashes them, each by its path, so the same path on both PCs is the
+        /// same file. Returns each file's entry by its path.
+        /// </summary>
+        public async Task<Dictionary<string, EntryId>> AddFilesAsync(params string[] files)
+        {
+            var library = new LibraryStore(Contexts);
+            var folder = Path.Combine(paths.Root, "Library");
+            _root ??= (await new SourceRootStore(Contexts).AddAsync(folder, Ct)).Id;
+            _files.AddRange(files.Select(f => new ScannedFile(f, 1000, clock.GetUtcNow().UtcDateTime, OnlineOnly: false)));
+            await library.ReconcileRootAsync(_root.Value, _files, ct: Ct);
+            var entries = new Dictionary<string, EntryId>();
+            foreach (var file in await library.NextUnhashedAsync(1000, includeOnlineOnly: true, Ct))
+            {
+                var path = Path.GetRelativePath(folder, file.FullPath).Replace('\\', '/');
+                var hash = ContentHash.Parse(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(path))));
+                var document = (await library.AttachHashAsync(file, hash, Ct))!.Value.DocumentId;
+                entries[path] = (await new EntryStore(Contexts).GetEntryAsync(document, Ct))!.EntryId;
+            }
+            return entries;
+        }
+
+        public async Task<IReadOnlyList<EntryDocument>> PackCardsAsync() =>
+            [.. (await new EntryStore(Contexts).GetCurrentAsync(ct: Ct)).Where(c => c.Kind == EntryKind.Pack)];
 
         public void Dispose()
         {
@@ -344,5 +385,155 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         await _laptop.Sync.SyncNowAsync(Ct);
 
         Assert.Equal("The Drowned Abbey", await _laptop.TitleAsync('a'));
+    }
+
+    [Fact]
+    public async Task A_term_the_AI_proposed_on_both_PCs_and_accepted_on_one_is_accepted_on_the_other()
+    {
+        var deskBook = await _desk.AddBookAsync('a');
+        var laptopBook = await _laptop.AddBookAsync('a');
+        await _desk.ProposeTypeAsync(deskBook, 'a', "Heist Kit");
+        await _laptop.ProposeTypeAsync(laptopBook, 'a', "Heist Kit");
+        await RoundAsync();
+        Assert.Single(await _laptop.Vocabulary.GetPendingAsync(Ct));
+
+        _desk.Later(5);
+        await _desk.Vocabulary.AcceptPendingAsync(Assert.Single(await _desk.Vocabulary.GetPendingAsync(Ct)).Id, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Vocabulary.GetPendingAsync(Ct));
+        Assert.Equal("Heist Kit", (await _laptop.Vocabulary.GetAsync(Ct)).Resolve("type", "heist kit")?.Label);
+        Assert.Equal(["heist-kit"], await _laptop.TypesAsync('a'));
+    }
+
+    [Fact]
+    public async Task A_term_turned_down_on_one_PC_is_turned_down_on_the_other_and_never_asked_about_there()
+    {
+        var deskBook = await _desk.AddBookAsync('a');
+        var laptopBook = await _laptop.AddBookAsync('a');
+        await _desk.ProposeTypeAsync(deskBook, 'a', "Nonsense");
+        await _desk.ProposeTypeAsync(deskBook, 'a', "Gibberish");
+        await _laptop.ProposeTypeAsync(laptopBook, 'a', "Nonsense");
+        foreach (var pending in await _desk.Vocabulary.GetPendingAsync(Ct)) await _desk.Vocabulary.RejectPendingAsync(pending.Id, Ct);
+
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Vocabulary.GetPendingAsync(Ct));
+        Assert.Empty(await _laptop.TypesAsync('a'));
+        // One the laptop's AI hadn't proposed yet is turned down before it is.
+        Assert.Equal(TermState.Rejected, (await _laptop.Vocabulary.ProposeTermAsync("type", "Gibberish", Ct)).State);
+    }
+
+    [Fact]
+    public async Task A_term_filed_under_another_on_one_PC_is_filed_the_same_way_on_the_other()
+    {
+        await _desk.Vocabulary.SeedAsync(Ct);
+        await _laptop.Vocabulary.SeedAsync(Ct);
+        var deskBook = await _desk.AddBookAsync('a');
+        var laptopBook = await _laptop.AddBookAsync('a');
+        await _desk.ProposeTypeAsync(deskBook, 'a', "Scenario Pack");
+        await _laptop.ProposeTypeAsync(laptopBook, 'a', "Scenario Pack");
+        await RoundAsync();
+
+        _desk.Later(5);
+        await _desk.Vocabulary.MapPendingAsync(Assert.Single(await _desk.Vocabulary.GetPendingAsync(Ct)).Id, "adventure", Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Vocabulary.GetPendingAsync(Ct));
+        Assert.Equal("adventure", (await _laptop.Vocabulary.GetAsync(Ct)).Resolve("type", "scenario pack")?.Key);
+        Assert.Equal(["adventure"], await _laptop.TypesAsync('a'));
+    }
+
+    [Fact]
+    public async Task Terms_kept_apart_and_the_users_own_tags_travel_and_so_does_their_removal()
+    {
+        await _desk.Vocabulary.SeedAsync(Ct);
+        await _laptop.Vocabulary.SeedAsync(Ct);
+        var apart = await _desk.Vocabulary.KeepApartAsync("type", ["adventure", "campaign"], Ct);
+        var tags = new UserTagStore(_desk.Contexts, _desk.Clock);
+        var undead = (await tags.SaveAsync(null, "Undead", "zombie, lich", Ct)).Tag!;
+        await RoundAsync();
+
+        Assert.Single(await _laptop.Vocabulary.GetKeptApartAsync("type", Ct));
+        var onLaptop = Assert.Single(await new UserTagStore(_laptop.Contexts).ListAsync(Ct));
+        Assert.Equal("Undead", onLaptop.Name);
+        Assert.Equal(["zombie", "lich"], onLaptop.Words);
+
+        _desk.Later(5);
+        await _desk.Vocabulary.ForgetKeptApartAsync(apart, Ct);
+        await tags.DeleteAsync(undead.Id, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Vocabulary.GetKeptApartAsync("type", Ct));
+        Assert.Empty(await new UserTagStore(_laptop.Contexts).ListAsync(Ct));
+    }
+
+    static string[] Images(string folder, int count) => [.. Enumerable.Range(1, count).Select(i => $"{folder}/Token {i}.png")];
+
+    [Fact]
+    public async Task Files_packed_together_on_one_PC_are_one_pack_on_the_other_and_splitting_it_there_splits_it_here()
+    {
+        var files = await _desk.AddFilesAsync("Handouts/Letter.png", "Handouts/Map.png", "Handouts/Seal.png");
+        await _laptop.AddFilesAsync("Handouts/Letter.png", "Handouts/Map.png", "Handouts/Seal.png");
+        var together = (await _desk.Packs.PackTogetherAsync([.. files.Values], Ct))!;
+        await _desk.Metadata.SetValuesAsync(together.PackId, MetadataFields.Title, ["Party handouts"], Ct);
+
+        await RoundAsync();
+        await RoundAsync();
+
+        var pack = Assert.Single(await _laptop.PackCardsAsync());
+        Assert.Equal(3, pack.Members!.Count);
+        Assert.Equal("Party handouts", (await _laptop.Metadata.GetAsync(pack.EntryId, Ct)).Compute()[MetadataFields.Title].First?.Value);
+
+        _desk.Later(5);
+        await _desk.Packs.SplitAsync(together.PackId, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.PackCardsAsync());
+        Assert.Empty(await _desk.PackCardsAsync());
+    }
+
+    [Fact]
+    public async Task A_folder_both_PCs_packed_by_themselves_ends_as_the_same_pack_and_stays_settled()
+    {
+        await _desk.AddFilesAsync(Images("Tokens/Undead", 20));
+        await _laptop.AddFilesAsync(Images("Tokens/Undead", 20));
+        await _desk.Packs.PlanAsync(Ct);
+        await _laptop.Packs.PlanAsync(Ct);
+
+        await RoundAsync();
+        await RoundAsync();
+
+        var desk = Assert.Single(await _desk.PackCardsAsync());
+        var laptop = Assert.Single(await _laptop.PackCardsAsync());
+        Assert.Equal(20, laptop.Members!.Count);
+        await using (var deskDb = _desk.Catalog.CreateContext())
+        await using (var laptopDb = _laptop.Catalog.CreateContext())
+            Assert.Equal((await deskDb.Entries.SingleAsync(e => e.Id == desk.EntryId.Value, Ct)).SyncId,
+                (await laptopDb.Entries.SingleAsync(e => e.Id == laptop.EntryId.Value, Ct)).SyncId);
+
+        _desk.Later(5);
+        _laptop.Later(5);
+        Assert.False((await _desk.Sync.SyncNowAsync(Ct)).Changed);
+        Assert.False((await _laptop.Sync.SyncNowAsync(Ct)).Changed);
+    }
+
+    [Fact]
+    public async Task A_folder_proposed_on_both_PCs_and_answered_on_one_is_answered_on_the_other()
+    {
+        await _desk.AddFilesAsync([.. Images("Maps/Harbor", 6), .. Images("Maps/Docks", 6)]);
+        await _laptop.AddFilesAsync([.. Images("Maps/Harbor", 6), .. Images("Maps/Docks", 6)]);
+        await _desk.Packs.PlanAsync(Ct);
+        await _laptop.Packs.PlanAsync(Ct);
+        Assert.Equal(2, (await _laptop.Packs.GetProposalsAsync(Ct)).Count);
+
+        var proposals = await _desk.Packs.GetProposalsAsync(Ct);
+        await _desk.Packs.AnswerAsync(proposals.Single(p => p.Name == "Harbor").PackId, PackAnswer.Packed, PackAnswer.Proposed, Ct);
+        await _desk.Packs.AnswerAsync(proposals.Single(p => p.Name == "Docks").PackId, PackAnswer.Split, PackAnswer.Proposed, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Packs.GetProposalsAsync(Ct));
+        var pack = Assert.Single(await _laptop.PackCardsAsync());
+        Assert.Equal(6, pack.Members!.Count);
     }
 }
