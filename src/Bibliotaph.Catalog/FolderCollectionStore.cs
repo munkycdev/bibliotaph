@@ -14,8 +14,8 @@ public sealed record FolderCollectionInfo(long Id, FolderKey Folder, FolderColle
 /// <summary>
 /// The answers about making collections from folders, in catalog.db: which folders became collections that follow
 /// them, which collections stopped following theirs after a change by hand, and which folders the user said Never to.
-/// A folder with an answer isn't asked about again. These stay on this PC, since a folder is one PC's; the collections
-/// travel in the library sync file as any others do.
+/// A folder with an answer isn't asked about again. Library sync carries them to the devices that have the same library
+/// folder, and the collections as any others.
 /// </summary>
 public sealed class FolderCollectionStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)
 {

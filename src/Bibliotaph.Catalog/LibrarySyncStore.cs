@@ -47,7 +47,7 @@ public sealed record SyncSnapshot(
 /// </summary>
 public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext> contexts, MetadataStore metadata, VocabularyStore vocabularies,
     TimeProvider? clock = null, ILogger<LibrarySyncStore>? log = null, LookupRecordStore? lookups = null,
-    Func<IReadOnlyDictionary<Guid, byte[]>>? chosenCovers = null)
+    Func<IReadOnlyDictionary<Guid, byte[]>>? chosenCovers = null, bool webLibrary = false)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly ILogger _log = log ?? NullLogger<LibrarySyncStore>.Instance;
@@ -311,9 +311,47 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
                 (SyncFields.NotAnswered, turn.NotAnswered ? Json(true) : null));
         }
 
+        // Answers about folders, by library folders the web and each PC name alike.
+        var roots = (await db.SourceRoots.AsNoTracking().ToListAsync(ct)).Select(r => (r.Id, Key: RootKey(r))).Where(r => r.Key is not null)
+            .ToDictionary(r => r.Id, r => r.Key!);
+        foreach (var rule in await db.FolderRules.AsNoTracking().Where(r => r.State != FolderRuleState.Proposed).ToListAsync(ct))
+        {
+            if (!roots.TryGetValue(rule.SourceRootId, out var root)) continue;
+            var folder = SyncedFolder(rule.Folder);
+            records[SyncKeys.ForHashed(SyncKeys.FolderRule, root, folder, rule.Field, rule.Value)] = Fields(
+                (SyncFields.Root, Json(root)), (SyncFields.Folder, Json(folder)), (SyncFields.Field, Json(rule.Field)), (SyncFields.Value, Json(rule.Value)),
+                (SyncFields.State, Json(rule.State.ToString())), (SyncFields.Books, Json(rule.Books)));
+        }
+        foreach (var answer in await db.CollectionFolders.AsNoTracking().ToListAsync(ct))
+        {
+            if (!roots.TryGetValue(answer.SourceRootId, out var root)) continue;
+            var folder = SyncedFolder(answer.Folder);
+            records[SyncKeys.ForHashed(SyncKeys.FolderCollection, root, folder)] = Fields(
+                (SyncFields.Root, Json(root)), (SyncFields.Folder, Json(folder)), (SyncFields.State, Json(answer.State.ToString())),
+                (SyncFields.Collection, answer.CollectionId is { } c && collectionIds.TryGetValue(c, out var collection) ? Json(Id(collection)) : null));
+        }
+
+        foreach (var setting in await db.Settings.AsNoTracking().Where(s => SettingKeys.Library.Contains(s.Key)).ToListAsync(ct))
+            records[SyncKeys.Setting + setting.Key] = Fields((SyncFields.Value, Json(setting.Value)));
+
         foreach (var (entryId, fields) in cardFields) records[cardKeys[entryId]] = fields;
         return new SyncSnapshot(records, aliases, cards, cardKeys);
     }
+
+    /// <summary>
+    /// How library sync names a library folder (<see cref="SyncFields.Root"/>): each of the web library's folders by its
+    /// id there, which is its root's id on the web and in its path on a PC; any other by its path. Null for none.
+    /// </summary>
+    string? RootKey(SourceRoot root)
+    {
+        if (webLibrary) return "web:" + root.Id.ToString(CultureInfo.InvariantCulture);
+        if (WebLibraryPaths.TryParse(root.Path, out var folderId, out var under))
+            return under.Length == 0 ? "web:" + folderId.ToString(CultureInfo.InvariantCulture) : null;
+        return "dir:" + root.Path.Replace('\\', '/').TrimEnd('/').ToUpperInvariant();
+    }
+
+    /// <summary>A folder under a library folder as library sync spells it, with "/" whichever device it was on.</summary>
+    static string SyncedFolder(string folder) => folder.Replace('\\', '/').Trim('/');
 
     static DateTime Utc(DateTime time) => DateTime.SpecifyKind(time, DateTimeKind.Utc);
 

@@ -30,6 +30,15 @@ public static class SettingKeys
     public static IReadOnlySet<string> Private { get; } =
         new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys, ServerPausedLanes, ServerPdfPasswords };
 
+    /// <summary>
+    /// Settings about the library and how it shows, the same on the web and every PC: library sync carries them. The
+    /// rest belong to the device they were set on.
+    /// </summary>
+    public static IReadOnlySet<string> Library { get; } = new HashSet<string>(StringComparer.Ordinal)
+    {
+        Appearance, ReviewAll, StartPage, LibrarySort, LibrarySearchSort, LibraryPackView, SiteIcons, OnlineReader, OnlineReadingMode,
+    };
+
     /// <summary>"True" when every suggestion goes to Needs review, not only conflicts and missing titles.</summary>
     public const string ReviewAll = "review.all";
 
@@ -154,9 +163,13 @@ public sealed class SettingsStore(IDbContextFactory<CatalogDbContext> contexts)
         return await db.Settings.Where(s => s.Key == key).Select(s => s.Value).SingleOrDefaultAsync(ct);
     }
 
-    /// <summary>One statement, so two writers of a new key at once can't both try to add it.</summary>
+    /// <summary>
+    /// One statement, so two writers of a new key at once can't both try to add it. Only a setting library sync carries
+    /// (<see cref="SettingKeys.Library"/>) calls for this device's sync file to be written.
+    /// </summary>
     public async Task SetAsync(string key, string value, CancellationToken ct = default)
     {
+        using var quiet = SettingKeys.Library.Contains(key) ? null : CatalogWrites.Quiet();
         await using var db = await contexts.CreateDbContextAsync(ct);
         await db.Database.ExecuteSqlAsync(
             $"INSERT INTO setting (key, value) VALUES ({key}, {value}) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ct);

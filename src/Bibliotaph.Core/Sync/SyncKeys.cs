@@ -70,12 +70,28 @@ public static class SyncKeys
     /// <summary>A question asked of a book, with its answer, by when it was asked: "q:" + the time's ticks.</summary>
     public const string Asked = "q:";
 
+    /// <summary>
+    /// A folder rule the user answered, by a hash of its library folder, folder, field and value (all also fields of the
+    /// record): "fr:9c1e…". A library folder is named as <see cref="SyncFields.Root"/> says.
+    /// </summary>
+    public const string FolderRule = "fr:";
+
+    /// <summary>A folder's answer about making a collection from it, by a hash of its library folder and folder: "cf:9c1e…".</summary>
+    public const string FolderCollection = "cf:";
+
+    /// <summary>A setting that is about the library rather than the device, by its key: "set:review.all".</summary>
+    public const string Setting = "set:";
+
     /// <summary>A pin, by what it points at: "pin:fav", "pin:c:…", "pin:b:…", "pin:s:…". A book's pin is a field of the book.</summary>
     public const string Pin = "pin:";
 
     public const string FavoritesPin = Pin + "fav";
 
     public static string ForBook(string contentHash) => Book + contentHash;
+
+    /// <summary>A key for something named by several texts, none of which may hold any separator: a short hash of them all.</summary>
+    public static string ForHashed(string prefix, params string[] parts) =>
+        prefix + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join('\n', parts))))[..32];
 
     public static string ForAsked(DateTime askedUtc) => Asked + askedUtc.Ticks.ToString(CultureInfo.InvariantCulture);
 
@@ -242,4 +258,27 @@ public static class SyncFields
 
     /// <summary>The model said the pages it read don't answer the question.</summary>
     public const string NotAnswered = "notAnswered";
+
+    /// <summary>
+    /// A library folder: "web:" + the web library's id for one of its folders, the same on the web and every PC
+    /// connected to it, or "dir:" + a folder's path on a PC, which matches only a PC with the same folder.
+    /// </summary>
+    public const string Root = "root";
+
+    /// <summary>A folder under a library folder, with "/" between its names; "" for the library folder itself.</summary>
+    public const string Folder = "folder";
+
+    /// <summary>A metadata field, by its key.</summary>
+    public const string Field = "field";
+
+    public const string Value = "value";
+
+    /// <summary>A folder rule's or a folder collection's answer, by its state's name.</summary>
+    public const string State = "state";
+
+    /// <summary>How many books from a folder the user had set a rule's value on.</summary>
+    public const string Books = "books";
+
+    /// <summary>The collection made from a folder, by its sync id.</summary>
+    public const string Collection = "collection";
 }

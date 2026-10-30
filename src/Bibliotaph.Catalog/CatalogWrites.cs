@@ -12,12 +12,16 @@ namespace Bibliotaph.Catalog;
 /// </summary>
 public sealed partial class CatalogWrites : DbCommandInterceptor
 {
-    /// <summary>The tables library sync reads: metadata decisions, marks, notes and everything the user makes, and which files make up each card.</summary>
+    /// <summary>
+    /// The tables library sync reads: metadata decisions, marks, notes, answers and everything the user makes, which
+    /// files make up each card, and settings.
+    /// </summary>
     public static IReadOnlySet<string> Tables { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
         "assertion", "rejection", "favorite", "note", "page_ref", "collection", "collection_item", "smart_view", "pin", "session_pack",
         "session_section", "session_item", "entry", "entry_source", "copy_decision", "vocabulary_term", "vocabulary_alias",
-        "lookup_record",
+        "lookup_record", "vocabulary_kept_apart", "user_tag", "pack_decision", "part_proposal", "elsewhere_match", "document", "reading_state",
+        "ask_turn", "correction_request", "collection_decline", "folder_rule", "collection_folder", "setting",
     };
 
     static readonly AsyncLocal<bool> Quieted = new();
@@ -48,7 +52,8 @@ public sealed partial class CatalogWrites : DbCommandInterceptor
         return false;
     }
 
-    [GeneratedRegex(@"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+""(?<table>\w+)""", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // EF Core quotes table names; SQL written by hand, as for settings, may not.
+    [GeneratedRegex(@"(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+""?(?<table>\w+)""?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex WriteStatement();
 
     void Check(DbCommand command)
