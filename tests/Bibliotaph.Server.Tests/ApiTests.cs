@@ -239,10 +239,31 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     {
         var user = await AddUserAsync(admin: false);
 
-        var summary = await Client(user).GetFromJsonAsync<LibrarySummary>("/api/library/summary", TestContext.Current.CancellationToken);
+        var summary = await Client(user).GetFromJsonAsync<LibraryOverview>("/api/library/summary", TestContext.Current.CancellationToken);
 
-        Assert.Equal(new LibrarySummary(0, 0), summary);
+        Assert.Equal(new LibraryOverview(0, 0), summary);
         Assert.True(File.Exists(Path.Combine(_folder.Path, "users", user.Id, "catalog.db")));
+    }
+
+    [Fact]
+    public async Task The_summary_counts_the_library_as_the_windows_app_does_and_home_gives_its_size()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var empty = (await client.GetFromJsonAsync<LibrarySummary>("/api/library/numbers", ct))!;
+        using (await client.PostAsJsonAsync("/api/library/elsewhere", new ElsewhereAdd("Tomb of the Test", "", "", "", [], "", null), ct)) { }
+
+        var summary = await WaitAsync(async () => (await client.GetFromJsonAsync<LibrarySummary>("/api/library/numbers", ct)) is { Books: 1 } s ? s : null, ct);
+        var overview = (await client.GetFromJsonAsync<LibraryOverview>("/api/library/summary", ct))!;
+        var stranger = (await Client(await AddUserAsync(admin: false)).GetFromJsonAsync<LibrarySummary>("/api/library/numbers", ct))!;
+
+        Assert.Equal(0, empty.Books);
+        Assert.Equal((1L, 0L, 1L), (summary.Elsewhere, summary.Files, summary.YearUnknown));
+        Assert.Equal(1, Assert.Single(summary.Growth).Total);
+        Assert.Equal("1 book, 0 bytes.", overview.Totals);
+        Assert.Equal(0, stranger.Books);
     }
 
     [Fact]
@@ -2653,6 +2674,8 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         using var nothing = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([]), ct);
         // A book printing only a product code is looked up by it, where a catalogue's records list codes.
         using var byCode = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([], ["The Owlbear Mill"], ["pzo1110"]), ct);
+        // And one printing neither, by its title alone.
+        using var byTitle = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([], ["The Owlbear Mill"]), ct);
         using var signedIn = await web.GetAsync("/api/pc/lookups", ct);
 
         Assert.Equal(("Open Library or Google Books", 1), (catalogue.Name, changed));
@@ -2662,6 +2685,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal(HttpStatusCode.BadRequest, notAnIsbn.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, nothing.StatusCode);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, byCode.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, byTitle.StatusCode);
         Assert.Equal(["PZO1110"], _catalogue.Codes);
         Assert.Equal(HttpStatusCode.Unauthorized, signedIn.StatusCode);
         Assert.Equal("Open Library or Google Books", await settings.GetAsync(SettingKeys.LookUpWebCatalogues, ct));

@@ -120,7 +120,7 @@
         <p class="bt-fine">A pause holds until you resume, even after you sign out. Pausing the AI stops requests on your key.</p>
         <h3 class="bt-settingshead">Looking up online</h3>
         <p class="bt-fine">Asks @(_state.LookupCatalogues ?? "Open Library") about the ISBNs your books print,
-            @((_state.LookupCatalogues ?? "").Contains("RPGGeek", StringComparison.Ordinal) ? "and a book's title for RPGGeek, which is searched by name," : "and nothing else,")
+            @ByName(_state.LookupCatalogues ?? "")
             to fill in their title, authors, publisher and year, each from the first of them that gives it. A record is used only when its title is
             printed in the book, and the AI's guesses give way to it.</p>
         @if ((_state.LookupCatalogues ?? "").Contains("RPGGeek", StringComparison.Ordinal))
@@ -132,6 +132,17 @@
 </section>
 
 @code {
+    static readonly string[] SearchedByName = ["RPGGeek", "AdventureLookup"];
+
+    /// <summary>What else goes to the catalogues searched by name, as the Windows app says it.</summary>
+    static string ByName(string catalogues)
+    {
+        var named = SearchedByName.Where(c => catalogues.Split(" or ").Contains(c)).ToList();
+        if (named.Count == 0) return "and nothing else,";
+        var titleOnly = named.Contains("AdventureLookup") ? " (and for AdventureLookup, the title of a book that prints no ISBN)" : "";
+        return $"and a book's title for {string.Join(" and ", named)}, searched by name{titleOnly},";
+    }
+
     static readonly TimeSpan Poll = TimeSpan.FromSeconds(2);
 
     readonly ProcessingPhase _finding = new("Finding files", "Looking through your folders");

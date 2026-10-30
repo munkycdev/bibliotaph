@@ -29,6 +29,7 @@
   <SolidColorBrush x:Key="Bt.Soft" Color="{x:Static SystemColors.WindowColor}" />
   <x:Static x:Key="Bt.WarmColor" Member="SystemColors.WindowColor" />
   <SolidColorBrush x:Key="Bt.Warm" Color="{x:Static SystemColors.WindowColor}" />
+  <SolidColorBrush x:Key="Bt.ChartSoft" Color="{x:Static SystemColors.GrayTextColor}" />
   <SolidColorBrush x:Key="Bt.StatusOk" Color="{x:Static SystemColors.WindowTextColor}" />
   <!-- No dimming behind an in-page dialog: its border marks it instead. -->
   <SolidColorBrush x:Key="Bt.Shadow" Color="Transparent" />

@@ -12,6 +12,26 @@
   them everywhere. Adventures you mark in a file reach the web and your other PCs with their pages and values, and
   removing one removes it everywhere. Your answers to adventure proposals and to "Is this its file?" travel as well.
   See [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
+- **Your library in numbers.** A new **Summary** page in the sidebar, under Binders, shows what you have and where it
+  came from: how many books, pages and gigabytes, and how long reading them all would take; your folders and drives,
+  where else you own books and which store books are still to download; your game systems, types and settings, with
+  how much of each is confirmed and how much only suggested; how many books cover each character level and when they
+  were published; and how many you've opened, your favorites, notes, collections and binders, and how the library has
+  grown month by month. Every figure opens the Library at the books it counts. Home shows the library's size under the
+  welcome, with a link to it. The search box has a new field, `opened:`, so `opened:no` finds the books you haven't
+  opened yet. It's on bibliotaph.online too, the same page with the same links. See
+  [Your library in numbers](docs/guide/summary.md).
+- **Monsters, items, and what an adventure includes.** Three new fields, filled by AdventureLookup and by you: an
+  adventure's monsters (bosses first) and its magic items, which plain search finds ("owlbear"), and **Includes**, a
+  short list of pre-generated characters, handouts, battle maps and playable solo. The AI isn't asked for them. See
+  [Cataloging](docs/guide/cataloging.md).
+- **Levels and environments from AdventureLookup.** On the web, and on a PC connected to it, books are now looked up
+  on [AdventureLookup](https://adventurelookup.com) too, a catalogue of published adventures, by their title. Its
+  record is used when the book prints that title and one of its authors or its publisher, or has about as many pages;
+  otherwise Needs review asks **Same book?**. It fills in the levels an adventure is for, which no catalogue gave
+  before, and its edition, setting, environments and series. Books that print no ISBN or product code are looked up
+  by title now too. The vocabulary gains the environments Stronghold, Temple, Mansion and Sky, and the game system
+  Draw Steel. See [Cataloging](docs/guide/cataloging.md).
 - **Artists and mechanics from RPGGeek, and books found by product code.** A book looked up on RPGGeek now gets its
   artists and its mechanics (such as "Dice (d20)") in two new fields, which plain search finds; the AI isn't asked
   for them. RPGGeek's record is also used when one of its versions lists a product code the book prints, such as

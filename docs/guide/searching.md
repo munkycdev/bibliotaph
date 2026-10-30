@@ -61,6 +61,7 @@ guide at any time, and **Esc** closes it (press **Esc** again to clear the searc
 | `where:` | `here` for books with a file on this PC, `elsewhere` for books you own only somewhere else | `where:elsewhere` |
 | `tag:` | One of your own tags | `tag:prep` |
 | `favorite:` | `yes` for books with a heart, `no` for the rest | `favorite:yes` |
+| `opened:` | `yes` for books you've opened, `no` (or `never`) for those you haven't yet | `opened:no` |
 | `collection:` | Books in a collection (in quotes if it has spaces) | `collection:"Winter campaign"` |
 | `folder:` | Part of a folder's name | `folder:maps` |
 | `isbn:` | An ISBN printed in the book, with or without hyphens, ISBN-10 or ISBN-13 | `isbn:978-1-23-456789-7` |

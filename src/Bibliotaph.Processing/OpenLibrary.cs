@@ -36,6 +36,12 @@ public interface IBookCatalogue
     bool SearchesByTitle => false;
 
     /// <summary>
+    /// Whether a record can be found by title alone, for a book printing no ISBN or product code, as AdventureLookup's
+    /// can: its record is then used only when the book prints its title and something else agrees.
+    /// </summary>
+    bool FindsByTitleAlone => false;
+
+    /// <summary>
     /// Finds out again where it asks, for a catalogue that asks somewhere else in turn, as a PC asks its web library:
     /// <see cref="Name"/> may change, raising <see cref="NameChanged"/>. Never throws for a catalogue out of reach.
     /// </summary>
@@ -83,13 +89,15 @@ public sealed class RequestPace(TimeSpan pace, TimeProvider? clock = null)
 
 /// <summary>
 /// Several catalogues asked in turn, in the order the user prefers their records: RPGGeek, which knows RPGs best, then
-/// Open Library, then Google Books, each where the server holds a key. Every one is asked, so a field the first's
+/// AdventureLookup, then Open Library, then Google Books, each where the server holds a key it needs. Every one is asked, so a field the first's
 /// record lacks can come from the next's. One that can't answer just then is left out of the answer, which says where
 /// it asked, so the book is asked again once all of them can be; when none can, the book waits.
 /// </summary>
 public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : IBookCatalogue
 {
     public string Name { get; } = string.Join(" or ", catalogues.Select(c => c.Name));
+
+    public bool FindsByTitleAlone { get; } = catalogues.Any(c => c.FindsByTitleAlone);
 
     public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
         (await AskAsync(isbns, [], [], ct)).Records is [var first, ..] ? first : null;
@@ -102,6 +110,12 @@ public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : I
         // Those searched by name last, so the titles the others' records give can be searched for first.
         foreach (var (catalogue, at) in catalogues.Select((c, i) => (c, i)).OrderBy(c => c.c.SearchesByTitle))
         {
+            // One that needs an ISBN or code has nothing to say about a book with neither, so it counts as asked.
+            if (isbns.Count == 0 && codes.Count == 0 && !catalogue.FindsByTitleAlone)
+            {
+                found[at] = [];
+                continue;
+            }
             try
             {
                 IReadOnlyList<string> searched = catalogue.SearchesByTitle
