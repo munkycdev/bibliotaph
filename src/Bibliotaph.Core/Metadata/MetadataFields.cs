@@ -62,6 +62,12 @@ public static class MetadataFields
     public static readonly MetadataField Players = new("players", "Players", FieldKind.Players);
 
     /// <summary>
+    /// What comes with an adventure for the table: pre-generated characters, handouts, battle maps, or that it can be
+    /// played solo. A fixed list, as the types are, filled by a catalogue that says so and by the user; the AI isn't asked.
+    /// </summary>
+    public static readonly MetadataField Includes = new("includes", "Includes", FieldKind.Term, Multiple: true, Vocabulary: "includes");
+
+    /// <summary>
     /// How long it takes to play, in sessions rather than hours (never assume every one-shot lasts three
     /// hours): one-shot, short, long or campaign.
     /// </summary>
@@ -79,6 +85,15 @@ public static class MetadataFields
     /// from, since they mostly describe the game system rather than the book, and the AI isn't asked.
     /// </summary>
     public static readonly MetadataField Mechanics = new("mechanics", "Mechanics", FieldKind.Text, Multiple: true);
+
+    /// <summary>
+    /// The monsters it pits the party against, its bosses first, in a catalogue's words: free text, found by plain
+    /// search ("owlbear"), and the AI isn't asked.
+    /// </summary>
+    public static readonly MetadataField Monsters = new("monsters", "Monsters", FieldKind.Text, Multiple: true);
+
+    /// <summary>The magic items and treasure it names, in a catalogue's words: free text, found by plain search.</summary>
+    public static readonly MetadataField Items = new("items", "Items", FieldKind.Text, Multiple: true);
     public static readonly MetadataField Tags = new("tags", "Your tags", FieldKind.Text, Multiple: true);
 
     /// <summary>
@@ -97,8 +112,8 @@ public static class MetadataFields
 
     /// <summary>Every field, in the order the inspector shows them.</summary>
     public static IReadOnlyList<MetadataField> All { get; } =
-        [Title, System, Edition, Types, Levels, Players, Duration, Publisher, Authors, Artists, Series, Year, Settings, Styles, Themes, Environments, Mechanics,
-            AlsoOwn, GetItFrom, Tags];
+        [Title, System, Edition, Types, Levels, Players, Includes, Duration, Publisher, Authors, Artists, Series, Year, Settings, Styles, Themes, Environments,
+            Monsters, Items, Mechanics, AlsoOwn, GetItFrom, Tags];
 
     static readonly Dictionary<string, MetadataField> ByKey = All.ToDictionary(f => f.Key, StringComparer.Ordinal);
 

@@ -77,7 +77,7 @@ public sealed class TourGuide(ApiClient api, NavigationManager navigation)
     /// <summary>Settings › Preferences › Show the tour again: on Home, the chapter the library is ready for.</summary>
     public async Task ReplayAsync()
     {
-        var summary = await api.LibrarySummaryAsync();
+        var summary = await api.LibraryOverviewAsync();
         var chapter = summary.Folders > 0 ? TourChapter.Books : TourChapter.Folders;
         if (navigation.ToBaseRelativePath(navigation.Uri).TrimEnd('/') == "home")
         {

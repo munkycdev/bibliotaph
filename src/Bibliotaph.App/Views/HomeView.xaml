@@ -7,6 +7,7 @@
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              xmlns:v="clr-namespace:Bibliotaph.App.Views"
              xmlns:services="clr-namespace:Bibliotaph.App.Services"
+             xmlns:core="clr-namespace:Bibliotaph.Core;assembly=Bibliotaph.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:HomeViewModel}">
   <UserControl.InputBindings>
@@ -81,6 +82,12 @@
         <TextBlock Text="YOUR NEXT GOOD STORY" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,10" />
         <TextBlock Text="Welcome back." Style="{StaticResource Text.H1}" />
         <TextBlock Text="A familiar shelf. A few places you haven’t been." Style="{StaticResource Text.Subtitle}" />
+        <!-- The library's size, and the way to the Summary page that says more. -->
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0" Visibility="{Binding HasBooks, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <TextBlock Text="{Binding TotalsText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <Button Style="{StaticResource Bt.Link}" Content="{x:Static core:SummaryText.SeeIt}" c:Ui.Icon="{StaticResource Icon.ChartNoAxesColumn}"
+                  Command="{Binding OpenSummaryCommand}" />
+        </StackPanel>
         <!-- First run, once folders are in: AI now or later (choice 10). Everything works without it. -->
         <Border Visibility="{Binding ShowAiStep, Converter={StaticResource Bt.VisibleWhenTrue}}" Background="{DynamicResource Bt.Side}"
                 CornerRadius="6" Padding="18" Margin="0,22,0,0" MaxWidth="620" HorizontalAlignment="Left">

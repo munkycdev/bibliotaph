@@ -57,23 +57,25 @@ public static class PcLibraryApi
         });
 
         // A PC's own books looked up where the server can ask: the catalogues it holds keys for, which no PC is given,
-        // at the pace every library's lookups keep. Only ISBNs, product codes and titles come, and nothing about them is kept.
+        // at the pace every library's lookups keep. Only ISBNs, product codes and titles come, and nothing about them is kept;
+        // a book printing neither an ISBN nor a code comes with its title alone.
         pc.MapGet("/lookups", (IBookCatalogue catalogue) => Results.Ok(new PcLookupAnswer(catalogue.Name)));
         pc.MapPost("/lookups", async (PcLookupRequest request, IBookCatalogue catalogue, CancellationToken ct) =>
         {
             if (request.Isbns is not { Count: <= MostIsbns } isbns || !isbns.All(i => i is { Length: 13 } && i.All(char.IsAsciiDigit)))
                 return Results.BadRequest();
             var codes = request.ProductCodes ?? [];
-            if (codes.Count > MostCodes || !codes.All(c => c is { Length: > 0 and <= LongestCode } && c.All(char.IsAsciiLetterOrDigit))
-                || isbns.Count + codes.Count == 0)
+            if (codes.Count > MostCodes || !codes.All(c => c is { Length: > 0 and <= LongestCode } && c.All(char.IsAsciiLetterOrDigit)))
                 return Results.BadRequest();
             if (request.Titles is { } given && (given.Count > MostTitles || given.Any(t => string.IsNullOrWhiteSpace(t) || t.Length > LongestTitle)))
                 return Results.BadRequest();
+            // A book printing no ISBN or code is looked up by its title alone.
+            if (isbns.Count + codes.Count == 0 && request.Titles is not { Count: > 0 }) return Results.BadRequest();
             try
             {
                 var answer = await catalogue.AskAsync(isbns, request.Titles ?? [], [.. codes.Select(c => c.ToUpperInvariant())], ct);
                 List<PcBookRecord> records = [.. answer.Records.Select(r => new PcBookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
-                    r.Values?.Select(v => new PcCatalogueValue(v.Field, v.Value)).ToList()))];
+                    r.Values?.Select(v => new PcCatalogueValue(v.Field, v.Value)).ToList(), r.Pages))];
                 return Results.Ok(new PcLookupAnswer(catalogue.Name, records.FirstOrDefault(), Records: records, AskedOf: answer.AskedOf));
             }
             catch (CatalogueUnavailableException ex)

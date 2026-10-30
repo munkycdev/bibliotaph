@@ -12,8 +12,11 @@ public sealed record CurrentUser(string UserId, string Name, string? Email, bool
 /// <summary>A way into the account. <see cref="Provider"/> names it as Settings shows it, by the connection it came through, such as Google.</summary>
 public sealed record LinkedSignIn(string Provider, string? Email, DateTimeOffset Added);
 
-/// <summary>How much is in the signed-in user's library.</summary>
-public sealed record LibrarySummary(int Books, int Folders);
+/// <summary>
+/// How much is in the signed-in user's library. <see cref="Totals"/> is Home's line before its link to the Summary page,
+/// "1,284 books, 96 GB.", once the Library shows a book.
+/// </summary>
+public sealed record LibraryOverview(int Books, int Folders, string? Totals = null);
 
 /// <summary>
 /// Asks for a new invitation; only an admin may. <see cref="Note"/> says who it's for, so the admin can tell invitations

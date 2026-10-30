@@ -10,6 +10,7 @@
   <Geometry x:Key="Icon.ArrowUpRight">M 7 7 h 10 v 10 M 7 17 L 17 7</Geometry>
   <Geometry x:Key="Icon.ArrowUp">M 5 12 l 7 -7 l 7 7 M 12 19 V 5</Geometry>
   <Geometry x:Key="Icon.BookOpen">M 12 7 v 14 M 3 18 a 1 1 0 0 1 -1 -1 V 4 a 1 1 0 0 1 1 -1 h 5 a 4 4 0 0 1 4 4 a 4 4 0 0 1 4 -4 h 5 a 1 1 0 0 1 1 1 v 13 a 1 1 0 0 1 -1 1 h -6 a 3 3 0 0 0 -3 3 a 3 3 0 0 0 -3 -3 Z</Geometry>
+  <Geometry x:Key="Icon.ChartNoAxesColumn">M 5 21 v -6 M 12 21 V 3 M 19 21 V 9</Geometry>
   <Geometry x:Key="Icon.Check">M 20 6 L 9 17 l -5 -5</Geometry>
   <Geometry x:Key="Icon.ChevronDown">M 6 9 l 6 6 l 6 -6</Geometry>
   <Geometry x:Key="Icon.ChevronLeft">M 15 18 l -6 -6 l 6 -6</Geometry>

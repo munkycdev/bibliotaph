@@ -18,7 +18,8 @@ namespace Bibliotaph.App.ViewModels;
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
-    PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, TourViewModel tour, ILogger<HomeViewModel> log)
+    PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, TourViewModel tour, LibrarySummaryService summaries,
+    ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity), ICollectionChoices, ISessionChoices, IPinState
 {
     /// <summary>How many covers each row shows.</summary>
@@ -67,6 +68,14 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     /// <summary>Some book is in the library: the rows show instead of the indexing note.</summary>
     [ObservableProperty]
     public partial bool HasBooks { get; private set; }
+
+    /// <summary>"1,284 books, 96 GB.", before the link to the Summary page.</summary>
+    [ObservableProperty]
+    public partial string TotalsText { get; private set; } = "";
+
+    /// <summary>The Summary page, from the line under the welcome.</summary>
+    [RelayCommand]
+    void OpenSummary() => pages.OpenSummary();
 
 
     public override async Task LoadAsync()
@@ -118,9 +127,10 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         {
             var scope = await library.GetVisibleEntryIdsAsync();
             _away = await library.GetUnavailableAsync();
-            var (opened, added) = await Task.Run(async () => (
+            var (opened, added, totals) = await Task.Run(async () => (
                 await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyOpened, OnlyOpened: true), limit: RowLength),
-                await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyAdded), limit: RowLength)));
+                await queries.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.RecentlyAdded), limit: RowLength),
+                await summaries.GetTotalsAsync()));
             Show(RecentlyOpened, opened);
             Show(RecentlyAdded, added);
             var preparing = Sessions.Directory.Preparing is { } current ? await Sessions.Directory.CardsAsync([current]) : [];
@@ -128,6 +138,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
             ContinuePreparing = preparing.Count > 0 ? preparing[0] : null;
             HasRecentlyOpened = opened.Count > 0;
             HasBooks = added.Count > 0;
+            TotalsText = SummaryText.Totals(totals.Books, totals.Bytes);
             if (HasBooks) await tour.OfferBooksAsync();
         }
         catch (Exception ex)

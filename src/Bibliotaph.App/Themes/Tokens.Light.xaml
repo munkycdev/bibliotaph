@@ -36,6 +36,8 @@
   <Color x:Key="Bt.WarmColor">#efe8dc</Color>
   <SolidColorBrush x:Key="Bt.Warm" Color="#efe8dc" />
   <!-- Status dot: processing idle. Same in both modes, as in the mockup. -->
+  <!-- A chart's suggested share, beside the accent's confirmed one. -->
+  <SolidColorBrush x:Key="Bt.ChartSoft" Color="#9fb8a4" />
   <SolidColorBrush x:Key="Bt.StatusOk" Color="#76916b" />
   <SolidColorBrush x:Key="Bt.Shadow" Color="#25000000" />
 </ResourceDictionary>

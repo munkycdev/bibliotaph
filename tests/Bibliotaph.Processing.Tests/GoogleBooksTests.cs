@@ -106,12 +106,15 @@ public sealed class GoogleBooksTests
     // A PC that can't reach its web library asks Open Library alone, and doesn't ask the books its web library didn't know.
     [InlineData("No record of its ISBN in Open Library or Google Books.", "Open Library", false)]
     [InlineData("No record of its product code in Open Library.", "RPGGeek or Open Library", true)]
+    [InlineData("No record of its title in AdventureLookup or Open Library.", "RPGGeek or AdventureLookup or Open Library", true)]
+    [InlineData("No record of its title in AdventureLookup or Open Library.", "AdventureLookup or Open Library", false)]
     [InlineData("It prints no ISBN to look up.", "Open Library or Google Books", false)]
     [InlineData(null, "Open Library or Google Books", false)]
     public void A_book_no_catalogue_knew_is_asked_again_only_once_there_is_one_more_to_ask(string? reason, string catalogues, bool again)
     {
         Assert.Equal(again, BookLookups.AskedOfFewer(reason, catalogues));
         Assert.Equal("No record of its ISBN in Open Library.", BookLookups.NoRecordIn("Open Library"));
+        Assert.Equal("No record of its title in AdventureLookup.", BookLookups.NoRecordIn("AdventureLookup", byCode: true, byTitle: true));
     }
 
     [Fact]

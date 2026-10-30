@@ -171,6 +171,7 @@ public sealed partial class VocabularyViewModel : SettingsSectionViewModel
             new("edition", "Editions", OnSelected),
             new("type", "Types", OnSelected),
             new("duration", "Durations", OnSelected),
+            new("includes", "Includes", OnSelected),
             new("setting", "Settings", OnSelected),
             new("style", "Styles", OnSelected),
             new("theme", "Themes", OnSelected),
