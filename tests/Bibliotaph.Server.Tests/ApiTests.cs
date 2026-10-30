@@ -2572,6 +2572,43 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Single(direct.Asked);
     }
 
+    [Fact]
+    public async Task A_PC_counts_its_web_library_out_of_reach_until_it_answers_again()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var path = Path.Combine(_folder.Path, "pc-reach.db");
+        await using (var db = new CatalogDatabase(path, Path.Combine(_folder.Path, "pc-backups")).CreateContext())
+            await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database, ct);
+        var settings = new SettingsStore(new CatalogFile(path));
+        await settings.SetAsync(SettingKeys.WebAddress, "http://localhost", ct);
+        var key = new MemoryWebLibraryKey();
+        key.Remember("not-a-key");
+        var network = new Unplugged(_factory.Server.CreateHandler()) { Down = true };
+        var pc = new WebLibrary(new HttpClient(network), key, settings, TimeProvider.System,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<WebLibrary>.Instance);
+        var changes = 0;
+        pc.ReachabilityChanged += (_, _) => changes++;
+
+        Assert.Null(await pc.LookUpAsync(["9781234567897"], [], ct));
+        var down = pc.IsUnreachable;
+        network.Down = false;
+        // Any answer, a refused key included, means it can be reached.
+        await pc.LookUpAsync(["9781234567897"], [], ct);
+
+        Assert.True(down);
+        Assert.False(pc.IsUnreachable);
+        Assert.Equal(2, changes);
+    }
+
+    /// <summary>The network between a PC and the server, which can be pulled out.</summary>
+    sealed class Unplugged(HttpMessageHandler server) : DelegatingHandler(server)
+    {
+        public bool Down { get; set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Down ? throw new HttpRequestException("No route to host.") : base.SendAsync(request, cancellationToken);
+    }
+
     /// <summary>The server's catalogues, answering as told: no test asks a real one.</summary>
     sealed class ScriptedCatalogue : IBookCatalogue
     {
