@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Needs review answers about new names now reach every device.** When the AI proposed the same new name on the web
+  and on a PC, adding it on one left it waiting on the other, with its books still in Needs review. Now a name you add,
+  file under another term or turn down is decided the same way everywhere, and the books waiting on it move on. A name
+  you turned down is never asked about on your other devices. Pairs you kept apart in Find overlaps, and your own tags
+  with the words they're found by, travel too. See [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
 - **Privacy policy: notice is for personal data.** The 14 days' notice before a change now covers what we collect
   about you and who we share your personal data with. A new public book catalogue, which only ever receives book
   titles, ISBNs or product codes, is added to the policy's list when we start asking it.
