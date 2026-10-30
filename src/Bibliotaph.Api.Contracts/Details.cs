@@ -5,6 +5,7 @@ namespace Bibliotaph.Api.Contracts;
 /// its words and order. Lists the book has nothing for are empty, and the client leaves their sections out.
 /// <see cref="HasChosenCover"/> is a book owned elsewhere showing a picture the user chose, which can be taken away.
 /// <see cref="CanAsk"/> offers Ask this book: a PDF or e-book whose text can be read, while AI is on.
+/// <see cref="FromRpgGeek"/> is a book some of whose details came from RPGGeek, which the details credit to BoardGameGeek.
 /// </summary>
 public sealed record BookDetails(
     BookCard Card, string Eyebrow, string Publisher, string Pages, bool CanOpen, IReadOnlyList<DetailField> Fields, IReadOnlyList<DetailPart> Parts,
@@ -12,7 +13,7 @@ public sealed record BookDetails(
     string FactsHeading, IReadOnlyList<DetailFact> Facts, bool ShowsLocations, IReadOnlyList<DetailLocation> Locations, IReadOnlyList<DetailCopy> Copies,
     string CopiesHeading, IReadOnlyList<DetailFact> Stages, bool Reprocessing, string NotesLabel, string FirstPage, string PartFrom, string PartTo,
     string SplitPackLabel, string SplitPackTip, IReadOnlyList<CollectionChip> Collections, IReadOnlyList<DetailChapter> Chapters,
-    bool CanAsk, bool HasChosenCover = false, string? OcrEveryPageQuestion = null);
+    bool CanAsk, bool HasChosenCover = false, string? OcrEveryPageQuestion = null, bool FromRpgGeek = false);
 
 /// <summary>
 /// A chapter under Found inside the book: its title and pages as the file numbers them, one line per field the AI

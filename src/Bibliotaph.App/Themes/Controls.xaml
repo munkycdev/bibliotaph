@@ -333,6 +333,35 @@
     </Setter>
   </Style>
 
+  <!--
+    .bt-poweredby: BoardGameGeek's "Powered by BGG" logo, which their terms ask for where RPGGeek's data is shown, in the
+    muted text colour so it follows the theme: its shape is a mask. Clicking it opens boardgamegeek.com.
+  -->
+  <Style x:Key="Bt.PoweredByBgg" TargetType="Button">
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+    <Setter Property="ToolTip" Value="Book data looked up on RPGGeek comes from BoardGameGeek. Opens boardgamegeek.com" />
+    <Setter Property="AutomationProperties.Name" Value="Powered by BGG" />
+    <Setter Property="Command" Value="{x:Static c:BggCredit.OpenCommand}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Rectangle x:Name="Logo" Width="95" Height="22" Fill="{DynamicResource Bt.Muted}">
+            <Rectangle.OpacityMask>
+              <ImageBrush ImageSource="/Assets/powered-by-bgg.png" Stretch="Uniform" />
+            </Rectangle.OpacityMask>
+          </Rectangle>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Logo" Property="Fill" Value="{DynamicResource Bt.Text}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- .bt-link: a small accent-coloured text button, with an optional icon through c:Ui.Icon. -->
   <Style x:Key="Bt.Link" TargetType="Button">
     <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
