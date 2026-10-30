@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Each book's own choices now sync, and books open where you left them.** The page you used as a book's cover,
+  Forget its text and Read it again, a Cataloged wrong… you left open, the collections you said Never to, the cover you
+  chose for a book you own elsewhere and the book's Ask this book conversation reach the web and your other PCs. A
+  book opens at the page you left it on, on whichever device you read it last. See
+  [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
 - **Same book, adventures and their answers now sync.** Files you joined as one book (with Same book, as a new version,
   or by matching a file to a book you own elsewhere) are joined on your other devices too, and Not the same book parts
   them everywhere. Adventures you mark in a file reach the web and your other PCs with their pages and values, and

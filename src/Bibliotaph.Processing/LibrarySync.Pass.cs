@@ -75,10 +75,8 @@ public sealed partial class LibrarySync
             {
                 var applied = await _store.ApplyAsync(changes, resolver.FindCard, ct);
                 changed = applied.Changed;
-                // Another device's tags are guessed here from this device's own pages.
-                if (applied.Tags.Count > 0 && _userTags is not null) await _userTags.RefreshAsync(applied.Tags, ct);
-                // A pack made here as another device made it is named after its folder here, as packing names it.
-                if (applied.Packed.Count > 0 && _hints is not null) await _hints.StorePacksAsync(applied.Packed, ct);
+                // Before the catalog is read again, so what it does (a chosen cover kept, say) shows as applied.
+                if (_followUp is not null) await _followUp.RunAsync(applied.FollowUps, ct);
                 waiting.UnionWith(applied.NotApplied);
                 snapshot = await _store.ReadAsync(ct);
                 // What couldn't be used, or was used but doesn't show here, waits rather than reading as deleted here.

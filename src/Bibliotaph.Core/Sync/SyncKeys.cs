@@ -58,12 +58,31 @@ public static class SyncKeys
     /// </summary>
     public const string LookupRecord = "lr:";
 
+    /// <summary>The page a file's cover shows, when the user chose one, by the file's content hash: "cp:ab12…".</summary>
+    public const string CoverPage = "cp:";
+
+    /// <summary>A file whose text the user had Bibliotaph forget, by its content hash: "ft:ab12…". Gone again, it was read again.</summary>
+    public const string Forgotten = "ft:";
+
+    /// <summary>Where a book was last read, by the content hash of the file read: "rd:ab12…". An adventure's is a field of the adventure.</summary>
+    public const string Reading = "rd:";
+
+    /// <summary>A question asked of a book, with its answer, by when it was asked: "q:" + the time's ticks.</summary>
+    public const string Asked = "q:";
+
     /// <summary>A pin, by what it points at: "pin:fav", "pin:c:…", "pin:b:…", "pin:s:…". A book's pin is a field of the book.</summary>
     public const string Pin = "pin:";
 
     public const string FavoritesPin = Pin + "fav";
 
     public static string ForBook(string contentHash) => Book + contentHash;
+
+    public static string ForAsked(DateTime askedUtc) => Asked + askedUtc.Ticks.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>When the question in a key made by <see cref="ForAsked"/> was asked, or null.</summary>
+    public static DateTime? AskedOf(string key) =>
+        key.StartsWith(Asked, StringComparison.Ordinal) && long.TryParse(key.AsSpan(Asked.Length), NumberStyles.None, CultureInfo.InvariantCulture, out var ticks)
+            && ticks <= DateTime.MaxValue.Ticks ? new DateTime(ticks, DateTimeKind.Utc) : null;
 
     public static string ForPack(string contentHash) => Pack + contentHash;
 
@@ -184,9 +203,43 @@ public static class SyncFields
     /// <summary>A term combined into another of its vocabulary: that term's key. The other PCs combine theirs the same way.</summary>
     public const string MergedInto = "merged";
 
-    /// <summary>An adventure proposal's answer: "Accepted" or "NotSplit".</summary>
+    /// <summary>An adventure proposal's answer ("Accepted" or "NotSplit"), or an answer Ask gave, as shown.</summary>
     public const string Answer = "answer";
 
     /// <summary>A catalogue's record for a file: true when the user said it is the book's, false when they said it isn't.</summary>
     public const string SameBook = "same";
+
+    /// <summary>A zero-based PDF page: the one a cover shows, or the one the reader was left at.</summary>
+    public const string Page = "page";
+
+    /// <summary>When a book was last opened.</summary>
+    public const string Opened = "opened";
+
+    /// <summary>An adventure's reading place: its page and when it was opened.</summary>
+    public const string Read = "read";
+
+    /// <summary>The cover the user chose for a book owned elsewhere, as base64 JPEG at cover size.</summary>
+    public const string Picture = "picture";
+
+    /// <summary>"Cataloged wrong…" left unanswered, so Needs review offers the editor again: always true.</summary>
+    public const string Wrong = "wrong";
+
+    /// <summary>Never adding a card to a collection Needs review suggested, by the collection's sync id: "never.3f2…".</summary>
+    public const string DeclinedPrefix = "never.";
+
+    public const string Question = "question";
+
+    /// <summary>A follow-up question as the model rewrote it to stand on its own.</summary>
+    public const string Rewritten = "rewritten";
+
+    /// <summary>An answer's checked pieces, as Ask keeps them.</summary>
+    public const string Parts = "parts";
+
+    /// <summary>The PDF pages an answer cites.</summary>
+    public const string Cited = "cited";
+
+    public const string Model = "model";
+
+    /// <summary>The model said the pages it read don't answer the question.</summary>
+    public const string NotAnswered = "notAnswered";
 }

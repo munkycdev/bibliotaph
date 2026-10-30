@@ -17,6 +17,9 @@ public sealed record SyncedMetadata(IReadOnlyList<string> Values, IReadOnlyList<
 public sealed record SyncedPages(string Hash, int First, int Last, string? FirstLabel = null, string? LastLabel = null, string? FirstFingerprint = null,
     string? LastFingerprint = null);
 
+/// <summary>Where an adventure was left in the reader: its zero-based PDF page, and when it was opened.</summary>
+public sealed record SyncedReading(int Page, DateTime Opened);
+
 /// <summary>
 /// The user's work in catalog.db as library sync records: each record's fields by name, as compact JSON.
 /// <see cref="Cards"/> finds a card by any of its keys: a hash of any of its files, any of a pack's images, or the sync
@@ -38,11 +41,13 @@ public sealed record SyncSnapshot(
 /// <summary>
 /// What library sync reads and writes in catalog.db: the user's work as sync records, what this PC last knew of each
 /// record (sync_state), and merged records applied back to the catalog's own tables. It never touches file locations,
-/// documents, roots, runs or settings: those belong to this PC. A folder's pack decision changes only as another device
+/// roots, runs or settings: those belong to this PC; of a document it changes only what the user chose for it (the
+/// page its cover shows, and that its text be forgotten). A folder's pack decision changes only as another device
 /// answered or split the same images.
 /// </summary>
 public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext> contexts, MetadataStore metadata, VocabularyStore vocabularies,
-    TimeProvider? clock = null, ILogger<LibrarySyncStore>? log = null, LookupRecordStore? lookups = null)
+    TimeProvider? clock = null, ILogger<LibrarySyncStore>? log = null, LookupRecordStore? lookups = null,
+    Func<IReadOnlyDictionary<Guid, byte[]>>? chosenCovers = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly ILogger _log = log ?? NullLogger<LibrarySyncStore>.Instance;
@@ -124,6 +129,33 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
         foreach (var entry in entries.Where(e => e.Kind == EntryKind.Pack && e.CoverEntryId is not null && cardFields.ContainsKey(e.Id)))
             if (cardKeys.TryGetValue(entry.CoverEntryId!.Value, out var cover)) cardFields[entry.Id][SyncFields.Cover] = Json(cover);
 
+        // What the user chose for each file: the page its cover shows, and that its text be forgotten.
+        foreach (var d in await db.Documents.AsNoTracking().Where(d => d.CoverPage != null || d.TextForgottenUtc != null)
+            .Select(d => new { d.ContentHash, d.CoverPage, Forgotten = d.TextForgottenUtc != null }).ToListAsync(ct))
+        {
+            if (d.CoverPage is { } page) records[SyncKeys.CoverPage + d.ContentHash] = Fields((SyncFields.Page, Json(page)));
+            if (d.Forgotten) records[SyncKeys.Forgotten + d.ContentHash] = Fields((SyncFields.Exists, Json(true)));
+        }
+
+        // Where each book was left: by the file read, whose pages the page counts in; an adventure's on the adventure.
+        var parts = partIds.ToHashSet();
+        foreach (var r in await db.ReadingStates.AsNoTracking()
+            .Join(db.Documents, r => r.DocumentId, d => d.Id, (r, d) => new { r.EntryId, d.ContentHash, r.PageIndex, r.OpenedUtc }).ToListAsync(ct))
+        {
+            if (!parts.Contains(r.EntryId))
+                records[SyncKeys.Reading + r.ContentHash] = Fields((SyncFields.Page, Json(r.PageIndex)), (SyncFields.Opened, Json(Utc(r.OpenedUtc))));
+            else if (cardFields.TryGetValue(r.EntryId, out var fields)) fields[SyncFields.Read] = Json(new SyncedReading(r.PageIndex, Utc(r.OpenedUtc)));
+        }
+
+        // The cover chosen for a book owned elsewhere, which no other device can draw for itself.
+        // It stays with the card after the book met its file, as the card's cover file is named by its sync id.
+        if (chosenCovers?.Invoke() is { Count: > 0 } pictures)
+            foreach (var entry in entries.Where(e => cardFields.ContainsKey(e.Id)))
+                if (pictures.TryGetValue(entry.SyncId, out var jpeg)) cardFields[entry.Id][SyncFields.Picture] = Json(Convert.ToBase64String(jpeg));
+
+        foreach (var id in await db.CorrectionRequests.AsNoTracking().Select(c => c.EntryId).Distinct().ToListAsync(ct))
+            if (cardFields.TryGetValue(id, out var fields)) fields[SyncFields.Wrong] = Json(true);
+
         // The user's decisions about each card's metadata: what they kept, with the text they kept, and what they rejected.
         var kept = await db.Assertions.AsNoTracking().Where(a => a.State == AssertionState.Confirmed)
             .Select(a => new { a.EntryId, a.Field, a.ValueJson, a.NormalizedValue, a.Origin, a.DecidedUtc }).ToListAsync(ct);
@@ -151,6 +183,9 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
         foreach (var item in await db.CollectionItems.AsNoTracking().ToListAsync(ct))
             if (cardFields.TryGetValue(item.EntryId, out var fields) && collectionIds.TryGetValue(item.CollectionId, out var syncId))
                 fields[SyncFields.InCollectionPrefix + Id(syncId)] = Json(true);
+        foreach (var decline in await db.CollectionDeclines.AsNoTracking().ToListAsync(ct))
+            if (cardFields.TryGetValue(decline.EntryId, out var fields) && collectionIds.TryGetValue(decline.CollectionId, out var syncId))
+                fields[SyncFields.DeclinedPrefix + Id(syncId)] = Json(true);
         foreach (var c in collections)
             records[SyncKeys.For(SyncKeys.Collection, c.SyncId)] = Fields(
                 (SyncFields.Name, Json(c.Name)),
@@ -261,9 +296,26 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
             .ToListAsync(ct))
             records[SyncKeys.ForLookupRecord(answered.ContentHash, answered.Source, answered.RecordKey)] = Fields((SyncFields.SameBook, Json(answered.Answer == LookupAnswer.SameBook)));
 
+        // Ask this book: each question and answer as the reader saw it.
+        foreach (var turn in await db.AskTurns.AsNoTracking().ToListAsync(ct))
+        {
+            if (!cardKeys.TryGetValue(turn.EntryId, out var card)) continue;
+            records[SyncKeys.ForAsked(Utc(turn.AskedUtc))] = Fields(
+                (SyncFields.Card, Json(card)),
+                (SyncFields.Question, Json(turn.Question)),
+                (SyncFields.Rewritten, turn.Rewritten is { } rewritten ? Json(rewritten) : null),
+                (SyncFields.Answer, Json(turn.Answer)),
+                (SyncFields.Parts, Json(turn.Parts)),
+                (SyncFields.Cited, Json(turn.CitedPages)),
+                (SyncFields.Model, Json(turn.Model)),
+                (SyncFields.NotAnswered, turn.NotAnswered ? Json(true) : null));
+        }
+
         foreach (var (entryId, fields) in cardFields) records[cardKeys[entryId]] = fields;
         return new SyncSnapshot(records, aliases, cards, cardKeys);
     }
+
+    static DateTime Utc(DateTime time) => DateTime.SpecifyKind(time, DateTimeKind.Utc);
 
     static Dictionary<string, string> Fields(params (string Name, string? Value)[] fields) =>
         fields.Where(f => f.Value is not null).ToDictionary(f => f.Name, f => f.Value!, StringComparer.Ordinal);
