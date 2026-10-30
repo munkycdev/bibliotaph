@@ -165,7 +165,7 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
 
     BookRecord Record => Item.Match.Record;
 
-    public string Heading => $"{Record.Source}'s record for its ISBN is of {Record.Title}, which isn't printed in it. Is it this book?";
+    public string Heading => $"{Record.Source}'s record for its {BookRecords.FoundBy(Record)} is of {Record.Title}, which isn't printed in it. Is it this book?";
 
     /// <summary>The record as the catalogue gives it: "The Owlbear Mill · Ada Quill · Gull Rock Games · 2019", then what it files the book under.</summary>
     public string Evidence
@@ -177,7 +177,8 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
             if (Record.Publishers.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)) is { } publisher) parts.Add(publisher);
             if (BookRecords.Year(Record.Published) is { } year) parts.Add(year);
             var line = string.Join(" · ", parts);
-            var filed = (Record.Values ?? []).Select(v => v.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            // Who drew it and its mechanics aren't what it's filed under, and would crowd out what is.
+            var filed = (Record.Values ?? []).Where(v => v.Field != MetadataFields.Artists.Key && v.Field != MetadataFields.Mechanics.Key).Select(v => v.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (filed.Count == 0) return line;
             var shown = string.Join("; ", filed.Take(FiledUnder)) + (filed.Count > FiledUnder ? $" and {ReviewCardText.N(filed.Count - FiledUnder)} more" : "");
             return $"{line}. Filed under {shown}.";

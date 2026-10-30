@@ -1,10 +1,11 @@
 namespace Bibliotaph.Api.Contracts;
 
 /// <summary>
-/// A connected PC asking the web library about a book's ISBNs (13 digits each), so it asks where the server can, with
-/// the book's title for a catalogue searched only by name.
+/// A connected PC asking the web library about a book's ISBNs (13 digits each) and the product codes it prints
+/// (capitals and digits, "PZO1110"), so it asks where the server can, with the book's title for a catalogue searched
+/// only by name. <see cref="Isbns"/> is empty for a book that prints only a code.
 /// </summary>
-public sealed record PcLookupRequest(IReadOnlyList<string> Isbns, IReadOnlyList<string>? Titles = null);
+public sealed record PcLookupRequest(IReadOnlyList<string> Isbns, IReadOnlyList<string>? Titles = null, IReadOnlyList<string>? ProductCodes = null);
 
 /// <summary>
 /// The server's answer: where it asks (<see cref="Catalogues"/>, "RPGGeek or Open Library or Google Books"), and the

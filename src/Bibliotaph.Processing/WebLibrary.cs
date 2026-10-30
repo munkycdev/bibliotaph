@@ -436,14 +436,16 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
     }
 
     /// <summary>
-    /// Asks the web library to look a book up by its ISBNs where it can: its answer, with <see cref="PcLookupAnswer.Problem"/>
-    /// set when it couldn't ask; or null when it didn't answer.
+    /// Asks the web library to look a book up by its ISBNs and product codes where it can: its answer, with
+    /// <see cref="PcLookupAnswer.Problem"/> set when it couldn't ask; or null when it didn't answer.
     /// </summary>
-    public async Task<PcLookupAnswer?> LookUpAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, CancellationToken ct)
+    public async Task<PcLookupAnswer?> LookUpAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
+        CancellationToken ct)
     {
         try
         {
-            using var response = await SendAsync(HttpMethod.Post, "api/pc/lookups", new PcLookupRequest(isbns, titles), withKey: true, ct,
+            using var response = await SendAsync(HttpMethod.Post, "api/pc/lookups", new PcLookupRequest(isbns, titles, codes.Count > 0 ? codes : null),
+                withKey: true, ct,
                 patience: LookUpPatience);
             if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
             if ((response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.ServiceUnavailable)
