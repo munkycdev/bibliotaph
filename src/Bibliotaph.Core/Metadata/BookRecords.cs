@@ -51,7 +51,7 @@ public static partial class BookRecords
     }
 
     /// <summary>
-    /// What the records suggest: a title, authors, first publisher, year, series, levels, artists and mechanics, each field from the first of
+    /// What the records suggest: a title, authors, first publisher, year, series, levels, artists, mechanics, monsters and items, each field from the first of
     /// <paramref name="records"/> that gives it, so the catalogue the user prefers wins field by field and the next fills
     /// what it lacks. A library catalogue's subjects are a librarian's shelving, not a game's system or type, so they
     /// aren't used; a game catalogue's terms are, through <see cref="Terms"/>.
@@ -78,6 +78,8 @@ public static partial class BookRecords
         Add(MetadataFields.Levels, r => [ValuesOf(r, MetadataFields.Levels).FirstOrDefault()]);
         Add(MetadataFields.Artists, r => ValuesOf(r, MetadataFields.Artists));
         Add(MetadataFields.Mechanics, r => ValuesOf(r, MetadataFields.Mechanics));
+        Add(MetadataFields.Monsters, r => ValuesOf(r, MetadataFields.Monsters));
+        Add(MetadataFields.Items, r => ValuesOf(r, MetadataFields.Items));
         return proposals;
     }
 
@@ -131,7 +133,7 @@ public static partial class BookRecords
     static readonly HashSet<string> TooWide = [.. new[] { "Fantasy", "Generic / Universal", "Action / Adventure" }.Select(MetadataText.Normalize)];
 
     /// <summary>
-    /// The terms the records file the book under: its system and edition, types, themes, settings and environments, each field from
+    /// The terms the records file the book under: its system and edition, types, themes, settings, environments and what it includes, each field from
     /// the first record that gives it. A catalogue's words ("Dungeons &amp; Dragons (3.5 Edition)") are matched to the
     /// vocabulary as a whole, then by the part before the bracket; a system also by any system or edition named in it,
     /// and its edition by the bracket read with the system's name ("Pathfinder" and "2nd Edition"). A name none of the
@@ -141,7 +143,7 @@ public static partial class BookRecords
     public static IReadOnlyList<CatalogueTerm> Terms(IReadOnlyList<BookRecord> records, Vocabulary vocabulary)
     {
         var terms = new List<CatalogueTerm>();
-        foreach (var field in new[] { MetadataFields.System, MetadataFields.Types, MetadataFields.Themes, MetadataFields.Settings, MetadataFields.Environments })
+        foreach (var field in new[] { MetadataFields.System, MetadataFields.Types, MetadataFields.Themes, MetadataFields.Settings, MetadataFields.Environments, MetadataFields.Includes })
         {
             if (records.FirstOrDefault(r => ValuesOf(r, field).Any()) is not { } record) continue;
             var quote = Quote(record);
@@ -157,7 +159,7 @@ public static partial class BookRecords
         var (head, _) = Split(value);
         var found = new[] { vocabulary.Resolve(vocabularyName, value), vocabulary.Resolve(vocabularyName, head) }.OfType<Term>().Distinct().ToList();
         if (found.Count > 0) return found.Select(t => new CatalogueTerm(field, t, t.Label, quote));
-        if (field == MetadataFields.Types || head.Length == 0 || TooWide.Contains(MetadataText.Normalize(head))) return [];
+        if (field == MetadataFields.Types || field == MetadataFields.Includes || head.Length == 0 || TooWide.Contains(MetadataText.Normalize(head))) return [];
         return [new CatalogueTerm(field, null, head, quote)];
     }
 

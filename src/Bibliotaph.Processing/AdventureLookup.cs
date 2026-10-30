@@ -9,7 +9,8 @@ namespace Bibliotaph.Processing;
 
 /// <summary>
 /// AdventureLookup (adventurelookup.com), a catalogue of published adventures, mostly D&amp;D and Pathfinder, kept by
-/// its users: the levels they're for, their edition, setting and environments. It knows no ISBNs, so it's searched by
+/// its users: the levels they're for, their edition, setting and environments, their monsters and items, and what comes
+/// with them. It knows no ISBNs, so it's searched by
 /// title, a record title from another catalogue first, and asked about every book, whatever the others found; a record
 /// it gives is the book's only once Look up finds its title printed in the book and its authors, publisher or page
 /// count agree (<see cref="BookRecords.Agrees"/>). No key is needed and only titles are sent. It asks for no pace, so
@@ -111,6 +112,11 @@ public sealed class AdventureLookupCatalogue(HttpClient http, TimeProvider? cloc
         if (Text(adventure, "setting") is { } setting && !NoSetting.Contains(setting)) Add(MetadataFields.Settings, setting);
         Add(MetadataFields.Levels, Levels(adventure));
         Add(MetadataFields.Series, Text(adventure, "part_of"));
+        foreach (var monster in Texts(adventure, "boss_monsters").Concat(Texts(adventure, "common_monsters")).Distinct(StringComparer.OrdinalIgnoreCase))
+            Add(MetadataFields.Monsters, monster);
+        foreach (var item in Texts(adventure, "items")) Add(MetadataFields.Items, item);
+        foreach (var (flag, includes) in Included)
+            if (adventure.TryGetProperty(flag, out var value) && value.ValueKind == JsonValueKind.True) Add(MetadataFields.Includes, includes);
         var publisher = Text(adventure, "publisher") is { } named && !NoPublisher.Contains(named) ? named : null;
         return new BookRecord(Source, Id(adventure)!, "", title, Texts(adventure, "authors"), publisher is null ? [] : [publisher],
             Number(adventure, "publication_year")?.ToString(CultureInfo.InvariantCulture), values,
@@ -155,6 +161,16 @@ public sealed class AdventureLookupCatalogue(HttpClient http, TimeProvider? cloc
         "Extraplanar" or "Feywild" => "Planar",
         _ => environment,
     };
+
+    /// <summary>
+    /// What its flags say comes with it, as the vocabulary names them. A flag that's false or missing says nothing,
+    /// since most records leave them unset rather than saying no.
+    /// </summary>
+    static readonly (string Flag, string Includes)[] Included =
+    [
+        ("has_pregenerated_characters", "Pre-generated characters"), ("has_handouts", "Handouts"), ("has_tactical_maps", "Battle maps"),
+        ("soloable", "Playable solo"),
+    ];
 
     /// <summary>Settings that say the adventure has none in particular.</summary>
     static readonly HashSet<string> NoSetting = new(["Setting Neutral", "Other"], StringComparer.OrdinalIgnoreCase);

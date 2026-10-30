@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Monsters, items, and what an adventure includes.** Three new fields, filled by AdventureLookup and by you: an
+  adventure's monsters (bosses first) and its magic items, which plain search finds ("owlbear"), and **Includes**, a
+  short list of pre-generated characters, handouts, battle maps and playable solo. The AI isn't asked for them. See
+  [Cataloging](docs/guide/cataloging.md).
 - **Levels and environments from AdventureLookup.** On the web, and on a PC connected to it, books are now looked up
   on [AdventureLookup](https://adventurelookup.com) too, a catalogue of published adventures, by their title. Its
   record is used when the book prints that title and one of its authors or its publisher, or has about as many pages;
