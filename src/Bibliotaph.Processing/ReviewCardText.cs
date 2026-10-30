@@ -154,6 +154,9 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
 {
     public const string Chip = "Same book?";
 
+    static readonly HashSet<string> NotFiledUnder =
+        [MetadataFields.Artists.Key, MetadataFields.Mechanics.Key, MetadataFields.Levels.Key, MetadataFields.Monsters.Key, MetadataFields.Items.Key, MetadataFields.Includes.Key];
+
     /// <summary>What the record files the book under shown on the card, at most.</summary>
     const int FiledUnder = 4;
 
@@ -180,8 +183,8 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
             if (BookRecords.Year(Record.Published) is { } year) parts.Add(year);
             if (Record.Pages is { } pages) parts.Add($"{ReviewCardText.N(pages)} pages");
             var line = string.Join(" · ", parts);
-            // Who drew it, its mechanics and its levels aren't what it's filed under, and would crowd out what is.
-            var filed = (Record.Values ?? []).Where(v => v.Field != MetadataFields.Artists.Key && v.Field != MetadataFields.Mechanics.Key && v.Field != MetadataFields.Levels.Key).Select(v => v.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            // Who drew it, its mechanics, levels, monsters, items and extras aren't what it's filed under, and would crowd out what is.
+            var filed = (Record.Values ?? []).Where(v => !NotFiledUnder.Contains(v.Field)).Select(v => v.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (filed.Count == 0) return line;
             var shown = string.Join("; ", filed.Take(FiledUnder)) + (filed.Count > FiledUnder ? $" and {ReviewCardText.N(filed.Count - FiledUnder)} more" : "");
             return $"{line}. Filed under {shown}.";

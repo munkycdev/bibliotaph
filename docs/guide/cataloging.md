@@ -28,7 +28,8 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   only when the book prints that title on its first pages and also one of its authors or its publisher, or has about
   as many pages (within two); a book printing the title but nothing else that agrees gets a **Same book?** card, and
   one that doesn't print it is left alone. It fills in the levels an adventure is for, which no other catalogue has,
-  and its edition, setting, environments and series, in your lists' terms: its "Dungeon" and "Cave" are your
+  its monsters (bosses first) and magic items, which plain search finds, what it includes (pre-generated characters,
+  handouts, battle maps, or that it plays solo), and its edition, setting, environments and series, in your lists' terms: its "Dungeon" and "Cave" are your
   Underground, its "Town/Village" your Urban. Because of it, books that print no ISBN or product code are looked up
   too, by title; an image, which prints no title, isn't. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
   book is asked again once there's somewhere more to ask, such as when the app connects. A record is used only when
@@ -58,8 +59,8 @@ Under the cover is a row of buttons for what you can do with the book:
 
 The **Details** tab shows:
 
-- The fields: title, game system, edition, type, levels, players, duration, style, setting, themes, environments,
-  publisher, authors, artists, series, year, mechanics, your tags, where else you own it (**Also own**, with the book's page online if you
+- The fields: title, game system, edition, type, levels, players, includes, duration, style, setting, themes,
+  environments, monsters, items, publisher, authors, artists, series, year, mechanics, your tags, where else you own it (**Also own**, with the book's page online if you
   like) and where to get it (**Get it from**, a store with an optional link). Empty fields are hidden until you click
   **More fields**, except the main ones, and **Players** on an adventure, so you can say who it's for straight away.
 - **Suggested** marks on values nobody has confirmed yet. Open one to see where it came from, with the page and quote.

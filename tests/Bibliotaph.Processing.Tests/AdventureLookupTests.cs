@@ -58,7 +58,8 @@ public sealed class AdventureLookupTests
         Assert.Equal(["Gull Rock Games"], record.Publishers);
         Assert.Equal(
             ["system:D&D 5e", "environment:Underground", "environment:Forest", "environment:Planar", "theme:Fey", "environment:Urban",
-             "setting:Forgotten Realms", "levels:1-3", "series:Example Saga"],
+             "setting:Forgotten Realms", "levels:1-3", "series:Example Saga", "monsters:Owlbear", "monsters:Goblin", "items:Wand of Example",
+             "includes:Pre-generated characters", "includes:Battle maps"],
             record.Values!.Select(v => $"{v.Field}:{v.Value}"));
         Assert.Equal(record.Key, Assert.Single(again.Records).Key);
         // Asked once: the answer is kept, and only the title is sent.

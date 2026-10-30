@@ -101,6 +101,30 @@ public class BookRecordsTests
     }
 
     [Fact]
+    public void An_adventure_catalogues_record_suggests_its_monsters_and_items_and_what_it_includes_from_the_fixed_list()
+    {
+        var record = Record("The Owlbear Mill") with
+        {
+            Source = "AdventureLookup",
+            Values =
+            [
+                new CatalogueValue("monsters", "Owlbear"), new CatalogueValue("monsters", "Goblin"), new CatalogueValue("items", "Wand of Example"),
+                new CatalogueValue("includes", "Handouts"), new CatalogueValue("includes", "Puzzles"),
+            ],
+        };
+        var vocabulary = new Vocabulary([new Term("includes", "handouts", "Handouts")], []);
+
+        var proposals = BookRecords.Proposals([record]);
+        var terms = BookRecords.Terms([record], vocabulary);
+
+        Assert.Equal(["Owlbear", "Goblin"], proposals.Where(p => p.Field == MetadataFields.Monsters).Select(p => p.Value));
+        Assert.Equal(["Wand of Example"], proposals.Where(p => p.Field == MetadataFields.Items).Select(p => p.Value));
+        // A fixed list, as the types are: a name it doesn't have isn't proposed as a new one.
+        var included = Assert.Single(terms, t => t.Field == MetadataFields.Includes);
+        Assert.Equal("handouts", included.Term?.Key);
+    }
+
+    [Fact]
     public void Each_field_comes_from_the_first_record_that_gives_it()
     {
         var rpggeek = new BookRecord("RPGGeek", "1", "9781234567897", "The Owlbear Mill", ["C. Designer"], [], null);
