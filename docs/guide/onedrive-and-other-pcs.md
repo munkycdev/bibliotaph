@@ -88,7 +88,10 @@ What travels: your corrections, hearts, notes, collections, saved searches, bind
 pins, vocabulary, your own tags with the words they're found by, books you own elsewhere (imported ones too) and your
 answers in Needs review. A new name the AI proposed is answered once for every device: add it, file it under another
 term or turn it down on the web or on any PC, and the same card goes from Needs review everywhere, with the books
-that were waiting on it. Terms you kept apart in **Find overlaps** stay apart everywhere too. A change reaches the
+that were waiting on it. Terms you kept apart in **Find overlaps** stay apart everywhere too. Packs travel as well: files you **Pack together**,
+a pack you split, a folder you answered **Make a pack** or **Keep separate** for, and the cover you chose for a pack
+are the same on the web and every PC that has those files. Where two devices made a pack of the same folder by
+themselves, they settle on one. A change reaches the
 web a few seconds after you make it, and your other PCs within a minute or so. Where two PCs change the same thing, the
 newer change wins; changes to different things are all kept.
 
