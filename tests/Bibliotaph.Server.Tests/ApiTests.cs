@@ -2653,6 +2653,8 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         using var nothing = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([]), ct);
         // A book printing only a product code is looked up by it, where a catalogue's records list codes.
         using var byCode = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([], ["The Owlbear Mill"], ["pzo1110"]), ct);
+        // And one printing neither, by its title alone.
+        using var byTitle = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([], ["The Owlbear Mill"]), ct);
         using var signedIn = await web.GetAsync("/api/pc/lookups", ct);
 
         Assert.Equal(("Open Library or Google Books", 1), (catalogue.Name, changed));
@@ -2662,6 +2664,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal(HttpStatusCode.BadRequest, notAnIsbn.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, nothing.StatusCode);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, byCode.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, byTitle.StatusCode);
         Assert.Equal(["PZO1110"], _catalogue.Codes);
         Assert.Equal(HttpStatusCode.Unauthorized, signedIn.StatusCode);
         Assert.Equal("Open Library or Google Books", await settings.GetAsync(SettingKeys.LookUpWebCatalogues, ct));

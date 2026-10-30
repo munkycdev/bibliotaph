@@ -62,9 +62,17 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
     [ObservableProperty]
     public partial string LookUpExplanation { get; set; } = Explain("Open Library");
 
+    /// <summary>What else goes to the catalogues searched by name, as the web app says it.</summary>
+    static string ByName(string catalogues)
+    {
+        var named = new[] { "RPGGeek", "AdventureLookup" }.Where(c => catalogues.Split(" or ").Contains(c)).ToList();
+        if (named.Count == 0) return "and nothing else,";
+        var titleOnly = named.Contains("AdventureLookup") ? " (and for AdventureLookup, the title of a book that prints no ISBN)" : "";
+        return $"and a book's title for {string.Join(" and ", named)}, searched by name{titleOnly},";
+    }
+
     static string Explain(string catalogues) =>
-        $"Asks {catalogues} about the ISBNs your books print, {(catalogues.Contains("RPGGeek", StringComparison.Ordinal)
-            ? "and a book's title for RPGGeek, which is searched by name," : "and nothing else,")} to fill in their title, authors, publisher and year, " +
+        $"Asks {catalogues} about the ISBNs your books print, {ByName(catalogues)} to fill in their title, authors, publisher and year, " +
         "each from the first of them that gives it. A record is used only when its title is printed in the book, and the AI's guesses give way to it." +
         (catalogues.Contains("RPGGeek", StringComparison.Ordinal) ? " RPGGeek's data is powered by BGG, boardgamegeek.com." : "");
 

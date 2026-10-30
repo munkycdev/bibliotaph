@@ -6,15 +6,17 @@ namespace Bibliotaph.Core.Metadata;
 
 /// <summary>
 /// A book's record in an online catalogue, found by one of its ISBNs, or by a product code it prints
-/// (<paramref name="Isbn"/> is then that code; see <see cref="BookRecords.FoundBy"/>): <paramref name="Source"/> names
-/// the catalogue ("Open Library"), <paramref name="Key"/> is the record's own id there, and <paramref name="Published"/>
-/// is the date as the catalogue writes it ("1985", "March 2019"). <paramref name="Values"/> are what the catalogue files
-/// it under, in its own words, for a catalogue that knows games (RPGGeek's systems, categories, genres, settings and
-/// series), and who drew it and the mechanics it uses.
+/// (<paramref name="Isbn"/> is then that code), or by its title alone (<paramref name="Isbn"/> is then empty; see
+/// <see cref="BookRecords.FoundBy"/>): <paramref name="Source"/> names the catalogue ("Open Library"),
+/// <paramref name="Key"/> is the record's own id there, and <paramref name="Published"/> is the date as the catalogue
+/// writes it ("1985", "March 2019"). <paramref name="Values"/> are what the catalogue files it under, in its own words,
+/// for a catalogue that knows games (RPGGeek's systems, categories, genres, settings and series, AdventureLookup's
+/// editions, environments and levels), and who drew it and the mechanics it uses. <paramref name="Pages"/> is its page
+/// count, where the catalogue gives one, to tell a record found by title alone is this book's.
 /// </summary>
 public sealed record BookRecord(
     string Source, string Key, string Isbn, string Title, IReadOnlyList<string> Authors, IReadOnlyList<string> Publishers, string? Published,
-    IReadOnlyList<CatalogueValue>? Values = null);
+    IReadOnlyList<CatalogueValue>? Values = null, int? Pages = null);
 
 /// <summary>
 /// Something a catalogue files a book under, in its own words ("Fantasy (High Fantasy)"), by the key of the field it
@@ -49,7 +51,7 @@ public static partial class BookRecords
     }
 
     /// <summary>
-    /// What the records suggest: a title, authors, first publisher, year, series, artists and mechanics, each field from the first of
+    /// What the records suggest: a title, authors, first publisher, year, series, levels, artists and mechanics, each field from the first of
     /// <paramref name="records"/> that gives it, so the catalogue the user prefers wins field by field and the next fills
     /// what it lacks. A library catalogue's subjects are a librarian's shelving, not a game's system or type, so they
     /// aren't used; a game catalogue's terms are, through <see cref="Terms"/>.
@@ -73,13 +75,43 @@ public static partial class BookRecords
         Add(MetadataFields.Publisher, r => [r.Publishers.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p))]);
         Add(MetadataFields.Year, r => [Year(r.Published)]);
         Add(MetadataFields.Series, r => [ValuesOf(r, MetadataFields.Series).FirstOrDefault(v => Simplify(v) is not ("misc" or "miscellaneous"))]);
+        Add(MetadataFields.Levels, r => [ValuesOf(r, MetadataFields.Levels).FirstOrDefault()]);
         Add(MetadataFields.Artists, r => ValuesOf(r, MetadataFields.Artists));
         Add(MetadataFields.Mechanics, r => ValuesOf(r, MetadataFields.Mechanics));
         return proposals;
     }
 
-    /// <summary>What the record was found by, as a reason or card says it: "ISBN", or "product code" for one found by a code it prints.</summary>
-    public static string FoundBy(BookRecord record) => Isbn.Normalize(record.Isbn) is not null ? "ISBN" : "product code";
+    /// <summary>
+    /// What the record was found by, as a reason or card says it: "ISBN", "product code" for one found by a code it
+    /// prints, or "title" for one found by its title alone.
+    /// </summary>
+    public static string FoundBy(BookRecord record) =>
+        ByTitle(record) ? "title" : Isbn.Normalize(record.Isbn) is not null ? "ISBN" : "product code";
+
+    /// <summary>Whether the record was found by the book's title alone, by a catalogue that knows no ISBNs.</summary>
+    public static bool ByTitle(BookRecord record) => string.IsNullOrEmpty(record.Isbn);
+
+    /// <summary>
+    /// Whether something besides the title tells a record found by title alone is this book's: one of its authors or
+    /// publishers printed on <paramref name="front"/>, the book's front pages, or its page count within
+    /// <see cref="PagesApart"/> of the file's <paramref name="pages"/>. A short title is shared by many books, so the
+    /// title alone isn't enough.
+    /// </summary>
+    public static bool Agrees(BookRecord record, IEnumerable<string?> front, int? pages)
+    {
+        if (record.Pages is { } given && pages is { } counted && Math.Abs(given - counted) <= PagesApart) return true;
+        var printed = string.Join(" ", front.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => Simplify(p!)));
+        if (printed.Length == 0) return false;
+        printed = $" {printed} ";
+        return record.Authors.Concat(record.Publishers).Select(n => Simplify(n)).Where(n => n.Length >= MinNameLength)
+            .Any(n => printed.Contains($" {n} ", StringComparison.Ordinal));
+    }
+
+    /// <summary>How far a record's page count may be from the file's: a cover or an ad page more or less.</summary>
+    public const int PagesApart = 2;
+
+    /// <summary>Names shorter than this ("TSR" is fine, "Al" isn't) are too likely printed by chance.</summary>
+    const int MinNameLength = 3;
 
     /// <summary>Where a suggestion came from, as a card shows it: the record by the title it gives, which says more than its ISBN.</summary>
     static string Quote(BookRecord record) => $"{record.Source}'s record of {record.Title}";
@@ -99,7 +131,7 @@ public static partial class BookRecords
     static readonly HashSet<string> TooWide = [.. new[] { "Fantasy", "Generic / Universal", "Action / Adventure" }.Select(MetadataText.Normalize)];
 
     /// <summary>
-    /// The terms the records file the book under: its system and edition, types, themes and settings, each field from
+    /// The terms the records file the book under: its system and edition, types, themes, settings and environments, each field from
     /// the first record that gives it. A catalogue's words ("Dungeons &amp; Dragons (3.5 Edition)") are matched to the
     /// vocabulary as a whole, then by the part before the bracket; a system also by any system or edition named in it,
     /// and its edition by the bracket read with the system's name ("Pathfinder" and "2nd Edition"). A name none of the
@@ -109,7 +141,7 @@ public static partial class BookRecords
     public static IReadOnlyList<CatalogueTerm> Terms(IReadOnlyList<BookRecord> records, Vocabulary vocabulary)
     {
         var terms = new List<CatalogueTerm>();
-        foreach (var field in new[] { MetadataFields.System, MetadataFields.Types, MetadataFields.Themes, MetadataFields.Settings })
+        foreach (var field in new[] { MetadataFields.System, MetadataFields.Types, MetadataFields.Themes, MetadataFields.Settings, MetadataFields.Environments })
         {
             if (records.FirstOrDefault(r => ValuesOf(r, field).Any()) is not { } record) continue;
             var quote = Quote(record);

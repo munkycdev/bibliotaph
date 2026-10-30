@@ -16,6 +16,12 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
 
     public string Name => web.HasKey ? _webCatalogues ?? direct.Name : direct.Name;
 
+    /// <summary>
+    /// While connected, whether the web library asks AdventureLookup, as its catalogues' names say, so a book printing
+    /// no ISBN or code is sent with its title only where it can be found that way.
+    /// </summary>
+    public bool FindsByTitleAlone => web.HasKey ? Name.Split(" or ").Contains(AdventureLookupCatalogue.Source) : direct.FindsByTitleAlone;
+
     public event EventHandler? NameChanged;
 
     public async Task RefreshAsync(CancellationToken ct = default)
@@ -38,7 +44,7 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
         if (answer.Problem is { } problem) throw new CatalogueUnavailableException(problem);
         var records = answer.Records ?? (answer.Record is { } first ? [first] : []);
         return new CatalogueAnswer([.. records.Select(r => new BookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
-            r.Values?.Select(v => new CatalogueValue(v.Field, v.Value)).ToList()))],
+            r.Values?.Select(v => new CatalogueValue(v.Field, v.Value)).ToList(), r.Pages))],
             answer.AskedOf ?? answer.Catalogues);
     }
 
