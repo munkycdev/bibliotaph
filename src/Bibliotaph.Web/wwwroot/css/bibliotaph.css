@@ -1220,6 +1220,25 @@ a.bt-menuitem{text-decoration:none}
 .bt-quote{border-left:3px solid var(--bt-line);padding-left:16px}
 .bt-columns{columns:2 220px}
 .bt-licences{max-width:900px}
+.bt-policy ol{padding-left:22px;margin:10px 0 0}
+.bt-policy li>ul,.bt-policy li>ol,.bt-policy li>p{margin-top:4px}
+.bt-policy hr{border:0;border-top:1px solid var(--bt-line);margin:32px 0 0}
+/* The Guide: a chapter with the list of chapters beside it, or after it on a narrow screen. */
+.bt-manual{display:grid;grid-template-columns:190px minmax(0,720px);gap:44px;justify-content:center;max-width:1080px;margin:0 auto;padding:0 24px}
+.bt-manual .bt-policy{grid-column:2;grid-row:1;margin:0;padding-left:0;padding-right:0;max-width:none}
+.bt-site .bt-manualpage a.bt-eyebrow,.bt-site .bt-manualpage a.bt-eyebrow:hover{color:var(--bt-muted);text-decoration:none}
+.bt-manualnav{grid-column:1;grid-row:1;position:sticky;top:16px;align-self:start;padding-top:24px;font-size:13px}
+.bt-manualnav ol{list-style:none;padding:0;margin:0}
+.bt-manualnav a{display:block;padding:5px 10px;margin-left:-10px;border-radius:6px;color:var(--bt-text);text-decoration:none}
+.bt-manualnav a:hover{background:var(--bt-side)}
+.bt-manualnav a[aria-current=page]{background:var(--bt-soft);color:var(--bt-accent);font-weight:600}
+.bt-policy .bt-manuallist{list-style:none;padding:0;margin:24px 0 8px;display:grid;gap:10px}
+.bt-site .bt-policy .bt-manuallist a{display:block;padding:14px 16px;border:1px solid var(--bt-line);border-radius:10px;text-decoration:none;color:var(--bt-muted)}
+.bt-manuallist a:hover{border-color:var(--bt-accent)}
+.bt-manuallist b{display:block;color:var(--bt-text);font-size:15px;font-weight:600}
+.bt-manuallist span{display:block;font-size:13px;margin-top:3px;line-height:1.5}
+@media(max-width:850px){.bt-manual{grid-template-columns:minmax(0,1fr);gap:0}.bt-manual .bt-policy{grid-column:1;padding-bottom:24px}
+.bt-manualnav{grid-column:1;grid-row:2;position:static;border-top:1px solid var(--bt-line);padding:20px 0 0}}
 .bt-sitefoot{border-top:1px solid var(--bt-line);margin-top:24px;padding:24px;font-size:12px;color:var(--bt-muted);text-align:center}
 .bt-sitefoot nav{display:flex;justify-content:center;flex-wrap:wrap;gap:8px 20px;margin-bottom:12px}
 .bt-sitefoot .bt-tagline{display:block;margin-bottom:14px;font-size:16px}

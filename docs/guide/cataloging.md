@@ -224,8 +224,8 @@ turns up later, Needs review asks whether it's that book's file.
 
 With no file there's no page to make a cover from. **Choose a cover image…**, in the Add dialog or the book's details,
 uses a JPG, PNG or WebP picture of your own: Bibliotaph keeps a cover-sized copy, so the picture itself can move or go.
-**Remove the cover** goes back to the online library's cover, or none. A chosen cover stays on this PC; it isn't part
-of the library sync file.
+**Remove the cover** goes back to the online library's cover, or none. A chosen cover stays on this PC; it isn't
+shared with your other PCs.
 
 Books you own on D&D Beyond or Demiplane, or bought from Humble Bundle or DriveThruRPG, can be imported all at once
 with **Import from an online library…** on the same **Add** menu. See [Online libraries](online-libraries.md).

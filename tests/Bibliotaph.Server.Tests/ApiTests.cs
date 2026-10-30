@@ -88,7 +88,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var signedIn = await Client(user).GetStringAsync("/", ct);
         using var app = await Client(user).GetAsync("/home", ct);
         var pages = new Dictionary<string, string>();
-        foreach (var path in new[] { "/features", "/about", "/changelog", "/terms", "/privacy", "/licences", "/contact" })
+        foreach (var path in new[] { "/about", "/features", "/guide", "/guide/getting-started", "/guide/web", "/changelog", "/terms", "/privacy", "/licences", "/contact" })
         {
             using var response = await Client().GetAsync(path, ct);
             Assert.Equal((path, HttpStatusCode.OK, "text/html"), (path, response.StatusCode, response.Content.Headers.ContentType?.MediaType));
@@ -110,6 +110,16 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Contains("Open your library", openLibrary, StringComparison.Ordinal);
         Assert.All(pages.Values, html => Assert.Contains("""<a href="/terms""", html, StringComparison.Ordinal));
         Assert.Contains("""<a href="/terms" aria-current="page">""", pages["/terms"], StringComparison.Ordinal);
+        // About comes before Features in the site's links, with the Guide after them.
+        Assert.All(pages.Values, html => Assert.Matches("""(?s)<nav class="bt-sitenav".*href="/about".*href="/features".*href="/guide".*href="/changelog".*</nav>""", html));
+        // The Guide is the repository's user guide: its contents list every chapter, and a chapter is its own page,
+        // titled by its heading, with links to other chapters kept on the site and the breadcrumb written for GitHub gone.
+        Assert.Contains("""<a href="/guide/online-libraries"><b>Online libraries</b>""", pages["/guide"], StringComparison.Ordinal);
+        Assert.Contains($"<title>{WebUtility.HtmlEncode("Getting started · Guide · Bibliotaph")}</title>", pages["/guide/getting-started"], StringComparison.Ordinal);
+        Assert.Contains("""<h2 id="the-tour">The tour</h2>""", pages["/guide/getting-started"], StringComparison.Ordinal);
+        Assert.Contains("""<a href="/guide/searching">Searching</a>""", pages["/guide/getting-started"], StringComparison.Ordinal);
+        Assert.Contains("""<a href="/guide/getting-started" aria-current="page">""", pages["/guide/getting-started"], StringComparison.Ordinal);
+        Assert.DoesNotContain("README.md", pages["/guide/getting-started"], StringComparison.Ordinal);
         // The footer's tagline is one of the app's, and the version is the one running.
         Assert.All(pages.Values, html => Assert.Contains(Footer.Taglines, t => html.Contains($"""<p class="bt-tagline">{WebUtility.HtmlEncode(t)}</p>""", StringComparison.Ordinal)));
         Assert.All(pages.Values, html => Assert.Contains($"Version {Footer.Version} ·", html, StringComparison.Ordinal));
