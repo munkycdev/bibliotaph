@@ -154,12 +154,11 @@ public sealed class SettingsStore(IDbContextFactory<CatalogDbContext> contexts)
         return await db.Settings.Where(s => s.Key == key).Select(s => s.Value).SingleOrDefaultAsync(ct);
     }
 
+    /// <summary>One statement, so two writers of a new key at once can't both try to add it.</summary>
     public async Task SetAsync(string key, string value, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        var setting = await db.Settings.FindAsync([key], ct);
-        if (setting is null) db.Settings.Add(new Setting { Key = key, Value = value });
-        else setting.Value = value;
-        await db.SaveChangesAsync(ct);
+        await db.Database.ExecuteSqlAsync(
+            $"INSERT INTO setting (key, value) VALUES ({key}, {value}) ON CONFLICT(key) DO UPDATE SET value = excluded.value", ct);
     }
 }
