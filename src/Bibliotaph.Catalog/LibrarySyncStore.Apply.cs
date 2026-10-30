@@ -17,10 +17,25 @@ public sealed record SyncChange(string Key, IReadOnlyDictionary<string, string>?
 
 /// <summary>
 /// What applying merged records did: the keys that couldn't be applied yet (their book isn't here, say), whether
-/// anything changed, the names of the user's own tags that were added, changed or deleted, whose guesses across the
-/// library are to be made again, and the cards whose packs changed, whose folder hints are to be stored again.
+/// anything changed, and what is left for the services outside catalog.db to do.
 /// </summary>
-public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Changed, IReadOnlySet<string> Tags, IReadOnlyList<EntryId> Packed);
+public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Changed, SyncFollowUps FollowUps);
+
+/// <summary>
+/// What a merge decided that needs more than catalog.db: the user's own tags to guess again across the library, by
+/// name; cards whose packs changed, whose folder hints are stored again; books whose text the user forgot or read again
+/// on another device; cover pages to draw, by document; and cover pictures chosen for books owned elsewhere, by their
+/// entries' sync ids (null takes one away).
+/// </summary>
+public sealed class SyncFollowUps
+{
+    public HashSet<string> Tags { get; } = new(StringComparer.Ordinal);
+    public List<EntryId> Packed { get; } = [];
+    public HashSet<EntryId> Forget { get; } = [];
+    public HashSet<EntryId> ReadAgain { get; } = [];
+    public Dictionary<long, int> CoverPages { get; } = [];
+    public Dictionary<Guid, byte[]?> ChosenCovers { get; } = [];
+}
 
 public sealed partial class LibrarySyncStore
 {
@@ -37,7 +52,7 @@ public sealed partial class LibrarySyncStore
         using var quiet = CatalogWrites.Quiet();
         var notApplied = new HashSet<string>(StringComparer.Ordinal);
         var created = new Dictionary<string, long>(StringComparer.Ordinal);
-        var tags = new HashSet<string>(StringComparer.Ordinal);
+        var follow = new SyncFollowUps();
         long? Card(string key) => created.TryGetValue(key, out var id) ? id : findCard(key);
         var changed = false;
 
@@ -48,7 +63,7 @@ public sealed partial class LibrarySyncStore
         {
             try
             {
-                var applied = await UpsertAsync(change.Key, change.Wanted!, change.Current, Card, created, tags, ct);
+                var applied = await UpsertAsync(change.Key, change.Wanted!, change.Current, Card, created, follow, ct);
                 if (applied is null) notApplied.Add(change.Key);
                 else changed |= applied.Value;
             }
@@ -59,8 +74,7 @@ public sealed partial class LibrarySyncStore
                 notApplied.Add(change.Key);
             }
         }
-        var packed = new List<EntryId>();
-        changed |= await ApplyPacksAsync(upserts, Card, notApplied, packed, ct);
+        changed |= await ApplyPacksAsync(upserts, Card, notApplied, follow.Packed, ct);
         // A collection's parent may have been made after it, so parents are set once every collection is there.
         foreach (var change in upserts.Where(c => c.Key.StartsWith(SyncKeys.Collection, StringComparison.Ordinal) && !notApplied.Contains(c.Key)))
             changed |= await SetParentAsync(change.Key, change.Wanted!, ct);
@@ -69,7 +83,7 @@ public sealed partial class LibrarySyncStore
         {
             try
             {
-                changed |= await DeleteAsync(change.Key, Card, tags, ct);
+                changed |= await DeleteAsync(change.Key, Card, follow, ct);
             }
             catch (DbUpdateException ex)
             {
@@ -78,7 +92,7 @@ public sealed partial class LibrarySyncStore
             }
         }
         if (changed) vocabularies.Forget();
-        return new SyncApplyResult(notApplied, changed, tags, packed);
+        return new SyncApplyResult(notApplied, changed, follow);
     }
 
     /// <summary>
@@ -152,11 +166,11 @@ public sealed partial class LibrarySyncStore
 
     /// <summary>Applies one record. Null when it can't be yet; otherwise whether anything changed.</summary>
     async Task<bool?> UpsertAsync(string key, IReadOnlyDictionary<string, string> wanted, IReadOnlyDictionary<string, string>? current, Func<string, long?> card,
-        Dictionary<string, long> created, HashSet<string> tags, CancellationToken ct)
+        Dictionary<string, long> created, SyncFollowUps follow, CancellationToken ct)
     {
-        if (SyncKeys.IsCard(key)) return await UpsertCardAsync(key, wanted, current, card, created, ct);
+        if (SyncKeys.IsCard(key)) return await UpsertCardAsync(key, wanted, current, card, created, follow, ct);
         if (SyncKeys.KeptApartOf(key) is { } apart) return await UpsertKeptApartAsync(apart.Vocabulary, apart.First, apart.Second, ct);
-        if (key.StartsWith(SyncKeys.UserTag, StringComparison.Ordinal)) return await UpsertUserTagAsync(key[SyncKeys.UserTag.Length..], wanted, tags, ct);
+        if (key.StartsWith(SyncKeys.UserTag, StringComparison.Ordinal)) return await UpsertUserTagAsync(key[SyncKeys.UserTag.Length..], wanted, follow.Tags, ct);
         if (key.StartsWith(SyncKeys.Term, StringComparison.Ordinal)) return await UpsertTermAsync(key, wanted, ct);
         if (key.StartsWith(SyncKeys.NotSameBook, StringComparison.Ordinal)) return await UpsertNotSameBookAsync(key, ct);
         if (SyncKeys.SameBookOf(key) is { } same) return await JoinAsync(same.First, same.Second, card, ct);
@@ -166,6 +180,12 @@ public sealed partial class LibrarySyncStore
         if (SyncKeys.LookupRecordOf(key) is { } record)
             return lookups is not null && await lookups.ApplySyncedAsync(record.Hash, record.Source, record.RecordKey,
                 Read<bool>(wanted, SyncFields.SameBook) ? LookupAnswer.SameBook : LookupAnswer.NotThisBook, ct);
+        if (key.StartsWith(SyncKeys.CoverPage, StringComparison.Ordinal))
+            return await SetCoverPageAsync(key[SyncKeys.CoverPage.Length..], Read<int>(wanted, SyncFields.Page), follow, ct);
+        if (key.StartsWith(SyncKeys.Forgotten, StringComparison.Ordinal)) return await SetForgottenAsync(key[SyncKeys.Forgotten.Length..], true, follow, ct);
+        if (key.StartsWith(SyncKeys.Reading, StringComparison.Ordinal))
+            return await UpsertReadingAsync(key[SyncKeys.Reading.Length..], new SyncedReading(Read<int>(wanted, SyncFields.Page), Read<DateTime>(wanted, SyncFields.Opened)), ct);
+        if (SyncKeys.AskedOf(key) is { } asked) return await UpsertAskedAsync(asked, wanted, card, ct);
         if (key.StartsWith(SyncKeys.Pin, StringComparison.Ordinal))
         {
             await using var db = await contexts.CreateDbContextAsync(ct);
@@ -313,9 +333,13 @@ public sealed partial class LibrarySyncStore
         return true;
     }
 
-    /// <summary>A card's own fields: its metadata decisions, heart, note, collections and pin. A book owned elsewhere that isn't here yet is made.</summary>
+    /// <summary>
+    /// A card's own fields: its metadata decisions, heart, note, collections (and those Needs review isn't to suggest),
+    /// pin, an open "Cataloged wrong…", an adventure's reading place and a chosen cover. A book owned elsewhere that
+    /// isn't here yet is made.
+    /// </summary>
     async Task<bool?> UpsertCardAsync(string key, IReadOnlyDictionary<string, string> wanted, IReadOnlyDictionary<string, string>? current, Func<string, long?> card,
-        Dictionary<string, long> created, CancellationToken ct)
+        Dictionary<string, long> created, SyncFollowUps follow, CancellationToken ct)
     {
         var changed = false;
         if (card(key) is null && SyncKeys.IdOf(key, SyncKeys.Adventure) is { } partSyncId)
@@ -372,6 +396,12 @@ public sealed partial class LibrarySyncStore
                     note.UpdatedUtc = now;
                 }
             }
+            if (Differs(SyncFields.Wrong))
+            {
+                var requests = await db.CorrectionRequests.Where(c => c.EntryId == entryId).ToListAsync(ct);
+                if (wanted.ContainsKey(SyncFields.Wrong) && requests.Count == 0) db.CorrectionRequests.Add(new CorrectionRequest { EntryId = entryId, CreatedUtc = Now });
+                else if (!wanted.ContainsKey(SyncFields.Wrong)) db.CorrectionRequests.RemoveRange(requests);
+            }
             var memberships = wanted.Keys.Concat(current?.Keys ?? []).Where(k => k.StartsWith(SyncFields.InCollectionPrefix, StringComparison.Ordinal))
                 .Distinct().Where(Differs).ToList();
             foreach (var name in memberships)
@@ -383,13 +413,114 @@ public sealed partial class LibrarySyncStore
                 if (wanted.ContainsKey(name) && item is null) db.CollectionItems.Add(new CollectionItem { CollectionId = collectionId, EntryId = entryId, AddedUtc = Now });
                 else if (!wanted.ContainsKey(name) && item is not null) db.CollectionItems.Remove(item);
             }
+            var declines = wanted.Keys.Concat(current?.Keys ?? []).Where(k => k.StartsWith(SyncFields.DeclinedPrefix, StringComparison.Ordinal))
+                .Distinct().Where(Differs).ToList();
+            foreach (var name in declines)
+            {
+                if (!Guid.TryParse(name.AsSpan(SyncFields.DeclinedPrefix.Length), out var collectionSyncId)) continue;
+                if (await db.Collections.Where(c => c.SyncId == collectionSyncId).Select(c => (long?)c.Id).SingleOrDefaultAsync(ct) is not { } collectionId) continue;
+                var decline = await db.CollectionDeclines.FindAsync([collectionId, entryId], ct);
+                if (wanted.ContainsKey(name) && decline is null) db.CollectionDeclines.Add(new CollectionDecline { CollectionId = collectionId, EntryId = entryId, CreatedUtc = Now });
+                else if (!wanted.ContainsKey(name) && decline is not null) db.CollectionDeclines.Remove(decline);
+            }
             changed |= await SaveAsync(db, ct);
             if (Differs(SyncFields.PinPosition))
                 changed |= ReadOrDefault<int?>(wanted, SyncFields.PinPosition) is { } position
                     ? await SetPinAsync(db, PinTarget.Entry(id), position, ct)
                     : await db.Pins.Where(PinStore.Matches(PinTarget.Entry(id))).ExecuteDeleteAsync(ct) > 0;
+            if (Differs(SyncFields.Read) && SyncKeys.IdOf(key, SyncKeys.Adventure) is not null)
+                changed |= await SetAdventureReadingAsync(db, entryId, ReadOrDefault<SyncedReading>(wanted, SyncFields.Read), ct);
+            if (Differs(SyncFields.Picture) && await db.Entries.Where(e => e.Id == entryId).Select(e => (Guid?)e.SyncId).SingleOrDefaultAsync(ct) is { } syncId)
+            {
+                follow.ChosenCovers[syncId] = ReadOrDefault<string>(wanted, SyncFields.Picture) is { } picture ? Convert.FromBase64String(picture) : null;
+                changed = true;
+            }
         }
         return changed;
+    }
+
+    /// <summary>Where an adventure was left, as read on the device that read it last: in the copy it opens in here.</summary>
+    static async Task<bool> SetAdventureReadingAsync(CatalogDbContext db, long partId, SyncedReading? reading, CancellationToken ct)
+    {
+        var row = await db.ReadingStates.FindAsync([partId], ct);
+        if (reading is null)
+        {
+            if (row is null) return false;
+            db.ReadingStates.Remove(row);
+            return await SaveAsync(db, ct);
+        }
+        if (row is not null && row.OpenedUtc > reading.Opened) return false;
+        if (await db.EntrySources.Where(s => s.EntryId == partId).OrderByDescending(s => s.IsCurrent).Select(s => (long?)s.DocumentId).FirstOrDefaultAsync(ct)
+            is not { } documentId) return false;
+        if (row is null) db.ReadingStates.Add(new ReadingState { EntryId = partId, DocumentId = documentId, PageIndex = reading.Page, OpenedUtc = reading.Opened });
+        else (row.DocumentId, row.PageIndex, row.OpenedUtc) = (documentId, reading.Page, reading.Opened);
+        return await SaveAsync(db, ct);
+    }
+
+    /// <summary>The page a file's cover shows, as chosen on another device; the cover is drawn again afterwards. Null while the file isn't here.</summary>
+    async Task<bool?> SetCoverPageAsync(string hash, int page, SyncFollowUps follow, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (await db.Documents.SingleOrDefaultAsync(d => d.ContentHash == hash, ct) is not { } document) return null;
+        int? chosen = page > 0 ? page : null;
+        if (document.CoverPage == chosen) return false;
+        document.CoverPage = chosen;
+        await db.SaveChangesAsync(ct);
+        follow.CoverPages[document.Id] = page;
+        return true;
+    }
+
+    /// <summary>
+    /// "Forget its text", or "Read it again", as chosen on another device: the mark is kept here at once, so nothing
+    /// reads the file meanwhile, and what reading it made goes (or it is read again) afterwards. Null while a file to
+    /// forget isn't here.
+    /// </summary>
+    async Task<bool?> SetForgottenAsync(string hash, bool forgotten, SyncFollowUps follow, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (await db.Documents.SingleOrDefaultAsync(d => d.ContentHash == hash, ct) is not { } document) return forgotten ? null : false;
+        if (document.TextForgottenUtc is not null == forgotten) return false;
+        document.TextForgottenUtc = forgotten ? Now : null;
+        await db.SaveChangesAsync(ct);
+        if (await db.EntrySources.Where(s => s.DocumentId == document.Id && s.FirstPdfPage == null).Select(s => (long?)s.EntryId).FirstOrDefaultAsync(ct) is { } entryId)
+            (forgotten ? follow.Forget : follow.ReadAgain).Add(new EntryId(entryId));
+        return true;
+    }
+
+    /// <summary>
+    /// Where a book was left, in the file read there. A book read here since keeps this device's place, which the other
+    /// device then takes. Null while that file isn't here.
+    /// </summary>
+    async Task<bool?> UpsertReadingAsync(string hash, SyncedReading reading, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var source = await db.EntrySources.Where(s => s.Document.ContentHash == hash && s.FirstPdfPage == null)
+            .Select(s => new { s.EntryId, s.DocumentId }).FirstOrDefaultAsync(ct);
+        if (source is null) return null;
+        var opened = DateTime.SpecifyKind(reading.Opened, DateTimeKind.Utc);
+        var row = await db.ReadingStates.FindAsync([source.EntryId], ct);
+        if (row is null) db.ReadingStates.Add(new ReadingState { EntryId = source.EntryId, DocumentId = source.DocumentId, PageIndex = reading.Page, OpenedUtc = opened });
+        else if (row.OpenedUtc > opened) return false;
+        else (row.DocumentId, row.PageIndex, row.OpenedUtc) = (source.DocumentId, reading.Page, opened);
+        return await SaveAsync(db, ct);
+    }
+
+    /// <summary>A question asked of a book on another device, with its answer. Null while the book isn't here.</summary>
+    async Task<bool?> UpsertAskedAsync(DateTime asked, IReadOnlyDictionary<string, string> wanted, Func<string, long?> card, CancellationToken ct)
+    {
+        if (card(Read<string>(wanted, SyncFields.Card)) is not { } entryId) return null;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var turn = await db.AskTurns.FirstOrDefaultAsync(t => t.AskedUtc == asked, ct)
+            ?? db.AskTurns.Add(new AskTurn { AskedUtc = asked, Question = "", Answer = "", Parts = "", CitedPages = "", Model = "" }).Entity;
+        turn.EntryId = entryId;
+        turn.Question = Read<string>(wanted, SyncFields.Question);
+        turn.Rewritten = ReadOrDefault<string>(wanted, SyncFields.Rewritten);
+        turn.Answer = Read<string>(wanted, SyncFields.Answer);
+        turn.Parts = Read<string>(wanted, SyncFields.Parts);
+        turn.CitedPages = Read<string>(wanted, SyncFields.Cited);
+        turn.Model = Read<string>(wanted, SyncFields.Model);
+        turn.NotAnswered = ReadOrDefault<bool>(wanted, SyncFields.NotAnswered);
+        return await SaveAsync(db, ct);
     }
 
     /// <summary>Puts the target's pin at <paramref name="position"/>, as the other PC has it, without moving the others: gaps and ties are fine.</summary>
@@ -697,7 +828,7 @@ public sealed partial class LibrarySyncStore
     /// a binder's and an item's page references go with them, a book owned elsewhere goes with everything set on it.
     /// A card with files is never deleted this way. Returns whether anything was there to delete.
     /// </summary>
-    async Task<bool> DeleteAsync(string key, Func<string, long?> card, HashSet<string> tags, CancellationToken ct)
+    async Task<bool> DeleteAsync(string key, Func<string, long?> card, SyncFollowUps follow, CancellationToken ct)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -764,7 +895,7 @@ public sealed partial class LibrarySyncStore
             if (await db.UserTags.SingleOrDefaultAsync(t => t.NormalizedName == normalized, ct) is { } row)
             {
                 db.UserTags.Remove(row);
-                tags.Add(row.Name);
+                follow.Tags.Add(row.Name);
                 deleted = true;
             }
         }
@@ -794,6 +925,26 @@ public sealed partial class LibrarySyncStore
                 deleted = true;
             }
         }
+        else if (key.StartsWith(SyncKeys.CoverPage, StringComparison.Ordinal))
+        {
+            await transaction.CommitAsync(ct);
+            return await SetCoverPageAsync(key[SyncKeys.CoverPage.Length..], 0, follow, ct) is true;
+        }
+        else if (key.StartsWith(SyncKeys.Forgotten, StringComparison.Ordinal))
+        {
+            await transaction.CommitAsync(ct);
+            return await SetForgottenAsync(key[SyncKeys.Forgotten.Length..], false, follow, ct) is true;
+        }
+        else if (key.StartsWith(SyncKeys.Reading, StringComparison.Ordinal))
+        {
+            // Only the place in that file: a book read in another of its files since keeps its place there.
+            var hash = key[SyncKeys.Reading.Length..];
+            deleted = await db.ReadingStates
+                .Where(r => db.EntrySources.Any(s => s.EntryId == r.EntryId && s.DocumentId == r.DocumentId && s.FirstPdfPage == null && s.Document.ContentHash == hash))
+                .ExecuteDeleteAsync(ct) > 0;
+        }
+        else if (SyncKeys.AskedOf(key) is { } asked)
+            deleted = await db.AskTurns.Where(t => t.AskedUtc == asked).ExecuteDeleteAsync(ct) > 0;
         else if (key.StartsWith(SyncKeys.NotSameBook, StringComparison.Ordinal) && key[SyncKeys.NotSameBook.Length..].Split(':') is [var first, var second])
             deleted = await db.CopyDecisions.Where(d => d.FirstHash == first && d.SecondHash == second).ExecuteDeleteAsync(ct) > 0;
         else if (SyncKeys.LookupRecordOf(key) is { } record && lookups is not null)

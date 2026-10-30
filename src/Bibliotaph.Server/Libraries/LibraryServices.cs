@@ -142,13 +142,14 @@ public static class LibraryServices
         // Library sync, with the web library as one more device: its PCs' files are in sync.db, not a folder.
         services.AddSingleton(syncFiles);
         services.AddSingleton<ServerSyncChannel>();
+        services.AddSingleton(sp => new SyncFollowUp(sp.GetRequiredService<UserTagService>(), sp.GetRequiredService<MetadataHints>(),
+            sp.GetRequiredService<ForgetText>(), sp.GetRequiredService<CoverPages>(), sp.GetRequiredService<CoverCache>(), sp.GetRequiredService<ILogger<SyncFollowUp>>()));
         services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySyncStore>>(),
-            sp.GetRequiredService<LookupRecordStore>()));
+            sp.GetRequiredService<LookupRecordStore>(), sp.GetRequiredService<SyncFollowUp>().ReadChosenCovers));
         services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySync>>(),
-            SyncFiles.WebMachine, [sp.GetRequiredService<ServerSyncChannel>()], sp.GetRequiredService<UserTagService>(),
-            sp.GetRequiredService<MetadataHints>()));
+            SyncFiles.WebMachine, [sp.GetRequiredService<ServerSyncChannel>()], sp.GetRequiredService<SyncFollowUp>()));
         // What the AI worked out about files, shared with the user's PCs by content through sync.db.
         services.AddSingleton<SharedResultCache>();
         services.AddSingleton<IResultChannel, ServerResultChannel>();

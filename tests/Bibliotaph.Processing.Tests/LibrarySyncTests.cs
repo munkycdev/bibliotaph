@@ -105,8 +105,40 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         public async Task<IReadOnlyList<string>> TypesAsync(char hash) =>
             [.. (await Metadata.GetAsync(await BookAsync(hash), Ct)).Compute()[MetadataFields.Types].Values.Select(v => v.Value)];
 
-        public void Start() => Sync = new LibrarySync(new LibrarySyncStore(Contexts, Metadata, new VocabularyStore(Contexts), clock), new SettingsStore(Contexts),
-            catalog, null, clock, null, name, [new Channel(hub, name)]);
+        public CoverCache Covers { get; } = new(paths);
+
+        public void Start()
+        {
+            var followUp = new SyncFollowUp(covers: Covers);
+            Sync = new LibrarySync(new LibrarySyncStore(Contexts, Metadata, new VocabularyStore(Contexts), clock, chosenCovers: followUp.ReadChosenCovers),
+                new SettingsStore(Contexts), catalog, null, clock, null, name, [new Channel(hub, name)], followUp);
+        }
+
+        public async Task<Document> DocumentAsync(char hash)
+        {
+            await using var db = catalog.CreateContext();
+            var hex = new string(hash, 64);
+            return await db.Documents.AsNoTracking().SingleAsync(d => d.ContentHash == hex, Ct);
+        }
+
+        /// <summary>Opens the book's file and leaves it at <paramref name="page"/>, as the reader records it.</summary>
+        public async Task ReadAsync(char hash, int page)
+        {
+            var book = await BookAsync(hash);
+            var document = await DocumentAsync(hash);
+            await using var db = catalog.CreateContext();
+            var row = await db.ReadingStates.FindAsync([book.Value], Ct);
+            if (row is null) db.ReadingStates.Add(new ReadingState { EntryId = book.Value, DocumentId = document.Id, PageIndex = page, OpenedUtc = clock.GetUtcNow().UtcDateTime });
+            else (row.DocumentId, row.PageIndex, row.OpenedUtc) = (document.Id, page, clock.GetUtcNow().UtcDateTime);
+            await db.SaveChangesAsync(Ct);
+        }
+
+        public async Task<int?> PlaceAsync(char hash)
+        {
+            var book = await BookAsync(hash);
+            await using var db = catalog.CreateContext();
+            return (await db.ReadingStates.AsNoTracking().SingleOrDefaultAsync(r => r.EntryId == book.Value, Ct))?.PageIndex;
+        }
 
         /// <summary>Adds a file's document and its card, as indexing would: content hash <paramref name="hash"/> (64 of that character).</summary>
         public async Task<EntryId> AddBookAsync(char hash)
@@ -605,5 +637,117 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         await RoundAsync();
 
         Assert.True(await new PartProposalStore(_laptop.Contexts).IsAnsweredAsync(new string('a', 64), Ct));
+    }
+
+    [Fact]
+    public async Task A_cover_page_forgotten_text_Cataloged_wrong_and_a_collection_Never_travel_and_so_does_undoing_them()
+    {
+        var deskBook = await _desk.AddBookAsync('a');
+        await _laptop.AddBookAsync('a');
+        var campaign = await _desk.Collections.CreateAsync("Spring campaign", ct: Ct);
+        await using (var db = _desk.Catalog.CreateContext())
+        {
+            var document = await db.Documents.SingleAsync(Ct);
+            document.CoverPage = 2;
+            document.TextForgottenUtc = _desk.Clock.Now.UtcDateTime;
+            db.CorrectionRequests.Add(new CorrectionRequest { EntryId = deskBook.Value, CreatedUtc = _desk.Clock.Now.UtcDateTime });
+            db.CollectionDeclines.Add(new CollectionDecline { CollectionId = campaign.Id, EntryId = deskBook.Value, CreatedUtc = _desk.Clock.Now.UtcDateTime });
+            await db.SaveChangesAsync(Ct);
+        }
+
+        await RoundAsync();
+
+        var onLaptop = await _laptop.DocumentAsync('a');
+        Assert.Equal(2, onLaptop.CoverPage);
+        Assert.NotNull(onLaptop.TextForgottenUtc);
+        var laptopBook = await _laptop.BookAsync('a');
+        await using (var db = _laptop.Catalog.CreateContext())
+        {
+            Assert.True(await db.CorrectionRequests.AnyAsync(c => c.EntryId == laptopBook.Value, Ct));
+            Assert.True(await db.CollectionDeclines.AnyAsync(c => c.EntryId == laptopBook.Value, Ct));
+        }
+
+        _laptop.Later(5);
+        await using (var db = _laptop.Catalog.CreateContext())
+        {
+            var document = await db.Documents.SingleAsync(Ct);
+            (document.CoverPage, document.TextForgottenUtc) = (null, null);
+            await db.CorrectionRequests.ExecuteDeleteAsync(Ct);
+            await db.CollectionDeclines.ExecuteDeleteAsync(Ct);
+            await db.SaveChangesAsync(Ct);
+        }
+        await _laptop.Sync.SyncNowAsync(Ct);
+        await RoundAsync();
+
+        var onDesk = await _desk.DocumentAsync('a');
+        Assert.Null(onDesk.CoverPage);
+        Assert.Null(onDesk.TextForgottenUtc);
+        await using (var db = _desk.Catalog.CreateContext())
+        {
+            Assert.False(await db.CorrectionRequests.AnyAsync(Ct));
+            Assert.False(await db.CollectionDeclines.AnyAsync(Ct));
+        }
+    }
+
+    [Fact]
+    public async Task A_book_opens_where_it_was_last_read_on_either_PC()
+    {
+        await _desk.AddBookAsync('a');
+        await _laptop.AddBookAsync('a');
+        await _desk.ReadAsync('a', 12);
+        await RoundAsync();
+        Assert.Equal(12, await _laptop.PlaceAsync('a'));
+
+        _laptop.Later(5);
+        await _laptop.ReadAsync('a', 30);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        await RoundAsync();
+
+        Assert.Equal(30, await _desk.PlaceAsync('a'));
+        Assert.Equal(30, await _laptop.PlaceAsync('a'));
+    }
+
+    [Fact]
+    public async Task Ask_this_book_keeps_one_conversation_on_every_PC_and_clearing_it_clears_it_everywhere()
+    {
+        var deskBook = await _desk.AddBookAsync('a');
+        await _laptop.AddBookAsync('a');
+        var asked = new AskHistoryStore(_desk.Contexts, _desk.Clock);
+        await asked.AddAsync(deskBook, "Who rings the bell?", null, "The abbot [p. 4].", "[]", [3], "test-model", false, Ct);
+
+        await RoundAsync();
+
+        var laptopBook = await _laptop.BookAsync('a');
+        var turn = Assert.Single(await new AskHistoryStore(_laptop.Contexts).GetAsync(laptopBook, Ct));
+        Assert.Equal("Who rings the bell?", turn.Question);
+        Assert.Equal("The abbot [p. 4].", turn.Answer);
+        Assert.Equal([3], turn.CitedPages);
+
+        _laptop.Later(5);
+        await new AskHistoryStore(_laptop.Contexts, _laptop.Clock).ClearAsync(laptopBook, Ct);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        await RoundAsync();
+
+        Assert.Empty(await asked.GetAsync(deskBook, Ct));
+    }
+
+    [Fact]
+    public async Task A_cover_chosen_for_a_book_owned_elsewhere_shows_on_the_other_PC_and_so_does_taking_it_away()
+    {
+        var vellum = await new EntryStore(_desk.Contexts).AddElsewhereAsync(Ct);
+        var syncId = (await new EntryStore(_desk.Contexts).GetCurrentAsync([vellum], Ct)).Single().SyncId!.Value;
+        byte[] jpeg = [0xFF, 0xD8, 0xFF, 1, 2, 3];
+        _desk.Covers.KeepChosen(syncId, jpeg);
+
+        await RoundAsync();
+
+        Assert.Equal(jpeg, _laptop.Covers.ReadAllChosen()[syncId]);
+
+        _laptop.Later(5);
+        _laptop.Covers.DeleteChosen(syncId);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        await RoundAsync();
+
+        Assert.Empty(_desk.Covers.ReadAllChosen());
     }
 }

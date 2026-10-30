@@ -94,12 +94,15 @@ are the same on the web and every PC that has those files. Where two devices mad
 themselves, they settle on one. So do the files you said are the same book (or a new version of one), a file you
 matched to a book you own elsewhere, and **Not the same book**, which parts them everywhere. Adventures you mark in a
 file travel with their pages, levels and everything else on them, and so does removing one; your answers to an
-adventure proposal and to "You own this elsewhere. Is this its file?" travel too. A change reaches the
+adventure proposal and to "You own this elsewhere. Is this its file?" travel too. So does what you chose for each
+book: the page you used as its cover, **Forget its text** (and **Read it again**), a **Cataloged wrong…** you left
+open, the collections you said Never to, the cover picture you chose for a book you own elsewhere, and its Ask this
+book conversation. A book opens where you last left it, on whichever device you read it last. A change reaches the
 web a few seconds after you make it, and your other PCs within a minute or so. Where two PCs change the same thing, the
 newer change wins; changes to different things are all kept.
 
-What doesn't: your library folders, where you left each book, settings, the sign-ins of Bibliotaph's browser, whether a collection made from a folder still follows
-that folder (the collection itself travels), and the books you said Never to for a collection. Add
+What doesn't: your library folders, settings, the sign-ins of Bibliotaph's browser, and whether a collection made from
+a folder still follows that folder (the collection itself travels). Add
 your folders on each PC. Books are matched by their content, so the same file in a different place on each PC is still
 the same book.
 

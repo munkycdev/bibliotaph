@@ -84,6 +84,27 @@ public sealed class CoverCache(AppPaths paths)
         foreach (var file in Directory.EnumerateFiles(ChosenFolder, ChosenPattern(syncId)).ToList()) File.Delete(file);
     }
 
+    /// <summary>Every cover the user chose, by the sync id of its book's entry.</summary>
+    public IReadOnlyDictionary<Guid, byte[]> ReadAllChosen()
+    {
+        var chosen = new Dictionary<Guid, byte[]>();
+        if (!Directory.Exists(ChosenFolder)) return chosen;
+        foreach (var file in Directory.EnumerateFiles(ChosenFolder, ChosenPrefix + "*.jpg"))
+        {
+            var name = Path.GetFileName(file);
+            if (name.Length < ChosenPrefix.Length + 32 || !Guid.TryParseExact(name.AsSpan(ChosenPrefix.Length, 32), "N", out var syncId)) continue;
+            try
+            {
+                chosen[syncId] = File.ReadAllBytes(file);
+            }
+            catch (IOException)
+            {
+                // Being replaced: the next pass reads the new one.
+            }
+        }
+        return chosen;
+    }
+
     static string ChosenPattern(Guid syncId) => string.Create(CultureInfo.InvariantCulture, $"{ChosenPrefix}{syncId:N}-*.jpg");
 
     /// <summary>

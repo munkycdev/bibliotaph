@@ -340,13 +340,14 @@ public partial class App : Application
         builder.Services.AddSingleton<LibraryVectors>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<LibraryVectors>());
         // Library sync: after indexing, so it stops first and writes this PC's file one last time.
+        builder.Services.AddSingleton(sp => new SyncFollowUp(sp.GetRequiredService<UserTagService>(), sp.GetRequiredService<MetadataHints>(),
+            sp.GetRequiredService<ForgetText>(), sp.GetRequiredService<CoverPages>(), sp.GetRequiredService<CoverCache>(), sp.GetRequiredService<ILogger<SyncFollowUp>>()));
         builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<LibrarySyncStore>>(), sp.GetRequiredService<LookupRecordStore>()));
+            sp.GetRequiredService<ILogger<LibrarySyncStore>>(), sp.GetRequiredService<LookupRecordStore>(), sp.GetRequiredService<SyncFollowUp>().ReadChosenCovers));
         builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<LibrarySync>>(), channels: [sp.GetRequiredService<WebLibrary>()],
-            userTags: sp.GetRequiredService<UserTagService>(), hints: sp.GetRequiredService<MetadataHints>()));
+            sp.GetRequiredService<ILogger<LibrarySync>>(), channels: [sp.GetRequiredService<WebLibrary>()], followUp: sp.GetRequiredService<SyncFollowUp>()));
         builder.Services.AddHostedService(sp => sp.GetRequiredService<LibrarySync>());
         // What the AI worked out about this PC's files, shared by content with the user's other devices through the web library.
         builder.Services.AddSingleton<SharedResultCache>();
