@@ -421,6 +421,9 @@ The cards that ask one question come between the new terms and the field suggest
 - **Image pack?**: a folder of images, with the first few shown. **Make a pack** or **Keep separate**.
 - **Owned elsewhere**: a new file with the title of a book you own elsewhere. **Same book** puts the file on that
   book's card, or **Separate book**.
+- **Same book?**: a catalogue's record for the ISBN a book prints whose title isn't printed in it, with what the
+  record says. **Same book** fills in its details from the record, shown as that catalogue's rather than yours;
+  **Not this book** means it's never used for the book. Your answer reaches your PCs too.
 - **New version** (places to check): the session items and page notes whose pages weren't found in a new version of
   their book. **Use this page** takes the page suggested for each, with **Undo**; the card is done once every place is
   checked. Opening a place at its page comes with the reader.

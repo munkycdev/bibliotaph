@@ -94,6 +94,7 @@ public static class LibraryServices
         services.AddSingleton<PartProposalService>();
         services.AddSingleton<PackService>();
         services.AddSingleton<ElsewhereStore>();
+        services.AddSingleton<LookupRecordStore>();
         services.AddSingleton<ChosenCovers>();
         services.AddSingleton<CoverPages>();
         services.AddSingleton<FavoriteStore>();
@@ -139,7 +140,8 @@ public static class LibraryServices
         services.AddSingleton(syncFiles);
         services.AddSingleton<ServerSyncChannel>();
         services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
-            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySyncStore>>()));
+            sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySyncStore>>(),
+            sp.GetRequiredService<LookupRecordStore>()));
         services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySync>>(),
             SyncFiles.WebMachine, [sp.GetRequiredService<ServerSyncChannel>()]));
@@ -220,6 +222,7 @@ public static class LibraryServices
 
         // Needs review: its cards come from these, and each decision goes through them, as in the Windows app.
         services.AddSingleton<ElsewhereService>();
+        services.AddSingleton<LookupMatches>();
         services.AddSingleton<OnlineImports>();
         services.AddSingleton(new HeldOnlinePages(host.Clock, host.Uploads));
         services.AddSingleton<CollectionSuggestions>();

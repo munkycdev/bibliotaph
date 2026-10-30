@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Same book?** When RPGGeek, Open Library or Google Books has a record for a book's ISBN but its title isn't printed
+  in the book, Needs review now asks whether it's the same book, showing what the record says, instead of quietly
+  setting it aside. **Same book** fills in the book's title, authors, publisher, year and what RPGGeek files it under,
+  shown as coming from that catalogue rather than from you, so anything you set yourself stays; **Not this book**
+  means it's never used for that book. Your answer reaches your other PCs and the web. Books set aside this way
+  before are looked up once more to ask. See [Cataloging](docs/guide/cataloging.md#needs-review).
 - **Fix: "bibliotaph.online can't be reached" while it could.** A Windows app connected to bibliotaph.online gave up on
   a lookup after 20 seconds, but with RPGGeek's five-second pace a lookup can wait its turn longer than that, so the
   app said the site couldn't be reached and books stopped being looked up. Lookups now wait up to three minutes. When

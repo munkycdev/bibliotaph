@@ -146,6 +146,52 @@ public sealed record ElsewhereCardText(ElsewhereItem Item)
     public string KeptSeparate => $"Kept {Item.FileTitle} as a separate book.";
 }
 
+/// <summary>
+/// "RPGGeek's record for its ISBN is of X, which isn't printed in it. Is it this book?": Same book or Not this book, with
+/// what the record says.
+/// </summary>
+public sealed record LookupMatchCardText(LookupMatchItem Item)
+{
+    public const string Chip = "Same book?";
+
+    /// <summary>What the record files the book under shown on the card, at most.</summary>
+    const int FiledUnder = 4;
+
+    public static IReadOnlyList<ReviewChoiceText> Choices { get; } =
+    [
+        new("same", "Same book", "Fill in what this record gives, as the catalogue's suggestions. Anything you set yourself stays.", true),
+        new("different", "Not this book", "Bibliotaph won't use this record for this book."),
+    ];
+
+    BookRecord Record => Item.Match.Record;
+
+    public string Heading => $"{Record.Source}'s record for its ISBN is of {Record.Title}, which isn't printed in it. Is it this book?";
+
+    /// <summary>The record as the catalogue gives it: "The Owlbear Mill · Ada Quill · Gull Rock Games · 2019", then what it files the book under.</summary>
+    public string Evidence
+    {
+        get
+        {
+            var parts = new List<string> { Record.Title };
+            if (Record.Authors.Count > 0) parts.Add(string.Join(", ", Record.Authors));
+            if (Record.Publishers.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)) is { } publisher) parts.Add(publisher);
+            if (BookRecords.Year(Record.Published) is { } year) parts.Add(year);
+            var line = string.Join(" · ", parts);
+            var filed = (Record.Values ?? []).Select(v => v.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (filed.Count == 0) return line;
+            var shown = string.Join("; ", filed.Take(FiledUnder)) + (filed.Count > FiledUnder ? $" and {ReviewCardText.N(filed.Count - FiledUnder)} more" : "");
+            return $"{line}. Filed under {shown}.";
+        }
+    }
+
+    public string Detail =>
+        $"Same book fills in this book's details from the record, shown as {Record.Source}'s rather than yours, so the AI's guesses give way to them and anything you set yourself stays.";
+
+    public string SameBook => $"Filled in {Item.BookTitle} from {Record.Source}'s record.";
+
+    public string NotThisBook => $"Won't use {Record.Source}'s record of {Record.Title} for {Item.BookTitle}.";
+}
+
 /// <summary>"You said this book was cataloged wrong": Fix it opens its details again, It's fine now takes the card away.</summary>
 public sealed record CorrectionCardText(CorrectionItem Item)
 {

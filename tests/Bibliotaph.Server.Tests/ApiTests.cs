@@ -1135,6 +1135,56 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Needs_review_asks_whether_a_record_whose_title_isnt_printed_is_the_books_and_same_book_fills_it_in_as_the_catalogues()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/IMG_0042.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is [var one] ? one : null, ct);
+
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            string hash;
+            await using (var db = lease.Library.Catalog.CreateContext())
+                hash = db.EntrySources.Where(s => s.EntryId == book.EntryId).Select(s => s.Document.ContentHash).First();
+            var record = new BookRecord("RPGGeek", "4021", "9781234567897", "The Owlbear Mill", ["Ada Quill"], ["Gull Rock Games"], "2019");
+            await lease.Library.Get<LookupRecordStore>().SaveAsync(hash, [record], _ => false, ct);
+        }
+
+        var list = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        var card = list.Offers.Single(o => o.Kind == "records");
+        var same = await PostAsync<ActionResult>("/api/review/offers/answer", new ReviewOfferAnswer(card.Id, card.Stamp, "same"));
+        var filled = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.Single();
+        var afterSame = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        await PostAsync<ActionResult>($"/api/library/held/{same.Undo}", null);
+        var undone = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.Single();
+        var afterUndo = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+
+        Assert.Contains(list.Show, s => s.Key == "records" && s.Name == "Same book?");
+        Assert.Equal((book.Title, "Same book?", book.EntryId), (card.Title, card.Chip, card.Book?.EntryId));
+        Assert.Equal("RPGGeek's record for its ISBN is of The Owlbear Mill, which isn't printed in it. Is it this book?", card.Heading);
+        Assert.Equal("The Owlbear Mill · Ada Quill · Gull Rock Games · 2019", card.Evidence);
+        Assert.Equal(["Same book", "Not this book"], card.Choices.Select(c => c.Label));
+        Assert.Equal($"Filled in {book.Title} from RPGGeek's record.", same.Message);
+        Assert.Equal("The Owlbear Mill", filled.Title);
+        Assert.DoesNotContain(afterSame.Offers, o => o.Kind == "records");
+        Assert.Equal(book.Title, undone.Title);
+        Assert.Contains(afterUndo.Offers, o => o.Id == card.Id);
+
+        async Task<T> PostAsync<T>(string url, object? body)
+        {
+            using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
+    }
+
+    [Fact]
     public async Task Needs_review_answers_a_file_that_looks_like_it_holds_adventures_as_the_windows_app_does()
     {
         var ct = TestContext.Current.CancellationToken;

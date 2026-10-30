@@ -15,12 +15,12 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261029200000_CatalogAiOverlaps";
+    public override string LastMigrationId => "20261030010317_CatalogLookupRecords";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
-        modelBuilder.HasAnnotation("ProductVersion", "11.0.0-rc.1.26425.128");
+        modelBuilder.HasAnnotation("ProductVersion", "11.0.0-rc.2.26504.105");
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.AskTurn", b =>
             {
@@ -813,6 +813,56 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("folder_rule");
             });
 
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.LookupRecord", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<string>("Answer")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("answer");
+
+                b.Property<string>("ContentHash")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("content_hash");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<int>("Position")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("position");
+
+                b.Property<bool>("Printed")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("printed");
+
+                b.Property<string>("RecordJson")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("record_json");
+
+                b.Property<string>("RecordKey")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("record_key");
+
+                b.Property<string>("Source")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("source");
+
+                b.HasKey("Id");
+
+                b.HasIndex("ContentHash", "Source", "RecordKey")
+                    .IsUnique();
+
+                b.ToTable("lookup_record");
+            });
+
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Note", b =>
             {
                 b.Property<long>("Id")
@@ -1476,35 +1526,6 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("version_proposal");
             });
 
-        modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyAlias", b =>
-            {
-                b.Property<long>("Id")
-                    .ValueGeneratedOnAdd()
-                    .HasColumnType("INTEGER")
-                    .HasColumnName("id");
-
-                b.Property<string>("Normalized")
-                    .IsRequired()
-                    .HasColumnType("TEXT")
-                    .HasColumnName("normalized");
-
-                b.Property<long>("TermId")
-                    .HasColumnType("INTEGER")
-                    .HasColumnName("term_id");
-
-                b.Property<string>("Text")
-                    .IsRequired()
-                    .HasColumnType("TEXT")
-                    .HasColumnName("text");
-
-                b.HasKey("Id");
-
-                b.HasIndex("TermId", "Normalized")
-                    .IsUnique();
-
-                b.ToTable("vocabulary_alias");
-            });
-
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyAiOverlap", b =>
             {
                 b.Property<long>("Id")
@@ -1537,6 +1558,35 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("vocabulary_ai_overlap");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyAlias", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<string>("Normalized")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("normalized");
+
+                b.Property<long>("TermId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("term_id");
+
+                b.Property<string>("Text")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("text");
+
+                b.HasKey("Id");
+
+                b.HasIndex("TermId", "Normalized")
+                    .IsUnique();
+
+                b.ToTable("vocabulary_alias");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.VocabularyKeptApart", b =>

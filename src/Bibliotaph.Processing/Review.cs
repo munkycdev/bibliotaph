@@ -23,16 +23,17 @@ public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<P
     IReadOnlyList<PackProposal> Packs, IReadOnlyList<ElsewhereItem>? Elsewhere = null, IReadOnlyList<RevisionItem>? Revisions = null,
     IReadOnlyList<CorrectionItem>? Corrections = null, IReadOnlyList<FolderRuleInfo>? Rules = null, IReadOnlyList<UnplacedPart>? Parts = null,
     IReadOnlyList<PartProposalItem>? Proposals = null, IReadOnlyList<FolderCollectionProposal>? Folders = null,
-    IReadOnlyList<CollectionSuggestion>? Suggestions = null, IReadOnlyList<OverlapProposal>? Overlaps = null)
+    IReadOnlyList<CollectionSuggestion>? Suggestions = null, IReadOnlyList<OverlapProposal>? Overlaps = null, IReadOnlyList<LookupMatchItem>? Records = null)
 {
     public int Count => Items.Count + Terms.Count + Versions.Count + Packs.Count + (Elsewhere?.Count ?? 0) + (Revisions?.Count ?? 0)
         + (Corrections?.Count ?? 0) + (Rules?.Count ?? 0) + (Parts?.Count ?? 0)
-        + (Proposals?.Count ?? 0) + (Folders?.Count ?? 0) + (Suggestions?.Count ?? 0) + (Overlaps?.Count ?? 0);
+        + (Proposals?.Count ?? 0) + (Folders?.Count ?? 0) + (Suggestions?.Count ?? 0) + (Overlaps?.Count ?? 0) + (Records?.Count ?? 0);
 }
 
 /// <summary>
 /// Where Needs review's cards come from beyond fields and terms: new versions, packs, books owned elsewhere, places in
-/// new versions, books cataloged wrong, folder rules, adventures inside files, and collections from folders and books.
+/// new versions, books cataloged wrong, folder rules, adventures inside files, collections from folders and books, and
+/// catalogue records that may be a book's.
 /// </summary>
 public sealed record ReviewCards(
     CopiesService Copies,
@@ -45,7 +46,8 @@ public sealed record ReviewCards(
     PartProposalService Proposals,
     FolderCollections Folders,
     CollectionSuggestions Suggestions,
-    LibraryStore Library);
+    LibraryStore Library,
+    LookupMatches? Records = null);
 
 /// <summary>
 /// Needs review's metadata suggestions: which cards there are, and the user's decisions about them. Every
@@ -78,7 +80,8 @@ public sealed class ReviewService(
     /// folders proposed as packs, the files that may be those of books owned elsewhere, the new versions with places
     /// that need a look, the books said to be cataloged wrong, the folder rules proposed, the adventures whose pages
     /// weren't found, the files that look like they hold adventures, the folders that could be collections, the
-    /// books that could join collections, and the terms that may be the same thing.
+    /// books that could join collections, the terms that may be the same thing, and the catalogue records that may be
+    /// a book's.
     /// </summary>
     public async Task<long> CountAsync(CancellationToken ct = default)
     {
@@ -91,7 +94,8 @@ public sealed class ReviewService(
             + await cards.Proposals.CountPendingAsync(ct)
             + await cards.Folders.CountAsync(ct)
             + await cards.Suggestions.CountAsync(ct)
-            + (await vocabulary.FindAllOverlapsAsync(ct)).Count;
+            + (await vocabulary.FindAllOverlapsAsync(ct)).Count
+            + (cards.Records is { } records ? await records.CountPendingAsync(ct) : 0);
     }
 
     /// <summary>
@@ -131,7 +135,8 @@ public sealed class ReviewService(
             await cards.Packs.GetProposalsAsync(ct), await cards.Elsewhere.GetPendingAsync(ct), await cards.Places.GetRevisionsAsync(ct),
             await cards.Corrections.GetWaitingAsync(ct), await cards.Rules.GetProposedAsync(ct),
             await cards.Parts.GetUnplacedAsync(ct), await cards.Proposals.GetPendingAsync(ct),
-            await cards.Folders.GetProposalsAsync(ct), await cards.Suggestions.GetSuggestionsAsync(ct), await vocabulary.FindAllOverlapsAsync(ct));
+            await cards.Folders.GetProposalsAsync(ct), await cards.Suggestions.GetSuggestionsAsync(ct), await vocabulary.FindAllOverlapsAsync(ct),
+            cards.Records is { } records ? await records.GetPendingAsync(ct) : []);
 
     /// <summary>One entry's card for a field, as the queue would make it now; null when it isn't waiting any more.</summary>
     public async Task<ReviewIssue?> FindAsync(EntryId entryId, string fieldKey, ReviewKind kind, CancellationToken ct = default)
@@ -178,6 +183,16 @@ public sealed class ReviewService(
     {
         if (await cards.Elsewhere.AnswerAsync(match, answer, ct) is not { } decision) return null;
         return () => cards.Elsewhere.UndoAsync(decision);
+    }
+
+    /// <summary>
+    /// Answers "Same book?" about a catalogue's record whose title isn't printed in the book. Returns what undoes it, or
+    /// null when it isn't waiting any more.
+    /// </summary>
+    public async Task<Func<Task>?> AnswerLookupAsync(PendingLookup match, LookupAnswer answer, CancellationToken ct = default)
+    {
+        if (cards.Records is not { } records || await records.AnswerAsync(match, answer, ct) is not { } decision) return null;
+        return () => records.UndoAsync(decision);
     }
 
     /// <summary>

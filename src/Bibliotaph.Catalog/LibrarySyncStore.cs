@@ -41,7 +41,7 @@ public sealed record SyncSnapshot(
 /// documents, roots, pack decisions, runs or settings: those belong to this PC.
 /// </summary>
 public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext> contexts, MetadataStore metadata, VocabularyStore vocabularies,
-    TimeProvider? clock = null, ILogger<LibrarySyncStore>? log = null)
+    TimeProvider? clock = null, ILogger<LibrarySyncStore>? log = null, LookupRecordStore? lookups = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly ILogger _log = log ?? NullLogger<LibrarySyncStore>.Instance;
@@ -205,6 +205,10 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
 
         foreach (var pair in await db.CopyDecisions.AsNoTracking().Where(d => d.Answer == CopyAnswer.NotSameBook).Select(d => new { d.FirstHash, d.SecondHash }).ToListAsync(ct))
             records[SyncKeys.ForNotSameBook(pair.FirstHash, pair.SecondHash)] = Fields((SyncFields.Exists, Json(true)));
+
+        foreach (var answered in await db.LookupRecords.AsNoTracking().Where(r => r.Answer != null).Select(r => new { r.ContentHash, r.Source, r.RecordKey, r.Answer })
+            .ToListAsync(ct))
+            records[SyncKeys.ForLookupRecord(answered.ContentHash, answered.Source, answered.RecordKey)] = Fields((SyncFields.SameBook, Json(answered.Answer == LookupAnswer.SameBook)));
 
         foreach (var (entryId, fields) in cardFields) records[cardKeys[entryId]] = fields;
         return new SyncSnapshot(records, aliases, cards, cardKeys);
