@@ -15,13 +15,23 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   bibliotaph.online, and in the Windows app while it's [connected to bibliotaph.online](web.md#connecting-a-windows-pc),
   [RPGGeek](https://rpggeek.com) and [Google Books](https://books.google.com) are asked too, and each field comes from
   the first of RPGGeek, Open Library and Google Books that gives it, so RPGGeek, which knows RPGs and their designers
-  best, wins wherever it has a value. RPGGeek also says what it files the book under, and that fills in the game
+  best, wins wherever it has a value. RPGGeek also gives the book's artists and its mechanics (such as "Dice (d20)"),
+  in its own words, which plain search finds. It says what it files the book under, too, and that fills in the game
   system and edition, type, themes, setting and series, in your lists' own terms: its "Scenario / Adventure / Module"
   is your Adventure, its "Dungeons & Dragons (3.5 Edition)" your D&D 3.5. A system, theme or setting your lists don't
   have is treated as a new name from the AI (see [Vocabulary](#vocabulary)); a category none of the types stands for, and
   genres nearly every book has, such as Fantasy, are left out. RPGGeek can only be searched by name, so it gets the title Open Library or Google
   Books gives, or else the book's title in your library, and its record is used only when one of its versions lists an
-  ISBN the book prints. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
+  ISBN the book prints, or a product code it prints (such as PZO1110), so a book with a code but no ISBN is found
+  there too. [AdventureLookup](https://adventurelookup.com), a catalogue of published adventures, is asked about
+  every book as well, by its title, even one another catalogue already found. It knows no ISBNs, so its record is used
+  only when the book prints that title on its first pages and also one of its authors or its publisher, or has about
+  as many pages (within two); a book printing the title but nothing else that agrees gets a **Same book?** card, and
+  one that doesn't print it is left alone. It fills in the levels an adventure is for, which no other catalogue has,
+  its monsters (bosses first) and magic items, which plain search finds, what it includes (pre-generated characters,
+  handouts, battle maps, or that it plays solo), and its edition, setting, environments and series, in your lists' terms: its "Dungeon" and "Cave" are your
+  Underground, its "Town/Village" your Urban. Because of it, books that print no ISBN or product code are looked up
+  too, by title; an image, which prints no title, isn't. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
   book is asked again once there's somewhere more to ask, such as when the app connects. A record is used only when
   its title is printed in the book, so a misprinted ISBN can't rename it; when it isn't, Needs review asks you
   **Same book?** about it (see below). These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
@@ -49,8 +59,8 @@ Under the cover is a row of buttons for what you can do with the book:
 
 The **Details** tab shows:
 
-- The fields: title, game system, edition, type, levels, players, duration, style, setting, themes, environments,
-  publisher, authors, series, year, your tags, where else you own it (**Also own**, with the book's page online if you
+- The fields: title, game system, edition, type, levels, players, includes, duration, style, setting, themes,
+  environments, monsters, items, publisher, authors, artists, series, year, mechanics, your tags, where else you own it (**Also own**, with the book's page online if you
   like) and where to get it (**Get it from**, a store with an optional link). Empty fields are hidden until you click
   **More fields**, except the main ones, and **Players** on an adventure, so you can say who it's for straight away.
 - **Suggested** marks on values nobody has confirmed yet. Open one to see where it came from, with the page and quote.
@@ -117,8 +127,10 @@ usable while its card waits. It has two lists:
 - **Image pack?** "Make these 12 images one card?": **Make a pack** or **Keep separate**.
 - "You own *The Sunken Abbey* elsewhere. Is this its file?": **Same book** or **Separate book**.
 - **Same book?** "RPGGeek's record for its ISBN is of *The Sunken Abbey*, which isn't printed in it. Is it this
-  book?", for a record from RPGGeek, Open Library or Google Books whose title the book doesn't print, with what the
-  record says: its title, authors, publisher, year and what RPGGeek files it under. **Same book** fills them in at
+  book?" (or "for its product code"), for a record from RPGGeek, Open Library or Google Books whose title the book doesn't print, with what the
+  record says: its title, authors, publisher, year and what RPGGeek files it under. For AdventureLookup, which is
+  searched by title: "AdventureLookup has a record of *The Sunken Abbey*, the title it prints, but not its authors,
+  publisher or page count. Is it this book?", with the record's page count too. **Same book** fills them in at
   once, as that catalogue's suggestions rather than your own values, so they beat the AI's guesses and anything you
   set yourself stays; the book uses that record from then on. **Not this book** means the record is never used for
   it. A book with two files is asked once. Books looked up before this card existed are looked up once more to ask.

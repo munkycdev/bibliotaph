@@ -1,6 +1,6 @@
 {
   "comment": "Starter vocabularies, seeded into catalog.db by version. A term or alias is added only when the stored seed version is below its 'since' (default 1), and never overwrites a term the user has changed. Add new terms with a higher 'since' and bump 'version'. Keys are stable: never rename one.",
-  "version": 7,
+  "version": 9,
   "terms": [
     { "vocabulary": "system", "key": "dnd", "label": "Dungeons & Dragons", "short": "D&D", "aliases": ["D&D", "DnD", "D and D", "Dungeons and Dragons", "AD&D", "ADnD"] },
     { "vocabulary": "edition", "key": "dnd-od", "parent": "dnd", "label": "Original edition", "short": "OD&D", "aliases": ["OD&D", "ODnD", "Original D&D", "0e"] },
@@ -199,6 +199,15 @@
     { "vocabulary": "theme", "key": "survival", "label": "Survival", "aliases": ["Science Fiction (Post Apocalypse)", "post apocalypse", "post-apocalyptic"], "since": 7 },
     { "vocabulary": "theme", "key": "pirates", "label": "Pirates", "aliases": ["Action / Adventure (Swashbuckling / Pirates)"], "since": 7 },
     { "vocabulary": "theme", "key": "comedy", "label": "Comedy", "aliases": ["Comedy / Satire", "satire"], "since": 7 },
-    { "vocabulary": "theme", "key": "intrigue", "label": "Political intrigue", "aliases": ["espionage", "spies"], "since": 7 }
+    { "vocabulary": "theme", "key": "intrigue", "label": "Political intrigue", "aliases": ["espionage", "spies"], "since": 7 },
+    { "vocabulary": "system", "key": "draw-steel", "label": "Draw Steel", "aliases": ["Draw Steel RPG", "MCDM RPG"], "since": 8 },
+    { "vocabulary": "environment", "key": "stronghold", "label": "Stronghold", "aliases": ["castle", "castles", "keep", "fortress", "fort", "citadel"], "since": 8 },
+    { "vocabulary": "environment", "key": "temple", "label": "Temple", "aliases": ["temples", "shrine", "shrines", "monastery", "cathedral"], "since": 8 },
+    { "vocabulary": "environment", "key": "mansion", "label": "Mansion", "aliases": ["manor", "manor house", "haunted house", "estate"], "since": 8 },
+    { "vocabulary": "environment", "key": "sky", "label": "Sky", "aliases": ["skies", "airship", "airships", "sky ship", "flying city", "floating island"], "since": 8 },
+    { "vocabulary": "includes", "key": "pregens", "label": "Pre-generated characters", "short": "Pregens", "aliases": ["pregens", "pre-gens", "pregenerated characters", "ready-made characters"], "since": 9 },
+    { "vocabulary": "includes", "key": "handouts", "label": "Handouts", "aliases": ["player handouts"], "since": 9 },
+    { "vocabulary": "includes", "key": "battle-maps", "label": "Battle maps", "aliases": ["battlemaps", "tactical maps", "battle map", "encounter maps"], "since": 9 },
+    { "vocabulary": "includes", "key": "solo", "label": "Playable solo", "aliases": ["solo", "solo play", "soloable", "solo adventure"], "since": 9 }
   ]
 }

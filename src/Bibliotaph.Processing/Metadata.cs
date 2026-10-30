@@ -263,8 +263,8 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             Reviews = MetadataReview.Find(effective, reviewAll).Count,
             Suggested = effective.Fields.Any(f => f.Field.IsClosed && f.Values.Any(v => !v.Confirmed)),
             Tags = Joined(MetadataFields.Tags),
-            ConfirmedText = SearchText(facets.Where(f => f.Confirmed), vocabulary),
-            ProvisionalText = SearchText(facets.Where(f => !f.Confirmed), vocabulary),
+            ConfirmedText = WithCredits(SearchText(facets.Where(f => f.Confirmed), vocabulary), Credits(effective, confirmed: true)),
+            ProvisionalText = WithCredits(SearchText(facets.Where(f => !f.Confirmed), vocabulary), Credits(effective, confirmed: false)),
             Facets = facets,
         };
     }
@@ -281,6 +281,18 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         if (edition is null) return system;
         return system is not null && edition.Brief.Length > 0 && char.IsDigit(edition.Brief[0]) ? $"{system} {edition.Brief}" : edition.Brief;
     }
+
+    /// <summary>
+    /// Artists, mechanics, monsters and items, found by their words as the vocabulary's terms are, though they have no
+    /// list of their own.
+    /// </summary>
+    static IEnumerable<string> Credits(EffectiveMetadata effective, bool confirmed) =>
+        CreditFields.SelectMany(f => effective[f].Values).Where(v => v.Confirmed == confirmed).Select(v => v.Value);
+
+    static readonly MetadataField[] CreditFields = [MetadataFields.Artists, MetadataFields.Mechanics, MetadataFields.Monsters, MetadataFields.Items];
+
+    static string WithCredits(string terms, IEnumerable<string> more) =>
+        string.Join(" · ", new[] { terms }.Concat(more).Where(t => !string.IsNullOrEmpty(t)).Distinct());
 
     /// <summary>Every name of these values that someone might type: label and short label.</summary>
     static string SearchText(IEnumerable<FacetRow> facets, Vocabulary vocabulary) =>

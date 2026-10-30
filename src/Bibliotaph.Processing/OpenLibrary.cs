@@ -21,17 +21,25 @@ public interface IBookCatalogue
     /// <summary>
     /// Every record of the book the catalogue can give, most preferred first, and where it asked: several catalogues
     /// asked together give each one's record, so each field can come from the one preferred that has it.
-    /// <paramref name="titles"/> are the book's own, for a catalogue that can only be searched by name.
+    /// <paramref name="titles"/> are the book's own, for a catalogue that can only be searched by name, and
+    /// <paramref name="codes"/> the product codes it prints, for one whose records list them; <paramref name="isbns"/>
+    /// may be empty when it prints only a code.
     /// </summary>
     /// <exception cref="CatalogueUnavailableException">None of the catalogues could be asked right now.</exception>
-    async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, CancellationToken ct = default) =>
+    async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes, CancellationToken ct = default) =>
         new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
 
     /// <summary>
-    /// Whether it's searched by name, a record then taken only when it lists one of the ISBNs, as RPGGeek's is: asked
+    /// Whether it's searched by name, a record then taken only when it lists one of the ISBNs or codes, as RPGGeek's is: asked
     /// after the others, with the titles their records give before the book's own.
     /// </summary>
     bool SearchesByTitle => false;
+
+    /// <summary>
+    /// Whether a record can be found by title alone, for a book printing no ISBN or product code, as AdventureLookup's
+    /// can: its record is then used only when the book prints its title and something else agrees.
+    /// </summary>
+    bool FindsByTitleAlone => false;
 
     /// <summary>
     /// Finds out again where it asks, for a catalogue that asks somewhere else in turn, as a PC asks its web library:
@@ -81,7 +89,7 @@ public sealed class RequestPace(TimeSpan pace, TimeProvider? clock = null)
 
 /// <summary>
 /// Several catalogues asked in turn, in the order the user prefers their records: RPGGeek, which knows RPGs best, then
-/// Open Library, then Google Books, each where the server holds a key. Every one is asked, so a field the first's
+/// AdventureLookup, then Open Library, then Google Books, each where the server holds a key it needs. Every one is asked, so a field the first's
 /// record lacks can come from the next's. One that can't answer just then is left out of the answer, which says where
 /// it asked, so the book is asked again once all of them can be; when none can, the book waits.
 /// </summary>
@@ -89,22 +97,31 @@ public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : I
 {
     public string Name { get; } = string.Join(" or ", catalogues.Select(c => c.Name));
 
-    public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
-        (await AskAsync(isbns, [], ct)).Records is [var first, ..] ? first : null;
+    public bool FindsByTitleAlone { get; } = catalogues.Any(c => c.FindsByTitleAlone);
 
-    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, CancellationToken ct = default)
+    public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
+        (await AskAsync(isbns, [], [], ct)).Records is [var first, ..] ? first : null;
+
+    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
+        CancellationToken ct = default)
     {
         CatalogueUnavailableException? unavailable = null;
         var found = new Dictionary<int, IReadOnlyList<BookRecord>>();
         // Those searched by name last, so the titles the others' records give can be searched for first.
         foreach (var (catalogue, at) in catalogues.Select((c, i) => (c, i)).OrderBy(c => c.c.SearchesByTitle))
         {
+            // One that needs an ISBN or code has nothing to say about a book with neither, so it counts as asked.
+            if (isbns.Count == 0 && codes.Count == 0 && !catalogue.FindsByTitleAlone)
+            {
+                found[at] = [];
+                continue;
+            }
             try
             {
                 IReadOnlyList<string> searched = catalogue.SearchesByTitle
                     ? [.. found.OrderBy(f => f.Key).SelectMany(f => f.Value).Select(r => r.Title).Concat(titles).Distinct(StringComparer.OrdinalIgnoreCase)]
                     : titles;
-                found[at] = (await catalogue.AskAsync(isbns, searched, ct)).Records;
+                found[at] = (await catalogue.AskAsync(isbns, searched, codes, ct)).Records;
             }
             catch (CatalogueUnavailableException ex)
             {

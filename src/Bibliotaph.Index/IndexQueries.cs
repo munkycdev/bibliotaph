@@ -187,6 +187,15 @@ public sealed class IndexQueries(IndexDatabase database)
             new { documentId }, cancellationToken: ct))];
     }
 
+    /// <summary>The product codes the Identify stage found for a document, as <see cref="ProductCode"/> keeps them, in page order.</summary>
+    public async Task<IReadOnlyList<string>> GetProductCodesAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<string>(new CommandDefinition(
+            "SELECT value FROM doc_identifier WHERE document_id = @documentId AND kind = 'ProductCode' ORDER BY pdf_page IS NOT NULL, pdf_page, value",
+            new { documentId }, cancellationToken: ct))];
+    }
+
     /// <summary>
     /// Each page's printed label, in page order (null for a page without one), so pages can be typed as the file
     /// numbers them outside the reader, as in the details' adventures. Empty until the file's pages are read.

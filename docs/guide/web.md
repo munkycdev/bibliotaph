@@ -660,8 +660,9 @@ other web library book says it needs one. **Open in another app** opens the down
 offline, and disconnecting deletes them too; the ones kept offline stay for when you connect again.
 
 A connected PC looks its books up through bibliotaph.online, which
-asks RPGGeek, Open Library and Google Books, so the PC's own books are found in all three, as the web library's are; it
-sends the ISBNs, and the book's title for RPGGeek. The books it looked up before it connected are asked again. Disconnected, it asks Open Library
+asks RPGGeek, AdventureLookup, Open Library and Google Books, so the PC's own books are found in all four, as the web
+library's are; it sends the ISBNs, and the book's title for RPGGeek and AdventureLookup, which also looks up the books
+that print no ISBN by their title. The books it looked up before it connected are asked again. Disconnected, it asks Open Library
 itself. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
@@ -701,10 +702,11 @@ set up, with that PC's count and time left. A book only that PC has isn't named.
 library as it finishes each book. A PC that's closed or asleep drops off within a couple of minutes, and pausing the AI
 on the web pauses only the server's; pause a PC's AI in the app.
 
-**Looking up online**, under the steps, says where books are looked up: the server asks RPGGeek, Open Library and
-Google Books about the ISBNs your books print (RPGGeek, searched by name, with the book's title), and suggests each
-book's title, authors, publisher and year, each field from the first of them that has it, as the Windows app does,
-and from RPGGeek its system, edition, type, themes, setting and series.
+**Looking up online**, under the steps, says where books are looked up: the server asks RPGGeek, AdventureLookup,
+Open Library and Google Books about the ISBNs your books print (RPGGeek and AdventureLookup, searched by name, with the
+book's title, and AdventureLookup about books that print no ISBN too), and suggests each book's title, authors,
+publisher and year, each field from the first of them that has it, as the Windows app does, from RPGGeek its system,
+edition, type, themes, setting and series, and from AdventureLookup an adventure's levels, environments, monsters, items and what it includes.
 This is always on; a book is asked again once there's somewhere more to ask. RPGGeek's data is powered by
 [BGG](https://boardgamegeek.com), whose logo shows under a book's details when some of them came from RPGGeek. See [Cataloging](cataloging.md#where-suggestions-come-from).
 

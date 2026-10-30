@@ -1226,6 +1226,8 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
         using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        // Read to the end first, so its own proposals and title can't replace the ones saved below while the card is answered.
+        await WaitAsync(async () => (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))! is { Files: 1, ToRead: 0, Queued: 1, Indexed: 1 } done ? done : null, ct);
         var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is [var one] ? one : null, ct);
 
         await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
@@ -2667,7 +2669,13 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var busy = await Assert.ThrowsAsync<CatalogueUnavailableException>(() => catalogue.FindAsync(["9781234567897"], ct));
         var keyed = new HttpClient(_factory.Server.CreateHandler()) { BaseAddress = new Uri("http://localhost") };
         keyed.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+        keyed.DefaultRequestHeaders.Add(ApiHeaders.Client, "windows");
         using var notAnIsbn = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest(["978-1-234"]), ct);
+        using var nothing = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([]), ct);
+        // A book printing only a product code is looked up by it, where a catalogue's records list codes.
+        using var byCode = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([], ["The Owlbear Mill"], ["pzo1110"]), ct);
+        // And one printing neither, by its title alone.
+        using var byTitle = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([], ["The Owlbear Mill"]), ct);
         using var signedIn = await web.GetAsync("/api/pc/lookups", ct);
 
         Assert.Equal(("Open Library or Google Books", 1), (catalogue.Name, changed));
@@ -2675,6 +2683,10 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal(["9781234567897"], _catalogue.Asked);
         Assert.Equal("Google Books is busy.", busy.Message);
         Assert.Equal(HttpStatusCode.BadRequest, notAnIsbn.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, nothing.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, byCode.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, byTitle.StatusCode);
+        Assert.Equal(["PZO1110"], _catalogue.Codes);
         Assert.Equal(HttpStatusCode.Unauthorized, signedIn.StatusCode);
         Assert.Equal("Open Library or Google Books", await settings.GetAsync(SettingKeys.LookUpWebCatalogues, ct));
 
@@ -2702,11 +2714,11 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var changes = 0;
         pc.ReachabilityChanged += (_, _) => changes++;
 
-        Assert.Null(await pc.LookUpAsync(["9781234567897"], [], ct));
+        Assert.Null(await pc.LookUpAsync(["9781234567897"], [], [], ct));
         var down = pc.IsUnreachable;
         network.Down = false;
         // Any answer, a refused key included, means it can be reached.
-        await pc.LookUpAsync(["9781234567897"], [], ct);
+        await pc.LookUpAsync(["9781234567897"], [], [], ct);
 
         Assert.True(down);
         Assert.False(pc.IsUnreachable);
@@ -2733,11 +2745,20 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
 
         public List<string> Asked { get; } = [];
 
+        public List<string> Codes { get; } = [];
+
         public Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default)
         {
             if (Busy) throw new CatalogueUnavailableException("Google Books is busy.");
             Asked.AddRange(isbns);
             return Task.FromResult(Record);
+        }
+
+        public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
+            CancellationToken ct = default)
+        {
+            Codes.AddRange(codes);
+            return new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
         }
     }
 
