@@ -77,6 +77,14 @@ public static partial class BookRecords
     /// <summary>Where a suggestion came from, as a card shows it: the record by the title it gives, which says more than its ISBN.</summary>
     static string Quote(BookRecord record) => $"{record.Source}'s record of {record.Title}";
 
+    /// <summary>
+    /// Whether <paramref name="field"/> shows anything from <paramref name="source"/>'s records, a value or another
+    /// suggestion: the details credit RPGGeek where its data is shown, as BoardGameGeek's terms ask.
+    /// </summary>
+    public static bool Shows(EffectiveField field, string source) =>
+        field.Values.Concat(field.Alternatives).SelectMany(v => v.Support)
+            .Any(c => c.Origin == AssertionOrigin.Lookup && c.Quote?.StartsWith($"{source}'s record of ", StringComparison.Ordinal) == true);
+
     static IEnumerable<string> ValuesOf(BookRecord record, MetadataField field) =>
         (record.Values ?? []).Where(v => v.Field == field.Key && !string.IsNullOrWhiteSpace(v.Value)).Select(v => v.Value.Trim());
 

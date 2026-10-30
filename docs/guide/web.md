@@ -699,7 +699,7 @@ Google Books about the ISBNs your books print (RPGGeek, searched by name, with t
 book's title, authors, publisher and year, each field from the first of them that has it, as the Windows app does,
 and from RPGGeek its system, edition, type, themes, setting and series.
 This is always on; a book is asked again once there's somewhere more to ask. RPGGeek's data is powered by
-[BGG](https://boardgamegeek.com), whose logo is at the foot of every page. See [Cataloging](cataloging.md#where-suggestions-come-from).
+[BGG](https://boardgamegeek.com), whose logo shows under a book's details when some of them came from RPGGeek. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 ## Vocabulary
 

@@ -366,6 +366,12 @@
                         }
                     </div>
                 }
+                @if (book.FromRpgGeek)
+                {
+                    @* BoardGameGeek's terms ask for its logo where its data is shown. *@
+                    <a class="bt-poweredby bt-detailsbgg" href="https://boardgamegeek.com" target="_blank" rel="noopener"
+                       title="Details looked up on RPGGeek come from BoardGameGeek" aria-label="Powered by BGG"></a>
+                }
             </div>
 
             @if (book.CanMarkParts)

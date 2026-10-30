@@ -1309,6 +1309,9 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <!-- RPGGeek's data is credited to BoardGameGeek wherever it shows, as their terms ask. -->
+            <Button Style="{StaticResource Bt.PoweredByBgg}" Margin="0,14,0,0"
+                    Visibility="{Binding FromRpgGeek, Converter={StaticResource Bt.VisibleWhenTrue}}" />
 
             <!--
               Adventures inside a compilation (slice 5): a file lists those marked in it, each a card of its own, with Add,
