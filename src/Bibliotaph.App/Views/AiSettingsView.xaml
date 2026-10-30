@@ -264,16 +264,15 @@
       </DockPanel>
     </Border>
 
-    <!-- Read every book again, with the vocabulary as it stands now -->
-    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="0,18" Margin="0,12,0,0"
-            Visibility="{Binding CanReadAgain, Converter={StaticResource Bt.VisibleWhenTrue}}">
-      <DockPanel>
-        <Button DockPanel.Dock="Right" Content="{Binding ReadAgain.Label}" Command="{Binding ReadAgainCommand}" VerticalAlignment="Center" />
-        <StackPanel Margin="0,0,12,0">
-          <TextBlock Text="Read every book again" Style="{StaticResource Text.Row}" />
-          <TextBlock Text="{Binding ReadAgain.Text}" Style="{StaticResource Note}" Margin="0,4,0,0" />
-        </StackPanel>
-      </DockPanel>
+    <!-- Read every book again moved to the end of Cataloguing with AI's row in Processing -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="0,18" Margin="0,12,0,0">
+      <StackPanel>
+        <TextBlock Text="Read every book again" Style="{StaticResource Text.Row}" />
+        <TextBlock Style="{StaticResource Note}" Margin="0,4,0,0" TextWrapping="Wrap">
+          <Run Text="To read every book again with your lists as they stand now, use the button at the end of Cataloguing with AI in" />
+          <Hyperlink Command="{Binding OpenProcessingCommand}" Foreground="{DynamicResource Bt.Accent}">Processing</Hyperlink><Run Text="." />
+        </TextBlock>
+      </StackPanel>
     </Border>
 
     <!-- Reading the whole library for meaning, for questions to the library -->

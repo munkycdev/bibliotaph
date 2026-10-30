@@ -1,3 +1,4 @@
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Progress;
@@ -35,6 +36,10 @@ public sealed partial class PhaseProgress(string label, string detail, string un
 
     [ObservableProperty]
     public partial string Status { get; private set; } = "";
+
+    /// <summary>The button at the end of its row that runs it again for every book, when it can now; null otherwise.</summary>
+    [ObservableProperty]
+    public partial RunAgainOffer? RunAgain { get; set; }
 
     public TimeSpan? Left { get; private set; }
 
@@ -95,6 +100,7 @@ public sealed partial class LibraryActivity : ObservableObject
     readonly ReviewService _review;
     readonly ChapterScanService _chapters;
     readonly WebLibrary _web;
+    readonly RunAgainService _runAgain;
     readonly ILogger<LibraryActivity> _log;
     readonly TimeProvider _time;
     readonly UiTimer _timer;
@@ -110,9 +116,11 @@ public sealed partial class LibraryActivity : ObservableObject
     bool _refreshing;
 
     public LibraryActivity(IIndexingStatus indexing, IJobControl jobs, IStageCatalog stages, IndexQueries queries, LibraryStore library,
-        MetadataProjector metadata, ReviewService review, ChapterScanService chapters, WebLibrary web, TimeProvider time, ILogger<LibraryActivity> log)
+        MetadataProjector metadata, ReviewService review, ChapterScanService chapters, WebLibrary web, RunAgainService runAgain, TimeProvider time,
+        ILogger<LibraryActivity> log)
     {
         _indexing = indexing;
+        _runAgain = runAgain;
         _web = web;
         _chapters = chapters;
         _jobs = jobs;
@@ -296,6 +304,10 @@ public sealed partial class LibraryActivity : ObservableObject
             OfflineText = Counts.OfflineFolders == 0 ? "" : $"{Counts.OfflineFolders:N0} {Plural(Counts.OfflineFolders, "folder", "folders")} offline";
             WebText = _web.IsUnreachable && _web.HasKey ? $"{(await _web.AddressAsync()).Host} can't be reached" : "";
             UpdatePhases(_time.GetUtcNow());
+            var offers = await _runAgain.OffersAsync(Progress, AiOn);
+            foreach (var (phase, step) in new[] { (_finding, RunAgainService.Finding), (_lookingUp, RunAgainService.LookingUp),
+                (_classifying, RunAgainService.Cataloguing), (_scanning, RunAgainService.Scanning) })
+                phase.RunAgain = offers.FirstOrDefault(o => o.Step == step);
             var lines = await DescribeNowAsync();
             if (!lines.SequenceEqual(Now)) Now = lines;
             Refreshed?.Invoke(this, EventArgs.Empty);

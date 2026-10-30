@@ -1091,7 +1091,8 @@ button.bt-heart{color:var(--bt-accent)}
 /* Settings › Processing: a row per step of indexing, its name, a bar and where it has got to, as in the Windows app. */
 .bt-processingsummary{margin-top:6px}
 .bt-phases{margin-top:8px}
-.bt-phase{display:grid;grid-template-columns:150px minmax(80px,1fr) minmax(190px,auto);gap:10px;align-items:center;margin-top:6px}
+.bt-phase{display:grid;grid-template-columns:150px minmax(80px,1fr) minmax(190px,auto) 30px;gap:10px;align-items:center;margin-top:6px}
+.bt-phase .bt-icon{color:var(--bt-muted)}
 .bt-phasename{min-width:0}
 .bt-phasename strong{display:block;font-size:12px;font-weight:600;color:var(--bt-text)}
 .bt-phasename small,.bt-phasestatus,.bt-now small{display:block;font-size:11px;color:var(--bt-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1110,7 +1111,7 @@ button.bt-heart{color:var(--bt-accent)}
 @media(prefers-reduced-motion:reduce){.bt-bar:indeterminate,.bt-bar:indeterminate::-webkit-progress-bar{animation:none}}
 .bt-now{margin-top:12px}
 .bt-now small{margin-top:3px}
-@media(max-width:620px){.bt-phase{grid-template-columns:1fr}.bt-phasestatus{text-align:left}}
+@media(max-width:620px){.bt-phase{grid-template-columns:1fr}.bt-phasestatus{text-align:left}.bt-phase .bt-icon{justify-self:start}}
 /* A book's right-click menu, over its cover or row. */
 .bt-book,.bt-listitem{position:relative}
 .bt-menu.bt-cardmenu{top:34px;left:8px;right:auto}

@@ -316,6 +316,7 @@ public partial class App : Application
         builder.Services.AddSingleton<ReviewCards>();
         builder.Services.AddSingleton<ReviewService>();
         builder.Services.AddSingleton<AiService>();
+        builder.Services.AddSingleton<RunAgainService>();
         builder.Services.AddSingleton<PlainSearchService>();
         // The model pilot: its own pilot.db, shown only with --pilot.
         builder.Services.AddSingleton(sp => new PilotStore(paths.Pilot, sp.GetRequiredService<TimeProvider>()));

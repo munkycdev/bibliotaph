@@ -248,7 +248,8 @@ and the books that use it wait for your answer. **Add them** puts the name strai
 it as an ordinary suggestion; choosing it also adds that list's names already waiting in Needs review, so a long list of
 campaign settings clears in one click. A name you rejected before stays rejected either way, and a name the AI added
 can be renamed, given other names or filed under another term here like any other. Adding names doesn't re-read the
-books the AI has already read; **Read every book again** in [Settings > AI](ai.md#day-to-day) does.
+books the AI has already read; the button at the end of **Cataloguing with AI** in **Settings > Processing** reads
+every book again (see [AI](ai.md#day-to-day)).
 
 ### Find overlaps
 

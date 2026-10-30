@@ -250,4 +250,15 @@ public sealed class ChapterScanService(
         await projection.ClearAsync(documentId, ct);
         await jobs.RerunAsync(Stage.ChapterScan, documentId, ct);
     }
+
+    /// <summary>
+    /// Forgets what the AI found in every book and reads them all again from the start. What each book's contents show
+    /// stays until its new scan replaces it. Returns how many books were queued.
+    /// </summary>
+    public async Task<int> RescanAllAsync(CancellationToken ct = default)
+    {
+        if (indexing.Running(Lane.Classify) is { Stage: Stage.ChapterScan } running) jobs.Interrupt([running.DocumentId]);
+        await store.ForgetAllAsync(ct);
+        return await jobs.RerunAsync(Stage.ChapterScan, ct);
+    }
 }

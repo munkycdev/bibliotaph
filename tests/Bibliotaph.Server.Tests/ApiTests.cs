@@ -1720,6 +1720,34 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Settings_processing_runs_a_step_again_for_every_book_from_the_end_of_its_row()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/IMG_0042.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        var empty = (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))!;
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+
+        var read = await WaitAsync(async () => (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))! is { Files: 1, ToRead: 0 } done ? done : null, ct);
+        using var folders = await client.PostAsync("/api/processing/run-again/finding", null, ct);
+        var finding = (await folders.Content.ReadFromJsonAsync<RunAgainDone>(ct))!;
+        // Nothing has been looked up, and the server has no AI of its own, so neither is offered.
+        using var lookup = await client.PostAsync("/api/processing/run-again/lookup", null, ct);
+        using var ai = await client.PostAsync("/api/processing/run-again/ai", null, ct);
+        using var reading = await client.PostAsync("/api/processing/run-again/reading", null, ct);
+
+        Assert.Empty(empty.RunAgain ?? []);
+        var offer = Assert.Single(read.RunAgain!);
+        Assert.Equal(("finding", "Look through your folders again now", null), (offer.Step, offer.Hint, offer.Question));
+        Assert.Equal("Looking through your folders now.", finding.Note);
+        Assert.Equal((HttpStatusCode.NotFound, HttpStatusCode.NotFound, HttpStatusCode.NotFound), (lookup.StatusCode, ai.StatusCode, reading.StatusCode));
+    }
+
+    [Fact]
     public async Task Settings_lists_what_each_connection_was_granted_in_plain_words()
     {
         var ct = TestContext.Current.CancellationToken;
@@ -1967,6 +1995,8 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         const string Service = "https://api.example.com/v1";
 
         var before = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
+        var processingBefore = (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))!;
+        using var notYet = await client.PostAsync("/api/processing/run-again/ai", null, ct);
         async Task<AiConnection> ConnectAsync(string endpoint, string? key)
         {
             using var response = await client.PostAsJsonAsync("/api/ai/connect", new AiConnect(endpoint, key), ct);
@@ -1987,8 +2017,9 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var page = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!;
         var classified = await WaitAsync(async () => (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.Progress is var p
             && p == "1 book classified with fake-mini. Nothing is waiting." ? p : null, ct);
-        var offered = (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.ReadAgain;
-        var readingAgain = await SendAsync(HttpMethod.Post, "/api/ai/read-again");
+        var offered = (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))!.RunAgain?.SingleOrDefault(o => o.Step == "ai");
+        using var readAgain = await client.PostAsync("/api/processing/run-again/ai", null, ct);
+        var readingAgain = (await readAgain.Content.ReadFromJsonAsync<RunAgainDone>(ct))!;
         var readTwice = await WaitAsync(async () => _models.Requests.Count >= 2 && (await client.GetFromJsonAsync<AiPage>("/api/ai", ct))!.Progress is var p
             && p == "1 book classified with fake-mini. Nothing is waiting." ? p : null, ct);
         string? sealedKeys;
@@ -2011,8 +2042,9 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal((true, "https://api.example.com", "fake-mini", "abcd"), (page.Enabled, page.Endpoint, page.Model, page.KeyEnding));
         Assert.Equal("RPG", Assert.Single(page.Folders).Name);
         Assert.NotEmpty(classified);
-        Assert.Null(before.ReadAgain);
-        Assert.Equal("Read 1 again", offered?.Label);
+        Assert.DoesNotContain(processingBefore.RunAgain ?? [], o => o.Step == "ai");
+        Assert.Equal(HttpStatusCode.NotFound, notYet.StatusCode);
+        Assert.Equal("Read 1 again", offered?.Confirm);
         Assert.Equal("The books go back to the AI one at a time, in the background.", readingAgain.Note);
         Assert.NotEmpty(readTwice);
         Assert.Equal(2, _models.Requests.Count);

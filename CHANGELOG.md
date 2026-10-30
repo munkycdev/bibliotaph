@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Run a step again from Settings › Processing.** A button at the end of the Finding files, Looking up online,
+  Cataloguing with AI and Scanning whole books rows runs that step again for every book, on Windows and the web: after
+  adding names to your lists, the AI row reads every book again against them. The last three ask first, with how many
+  books, since each takes a pass over your library; values you've accepted, typed or rejected stay as they are. Read
+  every book again has moved there from Settings › AI, which points to it. See
+  [Getting started](docs/guide/getting-started.md).
 - **See your PC's AI at work on the web.** When a Windows PC connected to bibliotaph.online is cataloguing with its own
   AI, Settings › Processing on the web now says so: **On your PCs** shows the book it's on and how far it has got, and
   Cataloguing with AI and Scanning whole books say **On** and the PC's name instead of **Off** when the server's AI

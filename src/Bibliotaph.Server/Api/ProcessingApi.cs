@@ -10,8 +10,8 @@ using Bibliotaph.Server.Libraries;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// /api/processing: Settings › Processing, as the Windows app's <c>LibraryActivity</c> gathers it, pausing each lane, and
-/// whether books are looked up online. A pause is kept with the library, so it holds after the server closes an idle
+/// /api/processing: Settings › Processing, as the Windows app's <c>LibraryActivity</c> gathers it, pausing each lane,
+/// running a step again for every book, and whether books are looked up online. A pause is kept with the library, so it holds after the server closes an idle
 /// library and opens it again.
 /// </summary>
 public static class ProcessingApi
@@ -36,6 +36,16 @@ public static class ProcessingApi
             return await StateAsync(library, pcs.Of(principal.UserId()!), ct);
         });
 
+        processing.MapPost("/run-again/{step}", async (string step, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var library = lease.Library;
+            // Only a step the page offers now: the AI's steps need the server's own AI, not a PC's.
+            var offers = await library.Get<RunAgainService>().OffersAsync(await library.Get<IndexQueries>().GetProgressAsync(ct), library.Get<AiSettings>().Setup.IsReady, ct);
+            if (offers.All(o => o.Step != step) || await library.Get<RunAgainService>().RunAsync(step, ct) is not { } note) return Results.NotFound();
+            return Results.Ok(new RunAgainDone(note));
+        });
+
     }
 
     static async Task<ProcessingState> StateAsync(UserLibrary library, IReadOnlyList<PcActivityBoard.Entry> pcs, CancellationToken ct)
@@ -50,7 +60,8 @@ public static class ProcessingApi
             progress.Indexed, progress.Queued, progress.OcrPagesDone, progress.OcrPages, aiOn, aiOn ? indexing.Unavailable(Lane.Classify) : null,
             progress.Classified, progress.ToClassify, PausedLanes.Of(indexing), await NowAsync(library, ct), status.Attention,
             indexing.Unavailable(Lane.Online), progress.LookedUp, progress.ToLookUp, library.Get<BookLookups>().Catalogue.Name,
-            progress.ScannedWhole, progress.ToScanWhole, library.Get<ChapterScanService>().IsOn, await PcsAsync(library, pcs, ct));
+            progress.ScannedWhole, progress.ToScanWhole, library.Get<ChapterScanService>().IsOn, await PcsAsync(library, pcs, ct),
+            await library.Get<RunAgainService>().OffersAsync(progress, aiOn, ct));
     }
 
     /// <summary>

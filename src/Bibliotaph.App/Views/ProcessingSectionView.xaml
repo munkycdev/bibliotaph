@@ -57,6 +57,7 @@
                   <ColumnDefinition Width="150" />
                   <ColumnDefinition Width="*" MinWidth="80" />
                   <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="34" />
                 </Grid.ColumnDefinitions>
                 <StackPanel VerticalAlignment="Center">
                   <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
@@ -80,10 +81,18 @@
                 </ProgressBar>
                 <TextBlock Grid.Column="2" Text="{Binding Status}" Style="{StaticResource Text.Small}" VerticalAlignment="Center"
                            MinWidth="190" TextAlignment="Right" />
+                <!-- Runs the step again for every book, asked first where it costs a pass over the library. -->
+                <Button Grid.Column="3" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.RotateCcw}" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" ToolTip="{Binding RunAgain.Hint}" AutomationProperties.Name="{Binding RunAgain.Hint}"
+                        Command="{Binding DataContext.RunAgainCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                        Visibility="{Binding RunAgain, Converter={StaticResource Bt.VisibleWhenSet}}" />
               </Grid>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <TextBlock Text="{Binding RunAgainNote}" Style="{StaticResource Text.Small}" Margin="0,8,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding RunAgainNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
 
         <!-- What each part is on right now, so the section shows movement even while a bar creeps. -->
         <StackPanel Margin="0,12,0,0">

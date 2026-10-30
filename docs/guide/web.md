@@ -553,9 +553,9 @@ The key is kept encrypted on Bibliotaph's server, used only to ask that server, 
 which key is saved by its last four characters, and **Forget key** removes it. **Test with a book** tries the model on
 one of your books and shows what it kept, with each page and quote, and what it threw away and why. **Use AI** turns it
 **Off** or **On** without losing your setup, **Reclassify** reads again the books an earlier model read or couldn't
-read, **Read every book again** sends every book the AI has read back to it with your lists as they stand now (asked
-first, since it takes as long as cataloguing them did), and **Library folders sent to AI** keeps a folder's books away
-from the model.
+read, and **Library folders sent to AI** keeps a folder's books away from the model. To send every book the AI has
+read back to it with your lists as they stand now, use the button at the end of **Cataloguing with AI** in
+**Settings** › **Processing**.
 
 **See what the AI is reading**, under **Use AI** and beside **Pause AI** in **Settings** › **Processing**, shows the book
 the AI is on, how long it has been at it, its answer as the model writes it, and the last 20 books read with what the
@@ -674,6 +674,9 @@ step (finding files, reading them, making them searchable, reading scans, lookin
 got and the time left, what each part is working on now, and how many files need attention, with a link to them. The
 server does the work, so it carries on with the page closed. **Pause indexing**, **Pause reading scans** and **Pause
 AI** each stop one step until you resume it, even after you sign out; pausing the AI stops its requests on your key.
+The button at the end of a row runs that step again for every book, as on Windows: **Finding files** looks through
+your folders now; **Looking up online**, **Cataloguing with AI** and **Scanning whole books** ask first, saying how
+many books, and the AI's two appear only when the server's own AI is set up, not a PC's.
 The library comes first: while you're using it, reading books in the background steps aside, and carries on when you
 pause.
 

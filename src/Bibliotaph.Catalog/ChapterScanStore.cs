@@ -164,6 +164,13 @@ public sealed class ChapterScanStore(IDbContextFactory<CatalogDbContext> context
         return await db.ChapterScans.Where(s => contentHashes.Contains(s.ContentHash)).ExecuteDeleteAsync(ct);
     }
 
+    /// <summary>Forgets every scan, for running Scanning whole books again: every book is read from the start. Returns how many went.</summary>
+    public async Task<int> ForgetAllAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.ChapterScans.ExecuteDeleteAsync(ct);
+    }
+
     /// <summary>Forgets the scan of one document's content, for "Scan again". Returns whether there was one.</summary>
     public async Task<bool> ForgetDocumentAsync(long documentId, CancellationToken ct = default)
     {
