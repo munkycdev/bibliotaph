@@ -40,6 +40,16 @@ public class BookRecordsTests
     }
 
     [Fact]
+    public void A_field_shows_RPGGeeks_data_when_a_value_or_another_suggestion_is_quoted_from_its_record()
+    {
+        static EffectiveValue Value(string quote) => new("The Owlbear Mill", "the owlbear mill", false,
+            [new MetadataClaim(1, "title", "The Owlbear Mill", "the owlbear mill", AssertionOrigin.Lookup, AssertionState.Provisional, DateTime.UtcNow, quote)]);
+
+        Assert.True(BookRecords.Shows(new EffectiveField(MetadataFields.Title, [], [Value("RPGGeek's record of The Owlbear Mill")]), "RPGGeek"));
+        Assert.False(BookRecords.Shows(new EffectiveField(MetadataFields.Title, [Value("Open Library's record of The Owlbear Mill")], []), "RPGGeek"));
+    }
+
+    [Fact]
     public void A_game_catalogues_record_suggests_its_artists_and_mechanics()
     {
         var record = Record("The Owlbear Mill") with

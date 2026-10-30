@@ -140,7 +140,8 @@ public static class DetailsApi
             entry.IsElsewhere && await library.Get<ChosenCovers>().HasChosenAsync(entryId, ct),
             // Asked before every page is read by OCR, so a long book's wait is known; only for a file with pages.
             !entry.IsElsewhere && !entry.IsPack && entry.PageCount is int pages and > 0
-                ? DetailsText.OcrEveryPageQuestion(entry.Title, pages) + " " + DetailsText.OcrEveryPageNote : null);
+                ? DetailsText.OcrEveryPageQuestion(entry.Title, pages) + " " + DetailsText.OcrEveryPageNote : null,
+            metadata.Fields.Any(f => BookRecords.Shows(f, RpgGeekCatalogue.Source)));
     }
 
     /// <summary>What the AI found reading the book chapter by chapter; an adventure inside a file shows only its own chapters.</summary>

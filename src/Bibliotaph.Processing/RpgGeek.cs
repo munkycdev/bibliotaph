@@ -38,7 +38,10 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
     readonly RequestPace _pace = new(pace ?? Pace, clock);
     readonly ConcurrentDictionary<string, (DateTimeOffset Asked, string Xml)> _kept = new(StringComparer.Ordinal);
 
-    public string Name => "RPGGeek";
+    /// <summary>The name its records are given, and their suggestions are quoted by.</summary>
+    public const string Source = "RPGGeek";
+
+    public string Name => Source;
 
     public bool SearchesByTitle => true;
 
@@ -123,7 +126,7 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
                 if (matched(version) is not { } found) continue;
                 if (PrimaryName(item) is not { } title) continue;
                 var publishers = Links(version, "rpgpublisher");
-                return new BookRecord("RPGGeek", (string?)item.Attribute("id") ?? found, found, title, Links(item, "rpgdesigner"),
+                return new BookRecord(Source, (string?)item.Attribute("id") ?? found, found, title, Links(item, "rpgdesigner"),
                     publishers.Count > 0 ? publishers : Links(item, "rpgpublisher"), Year(version) ?? Year(item),
                     [.. Filed.SelectMany(f => Links(item, f.Link).Select(v => new CatalogueValue(f.Field.Key, v)))]);
             }

@@ -250,6 +250,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     [NotifyPropertyChangedFor(nameof(VisibleFields), nameof(HasHiddenFields))]
     public partial IReadOnlyList<MetadataFieldViewModel> Fields { get; private set; } = [];
 
+    /// <summary>Some of the book's details came from RPGGeek, which the details credit to BoardGameGeek.</summary>
+    [ObservableProperty]
+    public partial bool FromRpgGeek { get; private set; }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleFields), nameof(HasHiddenFields), nameof(MoreFieldsLabel))]
     public partial bool ShowAllFields { get; set; }
@@ -283,6 +287,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             ShowEvidence = open.Contains(f.Field),
             MarksGuesses = IsCorrecting,
         })];
+        FromRpgGeek = metadata.Fields.Any(f => BookRecords.Shows(f, RpgGeekCatalogue.Source));
         if (changed) MetadataChanged?.Invoke(this, EventArgs.Empty);
     }
 

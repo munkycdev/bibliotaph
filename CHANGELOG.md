@@ -8,6 +8,9 @@
   PZO1110, so books with a code but no ISBN are looked up too. Books looked up before get artists and mechanics once
   you press the run-again button on **Looking up online** in Settings › Processing. See
   [Cataloging](docs/guide/cataloging.md).
+- **The "Powered by BGG" logo has moved** from the foot of every web page to where RPGGeek's data shows: under a
+  book's details when some of them came from RPGGeek, on Windows and the web. It's also in About on Windows and on the
+  website's licences page. See [Cataloging](docs/guide/cataloging.md).
 
 ## 1.4 ┬╖ 28 October 2026
 
