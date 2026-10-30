@@ -44,6 +44,8 @@ public sealed class RpgGeekTests
             <link type="rpgsetting" id="8" value="Example World" />
             <link type="rpgseries" id="9" value="Example Line" />
             <link type="rpgmechanic" id="10" value="Dice (Various)" />
+            <link type="rpgartist" id="11" value="C. Painter" />
+            <link type="rpgproducer" id="12" value="D. Producer" />
             <versions>
               <item type="rpgitemversion" id="9001"><name type="primary" value="PDF" /><yearpublished value="0" />
                 <productcode value="" /><isbn10 value="" /><isbn13 value="" /></item>
@@ -69,17 +71,18 @@ public sealed class RpgGeekTests
         var server = Answering();
         var catalogue = Catalogue(server);
 
-        var answer = await catalogue.AskAsync(["9781234567897"], ["The Owlbear Mill"], Ct);
-        var again = await catalogue.AskAsync(["9781234567897"], ["The Owlbear Mill"], Ct);
-        var other = await catalogue.AskAsync(["9780555555552"], ["The Owlbear Mill"], Ct);
+        var answer = await catalogue.AskAsync(["9781234567897"], ["The Owlbear Mill"], [], Ct);
+        var again = await catalogue.AskAsync(["9781234567897"], ["The Owlbear Mill"], [], Ct);
+        var other = await catalogue.AskAsync(["9780555555552"], ["The Owlbear Mill"], [], Ct);
 
         var record = Assert.Single(answer.Records);
         Assert.Equal(("RPGGeek", "302", "9781234567897", "The Owlbear Mill", "2020"), (record.Source, record.Key, record.Isbn, record.Title, record.Published));
         Assert.Equal(["A. Example"], record.Authors);
         Assert.Equal(["Sample Games"], record.Publishers);
-        // What it's filed under, in RPGGeek's words; mechanics aren't used.
+        // What it's filed under, who drew it and its mechanics, in RPGGeek's words; producers aren't used.
         Assert.Equal(
-            [("system", "Example System"), ("type", "Scenario / Adventure / Module"), ("theme", "Horror (Supernatural)"), ("setting", "Example World"), ("series", "Example Line")],
+            [("system", "Example System"), ("type", "Scenario / Adventure / Module"), ("theme", "Horror (Supernatural)"), ("setting", "Example World"),
+                ("series", "Example Line"), ("artists", "C. Painter"), ("mechanics", "Dice (Various)")],
             record.Values!.Select(v => (v.Field, v.Value)));
         Assert.Equal("RPGGeek", answer.AskedOf);
         // The exact name first, then those starting with it, then those holding it; one that doesn't is left out.
@@ -93,11 +96,27 @@ public sealed class RpgGeekTests
     }
 
     [Fact]
+    public async Task A_version_listing_a_product_code_the_book_prints_names_it_when_no_version_lists_its_isbn()
+    {
+        var catalogue = Catalogue(Answering());
+
+        var byCode = Assert.Single((await catalogue.AskAsync([], ["The Owlbear Mill"], ["EX1001"], Ct)).Records);
+        var byIsbn = Assert.Single((await catalogue.AskAsync(["9780306406157"], ["The Owlbear Mill"], ["EX1001"], Ct)).Records);
+        // RPGGeek writes an empty code for a version without one, which matches nothing.
+        var neither = await catalogue.AskAsync([], ["The Owlbear Mill"], ["EX9999"], Ct);
+
+        Assert.Equal(("302", "EX1001", "product code"), (byCode.Key, byCode.Isbn, BookRecords.FoundBy(byCode)));
+        // An ISBN is the surer match, whichever item lists it.
+        Assert.Equal(("301", "ISBN"), (byIsbn.Key, BookRecords.FoundBy(byIsbn)));
+        Assert.Empty(neither.Records);
+    }
+
+    [Fact]
     public async Task Without_a_title_there_is_nothing_to_search_for()
     {
         var server = Answering();
 
-        Assert.Empty((await Catalogue(server).AskAsync(["9781234567897"], [], Ct)).Records);
+        Assert.Empty((await Catalogue(server).AskAsync(["9781234567897"], [], [], Ct)).Records);
         Assert.Null(await Catalogue(server).FindAsync(["9781234567897"], Ct));
         Assert.Empty(server.Asked);
     }
@@ -109,7 +128,7 @@ public sealed class RpgGeekTests
     public async Task Throttled_or_refused_is_unavailable_not_an_answer(HttpStatusCode status, string said)
     {
         var ex = await Assert.ThrowsAsync<CatalogueUnavailableException>(() =>
-            Catalogue(new Server(_ => (status, ""))).AskAsync(["9781234567897"], ["The Owlbear Mill"], Ct));
+            Catalogue(new Server(_ => (status, ""))).AskAsync(["9781234567897"], ["The Owlbear Mill"], [], Ct));
         Assert.Contains(said, ex.Message, StringComparison.Ordinal);
     }
 
@@ -126,7 +145,7 @@ public sealed class RpgGeekTests
         var server = Answering();
         var openLibrary = new Fixed(new BookRecord("Open Library", "OL1M", "9781234567897", "The Owlbear Mill", [], ["Example Press"], "2019"));
 
-        var answer = await new BookCatalogues([Catalogue(server), openLibrary]).AskAsync(["9781234567897"], ["owlbear_mill_v2"], Ct);
+        var answer = await new BookCatalogues([Catalogue(server), openLibrary]).AskAsync(["9781234567897"], ["owlbear_mill_v2"], [], Ct);
 
         Assert.Equal(["RPGGeek", "Open Library"], answer.Records.Select(r => r.Source));
         Assert.Equal("RPGGeek or Open Library", answer.AskedOf);
