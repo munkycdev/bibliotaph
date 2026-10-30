@@ -23,6 +23,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using LibrarySummary = Bibliotaph.Api.Contracts.LibrarySummary;
 
 namespace Bibliotaph.Server.Tests;
 

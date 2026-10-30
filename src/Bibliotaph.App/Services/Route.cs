@@ -12,6 +12,8 @@ public enum Route
     /// <summary>Editing one binder: its items in order, with sections and notes.</summary>
     SessionEdit,
     NeedsReview,
+    /// <summary>The library by the numbers.</summary>
+    Summary,
     Settings,
     PilotReview,
     Viewer,

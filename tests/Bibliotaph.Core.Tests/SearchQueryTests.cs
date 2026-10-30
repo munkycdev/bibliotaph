@@ -96,6 +96,9 @@ public class SearchQueryTests
     [InlineData("favourite:Y dragon", "AND(favorite:yes, dragon)")]
     [InlineData("fav:false", "favorite:no")]
     [InlineData("-favorite:yes", "-favorite:yes")]
+    [InlineData("opened:no", "opened:no")]
+    [InlineData("opened:never", "opened:no")]
+    [InlineData("-opened:yes dragon", "AND(-opened:yes, dragon)")]
     [InlineData("where:elsewhere", "where:elsewhere")]
     [InlineData("where:Online dragon", "AND(where:elsewhere, dragon)")]
     [InlineData("-where:here", "-where:here")]
@@ -150,6 +153,10 @@ public class SearchQueryTests
     [InlineData("favorite:ye*")]
     public void A_favorite_that_isnt_yes_or_no_is_reported(string text) =>
         Assert.Contains("favorite: can be yes or no", OnlyIssue(text).Message, StringComparison.Ordinal);
+
+    [Fact]
+    public void Opened_that_isnt_yes_or_no_is_reported() =>
+        Assert.Contains("opened: can be yes or no", OnlyIssue("opened:sometimes").Message, StringComparison.Ordinal);
 
     [Theory]
     [InlineData("where:attic")]

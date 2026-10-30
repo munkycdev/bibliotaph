@@ -160,6 +160,7 @@ public partial class App : Application
         builder.Services.AddSingleton<IndexQueries>();
         builder.Services.AddSingleton<UserTagQueries>();
         builder.Services.AddSingleton<LibraryQueries>();
+        builder.Services.AddSingleton<SummaryQueries>();
 
         // PDFium runs only in worker processes; none starts until something asks for a page.
         builder.Services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions(), sp.GetRequiredService<ILoggerFactory>()));
@@ -198,6 +199,8 @@ public partial class App : Application
         builder.Services.AddSingleton<SessionsService>();
         builder.Services.AddSingleton<SmartViewStore>();
         builder.Services.AddSingleton<PinStore>();
+        builder.Services.AddSingleton<SummaryStore>();
+        builder.Services.AddSingleton<LibrarySummaryService>();
         builder.Services.AddSingleton<PinsService>();
         builder.Services.AddSingleton<NoteStore>();
         builder.Services.AddSingleton<AskHistoryStore>();
@@ -434,6 +437,7 @@ public partial class App : Application
         builder.Services.AddTransient<AiSettingsViewModel>();
         builder.Services.AddTransient<BuiltInAiViewModel>();
         builder.Services.AddTransient<AiReadingViewModel>();
+        builder.Services.AddTransient<SummaryViewModel>();
         builder.Services.AddTransient<PilotPanelViewModel>();
         builder.Services.AddTransient<PilotReviewViewModel>();
         // One check a download page, so a check keeps running while the library is shown.
@@ -464,6 +468,7 @@ public partial class App : Application
         Route.PilotReview => services.GetRequiredService<PilotReviewViewModel>(),
         Route.DownloadCheck => services.GetRequiredService<DownloadCheckViewModel>(),
         Route.AiReading => services.GetRequiredService<AiReadingViewModel>(),
+        Route.Summary => services.GetRequiredService<SummaryViewModel>(),
         // An online reader opens with its book (OnlineReaders); by route alone, the Library.
         Route.OnlineReader => services.GetRequiredService<LibraryViewModel>(),
         Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),

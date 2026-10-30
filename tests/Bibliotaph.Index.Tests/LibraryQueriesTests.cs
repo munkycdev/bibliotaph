@@ -370,6 +370,12 @@ public sealed class LibraryQueriesTests : IndexFixture
         await store.SetOpenedAsync([EntryOf(Lairs)], new Dictionary<EntryId, DateTime> { [EntryOf(Lairs)] = monday.AddDays(2) }, Ct);
         Assert.Equal([Lairs, TavernMap, Gazetteer],
             (await _library.ListAsync(new LibraryFilter(Sort: LibrarySort.RecentlyOpened, OnlyOpened: true), ct: Ct)).Select(e => e.DocumentId));
+
+        // opened:yes and opened:no, as the Summary page's backlog opens the Library.
+        Assert.Equal([Gazetteer, Lairs, TavernMap], (await DocumentsAsync("opened:yes")).Order());
+        Assert.Equal(HauntedInn, Assert.Single(await DocumentsAsync("opened:no")));
+        Assert.Equal(HauntedInn, Assert.Single(await DocumentsAsync("-opened:yes")));
+        Assert.Equal(Gazetteer, Assert.Single(await DocumentsAsync("marches opened:yes")));
     }
 
     [Fact]

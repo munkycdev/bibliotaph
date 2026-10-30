@@ -1,0 +1,305 @@
+<UserControl x:Class="Bibliotaph.App.Views.SummaryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:core="clr-namespace:Bibliotaph.Core;assembly=Bibliotaph.Core"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:SummaryViewModel}">
+  <!--
+    Summary: four bands, the hoard, where it came from, what it is and what has been done with it. Every count is a
+    button that opens the Library at the books it counts, and says what it counts when pointed at.
+  -->
+  <UserControl.Resources>
+    <Style x:Key="Band" TargetType="Border">
+      <Setter Property="BorderBrush" Value="{DynamicResource Bt.Line}" />
+      <Setter Property="BorderThickness" Value="0,1,0,0" />
+      <Setter Property="Padding" Value="0,24,0,8" />
+      <Setter Property="Margin" Value="0,28,0,0" />
+    </Style>
+
+    <Style x:Key="ListHeading" TargetType="TextBlock" BasedOn="{StaticResource Text.Row}">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- A figure that opens the Library: no button chrome, a hand only when it goes somewhere. -->
+    <Style x:Key="Figure" TargetType="Button">
+      <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Command" Value="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+      <Setter Property="CommandParameter" Value="{Binding Link}" />
+      <Setter Property="AutomationProperties.HelpText" Value="Opens the Library at these books" />
+      <Style.Triggers>
+        <DataTrigger Binding="{Binding Link}" Value="{x:Null}">
+          <Setter Property="Cursor" Value="Arrow" />
+          <Setter Property="Focusable" Value="False" />
+          <Setter Property="AutomationProperties.HelpText" Value="" />
+        </DataTrigger>
+      </Style.Triggers>
+    </Style>
+
+    <DataTemplate x:Key="Tile" DataType="{x:Type vm:SummaryTile}">
+      <Button Style="{StaticResource Figure}" Margin="0,0,12,12" AutomationProperties.Name="{Binding Label}">
+        <Button.Template>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Box" Width="168" MinHeight="74" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
+                    BorderThickness="1" CornerRadius="10" Padding="16,12">
+              <StackPanel>
+                <TextBlock Text="{Binding Count}" FontSize="24" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Small}" />
+                <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" FontSize="10"
+                           Visibility="{Binding Detail, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              </StackPanel>
+            </Border>
+            <ControlTemplate.Triggers>
+              <MultiTrigger>
+                <MultiTrigger.Conditions>
+                  <Condition Property="IsMouseOver" Value="True" />
+                  <Condition Property="Focusable" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+              </MultiTrigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Button.Template>
+      </Button>
+    </DataTemplate>
+
+    <ItemsPanelTemplate x:Key="Tiles">
+      <WrapPanel />
+    </ItemsPanelTemplate>
+
+    <!-- A bar: the confirmed share in the accent over the suggested share in its lighter step. -->
+    <DataTemplate x:Key="Bar" DataType="{x:Type vm:SummaryBar}">
+      <Button Style="{StaticResource Figure}" ToolTip="{Binding ToolTip}" AutomationProperties.Name="{Binding ToolTip}">
+        <Button.Template>
+          <ControlTemplate TargetType="Button">
+            <Grid Background="Transparent" Margin="0,3">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="140" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" MinWidth="44" />
+              </Grid.ColumnDefinitions>
+              <TextBlock x:Name="Label" Text="{Binding Label}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" Margin="0,0,10,0" />
+              <Grid Grid.Column="1" VerticalAlignment="Center">
+                <ProgressBar x:Name="Suggested" Style="{StaticResource Bt.ProgressBar}" Height="8" Maximum="1" Value="{Binding Total, Mode=OneWay}"
+                             Background="Transparent" Foreground="{DynamicResource Bt.ChartSoft}" />
+                <ProgressBar x:Name="Confirmed" Style="{StaticResource Bt.ProgressBar}" Height="8" Maximum="1" Value="{Binding Confirmed, Mode=OneWay}"
+                             Background="Transparent" />
+              </Grid>
+              <TextBlock Grid.Column="2" Text="{Binding Count}" Style="{StaticResource Text.Small}" TextAlignment="Right" VerticalAlignment="Center"
+                         Margin="10,0,0,0" />
+            </Grid>
+            <ControlTemplate.Triggers>
+              <MultiTrigger>
+                <MultiTrigger.Conditions>
+                  <Condition Property="IsMouseOver" Value="True" />
+                  <Condition Property="Focusable" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+              </MultiTrigger>
+              <DataTrigger Binding="{Binding Offline}" Value="True">
+                <Setter TargetName="Confirmed" Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+              </DataTrigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Button.Template>
+      </Button>
+    </DataTemplate>
+
+    <!-- A column of a strip: its bar standing on the baseline, its tick under it. -->
+    <DataTemplate x:Key="Column" DataType="{x:Type vm:SummaryColumn}">
+      <Button Style="{StaticResource Figure}" ToolTip="{Binding ToolTip}" AutomationProperties.Name="{Binding ToolTip}">
+        <Button.Template>
+          <ControlTemplate TargetType="Button">
+            <StackPanel Background="Transparent">
+              <Grid Height="{x:Static vm:SummaryViewModel.StripHeight}">
+                <Border x:Name="Bar" Height="{Binding Height}" VerticalAlignment="Bottom" Margin="2,0" CornerRadius="3,3,0,0"
+                        Background="{DynamicResource Bt.Accent}" Opacity="0.85" />
+              </Grid>
+              <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" />
+              <TextBlock Text="{Binding Tick}" Style="{StaticResource Text.Small}" FontSize="10" TextAlignment="Center" Margin="0,5,0,0" />
+            </StackPanel>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Bar" Property="Opacity" Value="1" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Button.Template>
+      </Button>
+    </DataTemplate>
+
+    <ItemsPanelTemplate x:Key="Strip">
+      <UniformGrid Rows="1" />
+    </ItemsPanelTemplate>
+  </UserControl.Resources>
+
+  <StackPanel MaxWidth="980" HorizontalAlignment="Left" Margin="0,0,42,32">
+    <TextBlock Text="{x:Static core:SummaryText.Title}" Style="{StaticResource Text.H1}" />
+    <TextBlock Text="{x:Static core:SummaryText.Subtitle}" Style="{StaticResource Text.Subtitle}" />
+
+    <c:EmptyState Title="Nothing to count yet." Message="{x:Static core:SummaryText.Empty}" Margin="0,28,0,0"
+                  ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}"
+                  Visibility="{Binding IsEmpty, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+
+    <StackPanel Visibility="{Binding HasBooks, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <!-- The hoard -->
+      <Border Style="{StaticResource Band}">
+        <StackPanel>
+          <TextBlock Text="THE HOARD" Style="{StaticResource Text.Eyebrow}" />
+          <TextBlock FontFamily="{StaticResource Font.Display}" FontSize="28" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,10,0,0">
+            <Run Text="You own " /><Hyperlink Command="{Binding OpenCommand}" CommandParameter="{Binding Everything}" Foreground="{DynamicResource Bt.Accent}"
+              TextDecorations="{x:Null}" AutomationProperties.Name="Every book in the Library"><Run Text="{Binding BooksText, Mode=OneWay}" /></Hyperlink><Run
+              Text=", " /><Run Text="{Binding PagesText, Mode=OneWay}" /><Run Text=" and " /><Run Text="{Binding SizeText, Mode=OneWay}" /><Run Text=" of RPG material." />
+          </TextBlock>
+          <TextBlock Text="{Binding ReadingTime}" Style="{StaticResource Text.Subtitle}"
+                     Visibility="{Binding ReadingTime, Converter={StaticResource Bt.VisibleWhenSet}}" />
+          <ItemsControl ItemsSource="{Binding Hoard}" ItemTemplate="{StaticResource Tile}" ItemsPanel="{StaticResource Tiles}" Focusable="False"
+                        Margin="0,20,0,0" AutomationProperties.Name="What the library holds" />
+        </StackPanel>
+      </Border>
+
+      <!-- Where it came from -->
+      <Border Style="{StaticResource Band}">
+        <StackPanel>
+          <TextBlock Text="WHERE IT CAME FROM" Style="{StaticResource Text.Eyebrow}" />
+          <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="40" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Visibility="{Binding Folders, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel Margin="0,0,0,8">
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Manage folders" Command="{Binding ManageFoldersCommand}" />
+                <TextBlock Text="{Binding Folders.Heading}" Style="{StaticResource ListHeading}" VerticalAlignment="Center" />
+              </DockPanel>
+              <ItemsControl ItemsSource="{Binding Folders.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False"
+                            AutomationProperties.Name="{Binding Folders.Heading}" />
+              <TextBlock Text="{Binding OfflineText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                         Visibility="{Binding OfflineText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <DockPanel Margin="0,0,0,8">
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Import more" Command="{Binding ImportMoreCommand}" />
+                <TextBlock Text="Online libraries and stores" Style="{StaticResource ListHeading}" VerticalAlignment="Center" />
+              </DockPanel>
+              <TextBlock Text="No book says where else you own it, or where it came from, yet." Style="{StaticResource Text.Small}"
+                         Visibility="{Binding Sources, Converter={StaticResource Bt.CollapsedWhenSet}}" />
+              <ItemsControl ItemsSource="{Binding Sources.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False"
+                            AutomationProperties.Name="Online libraries and stores" />
+              <TextBlock Text="{Binding StoresText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                         Visibility="{Binding StoresText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- What it is -->
+      <Border Style="{StaticResource Band}">
+        <StackPanel>
+          <DockPanel>
+          <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center" Orientation="Horizontal">
+            <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource Bt.Accent}" Margin="0,0,5,0" />
+            <TextBlock Text="Confirmed" Style="{StaticResource Text.Small}" Margin="0,0,16,0" />
+            <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource Bt.ChartSoft}" Margin="0,0,5,0" />
+            <TextBlock Text="Suggested, not yet reviewed" Style="{StaticResource Text.Small}" />
+          </StackPanel>
+            <TextBlock Text="WHAT IT IS" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+          </DockPanel>
+          <UniformGrid Columns="3" Margin="0,14,0,0">
+            <StackPanel Margin="0,0,28,0" Visibility="{Binding Systems, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Systems.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Systems.Heading}" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <ItemsControl ItemsSource="{Binding Systems.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Game systems" />
+            </StackPanel>
+            <StackPanel Margin="0,0,28,0" Visibility="{Binding Types, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Types.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Types.Heading}" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <ItemsControl ItemsSource="{Binding Types.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Types" />
+            </StackPanel>
+            <StackPanel Visibility="{Binding Settings, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Settings.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Settings.Heading}" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <ItemsControl ItemsSource="{Binding Settings.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Settings" />
+            </StackPanel>
+          </UniformGrid>
+
+          <Grid Margin="0,28,0,0">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="3*" />
+              <ColumnDefinition Width="40" />
+              <ColumnDefinition Width="2*" />
+            </Grid.ColumnDefinitions>
+            <StackPanel>
+              <DockPanel Margin="0,0,0,10">
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="{Binding LevelsUnknownText}" Command="{Binding OpenCommand}"
+                        CommandParameter="{Binding LevelsUnknownLink}" Visibility="{Binding LevelsUnknownText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                <TextBlock Text="By character level" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <TextBlock Text="No book or adventure has its levels yet." Style="{StaticResource Text.Small}"
+                         Visibility="{Binding LevelsText, Converter={StaticResource Bt.CollapsedWhenSet}}" />
+              <ItemsControl ItemsSource="{Binding Levels}" ItemTemplate="{StaticResource Column}" ItemsPanel="{StaticResource Strip}" Focusable="False"
+                            AutomationProperties.Name="Books and adventures by character level" />
+              <TextBlock Text="{Binding LevelsText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                         Visibility="{Binding LevelsText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <DockPanel Margin="0,0,0,10">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding YearUnknownText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="Published, by decade" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <TextBlock Text="No book has its year yet." Style="{StaticResource Text.Small}"
+                         Visibility="{Binding YearsText, Converter={StaticResource Bt.CollapsedWhenSet}}" />
+              <ItemsControl ItemsSource="{Binding Decades}" ItemTemplate="{StaticResource Column}" ItemsPanel="{StaticResource Strip}" Focusable="False"
+                            AutomationProperties.Name="Books by the decade they were published" />
+              <TextBlock Text="{Binding YearsText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                         Visibility="{Binding YearsText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            </StackPanel>
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- What you've done with it -->
+      <Border Style="{StaticResource Band}">
+        <StackPanel>
+          <TextBlock Text="WHAT YOU’VE DONE WITH IT" Style="{StaticResource Text.Eyebrow}" />
+          <TextBlock Text="{Binding OpenedText}" FontFamily="{StaticResource Font.Display}" FontSize="28" Foreground="{DynamicResource Bt.Text}"
+                     TextWrapping="Wrap" Margin="0,10,0,0" />
+          <Button Style="{StaticResource Bt.Link}" FontSize="12" Content="{Binding WaitingText}" Command="{Binding OpenCommand}"
+                  CommandParameter="{Binding NeverOpened}" AutomationProperties.HelpText="Opens the Library at the books not opened yet" />
+          <ProgressBar Style="{StaticResource Bt.ProgressBar}" Height="10" Maximum="1" Value="{Binding OpenedShare, Mode=OneWay}" MaxWidth="620"
+                       HorizontalAlignment="Stretch" Background="{DynamicResource Bt.Soft}" Margin="0,10,0,0" AutomationProperties.Name="{Binding OpenedText}" />
+          <ItemsControl ItemsSource="{Binding Work}" ItemTemplate="{StaticResource Tile}" ItemsPanel="{StaticResource Tiles}" Focusable="False"
+                        Margin="0,20,0,0" AutomationProperties.Name="What you have made of it" />
+          <TextBlock Text="{Binding ReadingText}" Style="{StaticResource Text.Small}" />
+
+          <StackPanel Margin="0,24,0,0" Visibility="{Binding HasGrowth, Converter={StaticResource Bt.VisibleWhenTrue}}">
+            <TextBlock Text="Growth since your first book" Style="{StaticResource ListHeading}" Margin="0,0,0,10" />
+            <c:GrowthChart Height="140" Values="{Binding Growth}" Labels="{Binding GrowthLabels}" Stroke="{DynamicResource Bt.Accent}"
+                           Fill="{DynamicResource Bt.Soft}" Grid="{DynamicResource Bt.Line}"
+                           AutomationProperties.Name="Books in the library each month" AutomationProperties.HelpText="{Binding GrowthEnd}" />
+            <Grid Margin="0,5,0,0">
+              <TextBlock Text="{Binding GrowthStart}" Style="{StaticResource Text.Small}" FontSize="10" HorizontalAlignment="Left" />
+              <TextBlock Text="{Binding GrowthMiddle}" Style="{StaticResource Text.Small}" FontSize="10" HorizontalAlignment="Center" />
+              <TextBlock Text="{Binding GrowthEnd}" Style="{StaticResource Text.Small}" FontSize="10" HorizontalAlignment="Right" />
+            </Grid>
+            <TextBlock Text="{Binding BiggestDayText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                       Visibility="{Binding BiggestDayText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

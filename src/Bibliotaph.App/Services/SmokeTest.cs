@@ -122,6 +122,8 @@ static partial class SmokeTest
             await Check("Ask with AI off saying it needs AI, its link to Settings > AI, and the search box searching as before",
                 () => PlainSearchWithoutAiAsync(services, window, books));
             await Check("a book marked a favorite, shown in Favorites, found by favorite:yes and unmarked", () => UseFavoritesAsync(services, window, books));
+            await Check("the Summary page opened from Home, its books, a folder's bar and the books not opened yet each opening the Library at them",
+                () => ShowSummaryAsync(services, window, books));
             await Check("the Library's order picked for browsing and for a search, each kept on a new Library page and in the settings",
                 () => RememberSortAsync(services, window, books));
             await Check("a collection made with a sub-collection, books added and found in it, pinned, renamed, deleted and brought back",
@@ -1656,6 +1658,48 @@ static partial class SmokeTest
     /// it, with a chip whose × shows the whole library; favorite:yes finds it; Home offers the way in; and the card
     /// menu's command unmarks it, leaving Favorites empty.
     /// </summary>
+    static async Task ShowSummaryAsync(IServiceProvider services, Window window, int books)
+    {
+        var shell = services.GetRequiredService<ShellViewModel>();
+        var search = services.GetRequiredService<SearchState>();
+        var navigation = services.GetRequiredService<INavigationService>();
+        shell.NavigateCommand.Execute(Route.Home);
+        var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("The Home route didn't open Home.");
+        var count = SummaryText.Plural(books, "book", "books");
+        await WaitUntilAsync(window, () => home.TotalsText.StartsWith(count + ",", StringComparison.Ordinal),
+            () => $"Home's line reads “{home.TotalsText}”, not {count}.");
+        home.OpenSummaryCommand.Execute(null);
+        await Settle(window);
+        var page = shell.CurrentPage as SummaryViewModel ?? throw new InvalidOperationException("Home's link didn't open Summary.");
+        await WaitUntilAsync(window, () => page.HasBooks && page.BooksText == count && page.Folders is { Bars.Count: > 0 },
+            () => $"Summary says “{page.BooksText}”, not {count}, or lists no folder.");
+        if (!shell.NavItems.Single(n => n.Route == Route.Summary).IsActive) throw new InvalidOperationException("The sidebar doesn't mark Summary as the page shown.");
+        await AuditAsync(window, "Summary");
+
+        page.OpenCommand.Execute(page.Everything);
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Items.Count: var shown } && shown == books && search.Text.Length == 0,
+            () => "The hero line's count didn't open the whole Library.");
+        navigation.GoBack();
+        await Settle(window);
+
+        var folder = page.Folders!.Bars[0];
+        page.OpenCommand.Execute(folder.Link);
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel library && library.Filters.FolderChoice.Value == folder.Link!.Filters!.Folder
+                && library.Items.Count.ToString("N0", CultureInfo.InvariantCulture) == folder.Count.Split(' ')[0],
+            () => $"The bar for {folder.Label} didn't open the Library at its {folder.Count}.");
+        navigation.GoBack();
+        await Settle(window);
+
+        page.OpenCommand.Execute(page.NeverOpened);
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel && search.Text == "opened:no",
+            () => $"The books still waiting opened the Library searching “{search.Text}”.");
+        search.Search("");
+        navigation.GoBack();
+        await Settle(window);
+        navigation.GoBack();
+        await Settle(window);
+    }
+
     static async Task UseFavoritesAsync(IServiceProvider services, Window window, int books)
     {
         var shell = services.GetRequiredService<ShellViewModel>();
