@@ -12,8 +12,8 @@ namespace Bibliotaph.Processing;
 /// RPGGeek, BoardGameGeek's catalogue of tabletop RPG products, asked only by the web server, which holds the token of
 /// the app registered with BoardGameGeek. It knows RPGs, small-press ones included, better than any library catalogue,
 /// so its records come first. Its XML API is searched by name only, so it is searched with the book's title, a record
-/// title from another catalogue first; an item is taken only when one of its versions lists an ISBN the book prints,
-/// so a book is never named by a title alone. BoardGameGeek asks for about five seconds between requests (<see cref="Pace"/>,
+/// title from another catalogue first; an item is taken only when one of its versions lists an ISBN or product code
+/// the book prints, so a book is never named by a title alone. BoardGameGeek asks for about five seconds between requests (<see cref="Pace"/>,
 /// unless a test gives another) and for answers to be kept, so they're kept for a month.
 /// </summary>
 public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider? clock = null, TimeSpan? pace = null) : IBookCatalogue
@@ -57,14 +57,15 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
     /// <summary>Nothing to search for without a title.</summary>
     public Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) => Task.FromResult<BookRecord?>(null);
 
-    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, CancellationToken ct = default)
+    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
+        CancellationToken ct = default)
     {
         foreach (var title in titles.Where(t => BookRecords.Simplify(t).Length > 0).Take(MostSearches))
         {
             var query = Uri.EscapeDataString(title.Trim()).Replace("%20", "+", StringComparison.Ordinal);
             var ids = Candidates(Parse(await GetAsync($"xmlapi2/search?query={query}&type=rpgitem", ct)), title);
             if (ids.Count == 0) continue;
-            if (Read(Parse(await GetAsync($"xmlapi2/thing?id={string.Join(',', ids)}&type=rpgitem&versions=1", ct)), isbns) is { } record)
+            if (Read(Parse(await GetAsync($"xmlapi2/thing?id={string.Join(',', ids)}&type=rpgitem&versions=1", ct)), isbns, codes) is { } record)
                 return new CatalogueAnswer([record], Name);
         }
         return new CatalogueAnswer([], Name);
@@ -88,29 +89,41 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
             .Take(MostItems) ?? []];
     }
 
-    /// <summary>What an item's links file it under, by the field each fills; mechanics, artists and the rest aren't used.</summary>
+    /// <summary>What an item's links file it under, and who drew it and the mechanics it uses, by the field each fills; producers and the rest aren't used.</summary>
     static readonly (string Link, MetadataField Field)[] Filed =
     [
         ("rpg", MetadataFields.System), ("rpgcategory", MetadataFields.Types), ("rpggenre", MetadataFields.Themes),
-        ("rpgsetting", MetadataFields.Settings), ("rpgseries", MetadataFields.Series),
+        ("rpgsetting", MetadataFields.Settings), ("rpgseries", MetadataFields.Series), ("rpgartist", MetadataFields.Artists),
+        ("rpgmechanic", MetadataFields.Mechanics),
     ];
 
     /// <summary>
-    /// The record of the first item one of whose versions lists one of <paramref name="isbns"/>: its name, designers,
-    /// the version's publisher (or the item's) and year (or the item's), and the systems, categories, genres, settings
-    /// and series it is filed under.
+    /// The record of the first item one of whose versions lists one of <paramref name="isbns"/>, or else one of the
+    /// product codes the book prints (<paramref name="codes"/>, as <see cref="ProductCode"/> keeps them): its name,
+    /// designers, the version's publisher (or the item's) and year (or the item's), the systems, categories, genres,
+    /// settings and series it is filed under, and its artists and mechanics. An ISBN is the surer match, so every item
+    /// is looked through for one before a code is taken.
     /// </summary>
-    internal static BookRecord? Read(XDocument things, IReadOnlyList<string> isbns)
+    internal static BookRecord? Read(XDocument things, IReadOnlyList<string> isbns, IReadOnlyList<string>? codes = null)
+    {
+        string? ByIsbn(XElement version) => new[] { Value(version, "isbn13"), Value(version, "isbn10") }.OfType<string>()
+            .Select(Isbn.Normalize).FirstOrDefault(i => i is not null && isbns.Contains(i));
+        string? ByCode(XElement version) =>
+            Value(version, "productcode") is { } code && ProductCode.Normalize(code) is { } normal && codes!.Contains(normal) ? normal : null;
+        return Read(things, ByIsbn) ?? (codes is { Count: > 0 } ? Read(things, ByCode) : null);
+    }
+
+    /// <summary>The record of the first item with a version <paramref name="matched"/> gives the identifier it was found by.</summary>
+    static BookRecord? Read(XDocument things, Func<XElement, string?> matched)
     {
         foreach (var item in things.Root?.Elements("item") ?? [])
         {
             foreach (var version in item.Element("versions")?.Elements("item") ?? [])
             {
-                var listed = new[] { Value(version, "isbn13"), Value(version, "isbn10") }.OfType<string>().Select(Isbn.Normalize).OfType<string>();
-                if (listed.FirstOrDefault(isbns.Contains) is not { } isbn) continue;
+                if (matched(version) is not { } found) continue;
                 if (PrimaryName(item) is not { } title) continue;
                 var publishers = Links(version, "rpgpublisher");
-                return new BookRecord("RPGGeek", (string?)item.Attribute("id") ?? isbn, isbn, title, Links(item, "rpgdesigner"),
+                return new BookRecord("RPGGeek", (string?)item.Attribute("id") ?? found, found, title, Links(item, "rpgdesigner"),
                     publishers.Count > 0 ? publishers : Links(item, "rpgpublisher"), Year(version) ?? Year(item),
                     [.. Filed.SelectMany(f => Links(item, f.Link).Select(v => new CatalogueValue(f.Field.Key, v)))]);
             }

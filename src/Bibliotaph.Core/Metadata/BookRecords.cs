@@ -5,10 +5,12 @@ using System.Text.RegularExpressions;
 namespace Bibliotaph.Core.Metadata;
 
 /// <summary>
-/// A book's record in an online catalogue, found by one of its ISBNs: <paramref name="Source"/> names the catalogue
-/// ("Open Library"), <paramref name="Key"/> is the record's own id there, and <paramref name="Published"/> is the date
-/// as the catalogue writes it ("1985", "March 2019"). <paramref name="Values"/> are what the catalogue files it under, in
-/// its own words, for a catalogue that knows games (RPGGeek's systems, categories, genres, settings and series).
+/// A book's record in an online catalogue, found by one of its ISBNs, or by a product code it prints
+/// (<paramref name="Isbn"/> is then that code; see <see cref="BookRecords.FoundBy"/>): <paramref name="Source"/> names
+/// the catalogue ("Open Library"), <paramref name="Key"/> is the record's own id there, and <paramref name="Published"/>
+/// is the date as the catalogue writes it ("1985", "March 2019"). <paramref name="Values"/> are what the catalogue files
+/// it under, in its own words, for a catalogue that knows games (RPGGeek's systems, categories, genres, settings and
+/// series), and who drew it and the mechanics it uses.
 /// </summary>
 public sealed record BookRecord(
     string Source, string Key, string Isbn, string Title, IReadOnlyList<string> Authors, IReadOnlyList<string> Publishers, string? Published,
@@ -16,7 +18,7 @@ public sealed record BookRecord(
 
 /// <summary>
 /// Something a catalogue files a book under, in its own words ("Fantasy (High Fantasy)"), by the key of the field it
-/// would fill: system, type, theme, setting or series.
+/// would fill: system, type, theme, setting or series, or artists and mechanics.
 /// </summary>
 public sealed record CatalogueValue(string Field, string Value);
 
@@ -47,7 +49,7 @@ public static partial class BookRecords
     }
 
     /// <summary>
-    /// What the records suggest: a title, authors, first publisher, year and series, each field from the first of
+    /// What the records suggest: a title, authors, first publisher, year, series, artists and mechanics, each field from the first of
     /// <paramref name="records"/> that gives it, so the catalogue the user prefers wins field by field and the next fills
     /// what it lacks. A library catalogue's subjects are a librarian's shelving, not a game's system or type, so they
     /// aren't used; a game catalogue's terms are, through <see cref="Terms"/>.
@@ -71,8 +73,13 @@ public static partial class BookRecords
         Add(MetadataFields.Publisher, r => [r.Publishers.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p))]);
         Add(MetadataFields.Year, r => [Year(r.Published)]);
         Add(MetadataFields.Series, r => [ValuesOf(r, MetadataFields.Series).FirstOrDefault(v => Simplify(v) is not ("misc" or "miscellaneous"))]);
+        Add(MetadataFields.Artists, r => ValuesOf(r, MetadataFields.Artists));
+        Add(MetadataFields.Mechanics, r => ValuesOf(r, MetadataFields.Mechanics));
         return proposals;
     }
+
+    /// <summary>What the record was found by, as a reason or card says it: "ISBN", or "product code" for one found by a code it prints.</summary>
+    public static string FoundBy(BookRecord record) => Isbn.Normalize(record.Isbn) is not null ? "ISBN" : "product code";
 
     /// <summary>Where a suggestion came from, as a card shows it: the record by the title it gives, which says more than its ISBN.</summary>
     static string Quote(BookRecord record) => $"{record.Source}'s record of {record.Title}";

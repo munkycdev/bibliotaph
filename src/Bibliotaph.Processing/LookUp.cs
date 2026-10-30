@@ -6,9 +6,9 @@ using Bibliotaph.Index;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Looking books up by their ISBN: the catalogue asked, and the words the Look up stage records a miss in. Always on:
-/// each catalogue is sent a book's ISBNs, and RPGGeek, which is searched by name, its title too; the Processing
-/// section says where they go.
+/// Looking books up by their ISBN or product code: the catalogue asked, and the words the Look up stage records a miss
+/// in. Always on: each catalogue is sent a book's ISBNs and product codes, and RPGGeek, which is searched by name, its
+/// title too; the Processing section says where they go.
 /// </summary>
 public sealed class BookLookups(IBookCatalogue catalogue)
 {
@@ -16,10 +16,20 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     public IBookCatalogue Catalogue => catalogue;
 
     const string NoRecordBefore = "No record of its ISBN in ";
+    const string NoCodeRecordBefore = "No record of its product code in ";
     const string AskedBefore = "Looked up in ";
 
+    /// <summary>Why a book printing no ISBN or product code isn't looked up.</summary>
+    public const string NothingToLookUp = "It prints no ISBN or product code to look up.";
+
     /// <summary>Why a book none of <paramref name="catalogues"/> ("Open Library or Google Books") knows wasn't looked up.</summary>
-    public static string NoRecordIn(string catalogues) => $"{NoRecordBefore}{catalogues}.";
+    public static string NoRecordIn(string catalogues, bool byCode = false) => $"{(byCode ? NoCodeRecordBefore : NoRecordBefore)}{catalogues}.";
+
+    /// <summary>
+    /// Whether a book was passed over for printing no ISBN, before product codes were looked up too: it's looked at
+    /// again, and one printing neither is passed over again in words that say so.
+    /// </summary>
+    public static bool HadNoIsbn(string? reason) => reason == "It prints no ISBN to look up.";
 
     /// <summary>Where a book was looked up, at the end of how its lookup ended, so it is asked again where more can be asked.</summary>
     public static string AskedOf(string catalogues) => $"{AskedBefore}{catalogues}.";
@@ -41,6 +51,7 @@ public sealed class BookLookups(IBookCatalogue catalogue)
         if (reason is null || !reason.EndsWith('.')) return false;
         string list;
         if (reason.StartsWith(NoRecordBefore, StringComparison.Ordinal)) list = reason[NoRecordBefore.Length..^1];
+        else if (reason.StartsWith(NoCodeRecordBefore, StringComparison.Ordinal)) list = reason[NoCodeRecordBefore.Length..^1];
         else if (reason.LastIndexOf(AskedBefore, StringComparison.Ordinal) is var at and >= 0) list = reason[(at + AskedBefore.Length)..^1];
         else return false;
         return catalogues.Split(" or ").Except(list.Split(" or "), StringComparer.Ordinal).Any();
@@ -48,8 +59,9 @@ public sealed class BookLookups(IBookCatalogue catalogue)
 }
 
 /// <summary>
-/// Look up: asks the online catalogues about the ISBNs a book prints (<see cref="IdentifyStage"/>), and suggests the
-/// title, authors, publisher, year and series their records give, above the AI's (<see cref="AssertionOrigin.Lookup"/>),
+/// Look up: asks the online catalogues about the ISBNs and product codes a book prints (<see cref="IdentifyStage"/>; a
+/// code only RPGGeek's records list), and suggests the title, authors, publisher, year, series, artists and mechanics
+/// their records give, above the AI's (<see cref="AssertionOrigin.Lookup"/>),
 /// each field from the catalogue the user prefers that has it, and the system, edition, types, themes and settings a
 /// game catalogue files it under, as the vocabulary names them. A name the vocabulary doesn't have is proposed as a new
 /// term the way the AI's are, so Settings › Vocabulary's choice for the AI's new names holds for it too. A record is
@@ -83,13 +95,14 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
     {
         await lookups.Catalogue.RefreshAsync(ct);
         var catalogues = lookups.Catalogue.Name;
-        return reason => BookLookups.AskedOfFewer(reason, catalogues) || BookLookups.SetAside(reason);
+        return reason => BookLookups.AskedOfFewer(reason, catalogues) || BookLookups.SetAside(reason) || BookLookups.HadNoIsbn(reason);
     }
 
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         var isbns = await queries.GetIsbnsAsync(job.DocumentId, ct);
-        if (isbns.Count == 0) return new StageOutcome.Done(StageStatus.Skipped, [], "It prints no ISBN to look up.");
+        var codes = await queries.GetProductCodesAsync(job.DocumentId, ct);
+        if (isbns.Count == 0 && codes.Count == 0) return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NothingToLookUp);
 
         // For a catalogue searched only by name, when the others' records give no title to search for.
         var title = await queries.GetTitleAsync(job.DocumentId, ct);
@@ -99,7 +112,7 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         CatalogueAnswer answer;
         try
         {
-            answer = await lookups.Catalogue.AskAsync(isbns, titles, ct);
+            answer = await lookups.Catalogue.AskAsync(isbns, titles, codes, ct);
         }
         catch (CatalogueUnavailableException ex)
         {
@@ -109,7 +122,7 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         {
             // A record no catalogue gives any more isn't worth asking about.
             await records.SaveAsync(job.ContentHash, [], _ => false, ct);
-            return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NoRecordIn(answer.AskedOf));
+            return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NoRecordIn(answer.AskedOf, byCode: isbns.Count == 0));
         }
 
         var places = await PlacesAsync(job.DocumentId, ct);
@@ -131,10 +144,11 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         {
             var record = saved.Waiting[0];
             return new StageOutcome.Done(StageStatus.Skipped, [],
-                $"{record.Source}'s record for its ISBN is of “{record.Title}”, which isn't printed in it, so Needs review asks whether it's this book. {asked}");
+                $"{record.Source}'s record for its {BookRecords.FoundBy(record)} is of “{record.Title}”, which isn't printed in it, so Needs review asks whether it's this book. {asked}");
         }
         var refused = saved.Refused[0];
-        return new StageOutcome.Done(StageStatus.Skipped, [], $"You said {refused.Source}'s record for its ISBN, of “{refused.Title}”, is of another book. {asked}");
+        return new StageOutcome.Done(StageStatus.Skipped, [],
+            $"You said {refused.Source}'s record for its {BookRecords.FoundBy(refused)}, of “{refused.Title}”, is of another book. {asked}");
     }
 
     /// <summary>Where a book names itself: its front pages, its file's name and the title its file gives.</summary>

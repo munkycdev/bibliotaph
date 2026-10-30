@@ -49,6 +49,9 @@ public static class MetadataFields
     public static readonly MetadataField Title = new("title", "Title", FieldKind.Text);
     public static readonly MetadataField Publisher = new("publisher", "Publisher", FieldKind.Text, Vocabulary: "publisher");
     public static readonly MetadataField Authors = new("authors", "Authors", FieldKind.Text, Multiple: true);
+
+    /// <summary>Who drew it, as a catalogue credits them (RPGGeek's artists); the AI isn't asked, since credits pages list far more.</summary>
+    public static readonly MetadataField Artists = new("artists", "Artists", FieldKind.Text, Multiple: true);
     public static readonly MetadataField Series = new("series", "Series", FieldKind.Text);
     public static readonly MetadataField Year = new("year", "Year", FieldKind.Year);
     public static readonly MetadataField System = new("system", "Game system", FieldKind.Term, Vocabulary: "system");
@@ -70,6 +73,12 @@ public static class MetadataFields
     /// <summary>Tone and subject: horror, intrigue, fey. The kind of adventure is <see cref="Styles"/>.</summary>
     public static readonly MetadataField Themes = new("theme", "Themes", FieldKind.Term, Multiple: true, Vocabulary: "theme");
     public static readonly MetadataField Environments = new("environment", "Environments", FieldKind.Term, Multiple: true, Vocabulary: "environment");
+
+    /// <summary>
+    /// The rules it uses, in a catalogue's words ("Dice (d20)", "Class-based"): free text rather than a list to choose
+    /// from, since they mostly describe the game system rather than the book, and the AI isn't asked.
+    /// </summary>
+    public static readonly MetadataField Mechanics = new("mechanics", "Mechanics", FieldKind.Text, Multiple: true);
     public static readonly MetadataField Tags = new("tags", "Your tags", FieldKind.Text, Multiple: true);
 
     /// <summary>
@@ -88,8 +97,8 @@ public static class MetadataFields
 
     /// <summary>Every field, in the order the inspector shows them.</summary>
     public static IReadOnlyList<MetadataField> All { get; } =
-        [Title, System, Edition, Types, Levels, Players, Duration, Publisher, Authors, Series, Year, Settings, Styles, Themes, Environments, AlsoOwn, GetItFrom,
-            Tags];
+        [Title, System, Edition, Types, Levels, Players, Duration, Publisher, Authors, Artists, Series, Year, Settings, Styles, Themes, Environments, Mechanics,
+            AlsoOwn, GetItFrom, Tags];
 
     static readonly Dictionary<string, MetadataField> ByKey = All.ToDictionary(f => f.Key, StringComparer.Ordinal);
 

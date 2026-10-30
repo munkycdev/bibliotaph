@@ -40,6 +40,21 @@ public class BookRecordsTests
     }
 
     [Fact]
+    public void A_game_catalogues_record_suggests_its_artists_and_mechanics()
+    {
+        var record = Record("The Owlbear Mill") with
+        {
+            Source = "RPGGeek",
+            Values = [new CatalogueValue("artists", "C. Painter"), new CatalogueValue("mechanics", "Dice (d20)"), new CatalogueValue("mechanics", "Class-based")],
+        };
+
+        var proposals = BookRecords.Proposals([record]);
+
+        Assert.Equal(["C. Painter"], proposals.Where(p => p.Field == MetadataFields.Artists).Select(p => p.Value));
+        Assert.Equal(["Dice (d20)", "Class-based"], proposals.Where(p => p.Field == MetadataFields.Mechanics).Select(p => p.Value));
+    }
+
+    [Fact]
     public void Each_field_comes_from_the_first_record_that_gives_it()
     {
         var rpggeek = new BookRecord("RPGGeek", "1", "9781234567897", "The Owlbear Mill", ["C. Designer"], [], null);

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Artists and mechanics from RPGGeek, and books found by product code.** A book looked up on RPGGeek now gets its
+  artists and its mechanics (such as "Dice (d20)") in two new fields, which plain search finds; the AI isn't asked
+  for them. RPGGeek's record is also used when one of its versions lists a product code the book prints, such as
+  PZO1110, so books with a code but no ISBN are looked up too. Books looked up before get artists and mechanics once
+  you press the run-again button on **Looking up online** in Settings › Processing. See
+  [Cataloging](docs/guide/cataloging.md).
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1019 (29 October 2026):
