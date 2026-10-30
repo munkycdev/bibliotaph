@@ -345,7 +345,8 @@ public partial class App : Application
             sp.GetRequiredService<ILogger<LibrarySyncStore>>(), sp.GetRequiredService<LookupRecordStore>()));
         builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<LibrarySync>>(), channels: [sp.GetRequiredService<WebLibrary>()]));
+            sp.GetRequiredService<ILogger<LibrarySync>>(), channels: [sp.GetRequiredService<WebLibrary>()],
+            userTags: sp.GetRequiredService<UserTagService>()));
         builder.Services.AddHostedService(sp => sp.GetRequiredService<LibrarySync>());
         // What the AI worked out about this PC's files, shared by content with the user's other devices through the web library.
         builder.Services.AddSingleton<SharedResultCache>();

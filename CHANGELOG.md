@@ -10,6 +10,14 @@
   grown month by month. Every figure opens the Library at the books it counts. Home shows the library's size under the
   welcome, with a link to it. The search box has a new field, `opened:`, so `opened:no` finds the books you haven't
   opened yet. See [Your library in numbers](docs/guide/summary.md).
+- **Needs review answers about new names now reach every device.** When the AI proposed the same new name on the web
+  and on a PC, adding it on one left it waiting on the other, with its books still in Needs review. Now a name you add,
+  file under another term or turn down is decided the same way everywhere, and the books waiting on it move on. A name
+  you turned down is never asked about on your other devices. Pairs you kept apart in Find overlaps, and your own tags
+  with the words they're found by, travel too. See [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
+- **Privacy policy: notice is for personal data.** The 14 days' notice before a change now covers what we collect
+  about you and who we share your personal data with. A new public book catalogue, which only ever receives book
+  titles, ISBNs or product codes, is added to the policy's list when we start asking it.
 - **The "Powered by BGG" logo has moved** from the foot of every web page to where RPGGeek's data shows: under a
   book's details when some of them came from RPGGeek, on Windows and the web. It's also in About on Windows and on the
   website's licences page. See [Cataloging](docs/guide/cataloging.md).
