@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Levels and environments from AdventureLookup.** On the web, and on a PC connected to it, books are now looked up
+  on [AdventureLookup](https://adventurelookup.com) too, a catalogue of published adventures, by their title. Its
+  record is used when the book prints that title and one of its authors or its publisher, or has about as many pages;
+  otherwise Needs review asks **Same book?**. It fills in the levels an adventure is for, which no catalogue gave
+  before, and its edition, setting, environments and series. Books that print no ISBN or product code are looked up
+  by title now too. The vocabulary gains the environments Stronghold, Temple, Mansion and Sky, and the game system
+  Draw Steel. See [Cataloging](docs/guide/cataloging.md).
 - **Artists and mechanics from RPGGeek, and books found by product code.** A book looked up on RPGGeek now gets its
   artists and its mechanics (such as "Dice (d20)") in two new fields, which plain search finds; the AI isn't asked
   for them. RPGGeek's record is also used when one of its versions lists a product code the book prints, such as

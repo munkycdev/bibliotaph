@@ -65,6 +65,42 @@ public class BookRecordsTests
     }
 
     [Fact]
+    public void A_record_found_by_title_alone_is_the_books_when_its_authors_publisher_or_page_count_agree()
+    {
+        var record = new BookRecord("AdventureLookup", "902", "", "The Owlbear Mill", ["Ada Quill"], ["Gull Rock Games"], "2019", Pages: 32);
+        string?[] front = ["THE OWLBEAR MILL", "Written by Ada Quill. Cover by C. Painter."];
+        string?[] other = ["THE OWLBEAR MILL", "A Sample Press adventure"];
+
+        Assert.True(BookRecords.ByTitle(record));
+        Assert.Equal("title", BookRecords.FoundBy(record));
+        Assert.False(BookRecords.ByTitle(Record("The Owlbear Mill")));
+        Assert.True(BookRecords.Agrees(record, front, pages: 120));
+        Assert.True(BookRecords.Agrees(record with { Authors = [] }, ["The Owlbear Mill", "© Gull Rock Games, 2019"], pages: 120));
+        Assert.True(BookRecords.Agrees(record, other, pages: 34));
+        Assert.False(BookRecords.Agrees(record, other, pages: 35));
+        Assert.False(BookRecords.Agrees(record with { Pages = null }, other, pages: 32));
+        // A name only a few letters long is printed by chance too often to count.
+        Assert.False(BookRecords.Agrees(record with { Authors = ["Al"], Publishers = [], Pages = null }, ["Al and the owlbear mill"], pages: null));
+    }
+
+    [Fact]
+    public void An_adventure_catalogues_record_suggests_its_levels_and_files_it_under_its_environments()
+    {
+        var record = Record("The Owlbear Mill") with
+        {
+            Source = "AdventureLookup",
+            Values = [new CatalogueValue("levels", "1-3"), new CatalogueValue("environment", "Underground"), new CatalogueValue("environment", "Forest")],
+        };
+        var vocabulary = new Vocabulary([new Term("environment", "underground", "Underground"), new Term("environment", "forest", "Forest")], []);
+
+        var levels = BookRecords.Proposals([record]).Single(p => p.Field == MetadataFields.Levels);
+        var terms = BookRecords.Terms([record], vocabulary);
+
+        Assert.Equal("1-3", levels.Value);
+        Assert.Equal(["underground", "forest"], terms.Where(t => t.Field == MetadataFields.Environments).Select(t => t.Term?.Key));
+    }
+
+    [Fact]
     public void Each_field_comes_from_the_first_record_that_gives_it()
     {
         var rpggeek = new BookRecord("RPGGeek", "1", "9781234567897", "The Owlbear Mill", ["C. Designer"], [], null);

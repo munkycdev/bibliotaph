@@ -147,8 +147,8 @@ public sealed record ElsewhereCardText(ElsewhereItem Item)
 }
 
 /// <summary>
-/// "RPGGeek's record for its ISBN is of X, which isn't printed in it. Is it this book?": Same book or Not this book, with
-/// what the record says.
+/// "RPGGeek's record for its ISBN is of X, which isn't printed in it. Is it this book?", or for a record found by title
+/// alone, that only its title agrees: Same book or Not this book, with what the record says.
 /// </summary>
 public sealed record LookupMatchCardText(LookupMatchItem Item)
 {
@@ -165,7 +165,9 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
 
     BookRecord Record => Item.Match.Record;
 
-    public string Heading => $"{Record.Source}'s record for its {BookRecords.FoundBy(Record)} is of {Record.Title}, which isn't printed in it. Is it this book?";
+    public string Heading => BookRecords.ByTitle(Record)
+        ? $"{Record.Source} has a record of {Record.Title}, the title it prints, but not its authors, publisher or page count. Is it this book?"
+        : $"{Record.Source}'s record for its {BookRecords.FoundBy(Record)} is of {Record.Title}, which isn't printed in it. Is it this book?";
 
     /// <summary>The record as the catalogue gives it: "The Owlbear Mill · Ada Quill · Gull Rock Games · 2019", then what it files the book under.</summary>
     public string Evidence
@@ -176,9 +178,10 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
             if (Record.Authors.Count > 0) parts.Add(string.Join(", ", Record.Authors));
             if (Record.Publishers.FirstOrDefault(p => !string.IsNullOrWhiteSpace(p)) is { } publisher) parts.Add(publisher);
             if (BookRecords.Year(Record.Published) is { } year) parts.Add(year);
+            if (Record.Pages is { } pages) parts.Add($"{ReviewCardText.N(pages)} pages");
             var line = string.Join(" · ", parts);
-            // Who drew it and its mechanics aren't what it's filed under, and would crowd out what is.
-            var filed = (Record.Values ?? []).Where(v => v.Field != MetadataFields.Artists.Key && v.Field != MetadataFields.Mechanics.Key).Select(v => v.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            // Who drew it, its mechanics and its levels aren't what it's filed under, and would crowd out what is.
+            var filed = (Record.Values ?? []).Where(v => v.Field != MetadataFields.Artists.Key && v.Field != MetadataFields.Mechanics.Key && v.Field != MetadataFields.Levels.Key).Select(v => v.Value).Where(v => !string.IsNullOrWhiteSpace(v)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             if (filed.Count == 0) return line;
             var shown = string.Join("; ", filed.Take(FiledUnder)) + (filed.Count > FiledUnder ? $" and {ReviewCardText.N(filed.Count - FiledUnder)} more" : "");
             return $"{line}. Filed under {shown}.";

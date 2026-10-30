@@ -3,7 +3,8 @@ namespace Bibliotaph.Api.Contracts;
 /// <summary>
 /// A connected PC asking the web library about a book's ISBNs (13 digits each) and the product codes it prints
 /// (capitals and digits, "PZO1110"), so it asks where the server can, with the book's title for a catalogue searched
-/// only by name. <see cref="Isbns"/> is empty for a book that prints only a code.
+/// only by name. <see cref="Isbns"/> is empty for a book that prints only a code, and both are for one that prints
+/// neither, looked up by its title alone.
 /// </summary>
 public sealed record PcLookupRequest(IReadOnlyList<string> Isbns, IReadOnlyList<string>? Titles = null, IReadOnlyList<string>? ProductCodes = null);
 
@@ -18,11 +19,12 @@ public sealed record PcLookupAnswer(string Catalogues, PcBookRecord? Record = nu
 
 /// <summary>
 /// A book's record in an online catalogue, as the server found it, with what a game catalogue files it under
-/// (<see cref="Values"/>, none from a server before it did).
+/// (<see cref="Values"/>, none from a server before it did) and its page count where the catalogue gives one.
+/// <see cref="Isbn"/> is empty for a record found by title alone.
 /// </summary>
 public sealed record PcBookRecord(
     string Source, string Key, string Isbn, string Title, IReadOnlyList<string> Authors, IReadOnlyList<string> Publishers, string? Published,
-    IReadOnlyList<PcCatalogueValue>? Values = null);
+    IReadOnlyList<PcCatalogueValue>? Values = null, int? Pages = null);
 
 /// <summary>Something a catalogue files a book under, in its words, by the key of the field it fills ("system", "theme").</summary>
 public sealed record PcCatalogueValue(string Field, string Value);
