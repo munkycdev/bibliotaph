@@ -35,6 +35,16 @@ public sealed class StoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Writers_setting_a_new_key_at_once_dont_trip_over_each_other()
+    {
+        var settings = new SettingsStore(_contexts);
+
+        await Task.WhenAll(Enumerable.Range(0, 20).Select(i => Task.Run(() => settings.SetAsync("overlaps.asked.theme", $"v{i}", TestContext.Current.CancellationToken))));
+
+        Assert.StartsWith("v", await settings.GetAsync("overlaps.asked.theme", TestContext.Current.CancellationToken), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Adding_the_same_folder_twice_keeps_one_root()
     {
         var roots = new SourceRootStore(_contexts);

@@ -80,7 +80,7 @@ the fonts and the icons; everything else runs only on the server.
 ## Book data from online catalogues
 
 Each catalogue is sent a book's ISBNs, and RPGGeek, which can only be searched by name, a title, and each suggestion it
-gives names it as its source ("Open Library's record for ISBN …"). Settings > Processing says where they go.
+gives names it as its source ("Open Library's record of …", with the record's title). Settings > Processing says where they go.
 
 | Catalogue | Asked by | Terms of its data | Site |
 | --- | --- | --- | --- |

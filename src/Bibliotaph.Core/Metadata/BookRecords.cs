@@ -74,7 +74,8 @@ public static partial class BookRecords
         return proposals;
     }
 
-    static string Quote(BookRecord record) => $"{record.Source}'s record for ISBN {record.Isbn}";
+    /// <summary>Where a suggestion came from, as a card shows it: the record by the title it gives, which says more than its ISBN.</summary>
+    static string Quote(BookRecord record) => $"{record.Source}'s record of {record.Title}";
 
     static IEnumerable<string> ValuesOf(BookRecord record, MetadataField field) =>
         (record.Values ?? []).Where(v => v.Field == field.Key && !string.IsNullOrWhiteSpace(v.Value)).Select(v => v.Value.Trim());
