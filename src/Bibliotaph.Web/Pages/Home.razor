@@ -33,6 +33,11 @@ else
     <span class="bt-eyebrow bt-eyebrow-block">YOUR NEXT GOOD STORY</span>
     <h1 tabindex="-1">Welcome back.</h1>
     <div class="bt-subtitle">A familiar shelf. A few places you haven't been.</div>
+    @if (_summary.Totals is { } totals)
+    {
+        @* The library's size, and the way to the Summary page that says more. *@
+        <div class="bt-hometotals"><span class="bt-small">@totals</span><a href="summary"><Icon Name="ChartNoAxesColumn" Size="13" />@Bibliotaph.Core.SummaryText.SeeIt</a></div>
+    }
     @if (_shelves is { AskAboutAi: true } && !_aiLater)
     {
         @* The Windows app's first run, once folders are in: AI now or later. Everything works without it. *@
@@ -110,7 +115,7 @@ else
 }
 
 @code {
-    LibrarySummary? _summary;
+    LibraryOverview? _summary;
     HomeShelves? _shelves;
     ActionResult? _note;
     bool _wasBusy;
@@ -134,7 +139,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _summary = await Api.LibrarySummaryAsync();
+        _summary = await Api.LibraryOverviewAsync();
         if (HasLibrary) await LoadAsync();
         // The tour's first chapter, before any folder; its second once books show, here or in the Library.
         else await Tour.OfferFoldersAsync();

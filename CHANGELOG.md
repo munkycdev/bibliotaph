@@ -9,7 +9,8 @@
   were published; and how many you've opened, your favorites, notes, collections and binders, and how the library has
   grown month by month. Every figure opens the Library at the books it counts. Home shows the library's size under the
   welcome, with a link to it. The search box has a new field, `opened:`, so `opened:no` finds the books you haven't
-  opened yet. See [Your library in numbers](docs/guide/summary.md).
+  opened yet. It's on bibliotaph.online too, the same page with the same links. See
+  [Your library in numbers](docs/guide/summary.md).
 - **The "Powered by BGG" logo has moved** from the foot of every web page to where RPGGeek's data shows: under a
   book's details when some of them came from RPGGeek, on Windows and the web. It's also in About on Windows and on the
   website's licences page. See [Cataloging](docs/guide/cataloging.md).

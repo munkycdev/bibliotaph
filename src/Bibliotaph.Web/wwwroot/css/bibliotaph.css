@@ -1375,3 +1375,64 @@ a.bt-menuitem{text-decoration:none}
 @media(max-width:1080px){.bt-land-final{margin-left:16px;margin-right:16px}.bt-land-float{display:none}.bt-land-caption{margin-top:14px}}
 @media(max-width:880px){.bt-land-hero h1{font-size:48px}.bt-land h2{font-size:32px}.bt-land-feature{grid-template-columns:minmax(0,1fr);gap:32px;padding-top:80px}.bt-land-feature.flip .bt-land-copy{order:0}.bt-land-cards,.bt-land-steps,.bt-land-plans{grid-template-columns:minmax(0,1fr)}.bt-land-trust{grid-template-columns:repeat(2,minmax(0,1fr))}.bt-land-section{padding-top:80px}}
 @media(max-width:560px){.bt-land-hero{padding:40px 16px 32px}.bt-land-hero h1{font-size:38px;letter-spacing:-.8px}.bt-land-hero .bt-lede{font-size:16px}.bt-land h2,.bt-land-final h2{font-size:28px}.bt-land-stage,.bt-land-where,.bt-land-section,.bt-land-feature{padding-left:16px;padding-right:16px}.bt-land-trust{grid-template-columns:minmax(0,1fr)}.bt-land-art{padding:14px}.bt-land-chrome b{display:none}.bt-land-fields{grid-template-columns:86px minmax(0,1fr)}.bt-land-services{grid-template-columns:minmax(0,1fr)}.bt-land .bt-actions .bt-button{width:100%}}
+
+/* Summary: the library by the numbers. Bars and strips are SVG sized by attributes; their colours are here. */
+.bt-hometotals{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px}
+.bt-hometotals a{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--bt-accent)}
+.bt-hometotals a:hover{text-decoration:underline}
+.bt-summary{--bt-chartsoft:light-dark(#9fb8a4,#5e7a63);max-width:980px}
+.bt-sumband{border-top:1px solid var(--bt-line);padding:24px 0 8px;margin-top:28px}
+.bt-sumband:first-child{margin-top:0}
+.bt-sumhero{font-family:'Libre Caslon Display',Georgia,serif;font-size:28px;line-height:1.25;margin-top:10px;font-weight:400}
+.bt-sumhero a{color:var(--bt-accent)}
+.bt-sumhero a:hover{text-decoration:underline}
+.bt-sumtiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin:20px 0 12px}
+.bt-sumtile{display:flex;flex-direction:column;gap:2px;min-height:74px;background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:10px;padding:12px 16px}
+a.bt-sumtile:hover{border-color:var(--bt-accent)}
+.bt-sumtile b{font-size:24px;font-weight:600;line-height:1.15;color:var(--bt-text)}
+.bt-sumtile span{font-size:11px;color:var(--bt-muted)}
+.bt-sumtile small{font-size:10px}
+.bt-sumcols{display:grid;gap:28px 40px;margin-top:14px}
+.bt-sumcols.two{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.bt-sumcols.three{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.bt-sumcols.strips{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:28px}
+.bt-sumcols p.bt-small{margin-top:8px}
+.bt-sumhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
+.bt-sumhead strong{font-size:12px;font-weight:600}
+.bt-sumhead a{color:var(--bt-accent)}
+.bt-sumhead a:hover{text-decoration:underline}
+.bt-sumlegend{display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;color:var(--bt-muted)}
+.bt-sumswatch{display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--bt-accent);margin-left:11px}
+.bt-sumswatch:first-child{margin-left:0}
+.bt-sumswatch.soft{background:var(--bt-chartsoft)}
+.bt-sumbars{list-style:none;padding:0;margin:0}
+.bt-sumrow{display:grid;grid-template-columns:minmax(0,140px) minmax(0,1fr) auto;align-items:center;gap:10px;padding:3px 0;font-size:12px;color:var(--bt-text)}
+.bt-sumrow>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+a.bt-sumrow:hover>span:first-child{color:var(--bt-accent)}
+.bt-sumrow .bt-small{text-align:right;min-width:44px;font-variant-numeric:tabular-nums}
+.bt-sumbar{width:100%;height:8px;display:block}
+.bt-sumbar rect{fill:var(--bt-accent)}
+.bt-sumbar rect.soft{fill:var(--bt-chartsoft)}
+.bt-sumbar.offline rect{fill:var(--bt-muted)}
+.bt-sumstrip{list-style:none;padding:0;margin:0;display:flex;gap:4px;border-bottom:0}
+.bt-sumstrip li{flex:1;min-width:0}
+.bt-sumstrip a,.bt-sumstrip div{display:flex;flex-direction:column}
+.bt-sumstrip svg{width:100%;height:72px;display:block;border-bottom:1px solid var(--bt-line)}
+.bt-sumstrip rect{fill:var(--bt-accent);opacity:.85}
+.bt-sumstrip a:hover rect{opacity:1}
+.bt-sumstrip span{font-size:10px;color:var(--bt-muted);text-align:center;margin-top:5px;min-height:15px}
+.bt-sumwaiting{display:inline-block;font-size:12px;color:var(--bt-accent);margin-top:4px}
+.bt-sumwaiting:hover{text-decoration:underline}
+.bt-summeter{display:block;max-width:620px;height:10px;border-radius:5px;margin-top:10px}
+.bt-summeter::-webkit-progress-bar{border-radius:5px}
+.bt-summeter::-webkit-progress-value{border-radius:5px}
+.bt-sumgrowthhead{margin-top:24px}
+.bt-sumgrowth{width:100%;height:140px;display:block}
+.bt-sumgrowth .rule{stroke:var(--bt-line);stroke-width:1}
+.bt-sumgrowth .area{fill:var(--bt-soft)}
+.bt-sumgrowth .line{fill:none;stroke:var(--bt-accent);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.bt-sumgrowth .hit{fill:var(--bt-accent);opacity:0}
+.bt-sumgrowth .hit:hover{opacity:.12}
+.bt-sumticks{display:flex;justify-content:space-between;font-size:10px;color:var(--bt-muted);margin-top:5px}
+@media(max-width:620px){.bt-sumhero{font-size:22px}.bt-sumrow{grid-template-columns:minmax(0,110px) minmax(0,1fr) auto}}
+@media(forced-colors:active){.bt-sumbar rect,.bt-sumstrip rect,.bt-sumswatch{fill:Highlight;background:Highlight}.bt-sumbar rect.soft,.bt-sumswatch.soft{fill:GrayText;background:GrayText}.bt-sumgrowth .line{stroke:Highlight}.bt-sumgrowth .area{fill:Canvas}}

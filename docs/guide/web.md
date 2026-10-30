@@ -290,6 +290,13 @@ A book's details list its collections under **Collections**: a chip opens one, a
 **Add to collection** offers the collections used last, **Add to a new collection…**, and **Add to another
 collection…**, which lists them all and narrows as you type. Each change says what it did, with **Undo**.
 
+### Your library in numbers
+
+**Summary** in the sidebar, under **Binders**, is the Windows app's Summary page: how much you have, where it came
+from, what it is and what you've done with it, and every figure opens the Library at the books it counts. Home shows
+your library's size under the welcome, with a link to it. Point at a bar, a column or a month for its full count. See
+[Your library in numbers](summary.md).
+
 ### Favorites, saved searches and pins
 
 **Favorites** in the sidebar shows the books you marked with a heart, with **In Favorites** on a chip above them (its
