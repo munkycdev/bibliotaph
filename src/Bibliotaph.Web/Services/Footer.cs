@@ -22,8 +22,9 @@ public static class Footer
     /// <summary>The site's own pages, in the order the site's footer lists them.</summary>
     public static IReadOnlyList<(string Href, string Label)> Links { get; } =
     [
-        ("/features", "Features"),
         ("/about", "About"),
+        ("/features", "Features"),
+        ("/guide", "Guide"),
         ("/changelog", "Change log"),
         ("/contact", "Contact us"),
         ("/terms", "Terms"),

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -5,9 +6,9 @@ using System.Text.RegularExpressions;
 namespace Bibliotaph.Server.Site;
 
 /// <summary>
-/// The repository's own Markdown (the change log, the third-party notices) as HTML for the site's pages. It knows only
-/// what those files use: headings, paragraphs, lists, tables, code, bold, italic and links. Everything is escaped
-/// first, so nothing in a file reaches the page as markup.
+/// The repository's own Markdown (the change log, the third-party notices, the user guide) as HTML for the site's pages.
+/// It knows only what those files use: headings, paragraphs, lists (numbered and nested too), tables, rules, code, bold,
+/// italic and links. Everything is escaped first, so nothing in a file reaches the page as markup.
 /// </summary>
 public static partial class SiteMarkdown
 {
@@ -15,7 +16,9 @@ public static partial class SiteMarkdown
     public const string RepositoryFiles = "https://github.com/munkycdev/bibliotaph/blob/main/";
 
     /// <summary>The file as HTML, without its title (the page has its own); "## x" becomes an h2 with an id.</summary>
-    public static string ToHtml(string markdown)
+    /// <param name="markdown">The file's text.</param>
+    /// <param name="link">Where a link goes instead, when the caller knows better than the repository on GitHub; null leaves it be.</param>
+    public static string ToHtml(string markdown, Func<string, string?>? link = null)
     {
         var lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         var html = new StringBuilder();
@@ -33,22 +36,37 @@ public static partial class SiteMarkdown
                 if (level > 1)
                 {
                     var text = heading.Groups[2].Value.Trim();
-                    html.Append($"<h{level} id=\"{Slug(text)}\">{Inline(text)}</h{level}>\n");
+                    html.Append($"<h{level} id=\"{Slug(text)}\">{Inline(text, link)}</h{level}>\n");
                 }
                 i++;
             }
-            else if (line.StartsWith("- ", StringComparison.Ordinal))
+            else if (line.Trim() == "---")
             {
-                html.Append("<ul>\n");
-                while (i < lines.Length && lines[i].StartsWith("- ", StringComparison.Ordinal))
+                html.Append("<hr />\n");
+                i++;
+            }
+            else if (ListItem().Match(line) is { Success: true } first)
+            {
+                var ordered = first.Groups["number"].Success;
+                var number = ordered ? int.Parse(first.Groups["number"].Value, CultureInfo.InvariantCulture) : 1;
+                html.Append(ordered ? number == 1 ? "<ol>\n" : $"<ol start=\"{number}\">\n" : "<ul>\n");
+                while (i < lines.Length && ListItem().Match(lines[i]) is { Success: true } item && item.Groups["number"].Success == ordered)
                 {
-                    var item = new StringBuilder(lines[i][2..].Trim());
-                    // An item goes on over the indented lines below it.
-                    for (i++; i < lines.Length && lines[i].StartsWith(' ') && lines[i].Trim().Length > 0; i++)
-                        item.Append(' ').Append(lines[i].Trim());
-                    html.Append("<li>").Append(Inline(item.ToString())).Append("</li>\n");
+                    var indent = item.Length;
+                    var body = new List<string> { lines[i][indent..] };
+                    // An item goes on over the indented lines below it, and past a blank line when an indented one follows.
+                    for (i++; i < lines.Length; i++)
+                    {
+                        if (Indented(lines[i]))
+                            body.Add(Dedent(lines[i], indent));
+                        else if (lines[i].Trim().Length == 0 && i + 1 < lines.Length && Indented(lines[i + 1]))
+                            body.Add("");
+                        else
+                            break;
+                    }
+                    html.Append("<li>").Append(Item(ToHtml(string.Join('\n', body), link))).Append("</li>\n");
                 }
-                html.Append("</ul>\n");
+                html.Append(ordered ? "</ol>\n" : "</ul>\n");
             }
             else if (line.StartsWith('|'))
             {
@@ -56,12 +74,12 @@ public static partial class SiteMarkdown
                 for (; i < lines.Length && lines[i].StartsWith('|'); i++)
                     if (!Separator().IsMatch(lines[i])) rows.Add(Cells(lines[i]));
                 html.Append("<div class=\"bt-tablewrap\"><table class=\"bt-table\">\n<thead><tr>");
-                foreach (var cell in rows[0]) html.Append("<th>").Append(Inline(cell)).Append("</th>");
+                foreach (var cell in rows[0]) html.Append("<th>").Append(Inline(cell, link)).Append("</th>");
                 html.Append("</tr></thead>\n<tbody>\n");
                 foreach (var row in rows.Skip(1))
                 {
                     html.Append("<tr>");
-                    foreach (var cell in row) html.Append("<td>").Append(Inline(cell)).Append("</td>");
+                    foreach (var cell in row) html.Append("<td>").Append(Inline(cell, link)).Append("</td>");
                     html.Append("</tr>\n");
                 }
                 html.Append("</tbody></table></div>\n");
@@ -71,20 +89,38 @@ public static partial class SiteMarkdown
                 var paragraph = new StringBuilder(line.Trim());
                 for (i++; i < lines.Length && lines[i].Trim().Length > 0 && !StartsBlock(lines[i]); i++)
                     paragraph.Append(' ').Append(lines[i].Trim());
-                html.Append("<p>").Append(Inline(paragraph.ToString())).Append("</p>\n");
+                html.Append("<p>").Append(Inline(paragraph.ToString(), link)).Append("</p>\n");
             }
         }
         return html.ToString();
     }
 
     static bool StartsBlock(string line) =>
-        line.StartsWith("- ", StringComparison.Ordinal) || line.StartsWith('|') || Heading().IsMatch(line);
+        ListItem().IsMatch(line) || line.StartsWith('|') || line.Trim() == "---" || Heading().IsMatch(line);
+
+    static bool Indented(string line) => line.StartsWith(' ') && line.Trim().Length > 0;
+
+    static string Dedent(string line, int indent)
+    {
+        var spaces = 0;
+        while (spaces < indent && spaces < line.Length && line[spaces] == ' ') spaces++;
+        return line[spaces..];
+    }
+
+    /// <summary>A list item's blocks; an item that is one paragraph, or one paragraph and a list, keeps its text tight.</summary>
+    static string Item(string html)
+    {
+        if (!html.StartsWith("<p>", StringComparison.Ordinal) || html.IndexOf("<p>", 3, StringComparison.Ordinal) >= 0)
+            return html.TrimEnd('\n');
+        var end = html.IndexOf("</p>\n", StringComparison.Ordinal);
+        return (html[3..end] + html[(end + 5)..]).TrimEnd('\n');
+    }
 
     static string[] Cells(string row) =>
         [.. row.Trim().Trim('|').Split('|').Select(cell => cell.Trim())];
 
     /// <summary>One line's code, links, bold and italic. Code spans are kept apart so nothing inside them is read as Markdown.</summary>
-    static string Inline(string text)
+    static string Inline(string text, Func<string, string?>? link)
     {
         var html = new StringBuilder();
         var parts = text.Split('`');
@@ -94,23 +130,25 @@ public static partial class SiteMarkdown
             if (p % 2 == 1 && p < parts.Length - 1)
                 html.Append("<code>").Append(Escape(parts[p])).Append("</code>");
             else
-                html.Append(Prose(p % 2 == 1 ? "`" + parts[p] : parts[p]));
+                html.Append(Prose(p % 2 == 1 ? "`" + parts[p] : parts[p], link));
         }
         return html.ToString();
     }
 
-    static string Prose(string text)
+    static string Prose(string text, Func<string, string?>? link)
     {
         var html = Escape(text);
-        html = Link().Replace(html, m => $"<a href=\"{Href(WebUtility.HtmlDecode(m.Groups[2].Value))}\">{m.Groups[1].Value}</a>");
+        html = Link().Replace(html, m => $"<a href=\"{Href(WebUtility.HtmlDecode(m.Groups[2].Value), link)}\">{m.Groups[1].Value}</a>");
         html = BareUrl().Replace(html, m => $"<a href=\"{m.Value}\">{m.Value}</a>");
         html = Bold().Replace(html, "<strong>$1</strong>");
         return Italic().Replace(html, "<em>$1</em>");
     }
 
-    /// <summary>A link's address for the site: the web and mail as they are, a file in the repository on GitHub.</summary>
-    static string Href(string target)
+    /// <summary>A link's address for the site: the caller's own if it has one, else the web and mail as they are and a file in the repository on GitHub.</summary>
+    static string Href(string target, Func<string, string?>? link)
     {
+        if (link?.Invoke(target) is { } own)
+            return Escape(own);
         if (target.StartsWith("https://", StringComparison.Ordinal) || target.StartsWith("http://", StringComparison.Ordinal)
             || target.StartsWith("mailto:", StringComparison.Ordinal) || target.StartsWith('#'))
             return Escape(target);
@@ -122,15 +160,21 @@ public static partial class SiteMarkdown
         text.Replace("&", "&amp;", StringComparison.Ordinal).Replace("<", "&lt;", StringComparison.Ordinal)
             .Replace(">", "&gt;", StringComparison.Ordinal).Replace("\"", "&quot;", StringComparison.Ordinal);
 
-    /// <summary>"1.3 · 19 October 2026" becomes "1-3-19-october-2026", for links to one release.</summary>
+    /// <summary>
+    /// "1.3 · 19 October 2026" becomes "1-3-19-october-2026", for links to one release. Apostrophes go, as on GitHub, so
+    /// a link written for the repository ("#changing-a-books-details") finds its heading on the site too.
+    /// </summary>
     public static string Slug(string heading)
     {
-        var slug = NotWord().Replace(heading.ToLowerInvariant(), "-").Trim('-');
+        var slug = NotWord().Replace(heading.ToLowerInvariant().Replace("'", "", StringComparison.Ordinal).Replace("’", "", StringComparison.Ordinal), "-").Trim('-');
         return slug.Length == 0 ? "section" : slug;
     }
 
     [GeneratedRegex(@"^(#{1,4})\s+(.*)$")]
     private static partial Regex Heading();
+
+    [GeneratedRegex(@"^((?<number>\d+)\. |- )")]
+    private static partial Regex ListItem();
 
     [GeneratedRegex(@"^\|(\s*:?-{3,}:?\s*\|)+\s*$")]
     private static partial Regex Separator();

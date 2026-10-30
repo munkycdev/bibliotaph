@@ -100,7 +100,7 @@ The sidebar on the left has the main pages:
 | **Binders** | The books and pages for each session, in order. |
 | **Needs review** | Suggestions to check and files that need something from you. The number is how many are waiting. |
 | **Pinned** | Anything you've pinned: a book, Favorites, a collection, a binder or a saved search. |
-| **Settings** | At the bottom: processing, folders, online libraries, appearance, Needs review, vocabulary, AI, passwords and backups. |
+| **Settings** | At the bottom: your folders, online libraries and web library, how books are catalogued, and your own preferences. |
 
 The **Collapse the sidebar** button beside Settings, or **Ctrl+B**, folds the sidebar down to its icons for more room;
 point at an icon for its name. The monogram stays at the top, and the same button, now under Settings (**Expand the
@@ -116,8 +116,10 @@ Right-click a cover for everything else you can do with it, including **Open** a
 **Ctrl+/** lists every keyboard shortcut. **Settings > Preferences** switches between light, dark and Windows'
 own setting, and its **Start on** chooses whether Bibliotaph opens on Home or the Library.
 
-**Settings** lists its sections in the same order as on the web: **Library** (your folders), **Online libraries**,
-**Devices** (your web library), **AI**, **Processing**, **Vocabulary**, **Preferences**, **Passwords** and **Backup**.
+**Settings** lists its sections in groups, as on the web: **BOOKS** holds **Library** (your folders), **Online
+libraries** and **Devices** (your web library); **CATALOGUING** holds **Processing**, **AI** and **Vocabulary**; and
+**YOU** holds **Preferences** (light or dark, where Bibliotaph opens, what waits for review and the tour),
+**Passwords** and **Backup**.
 
 ---
 
