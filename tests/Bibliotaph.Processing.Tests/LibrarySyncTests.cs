@@ -93,6 +93,17 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         public LibrarySync Sync { get; private set; } = null!;
         public MetadataStore Metadata => new(Contexts, clock);
         public CollectionStore Collections => new(Contexts, clock);
+        public VocabularyStore Vocabulary => new(Contexts, clock);
+
+        /// <summary>A type the AI proposed for the book, as a pending term with the book's value waiting on it.</summary>
+        public async Task ProposeTypeAsync(EntryId book, char hash, string label)
+        {
+            var (term, _) = await Vocabulary.ProposeTermAsync("type", label, Ct);
+            await Metadata.AddSuggestionsAsync(book, new string(hash, 64), [new MetadataProposal(MetadataFields.Types, term.Key, AssertionOrigin.Ai)], Ct);
+        }
+
+        public async Task<IReadOnlyList<string>> TypesAsync(char hash) =>
+            [.. (await Metadata.GetAsync(await BookAsync(hash), Ct)).Compute()[MetadataFields.Types].Values.Select(v => v.Value)];
 
         public void Start() => Sync = new LibrarySync(new LibrarySyncStore(Contexts, Metadata, new VocabularyStore(Contexts), clock), new SettingsStore(Contexts),
             catalog, null, clock, null, name, [new Channel(hub, name)]);
@@ -344,5 +355,86 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         await _laptop.Sync.SyncNowAsync(Ct);
 
         Assert.Equal("The Drowned Abbey", await _laptop.TitleAsync('a'));
+    }
+
+    [Fact]
+    public async Task A_term_the_AI_proposed_on_both_PCs_and_accepted_on_one_is_accepted_on_the_other()
+    {
+        var deskBook = await _desk.AddBookAsync('a');
+        var laptopBook = await _laptop.AddBookAsync('a');
+        await _desk.ProposeTypeAsync(deskBook, 'a', "Heist Kit");
+        await _laptop.ProposeTypeAsync(laptopBook, 'a', "Heist Kit");
+        await RoundAsync();
+        Assert.Single(await _laptop.Vocabulary.GetPendingAsync(Ct));
+
+        _desk.Later(5);
+        await _desk.Vocabulary.AcceptPendingAsync(Assert.Single(await _desk.Vocabulary.GetPendingAsync(Ct)).Id, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Vocabulary.GetPendingAsync(Ct));
+        Assert.Equal("Heist Kit", (await _laptop.Vocabulary.GetAsync(Ct)).Resolve("type", "heist kit")?.Label);
+        Assert.Equal(["heist-kit"], await _laptop.TypesAsync('a'));
+    }
+
+    [Fact]
+    public async Task A_term_turned_down_on_one_PC_is_turned_down_on_the_other_and_never_asked_about_there()
+    {
+        var deskBook = await _desk.AddBookAsync('a');
+        var laptopBook = await _laptop.AddBookAsync('a');
+        await _desk.ProposeTypeAsync(deskBook, 'a', "Nonsense");
+        await _desk.ProposeTypeAsync(deskBook, 'a', "Gibberish");
+        await _laptop.ProposeTypeAsync(laptopBook, 'a', "Nonsense");
+        foreach (var pending in await _desk.Vocabulary.GetPendingAsync(Ct)) await _desk.Vocabulary.RejectPendingAsync(pending.Id, Ct);
+
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Vocabulary.GetPendingAsync(Ct));
+        Assert.Empty(await _laptop.TypesAsync('a'));
+        // One the laptop's AI hadn't proposed yet is turned down before it is.
+        Assert.Equal(TermState.Rejected, (await _laptop.Vocabulary.ProposeTermAsync("type", "Gibberish", Ct)).State);
+    }
+
+    [Fact]
+    public async Task A_term_filed_under_another_on_one_PC_is_filed_the_same_way_on_the_other()
+    {
+        await _desk.Vocabulary.SeedAsync(Ct);
+        await _laptop.Vocabulary.SeedAsync(Ct);
+        var deskBook = await _desk.AddBookAsync('a');
+        var laptopBook = await _laptop.AddBookAsync('a');
+        await _desk.ProposeTypeAsync(deskBook, 'a', "Scenario Pack");
+        await _laptop.ProposeTypeAsync(laptopBook, 'a', "Scenario Pack");
+        await RoundAsync();
+
+        _desk.Later(5);
+        await _desk.Vocabulary.MapPendingAsync(Assert.Single(await _desk.Vocabulary.GetPendingAsync(Ct)).Id, "adventure", Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Vocabulary.GetPendingAsync(Ct));
+        Assert.Equal("adventure", (await _laptop.Vocabulary.GetAsync(Ct)).Resolve("type", "scenario pack")?.Key);
+        Assert.Equal(["adventure"], await _laptop.TypesAsync('a'));
+    }
+
+    [Fact]
+    public async Task Terms_kept_apart_and_the_users_own_tags_travel_and_so_does_their_removal()
+    {
+        await _desk.Vocabulary.SeedAsync(Ct);
+        await _laptop.Vocabulary.SeedAsync(Ct);
+        var apart = await _desk.Vocabulary.KeepApartAsync("type", ["adventure", "campaign"], Ct);
+        var tags = new UserTagStore(_desk.Contexts, _desk.Clock);
+        var undead = (await tags.SaveAsync(null, "Undead", "zombie, lich", Ct)).Tag!;
+        await RoundAsync();
+
+        Assert.Single(await _laptop.Vocabulary.GetKeptApartAsync("type", Ct));
+        var onLaptop = Assert.Single(await new UserTagStore(_laptop.Contexts).ListAsync(Ct));
+        Assert.Equal("Undead", onLaptop.Name);
+        Assert.Equal(["zombie", "lich"], onLaptop.Words);
+
+        _desk.Later(5);
+        await _desk.Vocabulary.ForgetKeptApartAsync(apart, Ct);
+        await tags.DeleteAsync(undead.Id, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Vocabulary.GetKeptApartAsync("type", Ct));
+        Assert.Empty(await new UserTagStore(_laptop.Contexts).ListAsync(Ct));
     }
 }
