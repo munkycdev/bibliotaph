@@ -230,6 +230,19 @@ public enum ElsewhereAnswer
     SeparateBook,
 }
 
+/// <summary>
+/// The user's answer to "Same book?" in Needs review, about a catalogue's record for a book's ISBN whose title isn't
+/// printed in the book.
+/// </summary>
+public enum LookupAnswer
+{
+    /// <summary>The record is the book's after all: it is used as a record whose title is printed would be.</summary>
+    SameBook,
+
+    /// <summary>Another book's record: it is never used for this file.</summary>
+    NotThisBook,
+}
+
 /// <summary>Where a proposal of the adventures inside a file came from.</summary>
 public enum PartProposalSource
 {

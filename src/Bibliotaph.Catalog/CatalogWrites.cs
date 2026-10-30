@@ -17,6 +17,7 @@ public sealed partial class CatalogWrites : DbCommandInterceptor
     {
         "assertion", "rejection", "favorite", "note", "page_ref", "collection", "collection_item", "smart_view", "pin", "session_pack",
         "session_section", "session_item", "entry", "entry_source", "copy_decision", "vocabulary_term", "vocabulary_alias",
+        "lookup_record",
     };
 
     static readonly AsyncLocal<bool> Quieted = new();

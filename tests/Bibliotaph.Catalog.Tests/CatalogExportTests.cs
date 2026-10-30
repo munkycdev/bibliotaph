@@ -124,6 +124,10 @@ public sealed class CatalogExportTests : IAsyncLifetime
         db.VocabularyTerms.Add(term);
         db.ClassificationRuns.Add(new ClassificationRun { Id = "run-1", EntryId = entry.Id, ContentHash = book.ContentHash, Provider = "ollama", Model = "test", PromptVersion = 1, SchemaVersion = 1, StartedUtc = now, Outcome = "complete" });
         db.ChapterScans.Add(new ChapterScan { ContentHash = book.ContentHash, Provider = "ollama", Model = "test", PromptVersion = 1, ChaptersJson = "[]", StartedUtc = now, FinishedUtc = now });
+        db.LookupRecords.Add(new LookupRecord
+        {
+            ContentHash = book.ContentHash, Source = "RPGGeek", RecordKey = "4021", Position = 0, RecordJson = "{}", Printed = false, Answer = LookupAnswer.SameBook, CreatedUtc = now,
+        });
         db.CorrectionRequests.Add(new CorrectionRequest { EntryId = entry.Id, CreatedUtc = now });
         db.FolderRules.Add(new FolderRule { SourceRootId = root.Id, Folder = "Fey Court", Field = "system", Value = "pathfinder", State = FolderRuleState.On, Books = 3, CreatedUtc = now, DecidedUtc = now });
         db.UserTags.Add(new UserTag { Name = "Undead", NormalizedName = "undead", WordsJson = "[\"undead\",\"zombie\"]", CreatedUtc = now, UpdatedUtc = now });

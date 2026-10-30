@@ -31,6 +31,12 @@ public static class SyncKeys
     /// <summary>"Not the same book" for two files, by their content hashes, lower first.</summary>
     public const string NotSameBook = "nsb:";
 
+    /// <summary>
+    /// The user's answer about a catalogue's record for a file's ISBN: "lr:" + content hash + ":" + catalogue + ":" +
+    /// the record's key there, as "lr:ab12…:RPGGeek:4021".
+    /// </summary>
+    public const string LookupRecord = "lr:";
+
     /// <summary>A pin, by what it points at: "pin:fav", "pin:c:…", "pin:b:…", "pin:s:…". A book's pin is a field of the book.</summary>
     public const string Pin = "pin:";
 
@@ -46,6 +52,13 @@ public static class SyncKeys
 
     public static string ForNotSameBook(string firstHash, string secondHash) =>
         string.CompareOrdinal(firstHash, secondHash) <= 0 ? NotSameBook + firstHash + ":" + secondHash : NotSameBook + secondHash + ":" + firstHash;
+
+    public static string ForLookupRecord(string contentHash, string source, string recordKey) => LookupRecord + contentHash + ":" + source + ":" + recordKey;
+
+    /// <summary>The content hash, catalogue and record key in a key made by <see cref="ForLookupRecord"/>, or null.</summary>
+    public static (string Hash, string Source, string RecordKey)? LookupRecordOf(string key) =>
+        key.StartsWith(LookupRecord, StringComparison.Ordinal) && key[LookupRecord.Length..].Split(':', 3) is [{ Length: > 0 } hash, { Length: > 0 } source, { Length: > 0 } recordKey]
+            ? (hash, source, recordKey) : null;
 
     /// <summary>A book, a book owned elsewhere or a pack: a card, whose fields are its metadata and the user's marks.</summary>
     public static bool IsCard(string key) => key.StartsWith(Book, StringComparison.Ordinal) || key.StartsWith(Elsewhere, StringComparison.Ordinal)
@@ -111,4 +124,7 @@ public static class SyncFields
 
     /// <summary>A term combined into another of its vocabulary: that term's key. The other PCs combine theirs the same way.</summary>
     public const string MergedInto = "merged";
+
+    /// <summary>A catalogue's record for a file: true when the user said it is the book's, false when they said it isn't.</summary>
+    public const string SameBook = "same";
 }

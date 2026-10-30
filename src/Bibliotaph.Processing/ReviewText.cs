@@ -47,7 +47,7 @@ public static class ReviewText
     /// <summary>The Show menu's kinds of card, in the order the page lists them; field suggestions follow, by field.</summary>
     public static IReadOnlyList<(string Key, string Name)> Kinds { get; } =
     [
-        ("terms", "New terms"), ("overlaps", "Terms that may be the same"), ("versions", "New versions"), ("packs", "Image packs"), ("elsewhere", "Owned elsewhere"),
+        ("terms", "New terms"), ("overlaps", "Terms that may be the same"), ("versions", "New versions"), ("packs", "Image packs"), ("elsewhere", "Owned elsewhere"), ("records", "Same book?"),
         ("revisions", "Places to check"), ("parts", "Adventures"), ("corrections", "Corrections"), ("rules", "Folder rules"),
         ("folders", "Collections from folders"), ("suggestions", "Books for collections"),
     ];

@@ -101,6 +101,9 @@ public sealed partial class LibrarySyncStore
         if (SyncKeys.IsCard(key)) return await UpsertCardAsync(key, wanted, current, card, created, ct);
         if (key.StartsWith(SyncKeys.Term, StringComparison.Ordinal)) return await UpsertTermAsync(key, wanted, ct);
         if (key.StartsWith(SyncKeys.NotSameBook, StringComparison.Ordinal)) return await UpsertNotSameBookAsync(key, ct);
+        if (SyncKeys.LookupRecordOf(key) is { } record)
+            return lookups is not null && await lookups.ApplySyncedAsync(record.Hash, record.Source, record.RecordKey,
+                Read<bool>(wanted, SyncFields.SameBook) ? LookupAnswer.SameBook : LookupAnswer.NotThisBook, ct);
         if (key.StartsWith(SyncKeys.Pin, StringComparison.Ordinal))
         {
             await using var db = await contexts.CreateDbContextAsync(ct);
@@ -470,6 +473,11 @@ public sealed partial class LibrarySyncStore
         }
         else if (key.StartsWith(SyncKeys.NotSameBook, StringComparison.Ordinal) && key[SyncKeys.NotSameBook.Length..].Split(':') is [var first, var second])
             deleted = await db.CopyDecisions.Where(d => d.FirstHash == first && d.SecondHash == second).ExecuteDeleteAsync(ct) > 0;
+        else if (SyncKeys.LookupRecordOf(key) is { } record && lookups is not null)
+        {
+            await transaction.CommitAsync(ct);
+            return await lookups.ApplySyncedAsync(record.Hash, record.Source, record.RecordKey, null, ct);
+        }
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return deleted;

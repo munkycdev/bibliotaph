@@ -246,6 +246,29 @@ public sealed class ChapterScan
 }
 
 /// <summary>
+/// A catalogue's record for the ISBN a file prints, as its last lookup got it, kept by the file's content hash. One
+/// whose title is <see cref="Printed"/> in the book is used; one whose title isn't waits in Needs review as "Same
+/// book?" while <see cref="Answer"/> is null, and is used once the user says it is the book's. An answered row stays
+/// after the catalogue stops giving the record, so the question is never put again.
+/// </summary>
+public sealed class LookupRecord
+{
+    public long Id { get; set; }
+    public required string ContentHash { get; set; }
+    /// <summary>The catalogue: "RPGGeek".</summary>
+    public required string Source { get; set; }
+    /// <summary>The record's own id in the catalogue.</summary>
+    public required string RecordKey { get; set; }
+    /// <summary>Where the lookup gave it, most preferred catalogue first, so each field comes from the one the user prefers.</summary>
+    public int Position { get; set; }
+    /// <summary>The record as JSON; null for an answer that came from another PC before this one looked the file up.</summary>
+    public string? RecordJson { get; set; }
+    public bool Printed { get; set; }
+    public LookupAnswer? Answer { get; set; }
+    public DateTime CreatedUtc { get; set; }
+}
+
+/// <summary>
 /// The user's answer about a pair of files, by content hash, so Match never asks or joins again: "Not the same book"
 /// keeps them on separate cards.
 /// </summary>

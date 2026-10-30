@@ -24,6 +24,7 @@ public interface IReviewActions
     Task<Func<Task>> AnswerVersionAsync(VersionItem item, VersionAnswer answer);
     Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer);
     Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer);
+    Task<Func<Task>> AnswerLookupAsync(LookupMatchItem item, LookupAnswer answer);
     Task<Func<Task>?> UsePlaceAsync(RevisionPlace place);
     Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId);
     Task<(string? Problem, Func<Task>? Undo)> SetPartPagesAsync(UnplacedPart part, PartPages pages);
@@ -475,6 +476,39 @@ public sealed partial class ElsewhereCardViewModel(ElsewhereItem item, IReviewAc
 
     [RelayCommand]
     Task SeparateBook() => DecideAsync(() => Actions.AnswerElsewhereAsync(Item, ElsewhereAnswer.SeparateBook), Text.KeptSeparate);
+
+    [RelayCommand]
+    void OpenFile() => Actions.OpenDocument(Item.Match.DocumentId, Title);
+
+    [RelayCommand]
+    Task OpenFileInWindow() => Actions.OpenDocumentInWindowAsync(Item.Match.DocumentId, Title);
+}
+
+/// <summary>
+/// A catalogue's record for the ISBN a book prints, whose title isn't printed in it: "Same book?". Same book fills the
+/// book's fields from the record, as the catalogue's suggestions; Not this book is remembered.
+/// </summary>
+public sealed partial class LookupMatchCardViewModel(LookupMatchItem item, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public LookupMatchItem Item { get; } = item;
+
+    LookupMatchCardText Text => new(Item);
+
+    public string Title => Item.BookTitle;
+
+    public string Heading => Text.Heading;
+
+    public string Evidence => Text.Evidence;
+
+    public string Detail => Text.Detail;
+
+    public string Path => Item.Path ?? "";
+
+    [RelayCommand]
+    Task SameBook() => DecideAsync(() => Actions.AnswerLookupAsync(Item, LookupAnswer.SameBook), Text.SameBook);
+
+    [RelayCommand]
+    Task NotThisBook() => DecideAsync(() => Actions.AnswerLookupAsync(Item, LookupAnswer.NotThisBook), Text.NotThisBook);
 
     [RelayCommand]
     void OpenFile() => Actions.OpenDocument(Item.Match.DocumentId, Title);
