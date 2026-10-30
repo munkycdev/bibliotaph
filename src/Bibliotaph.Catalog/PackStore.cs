@@ -378,6 +378,164 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         return together.Changed;
     }
 
+    /// <summary>
+    /// Makes this catalog's packs agree with another device's, from what each file there says (<paramref name="wishes"/>,
+    /// by the file's own entry): the sync id of the pack it is in, or null for a file on a card of its own. A pack each of
+    /// whose files is told to stand alone is split, as Split would; a pack whose files are told they belong to a pack of
+    /// another id takes that id, so two devices that packed the same folder agree, or merges into the pack here that has
+    /// it; files that belong to a pack are put in it, made if it isn't here yet. A folder or ZIP waiting in Needs review
+    /// is answered as the other device answered it. Returns the cards that changed and the files that couldn't be put as
+    /// they were told (an adventure's file, say), which wait.
+    /// </summary>
+    public async Task<(IReadOnlyList<EntryId> Changed, IReadOnlySet<long> Unsettled)> ApplySyncedAsync(IReadOnlyDictionary<long, Guid?> wishes,
+        CancellationToken ct = default)
+    {
+        var changed = new HashSet<EntryId>();
+        if (wishes.Count == 0) return ([], new HashSet<long>());
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var ids = wishes.Keys.ToList();
+        var files = (await db.Entries.Where(e => ids.Contains(e.Id) && e.Kind == EntryKind.Whole && e.MergedIntoEntryId == null).ToListAsync(ct))
+            .ToDictionary(e => e.Id);
+        var packs = await db.Entries.Where(e => e.Kind == EntryKind.Pack && e.MergedIntoEntryId == null).ToListAsync(ct);
+        // A whole file with a parent is in a pack: an adventure's parent is its file, and it is a part.
+        var members = await MembersAsync(db, ct);
+        Guid? Wish(Entry file, Guid own) => wishes.TryGetValue(file.Id, out var wish) ? wish : own;
+
+        // A folder or ZIP waiting in Needs review whose images the other device packed, or kept separate, is answered so.
+        var proposed = await db.PackDecisions.Where(d => d.Answer == PackAnswer.Proposed).ToListAsync(ct);
+        if (proposed.Count > 0)
+        {
+            var groups = await LocateAsync(db, ct);
+            var byDocument = (await db.EntrySources.AsNoTracking().Where(s => s.FirstPdfPage == null && s.Entry.Kind == EntryKind.Whole && s.Entry.MergedIntoEntryId == null)
+                .Select(s => new { s.DocumentId, s.EntryId }).ToListAsync(ct)).ToLookup(s => s.DocumentId, s => s.EntryId);
+            foreach (var decision in proposed)
+            {
+                if (!groups.TryGetValue(Key(decision.SourceRootId, decision.FolderPath), out var group)) continue;
+                var told = group.Images.SelectMany(i => byDocument[i.DocumentId]).Distinct().Where(wishes.ContainsKey).Select(e => wishes[e]).Distinct().ToList();
+                if (told is not [var answer]) continue;
+                decision.Answer = answer is null ? PackAnswer.Split : PackAnswer.Packed;
+                if (answer is not { } id || packs.FirstOrDefault(p => p.Id == decision.EntryId) is not { } pack) continue;
+                changed.UnionWith(await JoinAsync(db, pack.Id, [.. group.Images.Select(i => i.DocumentId)], ct));
+                changed.Add(new EntryId(pack.Id));
+                await db.SaveChangesAsync(ct);
+                members = await MembersAsync(db, ct);
+                await TakeIdAsync(db, pack, id, ct);
+            }
+        }
+
+        // Each pack here: split when every file is told to stand alone; otherwise it goes by what most of its files are
+        // told, and the files told otherwise leave it.
+        var merges = new List<(Entry From, Entry Into)>();
+        foreach (var pack in packs.Where(p => members[p.Id].Any()).ToList())
+        {
+            var inPack = members[pack.Id].ToList();
+            var votes = inPack.Select(m => (Member: m, Wish: Wish(m, pack.SyncId))).ToList();
+            if (votes.All(v => v.Wish is null))
+            {
+                foreach (var decision in await DecisionsOfAsync(db, pack.Id, ct)) decision.Answer = PackAnswer.Split;
+                foreach (var member in inPack) member.ParentEntryId = null;
+                changed.Add(new EntryId(pack.Id));
+                changed.UnionWith(inPack.Select(m => new EntryId(m.Id)));
+                continue;
+            }
+            var chosen = votes.Where(v => v.Wish is not null).GroupBy(v => v.Wish!.Value)
+                .OrderByDescending(g => g.Count()).ThenByDescending(g => g.Key == pack.SyncId).ThenBy(g => g.Key).First().Key;
+            foreach (var (member, _) in votes.Where(v => v.Wish != chosen))
+            {
+                member.ParentEntryId = null;
+                changed.Add(new EntryId(member.Id));
+            }
+            if (chosen == pack.SyncId) continue;
+            changed.Add(new EntryId(pack.Id));
+            if (packs.FirstOrDefault(p => p.SyncId == chosen && p.Id != pack.Id && members[p.Id].Any()) is { } other) merges.Add((pack, other));
+            else await TakeIdAsync(db, pack, chosen, ct);
+        }
+        await db.SaveChangesAsync(ct);
+
+        // Two packs here that are one pack there: the one that took the other's id merges into it, bringing what it has.
+        foreach (var (from, into) in merges)
+        {
+            var moved = await _entries.MoveAsync(db, from.Id, into.Id, ct);
+            _entries.AddJoin(db, into.Id, from.Id, null, null, moved);
+            await db.SaveChangesAsync(ct);
+            changed.UnionWith(moved.Members.Select(id => new EntryId(id)));
+            changed.Add(new EntryId(into.Id));
+        }
+
+        // Files that belong to a pack go into it, made here when this catalog hasn't got it.
+        foreach (var group in wishes.Where(w => w.Value is not null && files.ContainsKey(w.Key)).GroupBy(w => w.Value!.Value))
+        {
+            var loose = group.Select(w => files[w.Key]).Where(f => f.ParentEntryId is null).ToList();
+            if (loose.Count == 0) continue;
+            // A file whose adventures are marked keeps its own card, as Pack together keeps it.
+            var looseIds = loose.Select(f => f.Id).ToList();
+            var withParts = await db.Entries.Where(e => e.Kind == EntryKind.Part && e.MergedIntoEntryId == null && e.ParentEntryId != null
+                && looseIds.Contains(e.ParentEntryId.Value)).Select(e => e.ParentEntryId!.Value).ToListAsync(ct);
+            loose = [.. loose.Where(f => !withParts.Contains(f.Id))];
+            if (loose.Count == 0) continue;
+            var pack = packs.FirstOrDefault(p => p.SyncId == group.Key && p.MergedIntoEntryId == null);
+            if (pack is null)
+            {
+                pack = db.Entries.Add(new Entry { Kind = EntryKind.Pack, CreatedUtc = now }).Entity;
+                await db.SaveChangesAsync(ct);
+                await TakeIdAsync(db, pack, group.Key, ct);
+                packs.Add(pack);
+            }
+            foreach (var file in loose) file.ParentEntryId = pack.Id;
+            changed.Add(new EntryId(pack.Id));
+            changed.UnionWith(loose.Select(f => new EntryId(f.Id)));
+        }
+        await db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+
+        var packIds = await db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Pack && e.MergedIntoEntryId == null).ToDictionaryAsync(e => e.Id, e => e.SyncId, ct);
+        var unsettled = new HashSet<long>();
+        foreach (var (fileId, wish) in wishes)
+        {
+            if (!files.TryGetValue(fileId, out var file)) continue;
+            Guid? inPack = file.ParentEntryId is { } parent && packIds.TryGetValue(parent, out var id) ? id : null;
+            if (inPack != wish) unsettled.Add(fileId);
+        }
+        return ([.. changed], unsettled);
+    }
+
+    static async Task<ILookup<long, Entry>> MembersAsync(CatalogDbContext db, CancellationToken ct) =>
+        (await db.Entries.Where(e => e.Kind == EntryKind.Whole && e.MergedIntoEntryId == null && e.ParentEntryId != null).ToListAsync(ct))
+            .ToLookup(e => e.ParentEntryId!.Value);
+
+    /// <summary>Gives a pack the sync id another device knows it by; an entry here that had that id gets a new one.</summary>
+    static async Task TakeIdAsync(CatalogDbContext db, Entry pack, Guid id, CancellationToken ct)
+    {
+        if (pack.SyncId == id) return;
+        if (await db.Entries.SingleOrDefaultAsync(e => e.SyncId == id && e.Id != pack.Id, ct) is { } holder)
+        {
+            holder.SyncId = Guid.NewGuid();
+            await db.SaveChangesAsync(ct);
+        }
+        pack.SyncId = id;
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// The images on cards of their own in folders and ZIPs the user kept separate or split, by their entries: what
+    /// another device is told to keep apart too.
+    /// </summary>
+    internal static async Task<IReadOnlySet<long>> KeptSeparateAsync(CatalogDbContext db, CancellationToken ct)
+    {
+        var split = await db.PackDecisions.AsNoTracking().Where(d => d.Answer == PackAnswer.Split).Select(d => new { d.SourceRootId, d.FolderPath }).ToListAsync(ct);
+        if (split.Count == 0) return new HashSet<long>();
+        var folders = split.Select(d => Key(d.SourceRootId, d.FolderPath)).ToHashSet();
+        var groups = await LocateAsync(db, ct);
+        var documents = groups.Where(g => folders.Contains(g.Key)).SelectMany(g => g.Value.Images.Select(i => i.DocumentId)).ToHashSet();
+        if (documents.Count == 0) return new HashSet<long>();
+        var entries = await db.EntrySources.AsNoTracking()
+            .Where(s => s.FirstPdfPage == null && s.Entry.Kind == EntryKind.Whole && s.Entry.ParentEntryId == null && s.Entry.MergedIntoEntryId == null)
+            .Select(s => new { s.DocumentId, s.EntryId }).ToListAsync(ct);
+        return entries.Where(e => documents.Contains(e.DocumentId)).Select(e => e.EntryId).ToHashSet();
+    }
+
     /// <summary>The folders and ZIPs a pack's files are in, with how many of them each holds, most first.</summary>
     public async Task<IReadOnlyList<PackFolder>> GetFoldersAsync(EntryId packId, CancellationToken ct = default)
     {

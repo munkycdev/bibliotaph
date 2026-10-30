@@ -16,6 +16,12 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
 
     public string Name => web.HasKey ? _webCatalogues ?? direct.Name : direct.Name;
 
+    /// <summary>
+    /// While connected, whether the web library asks AdventureLookup, as its catalogues' names say, so a book printing
+    /// no ISBN or code is sent with its title only where it can be found that way.
+    /// </summary>
+    public bool FindsByTitleAlone => web.HasKey ? Name.Split(" or ").Contains(AdventureLookupCatalogue.Source) : direct.FindsByTitleAlone;
+
     public event EventHandler? NameChanged;
 
     public async Task RefreshAsync(CancellationToken ct = default)
@@ -25,19 +31,20 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
     }
 
     public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
-        (await AskAsync(isbns, [], ct)).Records is [var first, ..] ? first : null;
+        (await AskAsync(isbns, [], [], ct)).Records is [var first, ..] ? first : null;
 
-    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, CancellationToken ct = default)
+    public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
+        CancellationToken ct = default)
     {
-        if (!web.HasKey) return await direct.AskAsync(isbns, titles, ct);
+        if (!web.HasKey) return await direct.AskAsync(isbns, titles, codes, ct);
         await LoadAsync(ct);
-        var answer = await web.LookUpAsync(isbns, titles, ct)
+        var answer = await web.LookUpAsync(isbns, titles, codes, ct)
             ?? throw new CatalogueUnavailableException($"Waiting for {(await web.AddressAsync(ct)).Host}.");
         await LearnAsync(answer.Catalogues, ct);
         if (answer.Problem is { } problem) throw new CatalogueUnavailableException(problem);
         var records = answer.Records ?? (answer.Record is { } first ? [first] : []);
         return new CatalogueAnswer([.. records.Select(r => new BookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
-            r.Values?.Select(v => new CatalogueValue(v.Field, v.Value)).ToList()))],
+            r.Values?.Select(v => new CatalogueValue(v.Field, v.Value)).ToList(), r.Pages))],
             answer.AskedOf ?? answer.Catalogues);
     }
 

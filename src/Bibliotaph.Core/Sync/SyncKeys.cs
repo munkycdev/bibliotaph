@@ -112,6 +112,15 @@ public static class SyncFields
     /// <summary>A card's membership of a collection, by the collection's sync id: "in.3f2…". One field each, so adding a book to two collections on two PCs keeps both.</summary>
     public const string InCollectionPrefix = "in.";
 
+    /// <summary>
+    /// A file's pack: the sync id of the pack it is in, or "" for an image the user kept on a card of its own. Absent
+    /// says nothing; cleared after it was set, the file was taken out of its pack.
+    /// </summary>
+    public const string InPack = "pack";
+
+    /// <summary>A pack's chosen cover: the key of the file whose cover it shows.</summary>
+    public const string Cover = "cover";
+
     /// <summary>An existing book owned elsewhere: always true, so the record has a field to outlive a tombstone with.</summary>
     public const string Exists = "x";
 

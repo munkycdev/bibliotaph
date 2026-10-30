@@ -79,8 +79,8 @@ your PC, and the built-in AI runs there too. It connects to the internet only fo
 - **AI models.** Settings > AI downloads a model from Hugging Face only when you choose one.
 - **Book catalogues.** Bibliotaph sends the ISBNs a book prints, and nothing else, to [Open Library](https://openlibrary.org)
   to suggest its title, authors, publisher and year; see [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
-  A PC connected to your web library asks through bibliotaph.online instead, with the book's title, which asks RPGGeek
-  and Google Books too.
+  A PC connected to your web library asks through bibliotaph.online instead, with the book's title, which asks RPGGeek,
+  AdventureLookup and Google Books too.
 - **Online libraries.** When you open D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG in Bibliotaph's browser, it
   talks to that site the way any browser does, signed in as you. Bibliotaph reads a page only when you press
   **Read this page**, and never sees or keeps your password; see [Online libraries](docs/guide/online-libraries.md).

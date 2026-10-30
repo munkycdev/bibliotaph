@@ -18,6 +18,14 @@ public enum IdentifierKind
 /// </summary>
 public sealed record BookIdentifier(IdentifierKind Kind, string Value, int? PdfPage, string Printed);
 
+/// <summary>Publishers' product codes, kept as <see cref="IdentifierKind.ProductCode"/> says: capitals and digits only.</summary>
+public static class ProductCode
+{
+    /// <summary>"PZO1110" for "PZO 1110" or "pzo-1110"; null when nothing is left, as for RPGGeek's empty codes.</summary>
+    public static string? Normalize(string text) =>
+        new string([.. text.Where(char.IsAsciiLetterOrDigit)]).ToUpperInvariant() is { Length: > 0 } code ? code : null;
+}
+
 /// <summary>ISBNs: reading one as written, with its check digit, and its stored 13-digit form.</summary>
 public static class Isbn
 {
@@ -173,7 +181,7 @@ public static partial class BookIdentifiers
     static BookIdentifier Code(Match match, int page)
     {
         var printed = match.Groups["code"].Value;
-        return new BookIdentifier(IdentifierKind.ProductCode, new string([.. printed.Where(char.IsAsciiLetterOrDigit)]), page, printed);
+        return new BookIdentifier(IdentifierKind.ProductCode, ProductCode.Normalize(printed)!, page, printed);
     }
 
     /// <summary>"TSR 1987", the prefix and four digits apart, is a copyright line written backwards, not a stock number.</summary>

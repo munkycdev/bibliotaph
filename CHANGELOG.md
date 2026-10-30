@@ -10,6 +10,28 @@
   grown month by month. Every figure opens the Library at the books it counts. Home shows the library's size under the
   welcome, with a link to it. The search box has a new field, `opened:`, so `opened:no` finds the books you haven't
   opened yet. See [Your library in numbers](docs/guide/summary.md).
+- **Monsters, items, and what an adventure includes.** Three new fields, filled by AdventureLookup and by you: an
+  adventure's monsters (bosses first) and its magic items, which plain search finds ("owlbear"), and **Includes**, a
+  short list of pre-generated characters, handouts, battle maps and playable solo. The AI isn't asked for them. See
+  [Cataloging](docs/guide/cataloging.md).
+- **Levels and environments from AdventureLookup.** On the web, and on a PC connected to it, books are now looked up
+  on [AdventureLookup](https://adventurelookup.com) too, a catalogue of published adventures, by their title. Its
+  record is used when the book prints that title and one of its authors or its publisher, or has about as many pages;
+  otherwise Needs review asks **Same book?**. It fills in the levels an adventure is for, which no catalogue gave
+  before, and its edition, setting, environments and series. Books that print no ISBN or product code are looked up
+  by title now too. The vocabulary gains the environments Stronghold, Temple, Mansion and Sky, and the game system
+  Draw Steel. See [Cataloging](docs/guide/cataloging.md).
+- **Artists and mechanics from RPGGeek, and books found by product code.** A book looked up on RPGGeek now gets its
+  artists and its mechanics (such as "Dice (d20)") in two new fields, which plain search finds; the AI isn't asked
+  for them. RPGGeek's record is also used when one of its versions lists a product code the book prints, such as
+  PZO1110, so books with a code but no ISBN are looked up too. Books looked up before get artists and mechanics once
+  you press the run-again button on **Looking up online** in Settings › Processing. See
+  [Cataloging](docs/guide/cataloging.md).
+- **Packs now sync between the web and your PCs.** Files you pack together, a pack you split, your Make a pack and
+  Keep separate answers in Needs review, packs merged into one and a pack's chosen cover reach every device that has
+  those files. A pack's title, hearts and collections, which waited for a matching pack, now arrive with it. Where the
+  web and a PC packed the same folder by themselves, they settle on one pack. See
+  [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
 - **Needs review answers about new names now reach every device.** When the AI proposed the same new name on the web
   and on a PC, adding it on one left it waiting on the other, with its books still in Needs review. Now a name you add,
   file under another term or turn down is decided the same way everywhere, and the books waiting on it move on. A name

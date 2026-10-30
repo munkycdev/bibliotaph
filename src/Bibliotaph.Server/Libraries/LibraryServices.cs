@@ -147,7 +147,8 @@ public static class LibraryServices
             sp.GetRequiredService<LookupRecordStore>()));
         services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySync>>(),
-            SyncFiles.WebMachine, [sp.GetRequiredService<ServerSyncChannel>()], sp.GetRequiredService<UserTagService>()));
+            SyncFiles.WebMachine, [sp.GetRequiredService<ServerSyncChannel>()], sp.GetRequiredService<UserTagService>(),
+            sp.GetRequiredService<MetadataHints>()));
         // What the AI worked out about files, shared with the user's PCs by content through sync.db.
         services.AddSingleton<SharedResultCache>();
         services.AddSingleton<IResultChannel, ServerResultChannel>();

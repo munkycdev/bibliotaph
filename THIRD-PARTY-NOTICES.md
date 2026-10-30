@@ -79,13 +79,14 @@ the fonts and the icons; everything else runs only on the server.
 
 ## Book data from online catalogues
 
-Each catalogue is sent a book's ISBNs, and RPGGeek, which can only be searched by name, a title, and each suggestion it
-gives names it as its source ("Open Library's record of …", with the record's title). Settings > Processing says where they go.
+Each catalogue is sent a book's ISBNs, and RPGGeek and AdventureLookup, which can only be searched by name, a title
+(AdventureLookup is sent the title of a book that prints no ISBN too), and each suggestion it gives names it as its source ("Open Library's record of …", with the record's title). Settings > Processing says where they go.
 
 | Catalogue | Asked by | Terms of its data | Site |
 | --- | --- | --- | --- |
 | Open Library, run by the Internet Archive | The Windows app and the web server | Public domain (CC0) | https://openlibrary.org/developers/licensing |
 | RPGGeek, run by BoardGameGeek (data powered by BGG) | The web server, through BoardGameGeek's XML API with a registered non-commercial app | BGG XML API Terms of Use: credited to BoardGameGeek, shown unmodified, never used to train AI | https://boardgamegeek.com/wiki/page/XML_API_Terms_of_Use |
+| AdventureLookup | The web server, through its public API | Used with its maintainers' permission | https://adventurelookup.com |
 | Google Books | The web server | Google APIs Terms of Service | https://developers.google.com/books/terms |
 
 ## Build, test and tooling only (not shipped)
