@@ -80,7 +80,10 @@ and changed files are read.
 - The bottom of the sidebar says what it's doing now. A long status wraps to a second line, and pointing at it
   shows all of it. Click it to open **Settings > Processing**.
 - **Settings > Processing** shows each step and the time left, from finding files to the AI's scan of whole books, with
-  **Pause indexing**, **Pause reading scans** and **Pause AI**.
+  **Pause indexing**, **Pause reading scans** and **Pause AI**. The button at the end of a row runs that step again
+  for every book: **Finding files** looks through your folders now, and **Looking up online**, **Cataloguing with AI**
+  (with your lists as they stand now, say after adding names) and **Scanning whole books** ask first, since each takes
+  a pass over your library. Values you've accepted, typed or rejected stay as they are.
 - Files that couldn't be read are listed in **Needs review**, under **Files needing attention**.
 
 ### Set up AI, or not

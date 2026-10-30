@@ -26,14 +26,14 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 
 /// <summary>
 /// Settings > AI: Built in or a model server; for a server, its address and model, a key if it needs one, and Test;
-/// which library folders are sent, and how far classification has got, with Reclassify and Read every book again; with an embedding model, how far
+/// which library folders are sent, and how far classification has got, with Reclassify (Read every book again is in Processing); with an embedding model, how far
 /// the library has been read for meaning, which can be switched off. AI is off until a model is
 /// set up and switched on; an endpoint off this computer and network needs the user's say-so as well.
 /// </summary>
 public sealed partial class AiSettingsViewModel(
     AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
     PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, SettingsLinks links, LibraryVectors libraryVectors, ILogger<AiSettingsViewModel> log,
-    ChapterScanService chapters, WebShelfCache shelf, IUserPrompts prompts)
+    ChapterScanService chapters, WebShelfCache shelf)
     : SettingsSectionViewModel
 {
     bool _loading;
@@ -252,13 +252,6 @@ public sealed partial class AiSettingsViewModel(
 
     public string ReclassifyLabel => AiText.ReclassifyLabel(Earlier, Failed);
 
-    /// <summary>Read every book again, once the AI has read anything; null until then.</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanReadAgain))]
-    public partial AiReadAgain? ReadAgain { get; private set; }
-
-    public bool CanReadAgain => ReadAgain is not null;
-
     public override async Task LoadAsync()
     {
         var setup = ai.Setup;
@@ -366,7 +359,6 @@ public sealed partial class AiSettingsViewModel(
             var summary = await ai.SummarizeAsync();
             Earlier = summary.Earlier;
             Failed = progress.ClassifyFailed;
-            ReadAgain = AiText.ReadAgain(summary);
             OnPropertyChanged(nameof(ReclassifyText));
             OnPropertyChanged(nameof(ReclassifyLabel));
             ProgressText = AiText.Progress(ai.Setup, summary, progress);
@@ -561,13 +553,7 @@ public sealed partial class AiSettingsViewModel(
         Activity.Invalidate();
     }
 
-    /// <summary>Asks first: it costs a pass over the whole library.</summary>
+    /// <summary>Read every book again is at the end of Cataloguing with AI's row there, with the other steps that run again.</summary>
     [RelayCommand]
-    async Task ReadAgainAsync()
-    {
-        if (ReadAgain is not { } readAgain || !prompts.Confirm(readAgain.Question, "Read every book again?", PromptKind.Question, okByDefault: false)) return;
-        var queued = await ai.ReadAgainAsync();
-        SaveNote = AiText.ReadingAgain(queued);
-        Activity.Invalidate();
-    }
+    void OpenProcessing() => links.Open(SettingsSection.Processing);
 }

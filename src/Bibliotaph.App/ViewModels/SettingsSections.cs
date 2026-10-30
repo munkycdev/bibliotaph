@@ -41,7 +41,7 @@ public abstract partial class SettingsSectionViewModel : ObservableObject
 /// are looked up by their ISBN.
 /// </summary>
 public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, LibraryActivity activity, SettingsLinks links, OnlineOnlyReturns returns,
-    BookLookups lookups, ILogger<ProcessingSectionViewModel> log) : SettingsSectionViewModel
+    BookLookups lookups, RunAgainService runAgain, IUserPrompts prompts, ILogger<ProcessingSectionViewModel> log) : SettingsSectionViewModel
 {
     bool _loading;
 
@@ -94,6 +94,28 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
         {
             log.LogError(ex, "Saving whether files go back to online-only failed");
         }
+    }
+
+    /// <summary>What the last run-again did, under the bars; empty until one runs.</summary>
+    [ObservableProperty]
+    public partial string RunAgainNote { get; private set; } = "";
+
+    /// <summary>The button at the end of a row: a step that costs a pass over the library asks first.</summary>
+    [RelayCommand]
+    async Task RunAgainAsync(PhaseProgress phase)
+    {
+        if (phase.RunAgain is not { } offer) return;
+        if (offer.Question is { } question && !prompts.Confirm(question, $"{offer.Hint}?", PromptKind.Question, okByDefault: false)) return;
+        try
+        {
+            RunAgainNote = await Task.Run(() => runAgain.RunAsync(offer.Step)) ?? "";
+        }
+        catch (Exception ex)
+        {
+            log.LogError(ex, "Running {Step} again failed", offer.Step);
+            RunAgainNote = "That couldn't be run again. Try again in a moment.";
+        }
+        Activity.Invalidate();
     }
 
     [RelayCommand]

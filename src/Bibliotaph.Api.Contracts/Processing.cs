@@ -7,13 +7,25 @@ namespace Bibliotaph.Api.Contracts;
 /// still to do, and where they're looked up (<see cref="LookupCatalogues"/>, "Open Library or Google Books"). Scanning
 /// whole books is the AI's slow last step, with its own switch in Settings › AI (<see cref="ScanWholeBooks"/>). A
 /// connected PC whose own AI is cataloguing says so (<see cref="Pcs"/>): the work it does reaches the web library as
-/// its results arrive, so the page can say where it is being done.
+/// its results arrive, so the page can say where it is being done. <see cref="RunAgain"/> are the steps that can be run
+/// again for every book, each with the button at the end of its row.
 /// </summary>
 public sealed record ProcessingState(
     string Summary, bool HasFolders, bool Scanning, long Files, long ToRead, long Indexed, long Queued, long OcrPagesDone, long OcrPages,
     bool AiOn, string? AiWaiting, long Classified, long ToClassify, ProcessingPauses Paused, IReadOnlyList<string> Now, long Attention,
     string? LookupWaiting = null, long LookedUp = 0, long ToLookUp = 0, string? LookupCatalogues = null,
-    long ScannedWhole = 0, long ToScanWhole = 0, bool ScanWholeBooks = true, IReadOnlyList<PcProcessing>? Pcs = null);
+    long ScannedWhole = 0, long ToScanWhole = 0, bool ScanWholeBooks = true, IReadOnlyList<PcProcessing>? Pcs = null,
+    IReadOnlyList<RunAgainOffer>? RunAgain = null);
+
+/// <summary>
+/// A step of Settings › Processing that can be run again for every book: its key (<c>finding</c>, <c>lookup</c>,
+/// <c>ai</c> or <c>scan</c>), the button's tooltip, and the question asked first with its answer's label; a step that
+/// costs nothing to run again (looking through the folders) asks nothing.
+/// </summary>
+public sealed record RunAgainOffer(string Step, string Hint, string? Question = null, string? Confirm = null);
+
+/// <summary>What running a step again did, in a line.</summary>
+public sealed record RunAgainDone(string Note);
 
 /// <summary>Which lanes the user paused: reading files and making them searchable, reading scans, and the AI.</summary>
 public sealed record ProcessingPauses(bool Indexing, bool Scans, bool Ai);

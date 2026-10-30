@@ -198,6 +198,7 @@ public static class LibraryServices
         services.AddSingleton<IStage, ClassifyStage>();
         services.AddSingleton<IStage, ChapterScanStage>();
         services.AddSingleton<AiService>();
+        services.AddSingleton<RunAgainService>();
         // Ask this book: its pages found by words and, with an embedding model, by meaning, and answered by the model.
         services.AddSingleton(sp => new AskHistoryStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), host.Clock));
         services.AddSingleton<AskQueries>();

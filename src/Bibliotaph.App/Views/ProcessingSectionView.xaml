@@ -49,16 +49,19 @@
           </TextBlock.Style>
         </TextBlock>
 
-        <ItemsControl ItemsSource="{Binding Activity.Phases}" Focusable="False" Margin="0,8,0,0">
+        <!-- Rows share their label and status widths so the bars line up; at the smallest window the bars give way, and a
+             long status wraps, so the run-again buttons stay whole. -->
+        <ItemsControl ItemsSource="{Binding Activity.Phases}" Focusable="False" Margin="0,8,0,0" Grid.IsSharedSizeScope="True">
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="{x:Type services:PhaseProgress}">
               <Grid Margin="0,6,0,0" AutomationProperties.Name="{Binding Label}" AutomationProperties.HelpText="{Binding Status}">
                 <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="150" />
-                  <ColumnDefinition Width="*" MinWidth="80" />
-                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" SharedSizeGroup="PhaseLabel" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" SharedSizeGroup="PhaseStatus" />
+                  <ColumnDefinition Width="34" />
                 </Grid.ColumnDefinitions>
-                <StackPanel VerticalAlignment="Center">
+                <StackPanel VerticalAlignment="Center" MaxWidth="150">
                   <TextBlock Text="{Binding Label}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
                   <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
@@ -79,11 +82,19 @@
                   </ProgressBar.Style>
                 </ProgressBar>
                 <TextBlock Grid.Column="2" Text="{Binding Status}" Style="{StaticResource Text.Small}" VerticalAlignment="Center"
-                           MinWidth="190" TextAlignment="Right" />
+                           MaxWidth="130" TextWrapping="Wrap" TextAlignment="Right" />
+                <!-- Runs the step again for every book, asked first where it costs a pass over the library. -->
+                <Button Grid.Column="3" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.RotateCcw}" HorizontalAlignment="Right"
+                        VerticalAlignment="Center" ToolTip="{Binding RunAgain.Hint}" AutomationProperties.Name="{Binding RunAgain.Hint}"
+                        Command="{Binding DataContext.RunAgainCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                        Visibility="{Binding RunAgain, Converter={StaticResource Bt.VisibleWhenSet}}" />
               </Grid>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+
+        <TextBlock Text="{Binding RunAgainNote}" Style="{StaticResource Text.Small}" Margin="0,8,0,0" TextWrapping="Wrap"
+                   Visibility="{Binding RunAgainNote, Converter={StaticResource Bt.VisibleWhenSet}}" />
 
         <!-- What each part is on right now, so the section shows movement even while a bar creeps. -->
         <StackPanel Margin="0,12,0,0">

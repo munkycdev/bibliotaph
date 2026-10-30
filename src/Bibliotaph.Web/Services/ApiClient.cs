@@ -76,7 +76,6 @@ public sealed class ApiClient(HttpClient http)
 
     public Task<AiNote> ReclassifyAsync(CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Post, "api/ai/reclassify", null, ct);
 
-    public Task<AiNote> ReadAgainAsync(CancellationToken ct = default) => SendAsync<AiNote>(HttpMethod.Post, "api/ai/read-again", null, ct);
 
     /// <summary>Test with a book: held open while the model reads, and cancelled with <paramref name="ct"/>.</summary>
     public Task<AiTestReport> TestAiAsync(AiTest test, CancellationToken ct = default) => SendAsync<AiTestReport>(HttpMethod.Post, "api/ai/test", test, ct);
@@ -531,6 +530,9 @@ public sealed class ApiClient(HttpClient http)
         SendAsync<ReviewMode>(HttpMethod.Put, "api/review/mode", new ReviewMode(all), ct);
 
     public Task<ProcessingState> ProcessingAsync(CancellationToken ct = default) => SendAsync<ProcessingState>(HttpMethod.Get, "api/processing", null, ct);
+
+    public Task<RunAgainDone> RunAgainAsync(string step, CancellationToken ct = default) =>
+        SendAsync<RunAgainDone>(HttpMethod.Post, $"api/processing/run-again/{Uri.EscapeDataString(step)}", null, ct);
 
     public Task<ProcessingState> PauseLanesAsync(ProcessingPauses paused, CancellationToken ct = default) =>
         SendAsync<ProcessingState>(HttpMethod.Put, "api/processing/paused", paused, ct);

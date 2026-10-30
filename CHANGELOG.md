@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Run a step again from Settings › Processing.** A button at the end of the Finding files, Looking up online,
+  Cataloguing with AI and Scanning whole books rows runs that step again for every book, on Windows and the web: after
+  adding names to your lists, the AI row reads every book again against them. The last three ask first, with how many
+  books, since each takes a pass over your library; values you've accepted, typed or rejected stay as they are. Read
+  every book again has moved there from Settings › AI, which points to it. See
+  [Getting started](docs/guide/getting-started.md).
 - **Same book?** When RPGGeek, Open Library or Google Books has a record for a book's ISBN but its title isn't printed
   in the book, Needs review now asks whether it's the same book, showing what the record says, instead of quietly
   setting it aside. **Same book** fills in the book's title, authors, publisher, year and what RPGGeek files it under,

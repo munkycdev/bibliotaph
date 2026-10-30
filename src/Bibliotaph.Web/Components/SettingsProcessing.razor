@@ -1,4 +1,5 @@
-@* Settings › Processing, as the Windows app's: indexing step by step with the time left, what each part is on now, and
+@* Settings › Processing, as the Windows app's: indexing step by step with the time left, each with a button at the end
+   of its row to run it again for every book where that helps (asked first, as on Windows), what each part is on now,
    pause and resume for each lane, and what the AI on the user's connected PCs is doing. It asks the server again every
    couple of seconds while it shows. *@
 @using Bibliotaph.Core.Progress
@@ -40,9 +41,35 @@
                         <progress class="bt-bar @Bar(phase)" aria-label="@phase.Label" max="100" value="@phase.Percent.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)"></progress>
                     }
                     <small class="bt-phasestatus">@phase.Status</small>
+                    @if (Offer(phase) is { } offer)
+                    {
+                        <button class="bt-icon" title="@offer.Hint" aria-label="@offer.Hint" disabled="@_saving" @onclick="() => RunAgainAsync(offer)">
+                            <Icon Name="RotateCcw" Size="14" /></button>
+                    }
+                    else
+                    {
+                        <span></span>
+                    }
                 </div>
             }
         </div>
+        @if (_asking is { } asking)
+        {
+            <div class="bt-source bt-pending" role="alertdialog" aria-label="@($"{asking.Hint}?")">
+                <div class="bt-sourcerow">
+                    <Icon Name="RotateCcw" />
+                    <div>@($"{asking.Hint}?")<small>@asking.Question</small></div>
+                </div>
+                <div class="bt-actions">
+                    <button class="bt-button primary" disabled="@_saving" @onclick="() => RunAgainAsync(asking, asked: true)">@asking.Confirm</button>
+                    <button class="bt-button" @onclick="() => _asking = null">Cancel</button>
+                </div>
+            </div>
+        }
+        @if (_runNote is { } note)
+        {
+            <p class="bt-fine" role="status">@note</p>
+        }
         @if (_state.Now.Count > 0)
         {
             <div class="bt-now">
@@ -119,6 +146,8 @@
     ProcessingState? _state;
     string _timeLeft = "";
     bool _saving;
+    RunAgainOffer? _asking;
+    string? _runNote;
 
     bool HasIndexWork => _state is { } s && (s.Scanning || s.ToRead > 0 || s.Queued > s.Indexed);
 
@@ -169,6 +198,37 @@
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
             // The buttons still show the lanes as they were.
+        }
+        _saving = false;
+    }
+
+    /// <summary>The step a row runs again, when the server offers it now.</summary>
+    RunAgainOffer? Offer(ProcessingPhase phase)
+    {
+        var step = phase == _finding ? "finding" : phase == _lookingUp ? "lookup" : phase == _classifying ? "ai" : phase == _scanning ? "scan" : null;
+        return _state?.RunAgain?.FirstOrDefault(o => o.Step == step);
+    }
+
+    /// <summary>A step that costs a pass over the library asks first, below the bars; the folders are looked through at once.</summary>
+    async Task RunAgainAsync(RunAgainOffer offer, bool asked = false)
+    {
+        _runNote = null;
+        if (offer.Question is not null && !asked)
+        {
+            _asking = offer;
+            return;
+        }
+        _asking = null;
+        _saving = true;
+        try
+        {
+            _runNote = (await Api.RunAgainAsync(offer.Step, _stop.Token)).Note;
+            await RefreshAsync();
+            Activity.Refresh();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
+        {
+            _runNote = "That can't be run again right now. Try again in a moment.";
         }
         _saving = false;
     }

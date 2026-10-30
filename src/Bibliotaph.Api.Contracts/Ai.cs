@@ -9,13 +9,13 @@ namespace Bibliotaph.Api.Contracts;
 /// </summary>
 public sealed record AiPage(bool Enabled, string? Endpoint, string? Model, bool RemoteAllowed, string? KeyEnding, string Progress,
     string? Waiting, AiReclassify? Reclassify, IReadOnlyList<AiFolder> Folders, bool ScanWholeBooks, string ScanProgress, string? EmbeddingModel,
-    bool ReadLibrary = false, string? LibraryProgress = null, AiReadAgain? ReadAgain = null);
+    bool ReadLibrary = false, string? LibraryProgress = null);
 
 public sealed record AiReclassify(string Text, string Label, bool HasFailed);
 
 /// <summary>
-/// Read every book again, offered once the AI has read anything: what it does, its button, and the question asked
-/// before it starts, since it costs a pass over the whole library.
+/// Read every book again, offered at the end of Cataloguing with AI's row in Settings › Processing once the AI has read
+/// anything: what it does, its button, and the question asked before it starts, since it costs a pass over the library.
 /// </summary>
 public sealed record AiReadAgain(string Text, string Label, string Question);
 
