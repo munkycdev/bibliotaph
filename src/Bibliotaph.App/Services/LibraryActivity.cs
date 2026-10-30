@@ -94,6 +94,7 @@ public sealed partial class LibraryActivity : ObservableObject
     readonly LibraryStore _library;
     readonly ReviewService _review;
     readonly ChapterScanService _chapters;
+    readonly WebLibrary _web;
     readonly ILogger<LibraryActivity> _log;
     readonly TimeProvider _time;
     readonly UiTimer _timer;
@@ -109,9 +110,10 @@ public sealed partial class LibraryActivity : ObservableObject
     bool _refreshing;
 
     public LibraryActivity(IIndexingStatus indexing, IJobControl jobs, IStageCatalog stages, IndexQueries queries, LibraryStore library,
-        MetadataProjector metadata, ReviewService review, ChapterScanService chapters, TimeProvider time, ILogger<LibraryActivity> log)
+        MetadataProjector metadata, ReviewService review, ChapterScanService chapters, WebLibrary web, TimeProvider time, ILogger<LibraryActivity> log)
     {
         _indexing = indexing;
+        _web = web;
         _chapters = chapters;
         _jobs = jobs;
         _stages = stages;
@@ -124,6 +126,7 @@ public sealed partial class LibraryActivity : ObservableObject
         _indexing.Changed += (_, _) => Interlocked.Exchange(ref _dirty, 1);
         // Metadata edits and projections change what the library shows without any indexing.
         metadata.Projected += (_, _) => Interlocked.Exchange(ref _dirty, 1);
+        web.ReachabilityChanged += (_, _) => Interlocked.Exchange(ref _dirty, 1);
         Phases = [_finding, _reading, _making, _scans, _lookingUp, _classifying, _scanning];
     }
 
@@ -145,8 +148,18 @@ public sealed partial class LibraryActivity : ObservableObject
 
     public bool HasOfflineFolders => OfflineText.Length > 0;
 
+    /// <summary>
+    /// "bibliotaph.online can't be reached", under the status in the sidebar while this PC is connected to its web
+    /// library and can't reach it; empty otherwise. Lookups, sync and web books all wait on it, so it's said once here.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasWebProblem), nameof(StatusName))]
+    public partial string WebText { get; private set; } = "";
+
+    public bool HasWebProblem => WebText.Length > 0;
+
     /// <summary>What the sidebar status says, for screen readers.</summary>
-    public string StatusName => HasOfflineFolders ? $"{Summary}. {OfflineText}" : Summary;
+    public string StatusName => string.Join(". ", new[] { Summary, OfflineText, WebText }.Where(t => t.Length > 0));
 
     /// <summary>Indexing step by step: finding files, reading them, making them searchable, reading scans, asking the AI.</summary>
     public IReadOnlyList<PhaseProgress> Phases { get; }
@@ -281,6 +294,7 @@ public sealed partial class LibraryActivity : ObservableObject
             HasLookupWork = Progress.ToLookUp > 0;
             Summary = Describe();
             OfflineText = Counts.OfflineFolders == 0 ? "" : $"{Counts.OfflineFolders:N0} {Plural(Counts.OfflineFolders, "folder", "folders")} offline";
+            WebText = _web.IsUnreachable && _web.HasKey ? $"{(await _web.AddressAsync()).Host} can't be reached" : "";
             UpdatePhases(_time.GetUtcNow());
             var lines = await DescribeNowAsync();
             if (!lines.SequenceEqual(Now)) Now = lines;

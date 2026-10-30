@@ -223,9 +223,10 @@ public partial class App : Application
         // This PC's connection to bibliotaph.online; the smoke test's key stays in memory.
         if (smokeTest) builder.Services.AddSingleton<IWebLibraryKey, MemoryWebLibraryKey>();
         else builder.Services.AddSingleton<IWebLibraryKey, WebLibraryKeyVault>();
-        // The smoke test's bibliotaph.online is a stand-in, which it connects to only to show the web library's books.
+        // The smoke test's bibliotaph.online is a stand-in, which it connects to only to show the web library's books. Each
+        // request sets how long it waits (WebLibrary.Patience), since a lookup can wait its turn far longer than the rest.
         builder.Services.AddSingleton(sp => new WebLibrary(
-            smokeTest ? new System.Net.Http.HttpClient(new SmokeWebLibrary()) : new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(20) },
+            smokeTest ? new System.Net.Http.HttpClient(new SmokeWebLibrary()) : new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan },
             sp.GetRequiredService<IWebLibraryKey>(), sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<WebLibrary>>()));
         builder.Services.AddSingleton<IWebBooks>(sp => sp.GetRequiredService<WebLibrary>());

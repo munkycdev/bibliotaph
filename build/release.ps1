@@ -79,7 +79,12 @@ $tipSubject = Invoke-Git $root log -1 --format=%s $tip
 
 # 3. The notes. Bullets still under Unreleased become the new build's block, which is one more commit on main.
 $changelogPath = Join-Path $root 'CHANGELOG.md'
-$changelog = Invoke-Git $root show "${tip}:CHANGELOG.md"
+# git writes the file as UTF-8. Read in the console's code page, its dashes and accents came out garbled, and each
+# release wrote them back worse.
+$consoleEncoding = [Console]::OutputEncoding
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
+try { $changelog = Invoke-Git $root show "${tip}:CHANGELOG.md" }
+finally { [Console]::OutputEncoding = $consoleEncoding }
 $lines = [string[]] @($changelog)
 $unreleased = [array]::FindIndex($lines, [Predicate[string]] { param($l) $l -match '^## Unreleased\s*$' })
 if ($unreleased -lt 0) { throw 'CHANGELOG.md has no "## Unreleased" section.' }

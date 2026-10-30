@@ -61,7 +61,25 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
     /// <summary>How often the app asks whether the user has answered.</summary>
     public static readonly TimeSpan PollEvery = TimeSpan.FromSeconds(2);
 
+    /// <summary>How long a request waits for an answer before the web library counts as out of reach.</summary>
+    public static readonly TimeSpan Patience = TimeSpan.FromSeconds(20);
+
+    /// <summary>
+    /// How long a lookup waits: the server asks RPGGeek at most every five seconds for every library and PC together,
+    /// so a book can wait behind several others' before its turn, and that is the server busy, not out of reach.
+    /// </summary>
+    public static readonly TimeSpan LookUpPatience = TimeSpan.FromMinutes(3);
+
     public bool HasKey => key.Find() is not null;
+
+    /// <summary>
+    /// Whether the last request found the web library out of reach: no connection, or no answer in time. Any answer,
+    /// even a refusal, means it can be reached. A slow lookup doesn't count, since the server answers those in turn.
+    /// </summary>
+    public bool IsUnreachable { get; private set; }
+
+    /// <summary>Raised when <see cref="IsUnreachable"/> changes, on whichever thread made the request.</summary>
+    public event EventHandler? ReachabilityChanged;
 
     /// <summary>The web library's address; a setting only so a developer can point the app at their own server.</summary>
     public async Task<Uri> AddressAsync(CancellationToken ct = default) =>
@@ -406,7 +424,8 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
     {
         try
         {
-            using var response = await SendAsync(HttpMethod.Post, "api/pc/lookups", new PcLookupRequest(isbns, titles), withKey: true, ct);
+            using var response = await SendAsync(HttpMethod.Post, "api/pc/lookups", new PcLookupRequest(isbns, titles), withKey: true, ct,
+                patience: LookUpPatience);
             if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
             if ((response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.ServiceUnavailable)
                 && await response.Content.ReadFromJsonAsync<PcLookupAnswer>(ct) is { } answer) return answer;
@@ -450,13 +469,32 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested);
 
     async Task<HttpResponseMessage> SendAsync(HttpMethod method, string path, object? body, bool withKey, CancellationToken ct,
-        HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead)
+        HttpCompletionOption completion = HttpCompletionOption.ResponseContentRead, TimeSpan? patience = null)
     {
         using var request = new HttpRequestMessage(method, new Uri(await AddressAsync(ct), path));
         request.Headers.Add(ApiHeaders.Client, "windows");
         if (withKey && key.Find() is { } secret) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", secret);
         request.Content = body switch { null => null, HttpContent content => content, _ => JsonContent.Create(body, body.GetType()) };
-        return await http.SendAsync(request, completion, ct);
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(patience ?? Patience);
+        try
+        {
+            var response = await http.SendAsync(request, completion, limit.Token);
+            Reached(true);
+            return response;
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            if (ex is HttpRequestException || patience is null) Reached(false);
+            throw;
+        }
+    }
+
+    void Reached(bool reached)
+    {
+        if (IsUnreachable == !reached) return;
+        IsUnreachable = !reached;
+        ReachabilityChanged?.Invoke(this, EventArgs.Empty);
     }
 }
 
