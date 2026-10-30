@@ -351,6 +351,10 @@ public partial class App : Application
         builder.Services.AddHostedService(sp => sp.GetRequiredService<SharedResults>());
         builder.Services.AddSingleton<WebShelfSync>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<WebShelfSync>());
+        // What this PC's AI is doing, for Settings › Processing on the web.
+        builder.Services.AddSingleton<IPcActivityChannel>(sp => sp.GetRequiredService<WebLibrary>());
+        builder.Services.AddSingleton<PcActivityReport>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<PcActivityReport>());
         builder.Services.AddSingleton<ForgetText>();
 
         // Shell

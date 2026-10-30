@@ -8,6 +8,11 @@
   shown as coming from that catalogue rather than from you, so anything you set yourself stays; **Not this book**
   means it's never used for that book. Your answer reaches your other PCs and the web. Books set aside this way
   before are looked up once more to ask. See [Cataloging](docs/guide/cataloging.md#needs-review).
+- **See your PC's AI at work on the web.** When a Windows PC connected to bibliotaph.online is cataloguing with its own
+  AI, Settings › Processing on the web now says so: **On your PCs** shows the book it's on and how far it has got, and
+  Cataloguing with AI and Scanning whole books say **On** and the PC's name instead of **Off** when the server's AI
+  isn't set up. The PC sends only the book's fingerprint, so a book only the PC has is never named. Needs this
+  version of the Windows app. See [Bibliotaph on the web](docs/guide/web.md#processing).
 - **Suggestions name the record by its title.** A looked-up suggestion's quote, in Needs review and the details
   panel, now reads "RPGGeek's record of The Owlbear Mill" rather than giving an ISBN. Books looked up before keep the
   old wording until they're next looked up.

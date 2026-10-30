@@ -20,24 +20,25 @@ public static class ProcessingApi
     {
         var processing = api.MapGroup("/processing");
 
-        processing.MapGet("", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        processing.MapGet("", async (ClaimsPrincipal principal, UserLibraries libraries, PcActivityBoard pcs, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
-            return await StateAsync(lease.Library, ct);
+            return await StateAsync(lease.Library, pcs.Of(principal.UserId()!), ct);
         }).WatchesBackgroundWork();
 
-        processing.MapPut("/paused", async (ProcessingPauses paused, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        processing.MapPut("/paused", async (ProcessingPauses paused, ClaimsPrincipal principal, UserLibraries libraries, PcActivityBoard pcs,
+            CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var library = lease.Library;
             await PausedLanes.SaveAsync(library.Get<SettingsStore>(), paused, ct);
             PausedLanes.Apply(library.Indexing, paused);
-            return await StateAsync(library, ct);
+            return await StateAsync(library, pcs.Of(principal.UserId()!), ct);
         });
 
     }
 
-    static async Task<ProcessingState> StateAsync(UserLibrary library, CancellationToken ct)
+    static async Task<ProcessingState> StateAsync(UserLibrary library, IReadOnlyList<PcActivityBoard.Entry> pcs, CancellationToken ct)
     {
         var indexing = library.Indexing;
         var counts = await library.Get<LibraryStore>().GetCountsAsync(ct);
@@ -49,7 +50,27 @@ public static class ProcessingApi
             progress.Indexed, progress.Queued, progress.OcrPagesDone, progress.OcrPages, aiOn, aiOn ? indexing.Unavailable(Lane.Classify) : null,
             progress.Classified, progress.ToClassify, PausedLanes.Of(indexing), await NowAsync(library, ct), status.Attention,
             indexing.Unavailable(Lane.Online), progress.LookedUp, progress.ToLookUp, library.Get<BookLookups>().Catalogue.Name,
-            progress.ScannedWhole, progress.ToScanWhole, library.Get<ChapterScanService>().IsOn);
+            progress.ScannedWhole, progress.ToScanWhole, library.Get<ChapterScanService>().IsOn, await PcsAsync(library, pcs, ct));
+    }
+
+    /// <summary>
+    /// The PCs' AI at work, in the words of <see cref="NowAsync"/>: a book is named by its card's title here, so a book
+    /// only the PC has is never named.
+    /// </summary>
+    static async Task<IReadOnlyList<PcProcessing>> PcsAsync(UserLibrary library, IReadOnlyList<PcActivityBoard.Entry> pcs, CancellationToken ct)
+    {
+        if (pcs.Count == 0) return [];
+        var stages = library.Get<IStageCatalog>();
+        var titles = await library.Get<IndexQueries>().GetTitlesByHashAsync([.. pcs.Select(p => p.Activity.ContentHash).OfType<string>()], ct);
+        return [.. pcs.Select(pc =>
+        {
+            var activity = pc.Activity;
+            var doing = Enum.TryParse<Stage>(activity.Step, out var stage)
+                ? $"{stages.Find(stage)?.Names.Running ?? "Working on"} {(activity.ContentHash is { } hash ? titles.GetValueOrDefault(hash) : null) ?? "one of its own books"}"
+                : null;
+            return new PcProcessing(pc.DeviceName, activity.Step, doing, activity.Paused, activity.Waiting,
+                activity.Classified, activity.ToClassify, activity.ScannedWhole, activity.ToScanWhole);
+        })];
     }
 
     /// <summary>What each part of indexing is working on right now, one line each, in the Windows app's words.</summary>

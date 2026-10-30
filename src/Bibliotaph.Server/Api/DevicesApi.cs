@@ -38,10 +38,11 @@ public static class DevicesApi
                 : Results.Unauthorized()).RequireAuthorization(AuthSetup.DevicePolicy);
 
         // Disconnecting in the app removes the PC here too, so it doesn't linger in the web's list.
-        devices.MapDelete("/me", async (ClaimsPrincipal principal, DeviceService service, UserLibraries libraries, CancellationToken ct) =>
+        devices.MapDelete("/me", async (ClaimsPrincipal principal, DeviceService service, UserLibraries libraries, PcActivityBoard board, CancellationToken ct) =>
         {
             await service.RemoveAsync(principal.UserId()!, principal.DeviceId()!, ct);
             await ForgetSyncFileAsync(libraries, principal.UserId()!, principal.DeviceId()!, ct);
+            board.Forget(principal.UserId()!, principal.DeviceId()!);
             return Results.NoContent();
         }).RequireAuthorization(AuthSetup.DevicePolicy);
 
@@ -59,10 +60,12 @@ public static class DevicesApi
             (await service.ListAsync(principal.UserId()!, ct)).Select(d =>
                 new ConnectedDevice(d.Id, d.Name, Utc(d.Created), d.LastUsed is { } used ? Utc(used) : null)));
 
-        signedIn.MapDelete("/{id}", async (string id, ClaimsPrincipal principal, DeviceService service, UserLibraries libraries, CancellationToken ct) =>
+        signedIn.MapDelete("/{id}", async (string id, ClaimsPrincipal principal, DeviceService service, UserLibraries libraries, PcActivityBoard board,
+            CancellationToken ct) =>
         {
             if (!await service.RemoveAsync(principal.UserId()!, id, ct)) return Results.NotFound();
             await ForgetSyncFileAsync(libraries, principal.UserId()!, id, ct);
+            board.Forget(principal.UserId()!, id);
             return Results.NoContent();
         });
     }
