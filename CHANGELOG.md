@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Same book, adventures and their answers now sync.** Files you joined as one book (with Same book, as a new version,
+  or by matching a file to a book you own elsewhere) are joined on your other devices too, and Not the same book parts
+  them everywhere. Adventures you mark in a file reach the web and your other PCs with their pages and values, and
+  removing one removes it everywhere. Your answers to adventure proposals and to "Is this its file?" travel as well.
+  See [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
 - **Your library in numbers.** A new **Summary** page in the sidebar, under Binders, shows what you have and where it
   came from: how many books, pages and gigabytes, and how long reading them all would take; your folders and drives,
   where else you own books and which store books are still to download; your game systems, types and settings, with
