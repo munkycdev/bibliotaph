@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Artists and mechanics from RPGGeek, and books found by product code.** A book looked up on RPGGeek now gets its
+  artists and its mechanics (such as "Dice (d20)") in two new fields, which plain search finds; the AI isn't asked
+  for them. RPGGeek's record is also used when one of its versions lists a product code the book prints, such as
+  PZO1110, so books with a code but no ISBN are looked up too. Books looked up before get artists and mechanics once
+  you press the run-again button on **Looking up online** in Settings › Processing. See
+  [Cataloging](docs/guide/cataloging.md).
 - **Packs now sync between the web and your PCs.** Files you pack together, a pack you split, your Make a pack and
   Keep separate answers in Needs review, packs merged into one and a pack's chosen cover reach every device that has
   those files. A pack's title, hearts and collections, which waited for a matching pack, now arrive with it. Where the
