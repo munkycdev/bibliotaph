@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Library settings and folder answers now sync.** The theme, Needs review for every suggestion, the start page, the
+  Library's order while browsing and searching, Packs or Each file, site icons and how books owned online open are the
+  same on every PC, and the web library takes Needs review and the start page. Folder rules you turned on or off, and folders you made into collections or said Never
+  to, travel for the web library's folders and for a folder at the same place on two PCs. See
+  [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
 - **Each book's own choices now sync, and books open where you left them.** The page you used as a book's cover,
   Forget its text and Read it again, a Cataloged wrong… you left open, the collections you said Never to, the cover you
   chose for a book you own elsewhere and the book's Ask this book conversation reach the web and your other PCs. A

@@ -101,8 +101,15 @@ book conversation. A book opens where you last left it, on whichever device you 
 web a few seconds after you make it, and your other PCs within a minute or so. Where two PCs change the same thing, the
 newer change wins; changes to different things are all kept.
 
-What doesn't: your library folders, settings, the sign-ins of Bibliotaph's browser, and whether a collection made from
-a folder still follows that folder (the collection itself travels). Add
+Settings about your library travel between your PCs too: the theme, whether every suggestion goes to Needs review, the
+page you start on, the Library's order while browsing and searching, Packs or Each file, site icons and how books owned
+online open. The web library takes the first ones it has (Needs review and the start page); its own Library keeps its
+order and view in your browser.
+So do your answers about folders, the folder rules you turned on or off and the collections made from folders, for the
+web library's folders (on the web and every connected PC) and for a folder at the same place on two PCs.
+
+What doesn't: your library folders, the settings about each device (AI, downloads, backups and where windows were),
+and the sign-ins of Bibliotaph's browser. Add
 your folders on each PC. Books are matched by their content, so the same file in a different place on each PC is still
 the same book.
 

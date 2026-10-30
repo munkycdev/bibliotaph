@@ -25,7 +25,7 @@ public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Chang
 /// What a merge decided that needs more than catalog.db: the user's own tags to guess again across the library, by
 /// name; cards whose packs changed, whose folder hints are stored again; books whose text the user forgot or read again
 /// on another device; cover pages to draw, by document; and cover pictures chosen for books owned elsewhere, by their
-/// entries' sync ids (null takes one away).
+/// entries' sync ids (null takes one away); and folders whose rules changed, whose files' hints are read again.
 /// </summary>
 public sealed class SyncFollowUps
 {
@@ -35,6 +35,7 @@ public sealed class SyncFollowUps
     public HashSet<EntryId> ReadAgain { get; } = [];
     public Dictionary<long, int> CoverPages { get; } = [];
     public Dictionary<Guid, byte[]?> ChosenCovers { get; } = [];
+    public HashSet<FolderKey> Folders { get; } = [];
 }
 
 public sealed partial class LibrarySyncStore
@@ -186,6 +187,9 @@ public sealed partial class LibrarySyncStore
         if (key.StartsWith(SyncKeys.Reading, StringComparison.Ordinal))
             return await UpsertReadingAsync(key[SyncKeys.Reading.Length..], new SyncedReading(Read<int>(wanted, SyncFields.Page), Read<DateTime>(wanted, SyncFields.Opened)), ct);
         if (SyncKeys.AskedOf(key) is { } asked) return await UpsertAskedAsync(asked, wanted, card, ct);
+        if (key.StartsWith(SyncKeys.FolderRule, StringComparison.Ordinal)) return await UpsertFolderRuleAsync(wanted, follow, ct);
+        if (key.StartsWith(SyncKeys.FolderCollection, StringComparison.Ordinal)) return await UpsertFolderCollectionAsync(wanted, ct);
+        if (key.StartsWith(SyncKeys.Setting, StringComparison.Ordinal)) return await SetSettingAsync(key[SyncKeys.Setting.Length..], Read<string>(wanted, SyncFields.Value), ct);
         if (key.StartsWith(SyncKeys.Pin, StringComparison.Ordinal))
         {
             await using var db = await contexts.CreateDbContextAsync(ct);
@@ -502,6 +506,89 @@ public sealed partial class LibrarySyncStore
         if (row is null) db.ReadingStates.Add(new ReadingState { EntryId = source.EntryId, DocumentId = source.DocumentId, PageIndex = reading.Page, OpenedUtc = opened });
         else if (row.OpenedUtc > opened) return false;
         else (row.DocumentId, row.PageIndex, row.OpenedUtc) = (source.DocumentId, reading.Page, opened);
+        return await SaveAsync(db, ct);
+    }
+
+    /// <summary>
+    /// A library folder here by library sync's name for it (<see cref="SyncFields.Root"/>), and how its file locations
+    /// spell a folder under it; null when this device hasn't that library folder.
+    /// </summary>
+    async Task<(long Id, Func<string, string> Spell)?> RootAsync(CatalogDbContext db, string key, CancellationToken ct)
+    {
+        foreach (var root in await db.SourceRoots.AsNoTracking().ToListAsync(ct))
+        {
+            if (RootKey(root) != key) continue;
+            var sample = await db.FileLocations.Where(f => f.SourceRootId == root.Id && (f.RelativePath.Contains('\\') || f.RelativePath.Contains('/')))
+                .Select(f => f.RelativePath).FirstOrDefaultAsync(ct);
+            var separator = sample is null ? Path.DirectorySeparatorChar : sample.Contains('\\', StringComparison.Ordinal) ? '\\' : '/';
+            return (root.Id, folder => folder.Replace('/', separator));
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// A folder rule as answered on another device: made here when the folder hasn't proposed it, or answered as there;
+    /// turning on a rule for a field with one value turns off its folder's others, as answering here does. Null while
+    /// the library folder isn't here.
+    /// </summary>
+    async Task<bool?> UpsertFolderRuleAsync(IReadOnlyDictionary<string, string> wanted, SyncFollowUps follow, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (await RootAsync(db, Read<string>(wanted, SyncFields.Root), ct) is not { } root) return null;
+        var folder = Read<string>(wanted, SyncFields.Folder);
+        var (field, value) = (Read<string>(wanted, SyncFields.Field), Read<string>(wanted, SyncFields.Value));
+        var state = Enum.Parse<FolderRuleState>(Read<string>(wanted, SyncFields.State));
+        var rules = await db.FolderRules.Where(r => r.SourceRootId == root.Id && r.Field == field).ToListAsync(ct);
+        var rule = rules.FirstOrDefault(r => r.Value == value && SyncedFolder(r.Folder) == folder);
+        if (rule?.State == state) return false;
+        var now = Now;
+        if (rule is null)
+        {
+            rule = new FolderRule { SourceRootId = root.Id, Folder = root.Spell(folder), Field = field, Value = value, CreatedUtc = now };
+            db.FolderRules.Add(rule);
+        }
+        (rule.State, rule.Books, rule.DecidedUtc) = (state, ReadOrDefault<int>(wanted, SyncFields.Books), now);
+        if (state == FolderRuleState.On && MetadataFields.Find(field) is { Multiple: false })
+            foreach (var other in rules.Where(r => r != rule && r.State == FolderRuleState.On && SyncedFolder(r.Folder) == folder))
+                (other.State, other.DecidedUtc) = (FolderRuleState.Off, now);
+        await db.SaveChangesAsync(ct);
+        follow.Folders.Add(new FolderKey(root.Id, rule.Folder));
+        return true;
+    }
+
+    /// <summary>A folder's answer about a collection from it, as given on another device. Null while the library folder isn't here.</summary>
+    async Task<bool?> UpsertFolderCollectionAsync(IReadOnlyDictionary<string, string> wanted, CancellationToken ct)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        if (await RootAsync(db, Read<string>(wanted, SyncFields.Root), ct) is not { } root) return null;
+        var folder = Read<string>(wanted, SyncFields.Folder);
+        var state = Enum.Parse<FolderCollectionState>(Read<string>(wanted, SyncFields.State));
+        long? collectionId = GuidOf(wanted, SyncFields.Collection) is { } syncId
+            ? await db.Collections.Where(c => c.SyncId == syncId).Select(c => (long?)c.Id).SingleOrDefaultAsync(ct)
+            : null;
+        var answers = await db.CollectionFolders.Where(f => f.SourceRootId == root.Id || (collectionId != null && f.CollectionId == collectionId)).ToListAsync(ct);
+        var answer = answers.FirstOrDefault(f => f.SourceRootId == root.Id && SyncedFolder(f.Folder) == folder);
+        if (answer is not null && answer.State == state && answer.CollectionId == collectionId) return false;
+        // A collection follows one folder: one that followed another here follows this one now, as it does there.
+        foreach (var other in answers.Where(f => f != answer && collectionId != null && f.CollectionId == collectionId)) other.CollectionId = null;
+        if (answer is null)
+        {
+            answer = new CollectionFolder { SourceRootId = root.Id, Folder = root.Spell(folder) };
+            db.CollectionFolders.Add(answer);
+        }
+        (answer.State, answer.CollectionId, answer.DecidedUtc) = (state, collectionId, Now);
+        return await SaveAsync(db, ct);
+    }
+
+    /// <summary>A setting about the library, as set on another device. One this device doesn't share is left alone.</summary>
+    async Task<bool> SetSettingAsync(string key, string value, CancellationToken ct)
+    {
+        if (!SettingKeys.Library.Contains(key)) return false;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var row = await db.Settings.FindAsync([key], ct);
+        if (row?.Value == value) return false;
+        if (row is null) db.Settings.Add(new Setting { Key = key, Value = value });
+        else row.Value = value;
         return await SaveAsync(db, ct);
     }
 
@@ -945,6 +1032,35 @@ public sealed partial class LibrarySyncStore
         }
         else if (SyncKeys.AskedOf(key) is { } asked)
             deleted = await db.AskTurns.Where(t => t.AskedUtc == asked).ExecuteDeleteAsync(ct) > 0;
+        else if (key.StartsWith(SyncKeys.FolderRule, StringComparison.Ordinal) || key.StartsWith(SyncKeys.FolderCollection, StringComparison.Ordinal))
+        {
+            // The key is a hash, so the row it named is found by working out each row's.
+            var roots = (await db.SourceRoots.AsNoTracking().ToListAsync(ct)).Select(r => (r.Id, Key: RootKey(r))).Where(r => r.Key is not null)
+                .ToDictionary(r => r.Id, r => r.Key!);
+            if (key.StartsWith(SyncKeys.FolderRule, StringComparison.Ordinal))
+            {
+                foreach (var rule in (await db.FolderRules.Where(r => r.State != FolderRuleState.Proposed).ToListAsync(ct)).Where(r => roots.ContainsKey(r.SourceRootId)
+                    && SyncKeys.ForHashed(SyncKeys.FolderRule, roots[r.SourceRootId], SyncedFolder(r.Folder), r.Field, r.Value) == key))
+                {
+                    db.FolderRules.Remove(rule);
+                    follow.Folders.Add(new FolderKey(rule.SourceRootId, rule.Folder));
+                    deleted = true;
+                }
+            }
+            else
+                foreach (var answer in (await db.CollectionFolders.ToListAsync(ct)).Where(f => roots.ContainsKey(f.SourceRootId)
+                    && SyncKeys.ForHashed(SyncKeys.FolderCollection, roots[f.SourceRootId], SyncedFolder(f.Folder)) == key))
+                {
+                    db.CollectionFolders.Remove(answer);
+                    deleted = true;
+                }
+        }
+        else if (key.StartsWith(SyncKeys.Setting, StringComparison.Ordinal))
+        {
+            // Back to its default, as the other device has it.
+            var name = key[SyncKeys.Setting.Length..];
+            if (SettingKeys.Library.Contains(name)) deleted = await db.Settings.Where(s => s.Key == name).ExecuteDeleteAsync(ct) > 0;
+        }
         else if (key.StartsWith(SyncKeys.NotSameBook, StringComparison.Ordinal) && key[SyncKeys.NotSameBook.Length..].Split(':') is [var first, var second])
             deleted = await db.CopyDecisions.Where(d => d.FirstHash == first && d.SecondHash == second).ExecuteDeleteAsync(ct) > 0;
         else if (SyncKeys.LookupRecordOf(key) is { } record && lookups is not null)

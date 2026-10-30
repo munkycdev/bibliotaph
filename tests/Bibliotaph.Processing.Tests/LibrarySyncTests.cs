@@ -107,11 +107,20 @@ public sealed class LibrarySyncTests : IAsyncLifetime
 
         public CoverCache Covers { get; } = new(paths);
 
-        public void Start()
+        /// <summary>Starts library sync, as a PC or, with <paramref name="webLibrary"/>, as the web library.</summary>
+        public void Start(bool webLibrary = false)
         {
             var followUp = new SyncFollowUp(covers: Covers);
-            Sync = new LibrarySync(new LibrarySyncStore(Contexts, Metadata, new VocabularyStore(Contexts), clock, chosenCovers: followUp.ReadChosenCovers),
+            Sync = new LibrarySync(new LibrarySyncStore(Contexts, Metadata, new VocabularyStore(Contexts), clock, chosenCovers: followUp.ReadChosenCovers, webLibrary: webLibrary),
                 new SettingsStore(Contexts), catalog, null, clock, null, name, [new Channel(hub, name)], followUp);
+        }
+
+        public async Task<long> AddRootAsync(string path)
+        {
+            await using var db = catalog.CreateContext();
+            var root = db.SourceRoots.Add(new SourceRoot { Path = path, AddedUtc = clock.GetUtcNow().UtcDateTime }).Entity;
+            await db.SaveChangesAsync(Ct);
+            return root.Id;
         }
 
         public async Task<Document> DocumentAsync(char hash)
@@ -749,5 +758,85 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         await RoundAsync();
 
         Assert.Empty(_desk.Covers.ReadAllChosen());
+    }
+
+    [Fact]
+    public async Task Library_settings_travel_and_so_does_putting_one_back_while_the_devices_own_stay()
+    {
+        var settings = new SettingsStore(_desk.Contexts);
+        await settings.SetAsync(SettingKeys.LibrarySort, "Title", Ct);
+        await settings.SetAsync(SettingKeys.ReviewAll, "True", Ct);
+        await settings.SetAsync(SettingKeys.ReaderWindow, "{}", Ct);
+
+        await RoundAsync();
+
+        var onLaptop = new SettingsStore(_laptop.Contexts);
+        Assert.Equal("Title", await onLaptop.GetAsync(SettingKeys.LibrarySort, Ct));
+        Assert.Equal("True", await onLaptop.GetAsync(SettingKeys.ReviewAll, Ct));
+        Assert.Null(await onLaptop.GetAsync(SettingKeys.ReaderWindow, Ct));
+
+        _laptop.Later(5);
+        await using (var db = _laptop.Catalog.CreateContext())
+            await db.Settings.Where(s => s.Key == SettingKeys.LibrarySort).ExecuteDeleteAsync(Ct);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        await RoundAsync();
+
+        Assert.Null(await settings.GetAsync(SettingKeys.LibrarySort, Ct));
+    }
+
+    [Fact]
+    public async Task Folder_rules_and_folder_collections_answered_on_the_web_are_answered_on_a_PC_with_that_web_folder()
+    {
+        _desk.Sync.Dispose();
+        _desk.Start(webLibrary: true);
+        var webRoot = await _desk.AddRootAsync("/onedrive/dana/RPG");
+        var pcRoot = await _laptop.AddRootAsync(WebLibraryPaths.Of(webRoot));
+        var eberron = await _desk.Collections.CreateAsync("Eberron", ct: Ct);
+        var now = _desk.Clock.Now.UtcDateTime;
+        await using (var db = _desk.Catalog.CreateContext())
+        {
+            db.FolderRules.Add(new FolderRule
+            {
+                SourceRootId = webRoot, Folder = "Settings/Eberron", Field = MetadataFields.System.Key, Value = "dnd-5e", State = FolderRuleState.On,
+                Books = 4, CreatedUtc = now, DecidedUtc = now,
+            });
+            db.FolderRules.Add(new FolderRule
+            {
+                SourceRootId = webRoot, Folder = "Settings", Field = MetadataFields.System.Key, Value = "pf2e", State = FolderRuleState.Proposed,
+                Books = 3, CreatedUtc = now,
+            });
+            db.CollectionFolders.Add(new CollectionFolder
+            {
+                SourceRootId = webRoot, Folder = "Settings/Eberron", State = FolderCollectionState.Linked, CollectionId = eberron.Id, DecidedUtc = now,
+            });
+            await db.SaveChangesAsync(Ct);
+        }
+
+        await RoundAsync();
+
+        await using (var db = _laptop.Catalog.CreateContext())
+        {
+            var rule = Assert.Single(await db.FolderRules.ToListAsync(Ct));
+            Assert.Equal((pcRoot, "dnd-5e", FolderRuleState.On, 4), (rule.SourceRootId, rule.Value, rule.State, rule.Books));
+            Assert.Equal("Settings/Eberron", rule.Folder.Replace('\\', '/'));
+            var answer = Assert.Single(await db.CollectionFolders.ToListAsync(Ct));
+            var collection = Assert.Single(await _laptop.Collections.ListAsync(Ct));
+            Assert.Equal((pcRoot, FolderCollectionState.Linked, (long?)collection.Id), (answer.SourceRootId, answer.State, answer.CollectionId));
+        }
+
+        _laptop.Later(5);
+        await using (var db = _laptop.Catalog.CreateContext())
+        {
+            await db.FolderRules.ExecuteUpdateAsync(r => r.SetProperty(x => x.State, FolderRuleState.Off), Ct);
+            await db.CollectionFolders.ExecuteDeleteAsync(Ct);
+        }
+        await _laptop.Sync.SyncNowAsync(Ct);
+        await RoundAsync();
+
+        await using (var db = _desk.Catalog.CreateContext())
+        {
+            Assert.Equal(FolderRuleState.Off, (await db.FolderRules.SingleAsync(r => r.Value == "dnd-5e", Ct)).State);
+            Assert.Empty(await db.CollectionFolders.ToListAsync(Ct));
+        }
     }
 }

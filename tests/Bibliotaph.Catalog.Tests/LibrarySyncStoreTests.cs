@@ -233,7 +233,11 @@ public sealed class LibrarySyncStoreTests : IAsyncLifetime
 
         noticed = 0;
         using (CatalogWrites.Quiet()) await new FavoriteStore(new Factory(_first)).SetAsync([book], false, Ct);
-        await new SettingsStore(new Factory(_first)).SetAsync("start-page", "Library", Ct);
+        await new SettingsStore(new Factory(_first)).SetAsync(SettingKeys.ReaderWindow, "{}", Ct);
         Assert.Equal(0, noticed);
+
+        // A setting about the library travels, so changing it is noticed.
+        await new SettingsStore(new Factory(_first)).SetAsync(SettingKeys.StartPage, "Library", Ct);
+        Assert.True(noticed > 0);
     }
 }

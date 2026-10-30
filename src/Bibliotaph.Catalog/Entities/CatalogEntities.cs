@@ -605,7 +605,7 @@ public sealed class CollectionItem
 
 /// <summary>
 /// A book the user said Never to adding to a collection, from Needs review's suggestions: it isn't suggested for that
-/// collection again. It stays on this PC.
+/// collection again, on any device.
 /// </summary>
 public sealed class CollectionDecline
 {
@@ -617,8 +617,8 @@ public sealed class CollectionDecline
 /// <summary>
 /// A folder Needs review asked about making a collection from, and the answer. A linked collection gains the books
 /// that land in the folder later. The folder is named by its library folder and its path under it, so a drive letter
-/// that changes doesn't lose it; the row stays on this PC, while the collection itself travels in the library sync
-/// file as any other does.
+/// that changes doesn't lose it. Library sync carries the answer to the devices that have the same library folder: the
+/// web library's folders on the web and every connected PC, a folder of a PC's own only to a PC with it at the same place.
 /// </summary>
 public sealed class CollectionFolder
 {
