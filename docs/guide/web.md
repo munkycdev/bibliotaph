@@ -2,10 +2,14 @@
 
 [Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Bibliotaph on the web
 
-Bibliotaph is coming to the browser at [bibliotaph.online](https://bibliotaph.online), for game masters whose books
-live in cloud storage. It looks and works like the Windows app. It's being built in steps and is invite-only: today you
-can accept an invitation, sign in, invite others, connect your OneDrive, Dropbox, Google Drive, Box or a WebDAV server such as Nextcloud and add library folders from it. Seeing and
-reading your books in the browser comes next.
+[bibliotaph.online](https://bibliotaph.online) is Bibliotaph in the browser, for game masters whose books live in
+cloud storage. It looks and works like the Windows app: connect your OneDrive, Dropbox, Google Drive, Box or a WebDAV
+server such as Nextcloud, add folders from it, and search, read, catalogue and organise your books there, with
+binders, online libraries, AI and Needs review as on Windows. Your books stay in your storage. Connect the Windows app
+to it and your work is the same on every PC and browser. It's invite-only for now.
+
+This page covers what's different on the web; the rest of the guide is written for the Windows app, and most of it
+works the same way here.
 
 ## Join with an invitation
 
@@ -421,6 +425,9 @@ The cards that ask one question come between the new terms and the field suggest
 - **Image pack?**: a folder of images, with the first few shown. **Make a pack** or **Keep separate**.
 - **Owned elsewhere**: a new file with the title of a book you own elsewhere. **Same book** puts the file on that
   book's card, or **Separate book**.
+- **Same book?**: a catalogue's record for the ISBN a book prints whose title isn't printed in it, with what the
+  record says. **Same book** fills in its details from the record, shown as that catalogue's rather than yours;
+  **Not this book** means it's never used for the book. Your answer reaches your PCs too.
 - **New version** (places to check): the session items and page notes whose pages weren't found in a new version of
   their book. **Use this page** takes the page suggested for each, with **Undo**; the card is done once every place is
   checked. Opening a place at its page comes with the reader.
@@ -766,9 +773,11 @@ where, and how to have it deleted.
 
 [bibliotaph.online](https://bibliotaph.online) shows what Bibliotaph is, signed in or not: what it does, with the app's
 screenshot and small examples of search, the catalog, binders and online libraries; the Windows app and the web side by
-side; and answers to common questions. **Sign in** is at the top, and **Get the Windows app** downloads the latest release. Its
-footer links the rest of the site: [Features](https://bibliotaph.online/features), [About](https://bibliotaph.online/about),
-the [Change log](https://bibliotaph.online/changelog), [Contact us](https://bibliotaph.online/contact),
+side; and answers to common questions. At the top are [About](https://bibliotaph.online/about),
+[Features](https://bibliotaph.online/features), the [Guide](https://bibliotaph.online/guide), which is this user guide
+with a page for each chapter, the [Change log](https://bibliotaph.online/changelog) and **Sign in**, and **Get the
+Windows app** downloads the latest release. Its footer links the same pages and the rest of the site:
+[Contact us](https://bibliotaph.online/contact),
 [Terms](https://bibliotaph.online/terms), [Privacy](https://bibliotaph.online/privacy) and
 [Licences](https://bibliotaph.online/licences), which has Bibliotaph's licence and every component's. Signed in, the site's
 pages offer **Open your library** in place of **Sign in**, which goes to your Home at bibliotaph.online/home, and

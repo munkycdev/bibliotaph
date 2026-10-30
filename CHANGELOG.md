@@ -8,6 +8,18 @@
   books, since each takes a pass over your library; values you've accepted, typed or rejected stay as they are. Read
   every book again has moved there from Settings › AI, which points to it. See
   [Getting started](docs/guide/getting-started.md).
+- **Same book?** When RPGGeek, Open Library or Google Books has a record for a book's ISBN but its title isn't printed
+  in the book, Needs review now asks whether it's the same book, showing what the record says, instead of quietly
+  setting it aside. **Same book** fills in the book's title, authors, publisher, year and what RPGGeek files it under,
+  shown as coming from that catalogue rather than from you, so anything you set yourself stays; **Not this book**
+  means it's never used for that book. Your answer reaches your other PCs and the web. Books set aside this way
+  before are looked up once more to ask. See [Cataloging](docs/guide/cataloging.md#needs-review).
+- **The guide on bibliotaph.online.** The user guide now has a section of its own on the site, at
+  [bibliotaph.online/guide](https://bibliotaph.online/guide): a contents page with a line for each chapter, and a page
+  for each chapter with the list of chapters beside it, made from the same files as the guide on GitHub, so the two
+  always match. The site's links now put About before Features, with Guide after them. The README, the site's
+  Features and landing pages, and the guide itself now cover the tour, the settings groups, ISBN lookups and what the
+  web version does today. See [Bibliotaph on the web](docs/guide/web.md#the-site).
 - **See your PC's AI at work on the web.** When a Windows PC connected to bibliotaph.online is cataloguing with its own
   AI, Settings › Processing on the web now says so: **On your PCs** shows the book it's on and how far it has got, and
   Cataloguing with AI and Scanning whole books say **On** and the PC's name instead of **Off** when the server's AI

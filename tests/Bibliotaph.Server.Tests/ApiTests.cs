@@ -88,7 +88,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var signedIn = await Client(user).GetStringAsync("/", ct);
         using var app = await Client(user).GetAsync("/home", ct);
         var pages = new Dictionary<string, string>();
-        foreach (var path in new[] { "/features", "/about", "/changelog", "/terms", "/privacy", "/licences", "/contact" })
+        foreach (var path in new[] { "/about", "/features", "/guide", "/guide/getting-started", "/guide/web", "/changelog", "/terms", "/privacy", "/licences", "/contact" })
         {
             using var response = await Client().GetAsync(path, ct);
             Assert.Equal((path, HttpStatusCode.OK, "text/html"), (path, response.StatusCode, response.Content.Headers.ContentType?.MediaType));
@@ -110,6 +110,16 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Contains("Open your library", openLibrary, StringComparison.Ordinal);
         Assert.All(pages.Values, html => Assert.Contains("""<a href="/terms""", html, StringComparison.Ordinal));
         Assert.Contains("""<a href="/terms" aria-current="page">""", pages["/terms"], StringComparison.Ordinal);
+        // About comes before Features in the site's links, with the Guide after them.
+        Assert.All(pages.Values, html => Assert.Matches("""(?s)<nav class="bt-sitenav".*href="/about".*href="/features".*href="/guide".*href="/changelog".*</nav>""", html));
+        // The Guide is the repository's user guide: its contents list every chapter, and a chapter is its own page,
+        // titled by its heading, with links to other chapters kept on the site and the breadcrumb written for GitHub gone.
+        Assert.Contains("""<a href="/guide/online-libraries"><b>Online libraries</b>""", pages["/guide"], StringComparison.Ordinal);
+        Assert.Contains($"<title>{WebUtility.HtmlEncode("Getting started · Guide · Bibliotaph")}</title>", pages["/guide/getting-started"], StringComparison.Ordinal);
+        Assert.Contains("""<h2 id="the-tour">The tour</h2>""", pages["/guide/getting-started"], StringComparison.Ordinal);
+        Assert.Contains("""<a href="/guide/searching">Searching</a>""", pages["/guide/getting-started"], StringComparison.Ordinal);
+        Assert.Contains("""<a href="/guide/getting-started" aria-current="page">""", pages["/guide/getting-started"], StringComparison.Ordinal);
+        Assert.DoesNotContain("README.md", pages["/guide/getting-started"], StringComparison.Ordinal);
         // The footer's tagline is one of the app's, and the version is the one running.
         Assert.All(pages.Values, html => Assert.Contains(Footer.Taglines, t => html.Contains($"""<p class="bt-tagline">{WebUtility.HtmlEncode(t)}</p>""", StringComparison.Ordinal)));
         Assert.All(pages.Values, html => Assert.Contains($"Version {Footer.Version} ·", html, StringComparison.Ordinal));
@@ -1125,6 +1135,56 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Contains(afterUndo.Offers, o => o.Id == correction.Id);
         Assert.Equal("Files in “Maps” now get game system Pathfinder as a suggestion.", used.Message);
         Assert.Equal(list.Count - 1, status.Suggestions);
+
+        async Task<T> PostAsync<T>(string url, object? body)
+        {
+            using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
+            response.EnsureSuccessStatusCode();
+            return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+        }
+    }
+
+    [Fact]
+    public async Task Needs_review_asks_whether_a_record_whose_title_isnt_printed_is_the_books_and_same_book_fills_it_in_as_the_catalogues()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var user = await AddUserAsync(admin: false);
+        var connections = _factory.Services.GetRequiredService<StorageConnections>();
+        var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+        _graph.Add("RPG/Maps/IMG_0042.png", Png());
+        var client = Client(user);
+        client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+        using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is [var one] ? one : null, ct);
+
+        await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+        {
+            string hash;
+            await using (var db = lease.Library.Catalog.CreateContext())
+                hash = db.EntrySources.Where(s => s.EntryId == book.EntryId).Select(s => s.Document.ContentHash).First();
+            var record = new BookRecord("RPGGeek", "4021", "9781234567897", "The Owlbear Mill", ["Ada Quill"], ["Gull Rock Games"], "2019");
+            await lease.Library.Get<LookupRecordStore>().SaveAsync(hash, [record], _ => false, ct);
+        }
+
+        var list = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        var card = list.Offers.Single(o => o.Kind == "records");
+        var same = await PostAsync<ActionResult>("/api/review/offers/answer", new ReviewOfferAnswer(card.Id, card.Stamp, "same"));
+        var filled = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.Single();
+        var afterSame = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+        await PostAsync<ActionResult>($"/api/library/held/{same.Undo}", null);
+        var undone = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.Single();
+        var afterUndo = (await client.GetFromJsonAsync<ReviewSuggestions>("/api/review", ct))!;
+
+        Assert.Contains(list.Show, s => s.Key == "records" && s.Name == "Same book?");
+        Assert.Equal((book.Title, "Same book?", book.EntryId), (card.Title, card.Chip, card.Book?.EntryId));
+        Assert.Equal("RPGGeek's record for its ISBN is of The Owlbear Mill, which isn't printed in it. Is it this book?", card.Heading);
+        Assert.Equal("The Owlbear Mill · Ada Quill · Gull Rock Games · 2019", card.Evidence);
+        Assert.Equal(["Same book", "Not this book"], card.Choices.Select(c => c.Label));
+        Assert.Equal($"Filled in {book.Title} from RPGGeek's record.", same.Message);
+        Assert.Equal("The Owlbear Mill", filled.Title);
+        Assert.DoesNotContain(afterSame.Offers, o => o.Kind == "records");
+        Assert.Equal(book.Title, undone.Title);
+        Assert.Contains(afterUndo.Offers, o => o.Id == card.Id);
 
         async Task<T> PostAsync<T>(string url, object? body)
         {

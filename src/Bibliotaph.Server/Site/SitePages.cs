@@ -7,10 +7,11 @@ using Bibliotaph.Web.Services;
 namespace Bibliotaph.Server.Site;
 
 /// <summary>
-/// The site's own pages, around the app: the landing page at /, Features, About, the change
+/// The site's own pages, around the app: the landing page at /, About, Features, the Guide, the change
 /// log, Terms, Privacy, Licences and Contact us. They are plain HTML in one layout, read from the server's resources
-/// once, so they load without the WebAssembly client and work for anyone. The change log and licences come from the
-/// repository's own CHANGELOG.md, THIRD-PARTY-NOTICES.md and LICENSE-EXCEPTION.md, so they can't drift from them.
+/// once, so they load without the WebAssembly client and work for anyone. The Guide, the change log and licences come
+/// from the repository's own docs/guide, CHANGELOG.md, THIRD-PARTY-NOTICES.md and LICENSE-EXCEPTION.md, so they can't
+/// drift from them.
 /// </summary>
 public static partial class SitePages
 {
@@ -21,14 +22,18 @@ public static partial class SitePages
     [
         new("/", "home", "Bibliotaph: your RPG library, searchable",
             "Bibliotaph catalogs the RPG books, maps and handouts in your own folders and cloud storage, and finds the right book and the right page."),
-        new("/features", "features", "Features · Bibliotaph", "Everything Bibliotaph does: search inside every book, a catalog that fills itself in, binders for the table, and more."),
         new("/about", "about", "About · Bibliotaph", "Why Bibliotaph exists, who makes it, and what it's built on."),
+        new("/features", "features", "Features · Bibliotaph", "Everything Bibliotaph does: search inside every book, a catalog that fills itself in, binders for the table, and more."),
+        new("/guide", "guide", "Guide · Bibliotaph", "How to use Bibliotaph, on Windows and the web: from installing it and adding your folders to binders, AI and more than one PC."),
         new("/changelog", "changelog", "Change log · Bibliotaph", "What changed in each version of Bibliotaph."),
         new("/terms", "terms", "Terms of service · Bibliotaph", "The terms for using the Bibliotaph web service."),
         new("/privacy", "privacy", "Privacy · Bibliotaph", "What the Bibliotaph web service keeps about you and your library, why, and how to have it deleted."),
         new("/licences", "licences", "Licences · Bibliotaph", "Bibliotaph's licence, the GNU GPL version 3 or later, and the licences of the components it is built with."),
         new("/contact", "contact", "Contact us · Bibliotaph", "How to report a problem, suggest something or reach the people who run Bibliotaph."),
     ];
+
+    /// <summary>Every page: the ones above, and a page for each chapter of the guide, titled by the chapter's own heading.</summary>
+    static IEnumerable<Page> AllPages => Pages.Concat(SiteGuide.Chapters.Select(c => new Page($"/guide/{c.Name}", $"Guide.{c.Name}", "", c.Summary)));
 
     /// <summary>The screenshots on the landing page, from the repository's docs.</summary>
     static readonly FrozenDictionary<string, string> Pictures = new Dictionary<string, string>
@@ -44,7 +49,7 @@ public static partial class SitePages
 
     public static WebApplication MapSite(this WebApplication app)
     {
-        foreach (var page in Pages)
+        foreach (var page in AllPages)
             app.MapGet(page.Path, (HttpContext context) => WriteAsync(context, page.Path));
 
         // Addresses given out before the pages had their own, and the other spelling.
@@ -75,17 +80,22 @@ public static partial class SitePages
         var layout = Text("Site.layout.html")
             .Replace("{{links}}", links, StringComparison.Ordinal)
             .Replace("{{version}}", WebUtility.HtmlEncode(Footer.Version), StringComparison.Ordinal);
+        var guide = SiteGuide.Chapters.ToDictionary(c => c.Name, c => Text($"Guide.{c.Name}.md"), StringComparer.Ordinal);
+        var titles = guide.ToDictionary(g => g.Key, g => SiteGuide.Title(g.Value), StringComparer.Ordinal);
         var pages = new Dictionary<string, (string, string)>(StringComparer.Ordinal);
-        foreach (var page in Pages)
+        foreach (var page in AllPages)
         {
-            var content = Text($"Site.{page.Resource}.html")
+            var chapter = page.Resource.StartsWith("Guide.", StringComparison.Ordinal) ? page.Resource["Guide.".Length..] : null;
+            var title = chapter is null ? page.Title : $"{titles[chapter]} · Guide · Bibliotaph";
+            var content = (chapter is null ? Text($"Site.{page.Resource}.html") : SiteGuide.Page(chapter, guide[chapter], titles))
+                .Replace("{{guide}}", SiteGuide.Contents(titles), StringComparison.Ordinal)
                 .Replace("{{changelog}}", SiteMarkdown.ToHtml(Text("CHANGELOG.md")), StringComparison.Ordinal)
                 .Replace("{{notices}}", SiteMarkdown.ToHtml(Text("THIRD-PARTY-NOTICES.md")), StringComparison.Ordinal)
                 .Replace("{{exception}}", SiteMarkdown.ToHtml(Text("LICENSE-EXCEPTION.md")), StringComparison.Ordinal);
             content = IconPlaceholder().Replace(content, m => Icon(m.Groups["name"].Value));
             // The page's own link in the header and footer says so, for screen readers and the underline.
             var html = layout
-                .Replace("{{title}}", WebUtility.HtmlEncode(page.Title), StringComparison.Ordinal)
+                .Replace("{{title}}", WebUtility.HtmlEncode(title), StringComparison.Ordinal)
                 .Replace("{{description}}", WebUtility.HtmlEncode(page.Description), StringComparison.Ordinal)
                 .Replace("{{content}}", content, StringComparison.Ordinal)
                 .Replace($"<a href=\"{page.Path}\">", $"<a href=\"{page.Path}\" aria-current=\"page\">", StringComparison.Ordinal);

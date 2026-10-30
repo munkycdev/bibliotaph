@@ -13,15 +13,20 @@ chose. See [Online libraries](online-libraries.md#get-a-book-from-a-store).
 
 **Does it need the internet?**
 No. Your library, search, reading and editing all work offline. Bibliotaph goes online only to check for updates, to
-download an AI model when you choose one, to reach a model server if you set one up, and for
-[online libraries](online-libraries.md): the pages you open in Bibliotaph's browser and online reader, and each site's
-icon for the badge on your covers (which you can turn off).
+download an AI model when you choose one, to reach a model server if you set one up, to look up the ISBNs books print
+(see [Where suggestions come from](cataloging.md#where-suggestions-come-from)), to reach your web library if you
+connect one, and for [online libraries](online-libraries.md): the pages you open in Bibliotaph's browser and online
+reader, and each site's icon for the badge on your covers (which you can turn off).
 
 **Does it send anything about me or my books to anyone?**
-No. There's no account, no tracking and no cloud service. Your catalog stays in `%LOCALAPPDATA%\Bibliotaph` on your
-PC. If you set up AI with a model server, book excerpts go to that server, and only that server. See [AI](ai.md). When
-you sign in to D&D Beyond or a store in Bibliotaph's browser, that site sees you as it would in any browser, and
-nothing about your library goes to it.
+Nothing about you, and only what you choose about your books. The Windows app has no account and no tracking, and
+your catalog stays in `%LOCALAPPDATA%\Bibliotaph` on your PC. The ISBNs a book prints go to Open Library to fill in
+its details, and nothing else with them (a PC connected to your web library asks through it instead, with the book's
+title too, so RPGGeek can be searched). If you set up AI with a model server, book excerpts go to that server, and
+only that server. See [AI](ai.md). If you connect the app to your web library at bibliotaph.online, your work and what
+the AI found in your books are shared with it, never the books themselves; see
+[Bibliotaph on the web](web.md#connecting-a-windows-pc). When you sign in to D&D Beyond or a store in Bibliotaph's
+browser, that site sees you as it would in any browser, and nothing about your library goes to it.
 
 **Where are my passwords kept?**
 Passwords for PDFs you choose to remember, and AI keys, are kept in Windows Credential Manager on your PC, never in

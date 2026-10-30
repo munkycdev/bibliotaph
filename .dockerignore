@@ -9,9 +9,10 @@ artifacts
 TestResults
 spikes
 docs
-# Except the screenshots the site's landing page shows.
+# Except the screenshots the site's landing page shows, and the user guide its Guide pages are made from.
 !docs/images/library.png
 !docs/images/reader.png
+!docs/guide
 *.db
 *.db-wal
 *.db-shm

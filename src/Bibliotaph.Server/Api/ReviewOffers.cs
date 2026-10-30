@@ -16,8 +16,8 @@ namespace Bibliotaph.Server.Api;
 
 /// <summary>
 /// Needs review's cards that ask one question each, as the Windows app's: new versions, image packs, books owned
-/// elsewhere, places to check in a new version, books cataloged wrong, folder rules, collections from folders and books
-/// for collections. Each is found again by its id and answered only when it still says what the page showed.
+/// elsewhere, catalogue records that may be a book's, places to check in a new version, books cataloged wrong, folder
+/// rules, collections from folders and books for collections. Each is found again by its id and answered only when it still says what the page showed.
 /// </summary>
 static class ReviewOffers
 {
@@ -43,6 +43,8 @@ static class ReviewOffers
                 (PackProposal p, _) => (await reviews.AnswerPackAsync(p, PackAnswer.Split, ct), new PackCardText(p).KeptSeparate),
                 (ElsewhereItem e, "same") => (await reviews.AnswerElsewhereAsync(e.Match, ElsewhereAnswer.SameBook, ct), new ElsewhereCardText(e).SameBook),
                 (ElsewhereItem e, _) => (await reviews.AnswerElsewhereAsync(e.Match, ElsewhereAnswer.SeparateBook, ct), new ElsewhereCardText(e).KeptSeparate),
+                (LookupMatchItem l, "same") => (await reviews.AnswerLookupAsync(l.Match, LookupAnswer.SameBook, ct), new LookupMatchCardText(l).SameBook),
+                (LookupMatchItem l, _) => (await reviews.AnswerLookupAsync(l.Match, LookupAnswer.NotThisBook, ct), new LookupMatchCardText(l).NotThisBook),
                 (CorrectionItem c, "fine") => (await reviews.DismissCorrectionAsync(c, ct), new CorrectionCardText(c).LeftAsIs),
                 (PartProposalItem p, "notsplit") => (await library.Get<PartProposalService>().NotSplitAsync(p, ct), new PartProposalCardText(p, []).NotSplit),
                 (UnplacedPart u, "remove") => await RemoveAsync(library.Get<PartsService>(), u, ct),
@@ -149,6 +151,13 @@ static class ReviewOffers
             var text = new ElsewhereCardText(item);
             offers.Add(Make(item, $"elsewhere:{item.Match.Id}", "elsewhere", item.FileTitle, ElsewhereCardText.Chip, text.Heading, Where(item.Path), null,
                 text.Detail, ElsewhereCardText.Choices, null, new ReviewLink(item.Match.FileEntryId.Value, item.FileTitle, "Open this file"), []));
+        }
+        foreach (var item in list.Records ?? [])
+        {
+            var text = new LookupMatchCardText(item);
+            var record = item.Match.Record;
+            offers.Add(Make(item, $"records:{item.Match.EntryId.Value}:{record.Source}:{record.Key}", "records", item.BookTitle, LookupMatchCardText.Chip, text.Heading,
+                Where(item.Path), text.Evidence, text.Detail, LookupMatchCardText.Choices, null, new ReviewLink(item.Match.EntryId.Value, item.BookTitle, "Open this book"), []));
         }
         foreach (var item in list.Revisions ?? [])
         {

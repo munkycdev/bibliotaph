@@ -25,6 +25,12 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     public static string AskedOf(string catalogues) => $"{AskedBefore}{catalogues}.";
 
     /// <summary>
+    /// Whether a book's record was set aside without a word, as before Needs review asked about a record whose title
+    /// isn't printed in the book: it's looked up once more, so the question is put.
+    /// </summary>
+    public static bool SetAside(string? reason) => reason?.Contains("which isn't printed in it, so it wasn't used.", StringComparison.Ordinal) == true;
+
+    /// <summary>
     /// Whether a book was looked up in fewer catalogues than <paramref name="catalogues"/> names, as one asked only of
     /// Open Library is once RPGGeek or Google Books can be asked too: it's worth asking again, whether it was found or
     /// not, since each field comes from the catalogue the user prefers. One asked of more isn't, so a PC that can't
@@ -47,13 +53,13 @@ public sealed class BookLookups(IBookCatalogue catalogue)
 /// each field from the catalogue the user prefers that has it, and the system, edition, types, themes and settings a
 /// game catalogue files it under, as the vocabulary names them. A name the vocabulary doesn't have is proposed as a new
 /// term the way the AI's are, so Settings › Vocabulary's choice for the AI's new names holds for it too. A record is
-/// used only when its title is printed in the book,
-/// so a misprinted or reused ISBN can't rename it. A book the record
-/// renames is looked at again for another file with its new title and publisher. Runs in its own lane, and waits with
+/// used only when its title is printed in the book, so a misprinted or reused ISBN can't rename it; one whose title
+/// isn't waits in Needs review as "Same book?" (<see cref="LookupRecordStore"/>). A book the record renames is looked at
+/// again for another file with its new title and publisher. Runs in its own lane, and waits with
 /// a notice while the catalogue can't be reached. A book is asked again once there are more catalogues to ask.
 /// </summary>
-public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, EntryStore entries, MetadataStore metadata, MetadataProjector projector,
-    VersionFinder versions, VocabularyStore vocabularies, SettingsStore settings) : IRevisitedStage
+public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, EntryStore entries, LookupRecordStore records, MetadataProjector projector,
+    VersionFinder versions) : IRevisitedStage
 {
     public Stage Stage => Stage.LookUp;
 
@@ -77,7 +83,7 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
     {
         await lookups.Catalogue.RefreshAsync(ct);
         var catalogues = lookups.Catalogue.Name;
-        return reason => BookLookups.AskedOfFewer(reason, catalogues);
+        return reason => BookLookups.AskedOfFewer(reason, catalogues) || BookLookups.SetAside(reason);
     }
 
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
@@ -99,53 +105,36 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         {
             return new StageOutcome.Unavailable(ex.Message);
         }
-        if (answer.Records.Count == 0) return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NoRecordIn(answer.AskedOf));
+        if (answer.Records.Count == 0)
+        {
+            // A record no catalogue gives any more isn't worth asking about.
+            await records.SaveAsync(job.ContentHash, [], _ => false, ct);
+            return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NoRecordIn(answer.AskedOf));
+        }
 
         var places = await PlacesAsync(job.DocumentId, ct);
-        var named = answer.Records.Where(r => BookRecords.IsNamedIn(r, places)).ToList();
-        if (named.Count == 0)
-        {
-            var record = answer.Records[0];
-            return new StageOutcome.Done(StageStatus.Skipped, [],
-                $"{record.Source}'s record for its ISBN is of “{record.Title}”, which isn't printed in it, so it wasn't used. {BookLookups.AskedOf(answer.AskedOf)}");
-        }
-
+        var saved = await records.SaveAsync(job.ContentHash, answer.Records, r => BookRecords.IsNamedIn(r, places), ct);
         var asked = BookLookups.AskedOf(answer.AskedOf);
-        if (await entries.GetEntryAsync(job.DocumentId, ct) is not { } entry) return new StageOutcome.Done(StageStatus.Complete, [], asked);
-        var run = string.Join('+', named.Select(r => $"{r.Source.ToLowerInvariant().Replace(" ", "", StringComparison.Ordinal)}:{r.Key}"));
-        List<MetadataProposal> proposals = [.. BookRecords.Proposals(named), .. await TermProposalsAsync(named, ct)];
-        if (await metadata.ApplyRunAsync(entry.EntryId, job.ContentHash, run, AssertionOrigin.Lookup, proposals, ct))
+        if (await entries.GetEntryAsync(job.DocumentId, ct) is { } entry)
         {
-            await projector.ProjectAsync([entry.EntryId], ct);
-            // Match looked for a book of the same title and publisher before the record named this one properly.
-            await versions.ProposeByTitleAndPublisherAsync(job.DocumentId, ct);
-        }
-        return new StageOutcome.Done(StageStatus.Complete, [], asked);
-    }
-
-    /// <summary>
-    /// The terms the records file the book under, by their keys. A new name is proposed as the AI's are: it waits in Needs
-    /// review, or joins the vocabulary at once where Settings › Vocabulary says so; one the user rejected is left out.
-    /// </summary>
-    async Task<List<MetadataProposal>> TermProposalsAsync(IReadOnlyList<BookRecord> records, CancellationToken ct)
-    {
-        var proposals = new List<MetadataProposal>();
-        var grew = false;
-        foreach (var term in BookRecords.Terms(records, await vocabularies.GetAsync(ct)))
-        {
-            var key = term.Term?.Key;
-            if (key is null)
+            var (changed, grew) = await records.ApplyAsync(entry.EntryId, job.ContentHash, ct);
+            if (grew) await projector.ProjectVocabularyAsync(ct);
+            if (changed)
             {
-                var vocabulary = term.Field.Vocabulary!;
-                var (proposed, state, added) = await vocabularies.ProposeTermAsync(vocabulary, term.Label, await settings.AddsAiTermsAsync(vocabulary, ct), ct);
-                if (state == TermState.Rejected) continue;
-                grew |= added;
-                key = proposed.Key;
+                await projector.ProjectAsync([entry.EntryId], ct);
+                // Match looked for a book of the same title and publisher before the record named this one properly.
+                if (saved.Used.Count > 0) await versions.ProposeByTitleAndPublisherAsync(job.DocumentId, ct);
             }
-            proposals.Add(new MetadataProposal(term.Field, key, AssertionOrigin.Lookup, term.Quote));
         }
-        if (grew) await projector.ProjectVocabularyAsync(ct);
-        return proposals;
+        if (saved.Used.Count > 0) return new StageOutcome.Done(StageStatus.Complete, [], asked);
+        if (saved.Waiting.Count > 0)
+        {
+            var record = saved.Waiting[0];
+            return new StageOutcome.Done(StageStatus.Skipped, [],
+                $"{record.Source}'s record for its ISBN is of “{record.Title}”, which isn't printed in it, so Needs review asks whether it's this book. {asked}");
+        }
+        var refused = saved.Refused[0];
+        return new StageOutcome.Done(StageStatus.Skipped, [], $"You said {refused.Source}'s record for its ISBN, of “{refused.Title}”, is of another book. {asked}");
     }
 
     /// <summary>Where a book names itself: its front pages, its file's name and the title its file gives.</summary>

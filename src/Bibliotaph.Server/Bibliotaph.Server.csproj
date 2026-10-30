@@ -24,6 +24,7 @@
     <!-- The site's pages, and the repository files the change log and licences pages are made from. -->
     <EmbeddedResource Include="Site\*.html" LogicalName="Bibliotaph.Server.Site.%(Filename).html" />
     <EmbeddedResource Include="$(RepoRoot)docs\images\library.png;$(RepoRoot)docs\images\reader.png" LogicalName="Bibliotaph.Server.Site.%(Filename).png" Link="Site\%(Filename).png" />
+    <EmbeddedResource Include="$(RepoRoot)docs\guide\*.md" LogicalName="Bibliotaph.Server.Guide.%(Filename).md" Link="Site\Guide\%(Filename).md" />
     <EmbeddedResource Include="$(RepoRoot)CHANGELOG.md;$(RepoRoot)THIRD-PARTY-NOTICES.md;$(RepoRoot)LICENSE-EXCEPTION.md" LogicalName="Bibliotaph.Server.%(Filename)%(Extension)" Link="Site\%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>

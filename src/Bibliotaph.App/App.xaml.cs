@@ -180,7 +180,9 @@ public partial class App : Application
         builder.Services.AddSingleton<PartProposalService>();
         builder.Services.AddSingleton<PackService>();
         builder.Services.AddSingleton<ElsewhereStore>();
+        builder.Services.AddSingleton<LookupRecordStore>();
         builder.Services.AddSingleton<ElsewhereService>();
+        builder.Services.AddSingleton<LookupMatches>();
         builder.Services.AddSingleton<ChosenCovers>();
         builder.Services.AddSingleton<FavoriteStore>();
         builder.Services.AddSingleton<ReadingStore>();
@@ -337,7 +339,7 @@ public partial class App : Application
         // Library sync: after indexing, so it stops first and writes this PC's file one last time.
         builder.Services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<LibrarySyncStore>>()));
+            sp.GetRequiredService<ILogger<LibrarySyncStore>>(), sp.GetRequiredService<LookupRecordStore>()));
         builder.Services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<LibrarySync>>(), channels: [sp.GetRequiredService<WebLibrary>()]));

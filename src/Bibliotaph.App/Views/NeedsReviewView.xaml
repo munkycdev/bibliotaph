@@ -411,6 +411,46 @@
       </Border>
     </DataTemplate>
 
+    <!-- A catalogue's record for the book's ISBN whose title isn't printed in it: Same book fills its fields from the record, as the catalogue's. -->
+    <DataTemplate DataType="{x:Type vm:LookupMatchCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{x:Static p:LookupMatchCardText.Chip}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <Button Style="{StaticResource WindowButton}" Command="{Binding OpenFileInWindowCommand}"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />
+              <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" Command="{Binding OpenFileCommand}" CommandParameter="{Binding}"
+                      c:NewWindowGesture.Command="{Binding OpenFileInWindowCommand}" ToolTip="Open this book"
+                      AutomationProperties.Name="{Binding Title, StringFormat='Open {0}'}" />
+            </DockPanel>
+            <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                       ToolTip="{Binding Path}" Visibility="{Binding Path, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            <DockPanel Margin="0,14,0,0">
+              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TextSearch}" Size="13" Foreground="{DynamicResource Bt.Muted}"
+                            VerticalAlignment="Top" Margin="0,1,8,0" />
+              <StackPanel>
+                <TextBlock Text="{Binding Evidence}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,4,0,0" />
+              </StackPanel>
+            </DockPanel>
+            <WrapPanel Margin="0,16,0,0">
+              <Button Style="{StaticResource Bt.Button.Primary}" Content="Same book" c:Ui.Icon="{StaticResource Icon.Check}"
+                      Command="{Binding SameBookCommand}" Margin="0,0,8,8"
+                      ToolTip="Fill in what this record gives, as the catalogue's suggestions. Anything you set yourself stays." />
+              <Button Content="Not this book" Command="{Binding NotThisBookCommand}" Margin="0,0,8,8"
+                      ToolTip="Bibliotaph won't use this record for this book." />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <!-- Cataloged wrong… left without a change (scenario review, row 8): Fix it opens the book's details to correct again. -->
     <DataTemplate DataType="{x:Type vm:CorrectionCardViewModel}">
       <Border Style="{StaticResource Card}">

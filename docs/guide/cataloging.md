@@ -23,7 +23,8 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   Books gives, or else the book's title in your library, and its record is used only when one of its versions lists an
   ISBN the book prints. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
   book is asked again once there's somewhere more to ask, such as when the app connects. A record is used only when
-  its title is printed in the book, so a misprinted ISBN can't rename it. These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
+  its title is printed in the book, so a misprinted ISBN can't rename it; when it isn't, Needs review asks you
+  **Same book?** about it (see below). These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
   come back only if you reject the looked-up value. **Settings > Processing** says where the ISBNs go. RPGGeek's data
   comes from BoardGameGeek, whose "Powered by BGG" logo is in **About** and at the foot of every page on the web.
 - **AI**, if you turn it on: a model on your PC reads a few pages and suggests the rest. Every AI suggestion must quote
@@ -114,6 +115,12 @@ usable while its card waits. It has two lists:
   the book's copies in its details.
 - **Image pack?** "Make these 12 images one card?": **Make a pack** or **Keep separate**.
 - "You own *The Sunken Abbey* elsewhere. Is this its file?": **Same book** or **Separate book**.
+- **Same book?** "RPGGeek's record for its ISBN is of *The Sunken Abbey*, which isn't printed in it. Is it this
+  book?", for a record from RPGGeek, Open Library or Google Books whose title the book doesn't print, with what the
+  record says: its title, authors, publisher, year and what RPGGeek files it under. **Same book** fills them in at
+  once, as that catalogue's suggestions rather than your own values, so they beat the AI's guesses and anything you
+  set yourself stays; the book uses that record from then on. **Not this book** means the record is never used for
+  it. A book with two files is asked once. Books looked up before this card existed are looked up once more to ask.
 - Copies of a book that say different things, and pages that moved in a new version, with **Use this page**.
 - A compilation that seems to hold several adventures (see below).
 - **Collection?** "Make a collection “Ashen Vale” from these 12 books?" for a folder with three or more books in it
@@ -133,7 +140,7 @@ opening the next card's book shows it in the same window rather than another. Cl
 in the main window.
 
 When there's more than one kind, **Show** narrows the list to one: New terms, Terms that may be the same, New versions,
-Image packs, Owned elsewhere, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field
+Image packs, Owned elsewhere, Same book?, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field
 such as Setting or Type. Each entry says how many are waiting, and **Everything** shows the whole list again.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
@@ -224,8 +231,8 @@ turns up later, Needs review asks whether it's that book's file.
 
 With no file there's no page to make a cover from. **Choose a cover image…**, in the Add dialog or the book's details,
 uses a JPG, PNG or WebP picture of your own: Bibliotaph keeps a cover-sized copy, so the picture itself can move or go.
-**Remove the cover** goes back to the online library's cover, or none. A chosen cover stays on this PC; it isn't part
-of the library sync file.
+**Remove the cover** goes back to the online library's cover, or none. A chosen cover stays on this PC; it isn't
+shared with your other PCs.
 
 Books you own on D&D Beyond or Demiplane, or bought from Humble Bundle or DriveThruRPG, can be imported all at once
 with **Import from an online library…** on the same **Add** menu. See [Online libraries](online-libraries.md).

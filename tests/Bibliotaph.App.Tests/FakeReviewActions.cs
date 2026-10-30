@@ -75,6 +75,8 @@ sealed class FakeReviewActions : IReviewActions
 
     public Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer) => Answer($"elsewhere {answer}");
 
+    public Task<Func<Task>> AnswerLookupAsync(LookupMatchItem item, LookupAnswer answer) => Answer($"lookup {answer}");
+
     public Task<Func<Task>?> UsePlaceAsync(RevisionPlace place)
     {
         UsedPlaces.Add(place);
