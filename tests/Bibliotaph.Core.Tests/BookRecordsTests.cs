@@ -36,7 +36,7 @@ public class BookRecordsTests
         Assert.Equal(
             [("title", "The Owlbear Mill"), ("authors", "A. Example"), ("authors", "B. Example"), ("publisher", "Example Press"), ("year", "2019")],
             proposals.Select(p => (p.Field.Key, p.Value)));
-        Assert.All(proposals, p => Assert.Equal((AssertionOrigin.Lookup, "Open Library's record for ISBN 9781234567897"), (p.Origin, p.Quote)));
+        Assert.All(proposals, p => Assert.Equal((AssertionOrigin.Lookup, "Open Library's record of The Owlbear Mill"), (p.Origin, p.Quote)));
     }
 
     [Fact]
@@ -69,7 +69,7 @@ public class BookRecordsTests
 
         var series = Assert.Single(BookRecords.Proposals([Record("The Owlbear Mill"), rpggeek]), p => p.Field == MetadataFields.Series);
 
-        Assert.Equal(("Example Line", "RPGGeek's record for ISBN 9781234567897"), (series.Value, series.Quote));
+        Assert.Equal(("Example Line", "RPGGeek's record of The Owlbear Mill"), (series.Value, series.Quote));
     }
 
     [Fact]

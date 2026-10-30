@@ -7,6 +7,9 @@
   Cataloguing with AI and Scanning whole books say **On** and the PC's name instead of **Off** when the server's AI
   isn't set up. The PC sends only the book's fingerprint, so a book only the PC has is never named. Needs this
   version of the Windows app. See [Bibliotaph on the web](docs/guide/web.md#processing).
+- **Suggestions name the record by its title.** A looked-up suggestion's quote, in Needs review and the details
+  panel, now reads "RPGGeek's record of The Owlbear Mill" rather than giving an ISBN. Books looked up before keep the
+  old wording until they're next looked up.
 - **Fix: "bibliotaph.online can't be reached" while it could.** A Windows app connected to bibliotaph.online gave up on
   a lookup after 20 seconds, but with RPGGeek's five-second pace a lookup can wait its turn longer than that, so the
   app said the site couldn't be reached and books stopped being looked up. Lookups now wait up to three minutes. When
