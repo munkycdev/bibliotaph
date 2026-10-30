@@ -998,6 +998,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             }
 
             foreach (var where in plan.Wheres) _sql.Append(where.Elsewhere ? " AND e.kind = 'Elsewhere'" : " AND e.kind <> 'Elsewhere'");
+            foreach (var opened in plan.Opened) _sql.Append($" AND e.entry_id {(opened.Opened ? "IN" : "NOT IN")} (SELECT entry_id FROM entry_opened)");
 
             if (filter.OnlyWithCopies) _sql.Append(" AND e.copies > 1");
             if (filter.HideParts) _sql.Append(" AND e.kind <> 'Part'");

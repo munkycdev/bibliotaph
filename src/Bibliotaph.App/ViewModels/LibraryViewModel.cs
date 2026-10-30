@@ -177,6 +177,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// <summary>The details of <see cref="DetailsOnLoad"/> open for Cataloged wrong…, as from a Needs review card.</summary>
     public bool CorrectOnLoad { get; set; }
 
+    /// <summary>Filters put on once the page has loaded, as when a figure on the Summary page is clicked; only its filters are used.</summary>
+    public SmartViewDefinition? FiltersOnLoad { get; set; }
+
     public SearchState Search { get; }
 
     public bool IsSearching => Search.IsSearching;
@@ -308,6 +311,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         SmartViews.Load();
         await Sessions.Directory.LoadAsync();
         if (SmartViews.TakeViewOnLoad() is { } view) ApplyView(view);
+        if (FiltersOnLoad is { } filters)
+        {
+            FiltersOnLoad = null;
+            Filters.Apply(filters);
+        }
         _staleTimer.Start();
         if (IsCollection) await ShowCollectionAsync();
         // A saved search's folder is chosen here, once the folders are known.

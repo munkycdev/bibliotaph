@@ -44,7 +44,7 @@ public static class ServerSetup
             sp.GetRequiredService<ModelClientFactory>(), sp.GetRequiredService<ForegroundActivity>(), sp.GetRequiredService<UploadMemory>(),
             sp.GetRequiredService<IBookCatalogue>()));
         // One for every library and connected PC, so the catalogues' paces hold server-wide.
-        services.AddSingleton(sp => BookCatalogues(configuration, sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<IBookCatalogue>(sp => BookCatalogues(configuration, sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton(sp => new UploadMemory(sp.GetRequiredService<TimeProvider>(), options.UploadMemoryBytes));
         // Every library's reading steps aside for anyone's request: they share the one CPU.
         services.AddSingleton(sp => new ForegroundActivity(sp.GetRequiredService<TimeProvider>()));
@@ -104,17 +104,18 @@ public static class ServerSetup
     }
 
     /// <summary>Where the server's lookups ask, one shared by every library: RPGGeek when Lookups:RpgGeek:Token holds a
-    /// token, Open Library, then Google Books when Lookups:GoogleBooks:ApiKey holds a key.</summary>
-    static IBookCatalogue BookCatalogues(IConfiguration configuration, TimeProvider clock)
+    /// token, AdventureLookup, Open Library, then Google Books when Lookups:GoogleBooks:ApiKey holds a key.</summary>
+    static BookCatalogues BookCatalogues(IConfiguration configuration, TimeProvider clock)
     {
         List<IBookCatalogue> catalogues = [];
-        // The order the user prefers their records in: RPGGeek, then Open Library, then Google Books.
+        // The order the user prefers their records in: RPGGeek, then AdventureLookup, then Open Library, then Google Books.
         if (configuration["Lookups:RpgGeek:Token"] is { Length: > 0 } token)
             catalogues.Add(new RpgGeekCatalogue(RpgGeekCatalogue.CreateClient(PublicNetwork.Handler()), token, clock));
+        catalogues.Add(new AdventureLookupCatalogue(AdventureLookupCatalogue.CreateClient(PublicNetwork.Handler()), clock));
         catalogues.Add(new OpenLibraryCatalogue(OpenLibraryCatalogue.CreateClient(PublicNetwork.Handler()), clock));
         if (configuration["Lookups:GoogleBooks:ApiKey"] is { Length: > 0 } key)
             catalogues.Add(new GoogleBooksCatalogue(GoogleBooksCatalogue.CreateClient(PublicNetwork.Handler()), key, clock));
-        return catalogues.Count == 1 ? catalogues[0] : new BookCatalogues(catalogues);
+        return new BookCatalogues(catalogues);
     }
 
     /// <summary>Where backups are kept in Blob storage: the container set, or the one named backups beside the covers.</summary>

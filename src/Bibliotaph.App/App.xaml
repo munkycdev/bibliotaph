@@ -32,6 +32,7 @@
       <DataTemplate DataType="{x:Type vm:PilotReviewViewModel}"><views:PilotReviewView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:DownloadCheckViewModel}"><views:DownloadCheckView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:AiReadingViewModel}"><views:AiReadingView /></DataTemplate>
+      <DataTemplate DataType="{x:Type vm:SummaryViewModel}"><views:SummaryView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:OnlineReaderViewModel}"><views:OnlineReaderView /></DataTemplate>
       <DataTemplate DataType="{x:Type vm:ViewerViewModel}"><views:ViewerView /></DataTemplate>
     </ResourceDictionary>

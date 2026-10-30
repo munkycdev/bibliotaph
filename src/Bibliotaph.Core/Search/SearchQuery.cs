@@ -78,6 +78,9 @@ public enum SearchField
 
     /// <summary><c>isbn:</c>, an ISBN printed in the book, with or without hyphens, ISBN-10 or 13, or unknown.</summary>
     Isbn,
+
+    /// <summary><c>opened:</c> yes or no (or never): the books opened at least once, or never.</summary>
+    Opened,
 }
 
 /// <summary>
@@ -421,6 +424,15 @@ sealed class QueryParser(string text)
             }
             value = new TermNode(yesNo);
         }
+        if (field == SearchField.Opened)
+        {
+            if (value is not TermNode { Prefix: false } answer || NormalizeOpened(answer.Text) is not { } opened)
+            {
+                Issue("opened: can be yes or no.", Span(token, valueToken));
+                return null;
+            }
+            value = new TermNode(opened);
+        }
         if (field == SearchField.Isbn)
         {
             if (value is not TermNode { Prefix: false } isbn || NormalizeIsbn(isbn.Text) is not { } digits)
@@ -474,6 +486,8 @@ sealed class QueryParser(string text)
     };
 
     /// <summary>"here" or "elsewhere", for <c>where:</c>; a few other words for each are understood.</summary>
+    static string? NormalizeOpened(string value) => value.Equals("never", StringComparison.OrdinalIgnoreCase) ? SearchQuery.No : NormalizeYesNo(value);
+
     static string? NormalizeWhere(string value) => value.ToLowerInvariant() switch
     {
         "here" or "local" or "pc" or "file" or "files" => SearchQuery.Here,

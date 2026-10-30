@@ -79,8 +79,8 @@ your PC, and the built-in AI runs there too. It connects to the internet only fo
 - **AI models.** Settings > AI downloads a model from Hugging Face only when you choose one.
 - **Book catalogues.** Bibliotaph sends the ISBNs a book prints, and nothing else, to [Open Library](https://openlibrary.org)
   to suggest its title, authors, publisher and year; see [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
-  A PC connected to your web library asks through bibliotaph.online instead, with the book's title, which asks RPGGeek
-  and Google Books too.
+  A PC connected to your web library asks through bibliotaph.online instead, with the book's title, which asks RPGGeek,
+  AdventureLookup and Google Books too.
 - **Online libraries.** When you open D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG in Bibliotaph's browser, it
   talks to that site the way any browser does, signed in as you. Bibliotaph reads a page only when you press
   **Read this page**, and never sees or keeps your password; see [Online libraries](docs/guide/online-libraries.md).
@@ -151,11 +151,12 @@ The guide is on the web too, a page per chapter, at [bibliotaph.online/guide](ht
    tags.
 5. [Collections, favorites and pins](docs/guide/organizing.md)
 6. [Binders](docs/guide/binders.md): prepare a session and run it.
-7. [Online libraries](docs/guide/online-libraries.md): D&D Beyond, Demiplane, Humble Bundle and DriveThruRPG.
-8. [AI](docs/guide/ai.md): what it does, what it sends, how to set it up, and scanning whole books.
-9. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
-10. [Questions and answers](docs/guide/faq.md)
-11. [Bibliotaph on the web](docs/guide/web.md): bibliotaph.online, your library in the browser.
+7. [Your library in numbers](docs/guide/summary.md): the Summary page, what you have and where it came from.
+8. [Online libraries](docs/guide/online-libraries.md): D&D Beyond, Demiplane, Humble Bundle and DriveThruRPG.
+9. [AI](docs/guide/ai.md): what it does, what it sends, how to set it up, and scanning whole books.
+10. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
+11. [Questions and answers](docs/guide/faq.md)
+12. [Bibliotaph on the web](docs/guide/web.md): bibliotaph.online, your library in the browser.
 
 ## Help and feedback
 

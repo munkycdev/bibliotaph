@@ -106,6 +106,9 @@ public static class SearchFields
     public static readonly SearchFieldInfo Favorite = new(SearchField.Favorite, "favorite", ["favourite", "fav"], SearchFieldKind.Text,
         "yes for the books you marked with a heart, no for the rest", "favorite:yes");
 
+    public static readonly SearchFieldInfo Opened = new(SearchField.Opened, "opened", [], SearchFieldKind.Text,
+        "yes for the books you have opened, no (or never) for those you haven't yet", "opened:no");
+
     public static readonly SearchFieldInfo Where = new(SearchField.Where, "where", [], SearchFieldKind.Text,
         "here for books with a file on this PC, elsewhere for books you own only somewhere else", "where:elsewhere");
 
@@ -124,7 +127,7 @@ public static class SearchFields
     /// <summary>Every field, in the order the field guide lists them: the inspector's order, then the file's own.</summary>
     public static IReadOnlyList<SearchFieldInfo> All { get; } =
         [Title, System, Edition, Type, Level, Players, Duration, Publisher, Author, Series, Setting, Style, Theme, Environment, Creature, Own, Store, Tag,
-            Favorite, Where, Collection, Format, Folder, Isbn];
+            Favorite, Opened, Where, Collection, Format, Folder, Isbn];
 
     /// <summary>Fields that arrive with later metadata. Typing one says so rather than searching for the word.</summary>
     public static IReadOnlyList<string> Coming { get; } = ["length"];

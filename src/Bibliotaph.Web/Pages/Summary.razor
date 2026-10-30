@@ -1,0 +1,270 @@
+@page "/summary"
+@using Bibliotaph.Core
+@implements IDisposable
+@inject ApiClient Api
+@inject LibraryActivity Activity
+
+@* The Windows app's Summary: the library by the numbers, in its four bands. The sum is Core's SummaryPage, so every
+   line and figure is the Windows app's; each figure is a link into the Library at the books it counts. Bars and
+   strips are SVG, sized by attributes, since the page's policy allows no inline styles. *@
+<PageHeading Title="@SummaryText.Title" TabTitle="Summary" Subtitle="@SummaryText.Subtitle" />
+
+@if (_problem is not null)
+{
+    <p class="bt-small">@_problem</p>
+}
+else if (_page is null)
+{
+    <div class="bt-loading">Counting…</div>
+}
+else if (!_page.HasBooks)
+{
+    <EmptyState Title="Nothing to count yet." Message="@SummaryText.Empty" ActionText="Manage folders" ActionIcon="Folder" ActionHref="settings#library" />
+}
+else
+{
+    var sum = _page;
+    <div class="bt-summary">
+        <section class="bt-sumband" aria-labelledby="sum-hoard">
+            <div class="bt-eyebrow" id="sum-hoard">THE HOARD</div>
+            <p class="bt-sumhero">You own <a href="@SummaryLinks.Href(SummaryPage.Everything)" aria-label="Every book in the Library">@sum.BooksText</a>, @sum.PagesText and @sum.SizeText of RPG material.</p>
+            @if (sum.ReadingTime is { } reading)
+            {
+                <div class="bt-subtitle">@reading</div>
+            }
+            @Tiles(sum.Hoard, "What the library holds")
+        </section>
+
+        <section class="bt-sumband" aria-labelledby="sum-from">
+            <div class="bt-eyebrow" id="sum-from">WHERE IT CAME FROM</div>
+            <div class="bt-sumcols two">
+                @if (sum.Folders is { } folders)
+                {
+                    <div>
+                        <div class="bt-sumhead"><strong>@folders.Heading</strong><a class="bt-small" href="settings#library">Manage folders</a></div>
+                        @Bars(folders)
+                        @if (sum.OfflineText is { } offline)
+                        {
+                            <p class="bt-small">@offline</p>
+                        }
+                    </div>
+                }
+                <div>
+                    <div class="bt-sumhead"><strong>Online libraries and stores</strong><a class="bt-small" href="settings#online">Import more</a></div>
+                    @if (sum.Sources is { } sources)
+                    {
+                        @Bars(sources)
+                    }
+                    else
+                    {
+                        <p class="bt-small">No book says where else you own it, or where it came from, yet.</p>
+                    }
+                    @if (sum.StoresText is { } stores)
+                    {
+                        <p class="bt-small">@stores</p>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <section class="bt-sumband" aria-labelledby="sum-what">
+            <div class="bt-sumhead">
+                <span class="bt-eyebrow" id="sum-what">WHAT IT IS</span>
+                <span class="bt-sumlegend"><i class="bt-sumswatch"></i>Confirmed<i class="bt-sumswatch soft"></i>Suggested, not yet reviewed</span>
+            </div>
+            <div class="bt-sumcols three">
+                @foreach (var list in new[] { sum.Systems, sum.Types, sum.Settings })
+                {
+                    @if (list is not null)
+                    {
+                        <div>
+                            <div class="bt-sumhead"><strong>@list.Heading</strong><span class="bt-small">@list.Note</span></div>
+                            @Bars(list)
+                        </div>
+                    }
+                }
+            </div>
+            <div class="bt-sumcols strips">
+                <div>
+                    <div class="bt-sumhead">
+                        <strong>By character level</strong>
+                        @if (sum.LevelsUnknownText is { } unknown)
+                        {
+                            <a class="bt-small" href="@SummaryLinks.Href(sum.LevelsUnknownLink)">@unknown</a>
+                        }
+                    </div>
+                    @if (sum.LevelsText is { } levels)
+                    {
+                        @Strip(sum.Levels, "Books and adventures by character level")
+                        <p class="bt-small">@levels</p>
+                    }
+                    else
+                    {
+                        <p class="bt-small">No book or adventure has its levels yet.</p>
+                    }
+                </div>
+                <div>
+                    <div class="bt-sumhead"><strong>Published, by decade</strong><span class="bt-small">@sum.YearUnknownText</span></div>
+                    @if (sum.YearsText is { } years)
+                    {
+                        @Strip(sum.Decades, "Books by the decade they were published")
+                        <p class="bt-small">@years</p>
+                    }
+                    else
+                    {
+                        <p class="bt-small">No book has its year yet.</p>
+                    }
+                </div>
+            </div>
+        </section>
+
+        <section class="bt-sumband" aria-labelledby="sum-done">
+            <div class="bt-eyebrow" id="sum-done">WHAT YOU’VE DONE WITH IT</div>
+            <p class="bt-sumhero">@sum.OpenedText</p>
+            <a class="bt-sumwaiting" href="@SummaryLinks.Href(SummaryPage.NeverOpened)">@sum.WaitingText</a>
+            <progress class="bt-bar bt-summeter" max="1" value="@Number(sum.OpenedShare)" aria-label="@sum.OpenedText"></progress>
+            @Tiles(sum.Work, "What you have made of it")
+            <p class="bt-small">@sum.ReadingText</p>
+
+            @if (sum.HasGrowth)
+            {
+                <div class="bt-sumhead bt-sumgrowthhead"><strong>Growth since your first book</strong></div>
+                @Growth(sum)
+                <div class="bt-sumticks"><span>@sum.GrowthStart</span><span>@sum.GrowthMiddle</span><span>@sum.GrowthEnd</span></div>
+                @if (sum.BiggestDayText is { } biggest)
+                {
+                    <p class="bt-small">@biggest</p>
+                }
+            }
+        </section>
+    </div>
+}
+
+@code {
+    const int GrowthWidth = 1000, GrowthHeight = 140;
+
+    SummaryPage? _page;
+    string? _problem;
+    bool _wasBusy;
+    DateTime _loaded;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        Activity.Changed += OnActivityChanged;
+    }
+
+    async Task LoadAsync()
+    {
+        try
+        {
+            var summary = await Api.LibraryNumbersAsync();
+            _page = SummaryPage.Of(summary, f => (SummaryLinks.FolderName(f.Path), f.Path));
+            _problem = null;
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            _problem ??= "The figures couldn't be read just now. Try again in a moment.";
+        }
+        _loaded = DateTime.UtcNow;
+    }
+
+    /// <summary>The figures follow the books being read, as Home's rows do: every so often, and once more when it's done.</summary>
+    void OnActivityChanged()
+    {
+        var busy = Activity.Current?.Busy == true;
+        var finished = _wasBusy && !busy;
+        _wasBusy = busy;
+        if (!finished && !(busy && DateTime.UtcNow - _loaded > TimeSpan.FromSeconds(15))) return;
+        InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    static string Number(double value) => value.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+
+    static string Percent(double share) => Number(Math.Clamp(share, 0, 1) * 100) + "%";
+
+    RenderFragment Tiles(IReadOnlyList<SummaryTile> tiles, string label) => @<div class="bt-sumtiles" role="list" aria-label="@label">
+        @foreach (var tile in tiles)
+        {
+            @if (tile.Link is { } link)
+            {
+                <a class="bt-sumtile" role="listitem" href="@SummaryLinks.Href(link)"><b>@tile.Count</b><span>@tile.Label</span>@if (tile.Detail is { } detail) { <small>@detail</small> }</a>
+            }
+            else
+            {
+                <div class="bt-sumtile" role="listitem"><b>@tile.Count</b><span>@tile.Label</span>@if (tile.Detail is { } detail) { <small>@detail</small> }</div>
+            }
+        }
+    </div>;
+
+    RenderFragment Bars(SummaryList list) => @<ul class="bt-sumbars" aria-label="@list.Heading">
+        @foreach (var bar in list.Bars)
+        {
+            <li>
+                @if (bar.Link is { } link)
+                {
+                    <a class="bt-sumrow" href="@SummaryLinks.Href(link)" title="@bar.ToolTip" aria-label="@bar.ToolTip"><span>@bar.Label</span>@BarFill(bar)<span class="bt-small">@bar.Count</span></a>
+                }
+                else
+                {
+                    <div class="bt-sumrow" title="@bar.ToolTip" aria-label="@bar.ToolTip"><span>@bar.Label</span>@BarFill(bar)<span class="bt-small">@bar.Count</span></div>
+                }
+            </li>
+        }
+    </ul>;
+
+    /// <summary>A bar: the suggested share in the lighter step, the confirmed share over it in the accent.</summary>
+    static RenderFragment BarFill(SummaryBar bar) => @<svg class="bt-sumbar @(bar.Offline ? "offline" : "")" aria-hidden="true" focusable="false">
+        <rect class="soft" width="@Percent(bar.Total)" height="8" rx="4" />
+        <rect width="@Percent(bar.Confirmed)" height="8" rx="4" />
+    </svg>;
+
+    static RenderFragment ColumnBar(SummaryColumn column) =>
+        @<svg aria-hidden="true" focusable="false"><rect y="@Percent(1 - column.Share)" width="100%" height="@Percent(column.Share)" rx="3" /></svg>;
+
+    RenderFragment Strip(IReadOnlyList<SummaryColumn> columns, string label) => @<ul class="bt-sumstrip" aria-label="@label">
+        @foreach (var column in columns)
+        {
+            <li>
+                @if (column.Link is { } link)
+                {
+                    <a href="@SummaryLinks.Href(link)" title="@column.ToolTip" aria-label="@column.ToolTip">@ColumnBar(column)<span>@column.Tick</span></a>
+                }
+                else
+                {
+                    <div title="@column.ToolTip" aria-label="@column.ToolTip">@ColumnBar(column)<span>@column.Tick</span></div>
+                }
+            </li>
+        }
+    </ul>;
+
+    /// <summary>
+    /// The running total as an area under a line, stretched to the page's width; each month is a strip that names its
+    /// total when pointed at.
+    /// </summary>
+    RenderFragment Growth(SummaryPage sum)
+    {
+        var count = sum.Growth.Count;
+        double X(int i) => count == 1 ? GrowthWidth / 2.0 : (double)GrowthWidth * i / (count - 1);
+        double Y(int i) => 2 + (GrowthHeight - 4) * (1 - sum.Growth[i]);
+        var line = string.Join(' ', Enumerable.Range(0, count).Select(i => $"{Number(X(i))},{Number(Y(i))}"));
+        var area = $"0,{GrowthHeight} {line} {GrowthWidth},{GrowthHeight}";
+        var slice = (double)GrowthWidth / count;
+        return @<svg class="bt-sumgrowth" viewBox="0 0 @GrowthWidth @GrowthHeight" preserveAspectRatio="none" role="img"
+                     aria-label="@($"Books in the library each month, {sum.GrowthLabels[^1]}")">
+            <line class="rule" x1="0" y1="@(GrowthHeight - 0.5)" x2="@GrowthWidth" y2="@(GrowthHeight - 0.5)" vector-effect="non-scaling-stroke" />
+            <polygon class="area" points="@area" />
+            <polyline class="line" points="@line" vector-effect="non-scaling-stroke" />
+            @for (var i = 0; i < count; i++)
+            {
+                <rect class="hit" x="@Number(Math.Max(0, X(i) - slice / 2))" width="@Number(slice)" height="@GrowthHeight"><title>@sum.GrowthLabels[i]</title></rect>
+            }
+        </svg>;
+    }
+
+    public void Dispose() => Activity.Changed -= OnActivityChanged;
+}

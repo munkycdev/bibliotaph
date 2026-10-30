@@ -60,6 +60,7 @@ public static class LibraryServices
         services.AddSingleton<UserTagQueries>();
         services.AddSingleton<ChapterQueries>();
         services.AddSingleton<LibraryQueries>();
+        services.AddSingleton<SummaryQueries>();
         services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), host.Clock,
             bookAtATime: true));
         services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), host.Clock));
@@ -108,6 +109,8 @@ public static class LibraryServices
         services.AddSingleton<SessionStore>();
         services.AddSingleton<SessionsService>();
         services.AddSingleton<PinStore>();
+        services.AddSingleton<SummaryStore>();
+        services.AddSingleton<LibrarySummaryService>();
         services.AddSingleton<PinsService>();
         services.AddSingleton(sp => new SmartViewStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(), host.Clock));
         services.AddSingleton<NoteStore>();
