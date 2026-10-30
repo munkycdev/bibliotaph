@@ -48,4 +48,63 @@ public sealed class SiteMarkdownTests
         Assert.Contains("""<tr><td>Dapper</td><td>Apache-2.0</td><td><a href="https://github.com/DapperLib/Dapper">https://github.com/DapperLib/Dapper</a></td></tr>""",
             html, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Numbered_steps_keep_their_indented_lines_paragraphs_and_lists()
+    {
+        const string markdown = """
+            1. Open **Settings**.
+            2. Pick a model. Those that fit
+               come first.
+
+               Already have one? Use it.
+            3. Click **Read this page**:
+               - **New**: books that get a card
+                 of their own.
+               - **Imported before**: nothing.
+
+            ---
+
+            Next: [Searching](searching.md)
+            """;
+
+        var html = SiteMarkdown.ToHtml(markdown);
+
+        Assert.Equal("""
+            <ol>
+            <li>Open <strong>Settings</strong>.</li>
+            <li><p>Pick a model. Those that fit come first.</p>
+            <p>Already have one? Use it.</p></li>
+            <li>Click <strong>Read this page</strong>:<ul>
+            <li><strong>New</strong>: books that get a card of their own.</li>
+            <li><strong>Imported before</strong>: nothing.</li>
+            </ul></li>
+            </ol>
+            <hr />
+            <p>Next: <a href="https://github.com/munkycdev/bibliotaph/blob/main/searching.md">Searching</a></p>
+
+            """.Replace("\r\n", "\n", StringComparison.Ordinal), html);
+    }
+
+    [Fact]
+    public void The_guide_links_its_chapters_on_the_site_and_the_rest_on_GitHub()
+    {
+        const string markdown = """
+            ## Changing a book's details
+
+            See [Searching](searching.md), [Ask](reading.md#ask-this-book), [the guide](../../README.md#the-guide),
+            [details](#changing-a-books-details), [features](../features.md) and [the site](https://bibliotaph.online/privacy).
+            """;
+
+        var html = SiteMarkdown.ToHtml(markdown, SiteGuide.Link);
+
+        // The heading's id is GitHub's, so a link written for the repository finds it on the site too.
+        Assert.Contains("""<h2 id="changing-a-books-details">""", html, StringComparison.Ordinal);
+        Assert.Contains("""<a href="/guide/searching">Searching</a>""", html, StringComparison.Ordinal);
+        Assert.Contains("""<a href="/guide/reading#ask-this-book">Ask</a>""", html, StringComparison.Ordinal);
+        Assert.Contains("""<a href="/guide">the guide</a>""", html, StringComparison.Ordinal);
+        Assert.Contains("""<a href="#changing-a-books-details">details</a>""", html, StringComparison.Ordinal);
+        Assert.Contains("""<a href="https://github.com/munkycdev/bibliotaph/blob/main/docs/features.md">features</a>""", html, StringComparison.Ordinal);
+        Assert.Contains("""<a href="https://bibliotaph.online/privacy">the site</a>""", html, StringComparison.Ordinal);
+    }
 }

@@ -28,7 +28,7 @@
 
       <h2>Signing in and connecting your storage</h2>
       <p>Signing in and storage are separate. You sign in with an account you already have, then connect one or more storage services where your books live. Each service shows you what Bibliotaph is asking for before you agree.</p>
-      <p><strong>Signing in.</strong> Sign-in is run for us by Auth0, a service of Okta. You sign in on its page with an account you already have, such as Microsoft, Google or Apple, or with your email address. We receive only your name, email address and a unique account ID. We never see or store your password; if you sign in with an email address, Auth0 keeps the password, protected, on our behalf. You can link more than one sign-in to the same account. The sign-in page, at auth.munkyc.dev, is shared with our other apps under the name MunkyC, so one Auth0 record of your sign-in serves all of them; Bibliotaph still receives only the details above.</p>
+      <p><strong>Signing in.</strong> Sign-in is run for us by Auth0, a service of Okta. You sign in on its page with an account you already have, such as Microsoft, Google or Discord, or with your email address. We receive only your name, email address and a unique account ID. We never see or store your password; if you sign in with an email address, Auth0 keeps the password, protected, on our behalf. You can link more than one sign-in to the same account. The sign-in page, at auth.munkyc.dev, is shared with our other apps under the name MunkyC, so one Auth0 record of your sign-in serves all of them; Bibliotaph still receives only the details above.</p>
       <p><strong>Connecting storage.</strong> You can connect storage services such as OneDrive, Google Drive, Dropbox or Box, and add folders from each one to your library. For every service, we ask for the least access that lets Bibliotaph read the folders you add, and nothing that writes:</p>
       <table class="bt-table">
         <thead><tr><th>Access</th><th>What Bibliotaph does with it</th></tr></thead>
@@ -57,7 +57,7 @@
       <ul>
         <li><strong>Our hosting provider</strong>, Microsoft Azure, which runs the service and stores our data on our behalf.</li>
         <li><strong>Auth0</strong> (Okta), our sign-in service, which confirms who you are on our behalf and keeps a record of your sign-ins.</li>
-        <li><strong>The account you sign in with</strong>, such as Microsoft, Google or Apple, which confirms who you are to Auth0.</li>
+        <li><strong>The account you sign in with</strong>, such as Microsoft, Google or Discord, which confirms who you are to Auth0.</li>
         <li><strong>The storage services you connect</strong>, which serve your files to Bibliotaph and receive any files it saves for you.</li>
         <li><strong>The AI provider you choose</strong>, only if you add a key (see above).</li>
         <li><strong>RPGGeek</strong>, run by BoardGameGeek, <strong>Open Library</strong>, run by the Internet Archive, and <strong>Google Books</strong>: Open Library and Google Books receive the ISBNs your books print, and nothing else; RPGGeek, which can only be searched by name, receives a book's title, the one a catalogue's record gives or else the one in your library. All of it comes from our server, with no account or other detail of yours, to suggest each book's title, authors, publisher and year.</li>

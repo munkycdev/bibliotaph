@@ -12,10 +12,16 @@ It's for you if you have a few hundred (or a few thousand) bundle downloads, cro
 handouts spread over folders, and you keep thinking "I own something for this, but where?"
 
 - **Your files stay put.** Bibliotaph never moves, renames, edits or deletes them. It only reads them.
-- **It works offline.** Everything lives on your PC. There's no account, no subscription and no cloud service.
+- **It works offline.** Everything lives on your PC. There's no account and no subscription, and the web version
+  below is there only if you want it.
 - **AI is optional, and local.** If you want, an AI model running on your own PC fills in each book's system, type and
   levels, quoting the page it found them on. Bibliotaph can download and run one itself (Qwen3, Llama 3.1, Mistral and
   others, or a model file you already have), or use Ollama, LM Studio or another model server you already have. Without it, everything else still works.
+
+**Prefer a browser?** [bibliotaph.online](https://bibliotaph.online) is Bibliotaph on the web, for books kept in
+OneDrive, Google Drive, Dropbox, Box or a WebDAV server such as Nextcloud. It looks and works like the Windows app, and
+keeps your catalog, never a copy of your books. It's invite-only for now. Connect the Windows app to it and your work
+is the same on every PC and browser. See [Bibliotaph on the web](docs/guide/web.md).
 
 This is version 1.4. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
 
@@ -38,7 +44,8 @@ You need Windows 10 (version 1809 or later) or Windows 11, on a 64-bit PC.
    Bibliotaph when it's done.
 
 Bibliotaph isn't code-signed yet, so Windows may say "Windows protected your PC". Click **More info**, then
-**Run anyway**. After that, open Bibliotaph from the Start menu like any other app.
+**Run anyway**. After that, open Bibliotaph from the Start menu like any other app. The first time it opens, a short
+tour points out where to add your folders and, once your books are in, how to find your way around.
 
 Updates download by themselves. When one is ready, the sidebar says **Update ready: restart to update**; click it
 when it suits you. Nothing restarts in the middle of a game.
@@ -107,8 +114,9 @@ books in their own windows as you like. With AI on, **Ask this book** answers a 
 with every claim citing the page it came from. [Reading](docs/guide/reading.md)
 
 **Fills in the catalog for you.** Each book gets a title, game system, type, levels, players, duration, setting,
-themes and more, suggested from folder names, the file itself and, if you turn it on, AI. Every suggestion shows
-where it came from; your own corrections always win. Your own tags can find their books by the words you give them,
+themes and more, suggested from folder names, the file itself, online book catalogues that know the ISBN it prints
+and, if you turn it on, AI. Every suggestion shows where it came from; your own corrections always win, and Needs
+review spots the terms in your lists that are one thing under two names. Your own tags can find their books by the words you give them,
 and with AI on, whole books are read chapter by chapter, so `creature:owlbear` finds the books with an owlbear in one
 of their chapters. Copies of the same book share one card, folders of maps become one image pack (a party's character
 sheets can be packed together too), and a search finds each adventure inside an anthology on its own.
@@ -133,7 +141,9 @@ PC through your web library. [OneDrive, drives and other PCs](docs/guide/onedriv
 
 ## The guide
 
-1. [Getting started](docs/guide/getting-started.md): install, add your folders, find your way around.
+The guide is on the web too, a page per chapter, at [bibliotaph.online/guide](https://bibliotaph.online/guide).
+
+1. [Getting started](docs/guide/getting-started.md): install, the tour, add your folders, find your way around.
 2. [Searching](docs/guide/searching.md): search words, fields, Ask in plain English, questions to your library,
    filters and saved searches.
 3. [Reading](docs/guide/reading.md): the reader, notes, Ask this book and pop-out windows.
@@ -145,7 +155,7 @@ PC through your web library. [OneDrive, drives and other PCs](docs/guide/onedriv
 8. [AI](docs/guide/ai.md): what it does, what it sends, how to set it up, and scanning whole books.
 9. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
 10. [Questions and answers](docs/guide/faq.md)
-11. [Bibliotaph on the web](docs/guide/web.md): bibliotaph.online, invite-only while it's built.
+11. [Bibliotaph on the web](docs/guide/web.md): bibliotaph.online, your library in the browser.
 
 ## Help and feedback
 
