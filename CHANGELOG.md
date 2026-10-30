@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Packs now sync between the web and your PCs.** Files you pack together, a pack you split, your Make a pack and
+  Keep separate answers in Needs review, packs merged into one and a pack's chosen cover reach every device that has
+  those files. A pack's title, hearts and collections, which waited for a matching pack, now arrive with it. Where the
+  web and a PC packed the same folder by themselves, they settle on one pack. See
+  [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md#more-than-one-pc).
 - **Needs review answers about new names now reach every device.** When the AI proposed the same new name on the web
   and on a PC, adding it on one left it waiting on the other, with its books still in Needs review. Now a name you add,
   file under another term or turn down is decided the same way everywhere, and the books waiting on it move on. A name

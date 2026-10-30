@@ -134,6 +134,36 @@ public sealed class LibrarySyncTests : IAsyncLifetime
 
         public void Later(int minutes) => clock.Now = clock.Now.AddMinutes(minutes);
 
+        public PackStore Packs => new(Contexts, clock);
+
+        readonly List<ScannedFile> _files = [];
+        long? _root;
+
+        /// <summary>
+        /// Scans files into a library folder and hashes them, each by its path, so the same path on both PCs is the
+        /// same file. Returns each file's entry by its path.
+        /// </summary>
+        public async Task<Dictionary<string, EntryId>> AddFilesAsync(params string[] files)
+        {
+            var library = new LibraryStore(Contexts);
+            var folder = Path.Combine(paths.Root, "Library");
+            _root ??= (await new SourceRootStore(Contexts).AddAsync(folder, Ct)).Id;
+            _files.AddRange(files.Select(f => new ScannedFile(f, 1000, clock.GetUtcNow().UtcDateTime, OnlineOnly: false)));
+            await library.ReconcileRootAsync(_root.Value, _files, ct: Ct);
+            var entries = new Dictionary<string, EntryId>();
+            foreach (var file in await library.NextUnhashedAsync(1000, includeOnlineOnly: true, Ct))
+            {
+                var path = Path.GetRelativePath(folder, file.FullPath).Replace('\\', '/');
+                var hash = ContentHash.Parse(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(path))));
+                var document = (await library.AttachHashAsync(file, hash, Ct))!.Value.DocumentId;
+                entries[path] = (await new EntryStore(Contexts).GetEntryAsync(document, Ct))!.EntryId;
+            }
+            return entries;
+        }
+
+        public async Task<IReadOnlyList<EntryDocument>> PackCardsAsync() =>
+            [.. (await new EntryStore(Contexts).GetCurrentAsync(ct: Ct)).Where(c => c.Kind == EntryKind.Pack)];
+
         public void Dispose()
         {
             Sync.Dispose();
@@ -436,5 +466,74 @@ public sealed class LibrarySyncTests : IAsyncLifetime
 
         Assert.Empty(await _laptop.Vocabulary.GetKeptApartAsync("type", Ct));
         Assert.Empty(await new UserTagStore(_laptop.Contexts).ListAsync(Ct));
+    }
+
+    static string[] Images(string folder, int count) => [.. Enumerable.Range(1, count).Select(i => $"{folder}/Token {i}.png")];
+
+    [Fact]
+    public async Task Files_packed_together_on_one_PC_are_one_pack_on_the_other_and_splitting_it_there_splits_it_here()
+    {
+        var files = await _desk.AddFilesAsync("Handouts/Letter.png", "Handouts/Map.png", "Handouts/Seal.png");
+        await _laptop.AddFilesAsync("Handouts/Letter.png", "Handouts/Map.png", "Handouts/Seal.png");
+        var together = (await _desk.Packs.PackTogetherAsync([.. files.Values], Ct))!;
+        await _desk.Metadata.SetValuesAsync(together.PackId, MetadataFields.Title, ["Party handouts"], Ct);
+
+        await RoundAsync();
+        await RoundAsync();
+
+        var pack = Assert.Single(await _laptop.PackCardsAsync());
+        Assert.Equal(3, pack.Members!.Count);
+        Assert.Equal("Party handouts", (await _laptop.Metadata.GetAsync(pack.EntryId, Ct)).Compute()[MetadataFields.Title].First?.Value);
+
+        _desk.Later(5);
+        await _desk.Packs.SplitAsync(together.PackId, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.PackCardsAsync());
+        Assert.Empty(await _desk.PackCardsAsync());
+    }
+
+    [Fact]
+    public async Task A_folder_both_PCs_packed_by_themselves_ends_as_the_same_pack_and_stays_settled()
+    {
+        await _desk.AddFilesAsync(Images("Tokens/Undead", 20));
+        await _laptop.AddFilesAsync(Images("Tokens/Undead", 20));
+        await _desk.Packs.PlanAsync(Ct);
+        await _laptop.Packs.PlanAsync(Ct);
+
+        await RoundAsync();
+        await RoundAsync();
+
+        var desk = Assert.Single(await _desk.PackCardsAsync());
+        var laptop = Assert.Single(await _laptop.PackCardsAsync());
+        Assert.Equal(20, laptop.Members!.Count);
+        await using (var deskDb = _desk.Catalog.CreateContext())
+        await using (var laptopDb = _laptop.Catalog.CreateContext())
+            Assert.Equal((await deskDb.Entries.SingleAsync(e => e.Id == desk.EntryId.Value, Ct)).SyncId,
+                (await laptopDb.Entries.SingleAsync(e => e.Id == laptop.EntryId.Value, Ct)).SyncId);
+
+        _desk.Later(5);
+        _laptop.Later(5);
+        Assert.False((await _desk.Sync.SyncNowAsync(Ct)).Changed);
+        Assert.False((await _laptop.Sync.SyncNowAsync(Ct)).Changed);
+    }
+
+    [Fact]
+    public async Task A_folder_proposed_on_both_PCs_and_answered_on_one_is_answered_on_the_other()
+    {
+        await _desk.AddFilesAsync([.. Images("Maps/Harbor", 6), .. Images("Maps/Docks", 6)]);
+        await _laptop.AddFilesAsync([.. Images("Maps/Harbor", 6), .. Images("Maps/Docks", 6)]);
+        await _desk.Packs.PlanAsync(Ct);
+        await _laptop.Packs.PlanAsync(Ct);
+        Assert.Equal(2, (await _laptop.Packs.GetProposalsAsync(Ct)).Count);
+
+        var proposals = await _desk.Packs.GetProposalsAsync(Ct);
+        await _desk.Packs.AnswerAsync(proposals.Single(p => p.Name == "Harbor").PackId, PackAnswer.Packed, PackAnswer.Proposed, Ct);
+        await _desk.Packs.AnswerAsync(proposals.Single(p => p.Name == "Docks").PackId, PackAnswer.Split, PackAnswer.Proposed, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _laptop.Packs.GetProposalsAsync(Ct));
+        var pack = Assert.Single(await _laptop.PackCardsAsync());
+        Assert.Equal(6, pack.Members!.Count);
     }
 }

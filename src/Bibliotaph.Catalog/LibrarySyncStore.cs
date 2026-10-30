@@ -38,7 +38,8 @@ public sealed record SyncSnapshot(
 /// <summary>
 /// What library sync reads and writes in catalog.db: the user's work as sync records, what this PC last knew of each
 /// record (sync_state), and merged records applied back to the catalog's own tables. It never touches file locations,
-/// documents, roots, pack decisions, runs or settings: those belong to this PC.
+/// documents, roots, runs or settings: those belong to this PC. A folder's pack decision changes only as another device
+/// answered or split the same images.
 /// </summary>
 public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext> contexts, MetadataStore metadata, VocabularyStore vocabularies,
     TimeProvider? clock = null, ILogger<LibrarySyncStore>? log = null, LookupRecordStore? lookups = null)
@@ -64,7 +65,7 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
 
         // Cards: a book by the lowest hash of its files, a pack by the lowest of its images', a book owned elsewhere by its sync id.
         var entries = await db.Entries.AsNoTracking().Where(e => e.MergedIntoEntryId == null)
-            .Select(e => new { e.Id, e.Kind, e.SyncId, e.ParentEntryId }).ToListAsync(ct);
+            .Select(e => new { e.Id, e.Kind, e.SyncId, e.ParentEntryId, e.CoverEntryId }).ToListAsync(ct);
         var hashes = (await db.EntrySources.AsNoTracking().Where(s => s.FirstPdfPage == null)
             .Select(s => new { s.EntryId, s.Document.ContentHash }).ToListAsync(ct)).ToLookup(s => s.EntryId, s => s.ContentHash);
         var members = entries.Where(e => e.ParentEntryId != null).ToLookup(e => e.ParentEntryId!.Value, e => e.Id);
@@ -90,6 +91,17 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
             aliases[keys[0]] = keys[1..];
             cardFields[entry.Id] = fields;
         }
+
+        // Which pack each file is in, by the pack's sync id, and the images kept on cards of their own; a pack's cover.
+        var packSyncIds = entries.Where(e => e.Kind == EntryKind.Pack).ToDictionary(e => e.Id, e => e.SyncId);
+        var separate = await PackStore.KeptSeparateAsync(db, ct);
+        foreach (var entry in entries.Where(e => e.Kind == EntryKind.Whole && cardFields.ContainsKey(e.Id)))
+        {
+            if (entry.ParentEntryId is { } parent && packSyncIds.TryGetValue(parent, out var pack)) cardFields[entry.Id][SyncFields.InPack] = Json(Id(pack));
+            else if (entry.ParentEntryId is null && separate.Contains(entry.Id)) cardFields[entry.Id][SyncFields.InPack] = Json("");
+        }
+        foreach (var entry in entries.Where(e => e.Kind == EntryKind.Pack && e.CoverEntryId is not null && cardFields.ContainsKey(e.Id)))
+            if (cardKeys.TryGetValue(entry.CoverEntryId!.Value, out var cover)) cardFields[entry.Id][SyncFields.Cover] = Json(cover);
 
         // The user's decisions about each card's metadata: what they kept, with the text they kept, and what they rejected.
         var kept = await db.Assertions.AsNoTracking().Where(a => a.State == AssertionState.Confirmed)

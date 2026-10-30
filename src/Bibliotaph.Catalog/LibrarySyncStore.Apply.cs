@@ -17,10 +17,10 @@ public sealed record SyncChange(string Key, IReadOnlyDictionary<string, string>?
 
 /// <summary>
 /// What applying merged records did: the keys that couldn't be applied yet (their book isn't here, say), whether
-/// anything changed, and the names of the user's own tags that were added, changed or deleted, whose guesses across the
-/// library are to be made again.
+/// anything changed, the names of the user's own tags that were added, changed or deleted, whose guesses across the
+/// library are to be made again, and the cards whose packs changed, whose folder hints are to be stored again.
 /// </summary>
-public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Changed, IReadOnlySet<string> Tags);
+public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Changed, IReadOnlySet<string> Tags, IReadOnlyList<EntryId> Packed);
 
 public sealed partial class LibrarySyncStore
 {
@@ -59,6 +59,8 @@ public sealed partial class LibrarySyncStore
                 notApplied.Add(change.Key);
             }
         }
+        var packed = new List<EntryId>();
+        changed |= await ApplyPacksAsync(upserts, Card, notApplied, packed, ct);
         // A collection's parent may have been made after it, so parents are set once every collection is there.
         foreach (var change in upserts.Where(c => c.Key.StartsWith(SyncKeys.Collection, StringComparison.Ordinal) && !notApplied.Contains(c.Key)))
             changed |= await SetParentAsync(change.Key, change.Wanted!, ct);
@@ -76,7 +78,50 @@ public sealed partial class LibrarySyncStore
             }
         }
         if (changed) vocabularies.Forget();
-        return new SyncApplyResult(notApplied, changed, tags);
+        return new SyncApplyResult(notApplied, changed, tags, packed);
+    }
+
+    /// <summary>
+    /// Packs, once every card is in place: files are put in the packs the other device has them in, or on cards of their
+    /// own (<see cref="PackStore.ApplySyncedAsync"/>), then packs take the covers chosen there. A file that couldn't be
+    /// put as it was there, or a pack whose cover file isn't in it here, waits.
+    /// </summary>
+    async Task<bool> ApplyPacksAsync(IReadOnlyList<SyncChange> upserts, Func<string, long?> card, HashSet<string> notApplied, List<EntryId> packed,
+        CancellationToken ct)
+    {
+        static bool Differs(SyncChange c, string name) => c.Current?.GetValueOrDefault(name) != c.Wanted!.GetValueOrDefault(name);
+        var wishes = new Dictionary<long, Guid?>();
+        var keys = new Dictionary<long, string>();
+        foreach (var change in upserts.Where(c => c.Key.StartsWith(SyncKeys.Book, StringComparison.Ordinal) && !notApplied.Contains(c.Key) && Differs(c, SyncFields.InPack)))
+        {
+            if (card(change.Key) is not { } entryId) continue;
+            wishes[entryId] = ReadOrDefault<string>(change.Wanted, SyncFields.InPack) is { Length: > 0 } text && Guid.TryParse(text, out var pack) ? pack : null;
+            keys[entryId] = change.Key;
+        }
+        var changed = false;
+        if (wishes.Count > 0)
+        {
+            var (moved, unsettled) = await new PackStore(contexts, _clock).ApplySyncedAsync(wishes, ct);
+            changed = moved.Count > 0;
+            packed.AddRange(moved);
+            foreach (var entryId in unsettled) notApplied.Add(keys[entryId]);
+        }
+
+        foreach (var change in upserts.Where(c => c.Key.StartsWith(SyncKeys.Pack, StringComparison.Ordinal) && !notApplied.Contains(c.Key) && Differs(c, SyncFields.Cover)))
+        {
+            if (card(change.Key) is not { } packId) continue;
+            long? fileId = ReadOrDefault<string>(change.Wanted, SyncFields.Cover) is { } coverKey ? card(coverKey) : null;
+            await using var db = await contexts.CreateDbContextAsync(ct);
+            if (await db.Entries.SingleOrDefaultAsync(e => e.Id == packId && e.Kind == EntryKind.Pack, ct) is not { } pack) continue;
+            if (fileId is not null && !await db.Entries.AnyAsync(e => e.Id == fileId && e.ParentEntryId == packId, ct))
+            {
+                notApplied.Add(change.Key);
+                continue;
+            }
+            pack.CoverEntryId = fileId;
+            changed |= await SaveAsync(db, ct);
+        }
+        return changed;
     }
 
     /// <summary>The order records are applied in: what others point at first.</summary>
