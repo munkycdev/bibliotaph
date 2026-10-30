@@ -2646,6 +2646,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var busy = await Assert.ThrowsAsync<CatalogueUnavailableException>(() => catalogue.FindAsync(["9781234567897"], ct));
         var keyed = new HttpClient(_factory.Server.CreateHandler()) { BaseAddress = new Uri("http://localhost") };
         keyed.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+        keyed.DefaultRequestHeaders.Add(ApiHeaders.Client, "windows");
         using var notAnIsbn = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest(["978-1-234"]), ct);
         using var nothing = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([]), ct);
         // A book printing only a product code is looked up by it, where a catalogue's records list codes.
