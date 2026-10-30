@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Suggestions name the record by its title.** A looked-up suggestion's quote, in Needs review and the details
+  panel, now reads "RPGGeek's record of The Owlbear Mill" rather than giving an ISBN. Books looked up before keep the
+  old wording until they're next looked up.
 - **Fix: "bibliotaph.online can't be reached" while it could.** A Windows app connected to bibliotaph.online gave up on
   a lookup after 20 seconds, but with RPGGeek's five-second pace a lookup can wait its turn longer than that, so the
   app said the site couldn't be reached and books stopped being looked up. Lookups now wait up to three minutes. When
