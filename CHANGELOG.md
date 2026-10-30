@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Suggestions name the record by its title.** A looked-up suggestion's quote, in Needs review and the details
+  panel, now reads "RPGGeek's record of The Owlbear Mill" rather than giving an ISBN. Books looked up before keep the
+  old wording until they're next looked up.
+
 ## 1.4 Γö¼Γòû 28 October 2026
 
 New in 1.4.995 (29 October 2026):
