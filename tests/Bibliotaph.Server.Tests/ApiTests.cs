@@ -1205,6 +1205,8 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         var client = Client(user);
         client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
         using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+        // Read to the end first, so its own proposals and title can't replace the ones saved below while the card is answered.
+        await WaitAsync(async () => (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))! is { Files: 1, ToRead: 0, Queued: 1, Indexed: 1 } done ? done : null, ct);
         var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is [var one] ? one : null, ct);
 
         await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
