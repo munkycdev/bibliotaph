@@ -1,0 +1,41 @@
+@* .bt-detailsection: a section of a book's details. Its heading folds and opens it; its own links sit at the right of the heading while it's open. *@
+@inject DetailSectionState Sections
+
+<section class="bt-detailsection" aria-label="@Label">
+    <div class="bt-drawerhead-row">
+        <h3 class="bt-drawerhead">
+            <button class="bt-sectiontoggle" aria-expanded="@Open" @onclick="ToggleAsync"><Icon Name="@(Open ? "ChevronDown" : "ChevronRight")" Size="13" />@Heading</button>
+        </h3>
+        @if (Open && Actions is not null)
+        {
+            <div class="bt-inline bt-headactions">@Actions</div>
+        }
+    </div>
+    @if (Open)
+    {
+        @ChildContent
+    }
+</section>
+
+@code {
+    /// <summary>The section's name in <see cref="Bibliotaph.Core.DetailSections"/>.</summary>
+    [Parameter, EditorRequired] public string Section { get; set; } = "";
+
+    [Parameter, EditorRequired] public string Heading { get; set; } = "";
+
+    /// <summary>What a screen reader calls the section; its heading by default.</summary>
+    [Parameter] public string? Name { get; set; }
+
+    /// <summary>Open whatever was left folded, as Cataloged wrong… opens the fields.</summary>
+    [Parameter] public bool ForceOpen { get; set; }
+
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    bool Open => ForceOpen || Sections.IsOpen(Section);
+
+    string Label => Name ?? Heading;
+
+    Task ToggleAsync() => Sections.SetOpenAsync(Section, !Open);
+}

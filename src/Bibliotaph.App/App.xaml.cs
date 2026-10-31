@@ -410,6 +410,7 @@ public partial class App : Application
         builder.Services.AddSingleton<PinDirectory>();
         builder.Services.AddSingleton<PinOpener>();
         builder.Services.AddSingleton<InspectorFactory>();
+        builder.Services.AddSingleton<DetailSectionsViewModel>();
         builder.Services.AddSingleton<LibrarySelectionFactory>();
         builder.Services.AddTransient<CollectionActions>();
         builder.Services.AddSingleton<SessionDirectory>();

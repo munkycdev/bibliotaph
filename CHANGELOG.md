@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **A book's details put what it holds first.** Its adventures, a pack's files and what the AI found inside come first,
+  then collections and the catalogue fields, with About the file, Where it is, Copies and Indexing at the end. Every
+  section folds away under its heading, and the last four start folded. See
+  [Cataloging](docs/guide/cataloging.md#the-details-panel).
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1070 (30 October 2026):

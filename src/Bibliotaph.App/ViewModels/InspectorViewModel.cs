@@ -360,6 +360,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         IsCorrecting = true;
         IsNotesTab = false;
         ShowAllFields = true;
+        Sections?.Details = true;
         foreach (var field in Fields)
         {
             field.MarksGuesses = true;
@@ -468,6 +469,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public partial int PageCount { get; private set; }
 
     public bool CanOcrEveryPage => PageCount > 0;
+
+    /// <summary>Which sections are open, the same for every book's details. Set once the details load.</summary>
+    [ObservableProperty]
+    public partial DetailSectionsViewModel? Sections { get; set; }
 
     /// <summary>The Notes tab: the book's own note and its page notes. Set once the details load, as they open.</summary>
     [ObservableProperty]

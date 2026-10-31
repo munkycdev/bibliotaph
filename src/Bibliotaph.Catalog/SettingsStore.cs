@@ -147,6 +147,9 @@ public static class SettingKeys
     /// <summary>"1" while the sidebar is folded to its icons; otherwise it shows in full.</summary>
     public const string SidebarCollapsed = "sidebar-collapsed";
 
+    /// <summary>The sections of a book's details folded on this device, as <c>DetailSections.Write</c> gives them.</summary>
+    public const string DetailsFolded = "details.folded";
+
     /// <summary>This device's id in its sync file, so its own file is told from another device's of the same name.</summary>
     public const string SyncMachineId = "sync.machine-id";
 

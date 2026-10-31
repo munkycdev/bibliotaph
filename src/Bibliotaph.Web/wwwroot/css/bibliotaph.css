@@ -457,6 +457,12 @@ a{color:var(--bt-accent)}
 .bt-drawerhead{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--bt-text);margin:0}
 .bt-sectionhead{margin:28px 0 10px}
 .bt-drawerhead-row{display:flex;justify-content:space-between;align-items:center;margin:28px 0 4px}
+/* A section of a book's details: its heading is a button that folds it, with a chevron that points down while it's open. */
+.bt-detailsection>.bt-drawerhead-row{margin:24px 0 8px}
+.bt-sectiontoggle{display:inline-flex;align-items:center;gap:6px;padding:2px 0;border:0;background:none;color:inherit;font:inherit;letter-spacing:inherit;cursor:pointer}
+.bt-sectiontoggle svg{color:var(--bt-muted)}
+.bt-sectiontoggle:hover svg{color:var(--bt-text)}
+.bt-sectiontoggle:focus-visible{outline:2px solid var(--bt-accent);outline-offset:2px;border-radius:3px}
 .bt-fieldrow{padding:10px 0;border-bottom:1px solid var(--bt-line)}
 .bt-fieldlabel{font-size:10px;color:var(--bt-muted);margin-bottom:3px}
 .bt-fieldvalue{font-size:12px;color:var(--bt-text)}

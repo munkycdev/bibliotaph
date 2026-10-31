@@ -25,5 +25,6 @@ builder.Services.AddScoped<SearchGuideModel>();
 builder.Services.AddScoped<Breadcrumb>();
 builder.Services.AddScoped<AskScope>();
 builder.Services.AddScoped<UnlockedBooks>();
+builder.Services.AddScoped<DetailSectionState>();
 
 await builder.Build().RunAsync();
