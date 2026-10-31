@@ -2,12 +2,14 @@
 
 ## Unreleased
 
+## 1.4 ┬╖ 28 October 2026
+
+New in 1.4.1070 (30 October 2026):
+
 - **Fixed: books that print no ISBN weren't looked up online.** Only books printing an ISBN or product code reached
   **Looking up online**, so most of a library was never searched for by title on AdventureLookup, and **Settings >
   Processing** counted only those. Every book with text is now looked up, and the books read before are queued once
   when the app or server starts. See [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
-
-## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1065 (30 October 2026):
 
