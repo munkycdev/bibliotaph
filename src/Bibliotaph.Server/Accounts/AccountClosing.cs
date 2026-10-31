@@ -12,6 +12,7 @@ public sealed class AccountClosing(AccountService accounts, StorageConnections c
     /// <summary>False when there was no such account.</summary>
     public async Task<bool> CloseAsync(string userId, CancellationToken ct)
     {
+        userId = UserIds.Require(userId);
         foreach (var account in await connections.ListAsync(userId, ct))
         {
             if (await connections.FindAsync(account.Id, ct) is { } connection) await notifications.UnsubscribeAsync(connection, ct);

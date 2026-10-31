@@ -111,5 +111,10 @@ public static class UserIds
 
     public static bool IsValid(string? id) => id is { Length: 32 } && id.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
-    public static string Require(string? id) => IsValid(id) ? id! : throw new ArgumentException("Not a user ID.", nameof(id));
+    /// <summary>
+    /// The ID rebuilt from its parsed GUID rather than the caller's text, so code scanning can see that what reaches
+    /// a log or a path past here is ours. Callers keep the result: <c>userId = UserIds.Require(userId);</c>
+    /// </summary>
+    public static string Require(string? id) =>
+        IsValid(id) ? Guid.ParseExact(id!, "N").ToString("N") : throw new ArgumentException("Not a user ID.", nameof(id));
 }

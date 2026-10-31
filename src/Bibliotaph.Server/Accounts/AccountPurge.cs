@@ -55,11 +55,12 @@ public sealed class AccountPurge(AccountService accounts, UserLibraries librarie
 
     public async Task PurgeAsync(ClosedAccount account, CancellationToken ct)
     {
+        var userId = UserIds.Require(account.UserId);
         var started = clock.GetUtcNow().UtcDateTime;
-        await libraries.DeleteAsync(account.UserId);
-        await blobs.DeleteAllAsync(account.UserId, ct);
-        if (started - account.Closed >= Settle) await accounts.MarkPurgedAsync(account.UserId, ct);
-        log.LogInformation("Deleted what was kept for closed account {User}", account.UserId);
+        await libraries.DeleteAsync(userId);
+        await blobs.DeleteAllAsync(userId, ct);
+        if (started - account.Closed >= Settle) await accounts.MarkPurgedAsync(userId, ct);
+        log.LogInformation("Deleted what was kept for closed account {User}", userId);
     }
 
     public async Task PurgeAllAsync(CancellationToken ct)

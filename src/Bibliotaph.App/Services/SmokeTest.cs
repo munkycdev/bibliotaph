@@ -540,6 +540,7 @@ static partial class SmokeTest
         var lairs = page.Items[0];
         await page.OpenDetailsCommand.ExecuteAsync(lairs);
         await WaitUntilAsync(window, () => page.Inspector is { Copies.Count: 2 }, () => "The inspector doesn't list the lairs' two copies.");
+        page.Inspector!.Pane!.Copies = true;
         var first = page.Inspector!.Copies.Single(c => c.IsCurrent).DocumentId;
 
         foreach (var expected in new[] { "the backup", "the original" })

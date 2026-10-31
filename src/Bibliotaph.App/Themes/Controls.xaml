@@ -681,6 +681,56 @@
     </Setter>
   </Style>
 
+  <!--
+    .bt-detailsection: a section of a book's details. Its heading folds and opens it, with a chevron that points down
+    while it's open; the section's own links sit at the right of the heading while it's open.
+  -->
+  <Style TargetType="c:DetailSection">
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Margin" Value="0,28,0,0" />
+    <Setter Property="KeyboardNavigation.TabNavigation" Value="Continue" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="c:DetailSection">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,10">
+              <ContentPresenter x:Name="Actions" DockPanel.Dock="Right" Content="{TemplateBinding Actions}" VerticalAlignment="Center" Margin="12,0,0,0" />
+              <ToggleButton x:Name="Toggle" HorizontalAlignment="Left" Cursor="Hand" FocusVisualStyle="{StaticResource Bt.FocusVisual}"
+                            IsChecked="{Binding IsOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                            AutomationProperties.Name="{TemplateBinding Header}">
+                <ToggleButton.Template>
+                  <ControlTemplate TargetType="ToggleButton">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                      <c:LucideIcon x:Name="Chevron" Data="{StaticResource Icon.ChevronDown}" Size="13" Margin="0,0,6,0" VerticalAlignment="Center"
+                                    Foreground="{DynamicResource Bt.Muted}" />
+                      <TextBlock x:Name="Heading" Text="{Binding Header, RelativeSource={RelativeSource AncestorType=c:DetailSection}}" Style="{StaticResource Text.Eyebrow}"
+                                 FontSize="12" FontWeight="Bold" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsChecked" Value="False">
+                        <Setter TargetName="Chevron" Property="Data" Value="{StaticResource Icon.ChevronRight}" />
+                      </Trigger>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="Chevron" Property="Foreground" Value="{DynamicResource Bt.Text}" />
+                      </Trigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </ToggleButton.Template>
+              </ToggleButton>
+            </DockPanel>
+            <ContentPresenter x:Name="Body" />
+          </StackPanel>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsOpen" Value="False">
+              <Setter TargetName="Body" Property="Visibility" Value="Collapsed" />
+              <Setter TargetName="Actions" Property="Visibility" Value="Collapsed" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <!-- Slim scroll bars that suit both themes. -->
   <Style x:Key="Bt.ScrollThumb" TargetType="Thumb">
     <Setter Property="Template">

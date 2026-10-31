@@ -110,6 +110,7 @@ public sealed class WebBackups(UserLibraries libraries, IBackupStore store, Serv
     /// </summary>
     public async Task<string?> RestoreAsync(string userId, string token, CancellationToken ct)
     {
+        userId = UserIds.Require(userId);
         Directory.CreateDirectory(paths.Staging);
         // Not *.db, so Litestream's watcher ignores them.
         var catalog = Path.Combine(paths.Staging, $"{Guid.NewGuid():N}.restoring");
