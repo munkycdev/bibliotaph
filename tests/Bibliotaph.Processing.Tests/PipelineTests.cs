@@ -207,10 +207,24 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         await _writer.StopAsync(CancellationToken.None);
         _writer.Dispose();
         await _workers.DisposeAsync();
-        // Only this test's own files: clearing every pool would break other classes' connections running alongside.
-        _catalog.ClearPool();
-        _index.ClearPools();
-        Directory.Delete(_dir, recursive: true);
+        // Windows lets go of a closed SQLite file a moment later when the machine is busy, so the delete tries again,
+        // and a test that passed doesn't fail over a temp folder left behind.
+        for (var attempt = 1; ; attempt++)
+        {
+            // Only this test's own files: clearing every pool would break other classes' connections running alongside.
+            _catalog.ClearPool();
+            _index.ClearPools();
+            try
+            {
+                Directory.Delete(_dir, recursive: true);
+                break;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                if (attempt == 20) break;
+                await Task.Delay(100);
+            }
+        }
         GC.SuppressFinalize(this);
     }
 
