@@ -96,6 +96,26 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
         return (changed, grew);
     }
 
+    /// <summary>
+    /// The catalogues that found each of <paramref name="entryIds"/> (every entry's when null): those with a record one
+    /// of its files uses, for the Library's Found online filter. An adventure inside a file is found as its file is.
+    /// </summary>
+    public async Task<IReadOnlyList<(EntryId EntryId, string Source)>> GetFoundByAsync(IReadOnlyCollection<EntryId>? entryIds = null, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var sources = db.EntrySources.AsNoTracking().Where(s => s.Entry.MergedIntoEntryId == null);
+        if (entryIds is not null)
+        {
+            var ids = entryIds.Select(e => e.Value).ToList();
+            sources = sources.Where(s => ids.Contains(s.EntryId));
+        }
+        var used = db.LookupRecords.AsNoTracking()
+            .Where(r => r.RecordJson != null && r.Answer != LookupAnswer.NotThisBook && (r.Printed || r.Answer == LookupAnswer.SameBook));
+        var found = await sources.Join(used, s => s.Document.ContentHash, r => r.ContentHash, (s, r) => new { s.EntryId, r.Source })
+            .Distinct().ToListAsync(ct);
+        return [.. found.Select(f => (new EntryId(f.EntryId), f.Source))];
+    }
+
     async Task<(List<MetadataProposal> Proposals, bool Grew)> TermProposalsAsync(List<BookRecord> records, CancellationToken ct)
     {
         var proposals = new List<MetadataProposal>();
