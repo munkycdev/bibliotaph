@@ -14,6 +14,8 @@
   Copies, Indexing, On its pages and In a file now match the other headings there.
 - **Fixed: text in a note box started halfway down.** Typing a page note, a book's note or a binder's notes now starts
   at the top of the box.
+- **Fixed: on a short window, the Library's filters couldn't all be reached with the mouse wheel.** Once the filters
+  are scrolled to their end, the wheel carries on scrolling the top of the page.
 
 ## 1.4 ┬╖ 28 October 2026
 
