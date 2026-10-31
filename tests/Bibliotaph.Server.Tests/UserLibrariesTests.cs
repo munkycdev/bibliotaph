@@ -172,4 +172,11 @@ public sealed class UserLibrariesTests : IDisposable
     [InlineData("")]
     public async Task Anything_but_a_user_id_is_refused_before_it_reaches_a_path(string id) =>
         await Assert.ThrowsAsync<ArgumentException>(() => _libraries.OpenAsync(id));
+
+    [Fact]
+    public void A_user_id_comes_back_as_it_was_given()
+    {
+        var id = UserIds.New();
+        Assert.Equal(id, UserIds.Require(id));
+    }
 }

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Fixed: the AI called too many books adventures.** It was given only the names of the types, so a rulebook, setting,
+  bestiary or supplement that mentioned adventures or gave character levels often came back as an Adventure too. The
+  model is now told what each type means, and an Adventure suggestion has to quote where the book calls itself one.
+  Books the AI read before keep their suggestions until you click **Reclassify** in **Settings > AI**. See
+  [AI](docs/guide/ai.md#what-it-does).
 - **Binders are described as any set of pages you want together**, such as a focused set of references, rather than
   only a session's material. Home's **Continue preparing** is now **Current binder**, the dialog's **Date played** is
   **Date**, and **Keep at hand during games** is **Keep at hand**. See [Binders](docs/guide/binders.md).
@@ -19,6 +24,14 @@
   at the top of the box.
 - **Fixed: on a short window, the Library's filters couldn't all be reached with the mouse wheel.** Once the filters
   are scrolled to their end, the wheel carries on scrolling the top of the page.
+- **Hardened: the web server's log only holds values it made itself.** A user ID is rebuilt from its parsed form
+  before it reaches a log line or a path, and a slow call is logged with its endpoint's methods rather than the
+  request's own text, so nothing a caller sends can forge a log entry.
+- **A book's details put what it holds first.** Its adventures, a pack's files and what the AI found inside come first,
+  then collections and the catalogue fields, with About the file, Where it is, Copies and Indexing at the end. Every
+  section folds away under its heading, and the last four start folded. Drag the details' left edge to make them
+  wider. See
+  [Cataloging](docs/guide/cataloging.md#the-details-panel).
 
 ## 1.4 ┬╖ 28 October 2026
 
