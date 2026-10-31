@@ -195,6 +195,14 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         return current;
     }
 
+    /// <summary>The books owned elsewhere that have no file yet.</summary>
+    public async Task<IReadOnlyList<EntryId>> GetElsewhereIdsAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return [.. (await db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null && !e.Sources.Any())
+            .Select(e => e.Id).ToListAsync(ct)).Select(id => new EntryId(id))];
+    }
+
     /// <summary>
     /// Makes a card for a book the user owns elsewhere: an entry with no sources, for their own values.
     /// </summary>

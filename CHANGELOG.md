@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Fixed: covers of books from D&D Beyond, Demiplane and other online libraries could disappear.** Bibliotaph kept
+  them in its cover cache, which is meant to be throwaway, and never sent them to your other PCs or the web library,
+  so a new PC, a cleared cache or a server restart left those books without covers. They are now kept with your own
+  data and travel with your library, and covers already in the cache move there when you update. If a book has lost
+  its cover, read its library page again in **Import from an online library…**: it shows under **Imported before, with
+  more to fill in** as "Gets its cover back". See [Online libraries](docs/guide/online-libraries.md).
 - **Fixed: closing the Windows app could say "Something went wrong".** On a PC connected to the web library, when the
   web library was slow to answer as the app closed, the last sync of your work gave up and showed an error. It now
   closes quietly, and what hadn't reached the web library yet is sent the next time Bibliotaph starts.

@@ -17,20 +17,26 @@ public enum OnlineOutcome
     /// <summary>A card with its title is already in the library: it gets the place and the link instead of a second card.</summary>
     AddToCard,
 
-    /// <summary>Imported before (the same link): its empty fields are filled, and nothing the user set changes.</summary>
+    /// <summary>
+    /// Imported before (the same link): its empty fields are filled, and its cover if it has lost it, and nothing the
+    /// user set changes.
+    /// </summary>
     Update,
 
-    /// <summary>Imported before, and there is nothing to fill.</summary>
+    /// <summary>Imported before, and there is nothing to fill and no cover missing.</summary>
     Unchanged,
 }
 
 /// <summary>
 /// One book in an import's preview: what it becomes, the card it meets (with that card's title) when there is one, and
-/// for an update the fields it fills.
+/// for an update the fields it fills and whether it gets its cover back.
 /// </summary>
 public sealed record OnlineImportRow(OnlineBook Book, OnlineOutcome Outcome, EntryId? EntryId = null, string? CardTitle = null)
 {
     public IReadOnlyList<MetadataField> Fills { get; init; } = [];
+
+    /// <summary>A book imported before that has no cover, which the page has: importing it again gets it its cover.</summary>
+    public bool Cover { get; init; }
 }
 
 /// <summary>A book imported before from this service that the library page doesn't list any more.</summary>
@@ -42,8 +48,11 @@ public sealed record MissingBook(EntryId EntryId, string Title, string Link);
 /// </summary>
 public sealed record OnlineImportPlan(IOnlineLibraryReader Reader, IReadOnlyList<OnlineImportRow> Rows, int Shared, IReadOnlyList<MissingBook> Missing);
 
-/// <summary>What an import did: how many books it added and how many cards it changed, and what Undo needs.</summary>
-public sealed record OnlineImportResult(int Added, int Changed, ImportReceipt Undo);
+/// <summary>
+/// What an import did: how many books it added, how many cards it changed and how many books imported before got their
+/// cover back, and what Undo needs.
+/// </summary>
+public sealed record OnlineImportResult(int Added, int Changed, ImportReceipt Undo, int Covers = 0);
 
 /// <summary>
 /// Importing the books the user owns on an online service as books owned elsewhere. A reader turns a library page
@@ -81,6 +90,9 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
             .GroupBy(c => LinkKey(c.Link)).ToDictionary(g => g.Key, g => g.First());
         var byTitle = (await queries.GetBookCardsAsync(ct)).ToLookup(c => TitleKey(c.Title));
         var known = await metadata.GetManyAsync([.. linked.Values.Select(c => c.EntryId)], ct);
+        // A book owned elsewhere whose cover was lost, as covers kept only in the cache could be, gets it back.
+        var coverless = (await entries.GetCurrentAsync([.. linked.Values.Where(c => c.Elsewhere).Select(c => c.EntryId)], ct))
+            .Where(e => e.SyncId is { } syncId && covers.FindElsewhere(syncId) is null).Select(e => e.EntryId).ToHashSet();
 
         var rows = new List<OnlineImportRow>();
         var read = new HashSet<string>(StringComparer.Ordinal);
@@ -90,7 +102,9 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
             if (linked.TryGetValue(LinkKey(book.Link), out var card))
             {
                 var fills = Fillable(book, known.Metadata[card.EntryId], known.Vocabulary).Select(f => f.Field).Distinct().ToList();
-                rows.Add(new OnlineImportRow(book, fills.Count > 0 ? OnlineOutcome.Update : OnlineOutcome.Unchanged, card.EntryId, card.Title) { Fills = fills });
+                var cover = book.CoverUrl is not null && coverless.Contains(card.EntryId);
+                rows.Add(new OnlineImportRow(book, fills.Count > 0 || cover ? OnlineOutcome.Update : OnlineOutcome.Unchanged, card.EntryId, card.Title)
+                    { Fills = fills, Cover = cover });
                 continue;
             }
             var match = byTitle[TitleKey(book.Title)]
@@ -157,19 +171,23 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
         _log.LogInformation("Imported {Added} books from {Service} and changed {Changed} fields on cards already there", receipt.Added.Count, reader.Name,
             receipt.Changed.Count);
 
-        // Covers: the new books', and those of books imported before that have none yet, as after a cache was cleared.
+        // Covers: the new books', and those of books imported before that have none, as when one was lost.
         var wanted = receipt.Added.Zip(newRows, (a, r) => (a.SyncId, r.Book.CoverUrl)).ToList();
         var again = rows.Where(r => r.Outcome == OnlineOutcome.Update && r.Book.CoverUrl is not null).ToDictionary(r => r.EntryId!.Value, r => r.Book.CoverUrl);
-        if (again.Count > 0)
-            wanted.AddRange((await entries.GetCurrentAsync([.. again.Keys], ct)).Where(e => e.SyncId is { } id && covers.FindElsewhere(id) is null)
-                .Select(e => (e.SyncId!.Value, again[e.EntryId])));
+        var back = new List<EntryId>();
         if (cover is not null)
+        {
             foreach (var (syncId, url) in wanted)
                 if (url is not null) await KeepCoverAsync(syncId, url, cover, ct);
+            if (again.Count > 0)
+                foreach (var e in await entries.GetCurrentAsync([.. again.Keys], ct))
+                    if (e.SyncId is { } id && covers.FindElsewhere(id) is null && await KeepCoverAsync(id, again[e.EntryId]!, cover, ct)) back.Add(e.EntryId);
+        }
 
         if (addedTerms) await projector.ProjectVocabularyAsync(ct);
-        await projector.ProjectAsync([.. receipt.Added.Select(a => a.EntryId), .. receipt.Changed.Select(c => c.EntryId).Distinct()], ct);
-        return new OnlineImportResult(receipt.Added.Count, receipt.Changed.Select(c => c.EntryId).Distinct().Count(), receipt);
+        var changed = receipt.Changed.Select(c => c.EntryId).Distinct().ToList();
+        await projector.ProjectAsync([.. receipt.Added.Select(a => a.EntryId), .. changed.Union(back)], ct);
+        return new OnlineImportResult(receipt.Added.Count, changed.Count, receipt, back.Count(id => !changed.Contains(id)));
     }
 
     /// <summary>Undoes an import: the books it added go, with their covers, and the cards it changed are as they were.</summary>
@@ -178,7 +196,7 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
         foreach (var (entryId, syncId) in receipt.Added)
         {
             await entries.RemoveElsewhereAsync(entryId, ct);
-            covers.Delete(CoverCache.ElsewhereKey(syncId));
+            covers.DeleteImported(syncId);
         }
         await store.RestoreAsync(receipt.Changed, ct);
         await projector.ProjectAsync([.. receipt.Added.Select(a => a.EntryId), .. receipt.Changed.Select(c => c.EntryId).Distinct()], ct);
@@ -195,17 +213,21 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
         return name.Length == 0 || name is "." or ".." || name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ? null : name;
     }
 
-    async Task KeepCoverAsync(Guid syncId, string url, Func<string, CancellationToken, Task<byte[]?>> cover, CancellationToken ct)
+    /// <summary>Keeps the cover at <paramref name="url"/> as the book's, if the page gave it. Whether it did.</summary>
+    async Task<bool> KeepCoverAsync(Guid syncId, string url, Func<string, CancellationToken, Task<byte[]?>> cover, CancellationToken ct)
     {
         try
         {
-            if (await cover(url, ct) is not { Length: > 0 and <= MaxCoverBytes } bytes) return;
+            if (await cover(url, ct) is not { Length: > 0 and <= MaxCoverBytes } bytes) return false;
             using var stream = new MemoryStream(bytes, writable: false);
-            if (images.Thumbnail(stream, CoverCache.Width) is { } jpeg) covers.Write(CoverCache.ElsewhereKey(syncId), jpeg);
+            if (images.Thumbnail(stream, CoverCache.Width) is not { } jpeg) return false;
+            covers.KeepImported(syncId, jpeg);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             _log.LogInformation("A cover from an online library couldn't be kept: {Message}", ex.Message);
+            return false;
         }
     }
 

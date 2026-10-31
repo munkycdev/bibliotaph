@@ -73,9 +73,9 @@ public sealed class BlobCoverStore(BlobContainerClient container) : ICoverStore
 /// <summary>
 /// Keeps one library's covers in the <see cref="ICoverStore"/> while the library is open: those already on disk when
 /// it opens and not yet kept, then each new one as indexing draws it, and any missed once more as it closes. A cover
-/// the disk has lost is fetched back when it is next asked for, except the covers the user chose: nothing could draw
-/// those again, and whether one exists decides a card's cover, so they are all back on disk before the library opens.
-/// A chosen cover removed or replaced is forgotten in the store too.
+/// the disk has lost is fetched back when it is next asked for, except the covers of books owned elsewhere, chosen or
+/// imported: nothing could draw those again, and whether one exists decides a card's cover, so they are all back on
+/// disk before the library opens. One removed or replaced is forgotten in the store too.
 /// </summary>
 public sealed class CoverMirror(string userId, CoverCache covers, ICoverStore store, ILogger<CoverMirror> log) : IAsyncDisposable
 {
@@ -89,8 +89,18 @@ public sealed class CoverMirror(string userId, CoverCache covers, ICoverStore st
         try
         {
             _kept = new ConcurrentDictionary<string, bool>((await store.ListAsync(userId, ct)).Select(n => KeyValuePair.Create(n, true)), StringComparer.Ordinal);
-            foreach (var name in _kept.Keys.Where(CoverCache.IsChosen).Where(n => !File.Exists(covers.PathFor(n))))
+            foreach (var name in _kept.Keys.Where(CoverCache.IsKept).Where(n => !File.Exists(covers.PathFor(n))))
                 if (await store.DownloadAsync(userId, name, ct) is { } jpeg) covers.Restore(name, jpeg);
+            // Imported covers as earlier versions kept them, with the disposable ones: kept as the user's now, which the
+            // watchers below send back to the store under their new names.
+            foreach (var name in _kept.Keys.Where(n => CoverCache.OldImported(n) is not null).ToList())
+            {
+                var syncId = CoverCache.OldImported(name)!.Value;
+                if (covers.FindImported(syncId) is null && await store.DownloadAsync(userId, name, ct) is { } jpeg) covers.KeepImported(syncId, jpeg);
+                if (covers.FindImported(syncId) is null) continue;
+                await store.DeleteAsync(userId, name, ct);
+                _kept.TryRemove(name, out _);
+            }
         }
         catch (Exception ex) when (ex is IOException or RequestFailedException)
         {

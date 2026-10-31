@@ -24,8 +24,9 @@ public sealed record SyncApplyResult(IReadOnlySet<string> NotApplied, bool Chang
 /// <summary>
 /// What a merge decided that needs more than catalog.db: the user's own tags to guess again across the library, by
 /// name; cards whose packs changed, whose folder hints are stored again; books whose text the user forgot or read again
-/// on another device; cover pages to draw, by document; and cover pictures chosen for books owned elsewhere, by their
-/// entries' sync ids (null takes one away); and folders whose rules changed, whose files' hints are read again.
+/// on another device; cover pages to draw, by document; cover pictures chosen for books owned elsewhere and those they
+/// were imported with, by their entries' sync ids (null takes one away); and folders whose rules changed, whose files'
+/// hints are read again.
 /// </summary>
 public sealed class SyncFollowUps
 {
@@ -35,6 +36,7 @@ public sealed class SyncFollowUps
     public HashSet<EntryId> ReadAgain { get; } = [];
     public Dictionary<long, int> CoverPages { get; } = [];
     public Dictionary<Guid, byte[]?> ChosenCovers { get; } = [];
+    public Dictionary<Guid, byte[]?> ImportedCovers { get; } = [];
     public HashSet<FolderKey> Folders { get; } = [];
 }
 
@@ -434,11 +436,12 @@ public sealed partial class LibrarySyncStore
                     : await db.Pins.Where(PinStore.Matches(PinTarget.Entry(id))).ExecuteDeleteAsync(ct) > 0;
             if (Differs(SyncFields.Read) && SyncKeys.IdOf(key, SyncKeys.Adventure) is not null)
                 changed |= await SetAdventureReadingAsync(db, entryId, ReadOrDefault<SyncedReading>(wanted, SyncFields.Read), ct);
-            if (Differs(SyncFields.Picture) && await db.Entries.Where(e => e.Id == entryId).Select(e => (Guid?)e.SyncId).SingleOrDefaultAsync(ct) is { } syncId)
-            {
-                follow.ChosenCovers[syncId] = ReadOrDefault<string>(wanted, SyncFields.Picture) is { } picture ? Convert.FromBase64String(picture) : null;
-                changed = true;
-            }
+            foreach (var (field, pictures) in new[] { (SyncFields.Picture, follow.ChosenCovers), (SyncFields.ImportedPicture, follow.ImportedCovers) })
+                if (Differs(field) && await db.Entries.Where(e => e.Id == entryId).Select(e => (Guid?)e.SyncId).SingleOrDefaultAsync(ct) is { } syncId)
+                {
+                    pictures[syncId] = ReadOrDefault<string>(wanted, field) is { } picture ? Convert.FromBase64String(picture) : null;
+                    changed = true;
+                }
         }
         return changed;
     }

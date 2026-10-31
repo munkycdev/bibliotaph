@@ -14,7 +14,9 @@ library as books owned elsewhere, so they turn up in searches, collections and b
   scrolls or goes to another page by itself. Nothing is read until you press **Read this page**, and nothing is
   imported until you press **Import**.
 - **Only books you own** are imported. Books someone shares with you on D&D Beyond are left out.
-- **Covers are the pictures the page already showed.** Bibliotaph fetches nothing else for the books.
+- **Covers are the pictures the page already showed.** Bibliotaph fetches nothing else for the books. It keeps them
+  with your own data, never with your book files, and they reach your other PCs and the web library with the rest of
+  your library.
 
 ## The services
 
@@ -37,7 +39,8 @@ stores**.
    - **New**: books that get a card of their own.
    - **Already in your library**: a card with the same title is there already, such as one you added by hand. It gets
      the service and the link, rather than a second card.
-   - **Imported before, with more to fill in**: only fields that are empty are filled. Nothing you've set changes.
+   - **Imported before, with more to fill in**: only fields that are empty are filled, and a book that has lost its
+     cover gets it back ("Gets its cover back"). Nothing you've set changes.
    - **Imported before**: nothing to change.
 5. Untick any book you'd rather leave out, and click **Import 30 books**. **Undo** takes it all back.
 

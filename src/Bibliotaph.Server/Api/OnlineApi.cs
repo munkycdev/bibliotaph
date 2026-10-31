@@ -73,7 +73,7 @@ public static class OnlineApi
             var chosen = choice.Rows.Where(i => i >= 0 && i < plan.Rows.Count).Distinct().Select(i => plan.Rows[i]).ToList();
             var result = await imports.ImportAsync(plan, chosen, held.CoverAsync, ct);
             var undo = EditApi.Hold(library, () => imports.UndoAsync(result.Undo, CancellationToken.None), "The import couldn't be undone.");
-            return Results.Ok(new OnlineImported(new ActionResult(OnlineImportText.Imported(held.Reader, result.Added, result.Changed), undo),
+            return Results.Ok(new OnlineImported(new ActionResult(OnlineImportText.Imported(held.Reader, result.Added, result.Changed, result.Covers), undo),
                 await PreviewAsync(library, token, held, ct)));
         });
     }
@@ -97,8 +97,8 @@ public static class OnlineApi
             .Select(g => new OnlineGroup(OnlineImportText.GroupHeading(g.Key, g.Count()), OnlineImportText.GroupExplanation(g.Key, held.Reader),
                 [.. g.Select(r => new OnlineRow(r.Index, r.Row.Book.Title, OnlineImportText.Detail(r.Row), r.Row.Outcome != OnlineOutcome.Unchanged))]))
             .ToList();
-        // Covers count only for the books that would get one: those new to the library.
-        var covers = plan.Rows.Where(r => r.Outcome == OnlineOutcome.New && r.Book.CoverUrl is not null)
+        // Covers count only for the books that would get one: those new to the library, and those that lost theirs.
+        var covers = plan.Rows.Where(r => (r.Outcome == OnlineOutcome.New || r.Cover) && r.Book.CoverUrl is not null)
             .Select(r => (Url: r.Book.CoverUrl!, Name: OnlineImports.CoverFileName(r.Book.CoverUrl!))).Where(c => c.Name is not null).ToList();
         var wanted = covers.Where(c => !held.HasImage(c.Name!)).Select(c => c.Url).Distinct(StringComparer.Ordinal).ToList();
         return new OnlinePreview(token, held.Reader.Name, OnlineImportText.Summary(held.Reader, plan.Rows.Count, held.Page.Shared), groups,

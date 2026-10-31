@@ -63,10 +63,8 @@ public static class LibraryApi
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var path = lease.Library.Get<CoverCache>().PathFor(name);
             if (!await lease.Library.Get<CoverMirror>().RestoreAsync(name, ct)) return Results.NotFound();
-            // A cover's name changes with its image, except a book owned elsewhere's, which importing again redraws.
-            context.Response.Headers.CacheControl = name.StartsWith("elsewhere-", StringComparison.Ordinal)
-                ? "private, no-cache"
-                : "private, max-age=31536000, immutable";
+            // A cover's name changes with its image.
+            context.Response.Headers.CacheControl = "private, max-age=31536000, immutable";
             var modified = File.GetLastWriteTimeUtc(path);
             return Results.File(path, "image/jpeg", lastModified: modified,
                 entityTag: new EntityTagHeaderValue($"\"{modified.Ticks.ToString(CultureInfo.InvariantCulture)}\""));

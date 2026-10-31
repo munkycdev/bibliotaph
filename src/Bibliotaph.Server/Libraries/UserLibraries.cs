@@ -385,7 +385,9 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             var opened = await library.Index.InitializeAsync();
             if (opened != IndexOpenResult.Opened) _log.LogInformation("index.db for {User}: {Result}", userId, opened);
             await library.Writer.StartAsync(CancellationToken.None);
+            library.Get<CoverCache>().MoveOldImported();
             await library.Get<CoverMirror>().StartAsync(CancellationToken.None);
+            await library.Get<MetadataProjector>().ProjectElsewhereAsync();
 
             // Before the Classify lane looks at whether it may send anything.
             await library.Get<ServerApiKeys>().LoadAsync();

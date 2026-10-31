@@ -47,7 +47,8 @@ public sealed record SyncSnapshot(
 /// </summary>
 public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext> contexts, MetadataStore metadata, VocabularyStore vocabularies,
     TimeProvider? clock = null, ILogger<LibrarySyncStore>? log = null, LookupRecordStore? lookups = null,
-    Func<IReadOnlyDictionary<Guid, byte[]>>? chosenCovers = null, bool webLibrary = false)
+    Func<IReadOnlyDictionary<Guid, byte[]>>? chosenCovers = null, Func<IReadOnlyDictionary<Guid, byte[]>>? importedCovers = null,
+    bool webLibrary = false)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly ILogger _log = log ?? NullLogger<LibrarySyncStore>.Instance;
@@ -147,11 +148,13 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
             else if (cardFields.TryGetValue(r.EntryId, out var fields)) fields[SyncFields.Read] = Json(new SyncedReading(r.PageIndex, Utc(r.OpenedUtc)));
         }
 
-        // The cover chosen for a book owned elsewhere, which no other device can draw for itself.
-        // It stays with the card after the book met its file, as the card's cover file is named by its sync id.
-        if (chosenCovers?.Invoke() is { Count: > 0 } pictures)
-            foreach (var entry in entries.Where(e => cardFields.ContainsKey(e.Id)))
-                if (pictures.TryGetValue(entry.SyncId, out var jpeg)) cardFields[entry.Id][SyncFields.Picture] = Json(Convert.ToBase64String(jpeg));
+        // The covers of a book owned elsewhere, the one chosen for it and the one it was imported with from its online
+        // library, which no other device can draw for itself. They stay with the card after the book met its file, as
+        // the card's cover files are named by its sync id.
+        foreach (var (field, read) in new[] { (SyncFields.Picture, chosenCovers), (SyncFields.ImportedPicture, importedCovers) })
+            if (read?.Invoke() is { Count: > 0 } pictures)
+                foreach (var entry in entries.Where(e => cardFields.ContainsKey(e.Id)))
+                    if (pictures.TryGetValue(entry.SyncId, out var jpeg)) cardFields[entry.Id][field] = Json(Convert.ToBase64String(jpeg));
 
         foreach (var id in await db.CorrectionRequests.AsNoTracking().Select(c => c.EntryId).Distinct().ToListAsync(ct))
             if (cardFields.TryGetValue(id, out var fields)) fields[SyncFields.Wrong] = Json(true);
