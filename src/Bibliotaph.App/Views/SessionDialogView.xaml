@@ -83,19 +83,19 @@
           </TextBox.InputBindings>
         </TextBox>
         <StackPanel Visibility="{Binding ShowsDate, Converter={StaticResource Bt.VisibleWhenTrue}}">
-          <TextBlock Text="Date played (optional)" Style="{StaticResource FieldLabel}" />
+          <TextBlock Text="Date (optional)" Style="{StaticResource FieldLabel}" />
           <TextBox x:Name="DateBox" Style="{StaticResource Bt.TextBox}" Text="{Binding DateText, UpdateSourceTrigger=PropertyChanged}"
-                   AutomationProperties.Name="Date played" ToolTip="The date in your usual format. Upcoming binders list by it.">
+                   AutomationProperties.Name="Date" ToolTip="The date in your usual format. Binders with a date list by it under Upcoming.">
             <TextBox.InputBindings>
               <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
             </TextBox.InputBindings>
           </TextBox>
           <TextBlock Text="{Binding DateProblem}" Style="{StaticResource Problem}" />
         </StackPanel>
-        <!-- Rules and references to look up mid-game: At hand in any binder offers their pages. -->
+        <!-- Rules and references looked up often: At hand in any binder offers their pages. -->
         <StackPanel Visibility="{Binding ShowsAtHand, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <CheckBox x:Name="KeepAtHand" IsChecked="{Binding KeepAtHand}" Foreground="{DynamicResource Bt.Text}" FontSize="12" Margin="0,16,0,0"
-                    Content="Keep at hand during games" ToolTip="For rules and references you look up mid-game. At hand in any binder opens its pages in a window of their own." />
+                    Content="Keep at hand" ToolTip="For rules and references you look up often. At hand in any binder opens its pages in a window of their own." />
           <StackPanel Visibility="{Binding KeepAtHand, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <TextBlock Text="For game system" Style="{StaticResource FieldLabel}" />
             <ComboBox x:Name="GameSystemChoice" Style="{StaticResource Bt.Select}" ItemsSource="{Binding SystemChoices}" SelectedItem="{Binding GameSystem}"
@@ -168,7 +168,7 @@
         <TextBlock Text="{Binding PagesProblem}" Style="{StaticResource Problem}" />
         <TextBlock Text="Label" Style="{StaticResource FieldLabel}" />
         <TextBox x:Name="PagesLabel" Style="{StaticResource Bt.TextBox}" Text="{Binding Label, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Label"
-                 ToolTip="What you'll call these pages at the table, such as Warehouse ambush">
+                 ToolTip="A name for these pages, such as Warehouse ambush">
           <TextBox.InputBindings>
             <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
           </TextBox.InputBindings>

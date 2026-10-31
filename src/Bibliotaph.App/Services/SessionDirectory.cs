@@ -43,7 +43,7 @@ public sealed class SessionDirectory : ISessionChoices
     /// <summary>The pack worked on last, which Add page and Add to session add to; null before the first.</summary>
     public SessionPackInfo? Current => All.Count > 0 ? All[0] : null;
 
-    /// <summary>The binder worked on last that's for a game rather than kept at hand: Home's Continue preparing.</summary>
+    /// <summary>The binder worked on last that isn't kept at hand: Home's Current binder.</summary>
     public SessionPackInfo? Preparing => BinderGroups.Preparing(All);
 
     /// <summary>A menu's Add to session items, as of the last reload.</summary>
