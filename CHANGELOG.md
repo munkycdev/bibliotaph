@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Filter books by the catalogue that found them.** **Found online**, under Housekeeping in **More filters**, shows the
+  books RPGGeek, AdventureLookup, Open Library or Google Books found, each with how many, or **Not found online** for
+  those none found, on Windows and the web, and a saved search keeps it. See
+  [Searching](docs/guide/searching.md#filters).
 - **Summary moved below Needs review in the sidebar**, in the Windows app and on the web, so the pages you work in come
   first. See [Summary](docs/guide/summary.md).
 

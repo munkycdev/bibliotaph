@@ -121,8 +121,11 @@ four groups:
 - **Where it lives**: **Source folder**, **Also own** and **Get it from**.
 - **Housekeeping**: **Kind** (books, images, packs, on this PC, or owned elsewhere), **AI** (whether a model has
   read it), **Copies** (books in more than one file), **Adventures inside files** (**Inside their book**,
-  **Show as cards** or **Hide**; see [Adventures inside a file](cataloging.md#adventures-inside-a-file)) and
-  **Collection** (**In a collection**, or **Not in a collection** for the books you haven't put in one yet).
+  **Show as cards** or **Hide**; see [Adventures inside a file](cataloging.md#adventures-inside-a-file)),
+  **Collection** (**In a collection**, or **Not in a collection** for the books you haven't put in one yet) and
+  **Found online**: the books each online catalogue found, such as RPGGeek or Open Library, or **Not found online** for
+  those none found, including books not looked up yet (see
+  [Where suggestions come from](cataloging.md#where-suggestions-come-from)). It shows once a catalogue has found a book.
 
 Each drop-down lists its choices by name, with how many books each has and **Unknown** last.
 

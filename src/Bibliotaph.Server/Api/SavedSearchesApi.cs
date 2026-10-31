@@ -131,7 +131,8 @@ public static class SavedSearchesApi
         Store: Text(q.Store),
         Collections: Parse<CollectionFilter>(q.Collections) ?? CollectionFilter.All,
         Picked: LibraryApi.Picked(q.Picked),
-        Adventures: q.Adventures switch { "Hidden" => AdventureCards.Hidden, "Cards" => AdventureCards.Cards, _ => AdventureCards.InBooks });
+        Adventures: q.Adventures switch { "Hidden" => AdventureCards.Hidden, "Cards" => AdventureCards.Cards, _ => AdventureCards.InBooks },
+        Found: Text(q.Found));
 
     /// <summary>A definition as the web's library query, its scope left for <see cref="OpenAsync"/> to check.</summary>
     internal static LibraryQuery ToQuery(SmartViewDefinition d) => new()
@@ -152,6 +153,7 @@ public static class SavedSearchesApi
         Kind = d.Kind == KindFilter.All ? null : d.Kind.ToString(),
         Ai = d.Ai == AiFilter.All ? null : d.Ai.ToString(),
         Copies = d.Copies,
+        Found = d.Found,
         Adventures = d.Adventures switch { AdventureCards.Hidden => "Hidden", AdventureCards.Cards => "Cards", _ => null },
         Collections = d.Collections == CollectionFilter.All ? null : d.Collections.ToString(),
         Picked = d.Picked is { IsEmpty: false } picked ? JsonSerializer.Serialize(picked) : null,

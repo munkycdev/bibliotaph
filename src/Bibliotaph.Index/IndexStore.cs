@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Search;
 using Dapper;
 using Microsoft.Data.Sqlite;
 
@@ -436,6 +437,23 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             else c.Execute("DELETE FROM entry_ai WHERE entry_id IN (SELECT value FROM json_each(@ids))", new { ids = JsonSerializer.Serialize(entryIds) }, t);
             c.Execute("INSERT INTO entry_ai (entry_id, model) VALUES (@entryId, @model)",
                 readBy.Where(r => entryIds is null || entryIds.Contains(r.Key)).Select(r => new { entryId = r.Key.Value, model = r.Value }), t);
+        }, ct);
+
+    /// <summary>
+    /// Records which catalogues found each of <paramref name="entryIds"/>, from <paramref name="foundBy"/>, as facets
+    /// of the <see cref="FoundOnline.Field"/> field the Library filters and counts as its others; with no ids, replaces
+    /// every entry's. <paramref name="foundBy"/> holds only those entries. Written after the entries' metadata, which
+    /// replaces their facets.
+    /// </summary>
+    public Task SetFoundByAsync(IReadOnlyCollection<EntryId>? entryIds, IReadOnlyCollection<(EntryId EntryId, string Source)> foundBy, CancellationToken ct = default) =>
+        entryIds is { Count: 0 } ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+        {
+            if (entryIds is null) c.Execute("DELETE FROM entry_facet WHERE field = @field", new { field = FoundOnline.Field }, t);
+            else
+                c.Execute("DELETE FROM entry_facet WHERE field = @field AND entry_id IN (SELECT value FROM json_each(@ids))",
+                    new { field = FoundOnline.Field, ids = JsonSerializer.Serialize(entryIds) }, t);
+            c.Execute("INSERT OR IGNORE INTO entry_facet (entry_id, field, value, label, confirmed, link) VALUES (@entryId, @field, @source, @source, 0, NULL)",
+                foundBy.Select(f => new { entryId = f.EntryId.Value, field = FoundOnline.Field, source = f.Source }), t);
         }, ct);
 
     /// <summary>

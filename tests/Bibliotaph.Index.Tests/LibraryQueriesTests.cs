@@ -196,7 +196,7 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Empty(await DocumentsAsync("title:kraken"));
         // The extension isn't a word to find, and the filter panel counts the pack among the results.
         Assert.Empty(await DocumentsAsync("png"));
-        Assert.Contains(new FacetCount(SearchQuery.Unknown, "Unknown", 1), await _library.GetFacetCountsAsync("type", new LibraryFilter(), Plan("serpent"), Ct));
+        Assert.Contains(new FacetCount(SearchQuery.Unknown, "Unknown", 1), await _library.GetFacetCountsAsync("type", new LibraryFilter(), Plan("serpent"), ct: Ct));
 
         // Split: the images are their own cards again, found by their own titles.
         await store.RemoveEntriesAsync([pack], Ct);
@@ -242,7 +242,7 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.Equal(11L, Assert.Single(await DocumentsAsync("serpent", each)));
         long[] all = [10, 11, 12];
         Assert.Equal(all, (await DocumentsAsync("sea", each)).Order());
-        Assert.Contains(new FacetCount(SearchQuery.Unknown, "Unknown", 1), await _library.GetFacetCountsAsync("type", each, Plan("serpent"), Ct));
+        Assert.Contains(new FacetCount(SearchQuery.Unknown, "Unknown", 1), await _library.GetFacetCountsAsync("type", each, Plan("serpent"), ct: Ct));
 
         // A PDF's pages are its own card's.
         var found = Assert.Single((await _library.SearchPagesAsync(Plan("galleon"), each, ct: Ct)).Entries);
