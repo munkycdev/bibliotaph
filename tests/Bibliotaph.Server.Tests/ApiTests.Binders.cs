@@ -191,7 +191,10 @@ public abstract partial class ApiTests
             Assert.Single(withCover.Wanted!);
             Assert.Equal(OnlineImportText.Unreadable, unread.Problem);
             Assert.Equal("Added 2 books owned on D&D Beyond.", imported.Result.Message);
-            Assert.Equal(["Imported before · 2"], imported.Preview.Groups.Select(g => g.Heading));
+            // The book whose picture wasn't sent is offered again, for its cover, and asks for just that picture.
+            Assert.Equal(["Imported before, with more to fill in · 1", "Imported before · 1"], imported.Preview.Groups.Select(g => g.Heading));
+            Assert.Equal("Gets its cover back.", imported.Preview.Groups[0].Rows.Single().Detail);
+            Assert.Equal((1, 0), (imported.Preview.Covers, imported.Preview.CoversFound));
             Assert.Equal(2, books.Count(b => b.Title is "The Ember Vault" or "Atlas of the Drowned Coast"));
             Assert.Equal(["New · 2"], afterUndo.Groups.Select(g => g.Heading));
             Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
