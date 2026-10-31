@@ -117,7 +117,9 @@ Without AI, Ask still reads your request, by rules instead: it picks out the nam
 [vocabulary](cataloging.md#vocabulary) (game systems, types, themes and so on, plurals included), levels ("level 4", "levels 3 to
 5", "5th-level"), players ("four players", "a party of 5", "solo"), favorites, PDFs and anything you leave out ("not
 horror", "without maps"). A phrase in quotes becomes words a book must have, and the rest becomes the `about:` chip.
-A note under the chips says it was read without AI. [Setting AI up](ai.md) lets Ask read requests more fully.
+A note under the chips says it was read without AI. [Setting AI up](ai.md) lets Ask read requests more fully. The
+same happens when the AI is set up but can't answer, for example because its model server is off: the note says what
+went wrong.
 
 ## Ask your library a question
 

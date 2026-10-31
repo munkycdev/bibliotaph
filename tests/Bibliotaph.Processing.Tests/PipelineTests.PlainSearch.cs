@@ -49,15 +49,30 @@ public abstract partial class PipelineTests
         }
 
         [Fact]
-        public async Task A_model_server_that_is_down_is_a_problem_to_show_not_an_error()
+        public async Task A_model_server_that_is_down_reads_the_request_by_rules_and_says_why()
         {
             await SwitchAiOnAsync();
             _model.Down = true;
 
-            var result = await PlainSearch().InterpretAsync("heists in a city", Ct);
+            var result = await PlainSearch().InterpretAsync("Mothership one-shots for 3 level 5 players", Ct);
 
-            Assert.Null(result.Interpretation);
-            Assert.StartsWith("The AI couldn't read your question. Nothing is answering", result.Problem, StringComparison.Ordinal);
+            Assert.Null(result.Problem);
+            Assert.Equal("system:Mothership duration:One-shot players:3 level:5", result.Interpretation!.QueryText);
+            Assert.Contains(result.Interpretation.Notes, n => n.StartsWith("The AI couldn't read this (Nothing is answering", StringComparison.Ordinal)
+                && n.EndsWith("so it was read without AI, by the names in your vocabulary.", StringComparison.Ordinal));
+        }
+
+        [Fact]
+        public async Task An_answer_cut_off_by_its_token_limit_reads_the_request_by_rules_instead()
+        {
+            await SwitchAiOnAsync();
+            _model.Answer = _ => throw new ModelAnswerCutOffException("{\"filters\": [", PlainSearchPrompt.AnswerTokens);
+
+            var result = await PlainSearch().InterpretAsync("one-shots for 3 level 5 players", Ct);
+
+            Assert.Null(result.Problem);
+            Assert.Equal("duration:One-shot players:3 level:5", result.Interpretation!.QueryText);
+            Assert.Contains(result.Interpretation.Notes, n => n.Contains("cut off", StringComparison.Ordinal));
         }
     }
 }

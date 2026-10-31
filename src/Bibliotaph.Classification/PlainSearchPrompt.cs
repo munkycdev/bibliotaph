@@ -33,9 +33,9 @@ public static partial class PlainSearchPrompt
 {
     /// <summary>
     /// 1: the first version. 2: what the request describes goes to about, found by meaning, and words keep only the
-    /// names and exact terms a book must have.
+    /// names and exact terms a book must have. 3: every string has a longest length, so the answer can't run out of tokens.
     /// </summary>
-    public const int Version = 2;
+    public const int Version = 3;
 
     /// <summary>Opens and closes the user's request, which is data and never instructions.</summary>
     public const string RequestTag = "search-request";
@@ -49,8 +49,8 @@ public static partial class PlainSearchPrompt
     /// <summary>A request longer than this is cut, since a search never needs more.</summary>
     public const int MaxRequestLength = 500;
 
-    /// <summary>Tokens the answer may take: a handful of short filters.</summary>
-    public const int AnswerTokens = 512;
+    /// <summary>Tokens the answer may take: room for every filter and word the schema allows, which a request never fills.</summary>
+    public const int AnswerTokens = 1024;
 
     const int MaxFilters = 12;
     const int MaxWords = 8;
@@ -97,7 +97,6 @@ public static partial class PlainSearchPrompt
 
     static JsonObject BuildSchema()
     {
-        static JsonObject String() => new() { ["type"] = "string" };
         static JsonObject Item(params (string Name, JsonObject Schema)[] properties) => new()
         {
             ["type"] = "object",
@@ -112,9 +111,9 @@ public static partial class PlainSearchPrompt
             ["type"] = "object",
             ["properties"] = new JsonObject
             {
-                ["filters"] = new JsonObject { ["type"] = "array", ["maxItems"] = MaxFilters, ["items"] = Item(("field", field), ("value", String()), ("exclude", exclude)) },
-                [Words] = new JsonObject { ["type"] = "array", ["maxItems"] = MaxWords, ["items"] = Item(("text", String()), ("exclude", exclude.DeepClone().AsObject())) },
-                [About] = String(),
+                ["filters"] = new JsonObject { ["type"] = "array", ["maxItems"] = MaxFilters, ["items"] = Item(("field", field), ("value", ClassifierPrompt.Text(PlainSearchCheck.MaxValueLength)), ("exclude", exclude)) },
+                [Words] = new JsonObject { ["type"] = "array", ["maxItems"] = MaxWords, ["items"] = Item(("text", ClassifierPrompt.Text(PlainSearchCheck.MaxValueLength)), ("exclude", exclude.DeepClone().AsObject())) },
+                [About] = ClassifierPrompt.Text(PlainSearchCheck.MaxAboutLength),
             },
             ["required"] = new JsonArray("filters", Words, About),
             ["additionalProperties"] = false,

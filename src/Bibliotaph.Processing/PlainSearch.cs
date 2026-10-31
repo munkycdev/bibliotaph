@@ -24,18 +24,14 @@ public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabulari
     public bool IsReady => ai.Interpreter is not null;
 
     /// <summary>
-    /// Reads <paramref name="request"/>. A model that can't be reached, or answers out of shape, comes back as a
-    /// problem to show; cancelling throws.
+    /// Reads <paramref name="request"/>. When the model can't be reached or its answer can't be used, the request is read
+    /// by rules instead, with a note saying why, so Ask still gives a search; cancelling throws.
     /// </summary>
     public async Task<PlainSearchResult> InterpretAsync(string request, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(request)) return new PlainSearchResult(null, "Type what you're looking for first, then press Enter.");
         var context = new PlainSearchContext(await vocabularies.GetAsync(ct), await queries.GetSystemsWithoutLevelsAsync(ct));
-        if (ai.Interpreter is not { } interpreter)
-        {
-            var rules = PlainSearchRules.Read(request, context);
-            return new PlainSearchResult(rules with { Notes = [.. rules.Notes, PlainSearchText.ReadByRules] }, null);
-        }
+        if (ai.Interpreter is not { } interpreter) return ByRules(PlainSearchText.ReadByRules);
         using var busy = use.Begin();
         try
         {
@@ -48,12 +44,18 @@ public sealed class PlainSearchService(AiSettings ai, VocabularyStore vocabulari
         catch (ModelEndpointException ex)
         {
             _log.LogWarning("Ask couldn't reach the AI: {Reason}", ex.Message);
-            return new PlainSearchResult(null, $"The AI couldn't read your question. {ex.Message}");
+            return ByRules(PlainSearchText.ReadByRulesInstead(ex.Message));
         }
         catch (ClassifierAnswerException ex)
         {
             _log.LogWarning("Ask couldn't use the AI's answer: {Reason}", ex.Message);
-            return new PlainSearchResult(null, "The AI's answer couldn't be used. Try asking in other words.");
+            return ByRules(PlainSearchText.ReadByRulesInstead(ex.Message));
+        }
+
+        PlainSearchResult ByRules(string note)
+        {
+            var rules = PlainSearchRules.Read(request, context);
+            return new PlainSearchResult(rules with { Notes = [.. rules.Notes, note] }, null);
         }
     }
 }
@@ -65,4 +67,7 @@ public static class PlainSearchText
 
     /// <summary>Said under a reading made without AI, so a reading that missed something says why.</summary>
     public const string ReadByRules = "Read without AI, by the names in your vocabulary. Set AI up in Settings > AI for Ask to read requests more fully.";
+
+    /// <summary>Said under a reading made by rules because the AI failed: what went wrong, so it can be put right.</summary>
+    public static string ReadByRulesInstead(string problem) => $"The AI couldn't read this ({problem.TrimEnd('.')}), so it was read without AI, by the names in your vocabulary.";
 }

@@ -43,6 +43,10 @@ public class PlainSearchTests
         Assert.Equal(["filters", "words", "about"], schema["properties"]!.AsObject().Select(p => p.Key));
         Assert.Equal(["filters", "words", "about"], schema["required"]!.AsArray().Select(n => n!.GetValue<string>()));
         Assert.Equal("string", schema["properties"]!["about"]!["type"]!.GetValue<string>());
+        // Every string has a longest length, so a model can't write on until its answer runs out of tokens.
+        Assert.Equal(200, schema["properties"]!["about"]!["maxLength"]!.GetValue<int>());
+        Assert.Equal(80, schema["properties"]!["filters"]!["items"]!["properties"]!["value"]!["maxLength"]!.GetValue<int>());
+        Assert.Equal(80, schema["properties"]!["words"]!["items"]!["properties"]!["text"]!["maxLength"]!.GetValue<int>());
         var filter = schema["properties"]!["filters"]!["items"]!;
         Assert.False(filter["additionalProperties"]!.GetValue<bool>());
         Assert.Equal(["field", "value", "exclude"], filter["required"]!.AsArray().Select(n => n!.GetValue<string>()));

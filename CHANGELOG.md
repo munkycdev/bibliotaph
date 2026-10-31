@@ -58,6 +58,10 @@ New in 1.4.1141 (31 October 2026):
   and turns the rest of your request into an `about:` chip, so "jungle world with terraforming" finds the closest
   books and pages instead of only those with every word. See
   [Searching](docs/guide/searching.md#ask-in-plain-english).
+- **Ask no longer fails when the AI's answer is cut off.** Ask's answer now has a length limit on every piece, so the
+  AI can't run out of room part way ("The model's answer was cut off"), and when the AI can't answer for any reason,
+  Ask reads your request without AI instead and says why. See
+  [Searching](docs/guide/searching.md#ask-in-plain-english).
 - **Ask works without AI.** With no chat model set up, Ask reads your request by rules: the names in your
   vocabulary, levels, players, favorites, PDFs and "not …", with quoted phrases as words and the rest as `about:`.
   A note says it was read without AI. Answer from my books still needs AI. On Windows and the web. See

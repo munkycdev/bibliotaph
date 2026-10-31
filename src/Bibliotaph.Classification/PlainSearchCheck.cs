@@ -43,7 +43,7 @@ public sealed record PlainSearchContext(Vocabulary Vocabulary, IReadOnlyCollecti
 public static class PlainSearchCheck
 {
     /// <summary>A value longer than this is a sentence, not a search.</summary>
-    const int MaxValueLength = 80;
+    internal const int MaxValueLength = 80;
 
     /// <summary>What a request describes may be a longer phrase, since it is found by meaning rather than matched.</summary>
     internal const int MaxAboutLength = 200;
