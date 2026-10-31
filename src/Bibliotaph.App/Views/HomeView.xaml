@@ -107,12 +107,12 @@
                       ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />
 
         <StackPanel Visibility="{Binding HasBooks, Converter={StaticResource Bt.VisibleWhenTrue}}">
-          <!-- .bt-sectionline: Continue preparing (3c), the session pack worked on last. -->
+          <!-- .bt-sectionline: Current binder, the one worked on last. -->
           <StackPanel Visibility="{Binding ContinuePreparing, Converter={StaticResource Bt.VisibleWhenSet}}">
             <DockPanel Style="{StaticResource SectionLine}">
               <Button x:Name="BrowseSessions" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="All binders"
                       c:Ui.Icon="{StaticResource Icon.ArrowRight}" Command="{Binding BrowseSessionsCommand}" />
-              <TextBlock Text="Continue preparing" Style="{StaticResource Text.Row}" />
+              <TextBlock Text="Current binder" Style="{StaticResource Text.Row}" />
             </DockPanel>
             <ContentControl x:Name="ContinuePreparing" Content="{Binding ContinuePreparing}" ContentTemplate="{StaticResource SessionCard}" Focusable="False"
                             HorizontalAlignment="Left" />

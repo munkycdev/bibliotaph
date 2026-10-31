@@ -312,7 +312,7 @@ public static class BindersApi
             [.. p.FirstEntries.Where(entries.ContainsKey).Select(e => LibraryApi.ToCard(entries[e], away.GetValueOrDefault(e)))]))];
     }
 
-    /// <summary>Home's Continue preparing: the binder worked on last that's for a game; null before there is one.</summary>
+    /// <summary>Home's Current binder: the binder worked on last that isn't kept at hand; null before there is one.</summary>
     internal static async Task<BinderCard?> PreparingAsync(UserLibrary library, CancellationToken ct) =>
         BinderGroups.Preparing(await library.Get<SessionsService>().ListAsync(ct)) is { } pack
             ? (await CardsAsync(library, [pack], await SystemsAsync(library, ct), ct))[0]

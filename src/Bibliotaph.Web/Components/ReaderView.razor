@@ -349,7 +349,7 @@ else
         {
             <div class="bt-small bt-notepageproblem">Type pages as the book numbers them, or PDF page numbers.</div>
         }
-        <label class="bt-field bt-notefield">Label<input aria-label="Label" title="What you'll call these pages at the table, such as Warehouse ambush" @bind="pages.Label" @bind:event="oninput" /></label>
+        <label class="bt-field bt-notefield">Label<input aria-label="Label" title="A name for these pages, such as Warehouse ambush" @bind="pages.Label" @bind:event="oninput" /></label>
         <div class="bt-inline bt-notepagefields">
             <label class="bt-field">Binder
                 <select class="bt-select" aria-label="Binder" value="@pages.BinderId" @onchange="BinderChosenAsync">
