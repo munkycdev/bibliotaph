@@ -446,6 +446,35 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IDisposable
     }
 
     [Fact]
+    public async Task An_imported_cover_kept_as_an_earlier_version_kept_it_is_on_the_card_when_the_library_opens_after_a_restart()
+    {
+        var (userId, _) = await Fixture.UserWithDriveAsync();
+        Guid syncId;
+        await using (var lease = await Fixture.Libraries.OpenAsync(userId, Ct))
+        {
+            var library = lease.Library;
+            var (entry, _) = await library.Get<ElsewhereService>().AddAsync(ElsewhereText.Draft("Tomb of the Test", null, null, null, [], ""), Ct);
+            syncId = (await library.Get<EntryStore>().GetCurrentAsync([entry!.Value], Ct)).Single().SyncId!.Value;
+            Assert.Null((await library.Get<LibraryQueries>().ListAsync(new LibraryFilter(), ct: Ct)).Single().Cover);
+        }
+        Assert.Equal(1, await Fixture.Libraries.CloseIdleAsync(TimeSpan.Zero));
+
+        // In the store under its old name, with the covers that can be drawn again, and not on the restarted disk.
+        var jpeg = new SkiaImageCodec().Thumbnail(new MemoryStream(Png(60, 80)), CoverCache.Width)!;
+        await Fixture.Covers.UploadAsync(userId, $"elsewhere-{syncId:N}.jpg", new MemoryStream(jpeg), Ct);
+        await using (var lease = await Fixture.Libraries.OpenAsync(userId, Ct))
+        {
+            var cover = (await lease.Library.Get<LibraryQueries>().ListAsync(new LibraryFilter(), ct: Ct)).Single().Cover;
+            Assert.StartsWith("online-", cover);
+            Assert.Equal(jpeg, await File.ReadAllBytesAsync(lease.Library.Get<CoverCache>().PathFor(cover!), Ct));
+            await WaitAsync(() => Task.FromResult(Kept().Contains(cover!) ? "" : null));
+            Assert.DoesNotContain($"elsewhere-{syncId:N}.jpg", Kept());
+        }
+
+        List<string> Kept() => [.. Fixture.Covers.Names.Where(n => n.StartsWith(userId + "/", StringComparison.Ordinal)).Select(n => n[(userId.Length + 1)..])];
+    }
+
+    [Fact]
     public void Skia_makes_a_jpeg_thumbnail_no_wider_than_asked()
     {
         var codec = new SkiaImageCodec();

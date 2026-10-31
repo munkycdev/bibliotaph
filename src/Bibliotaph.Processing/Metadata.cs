@@ -178,6 +178,12 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         await index.SetTermAliasesAsync([.. vocabulary.Aliases.Select(a => new TermAliasRow(a.Term.Vocabulary, a.Alias, a.Term.Key))], ct);
     }
 
+    /// <summary>
+    /// Projects the books owned elsewhere again, for their covers: the web library's come back from storage as it opens,
+    /// after a projection that ran without them may have left their cards without one.
+    /// </summary>
+    public async Task ProjectElsewhereAsync(CancellationToken ct = default) => await ProjectAsync(await entries.GetElsewhereIdsAsync(ct), ct);
+
     /// <summary>Projects every entry and the vocabulary's aliases. Run at startup, and after the vocabulary changes.</summary>
     public async Task ProjectAllAsync(CancellationToken ct = default)
     {

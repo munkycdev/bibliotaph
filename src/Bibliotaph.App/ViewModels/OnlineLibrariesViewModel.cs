@@ -286,7 +286,7 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         {
             var chosen = Chosen;
             var result = await Task.Run(() => imports.ImportAsync(plan, chosen, _covers));
-            Undo.Offer(OnlineImportText.Imported(plan.Reader, result.Added, result.Changed), () => WhileBusyAsync(async () =>
+            Undo.Offer(OnlineImportText.Imported(plan.Reader, result.Added, result.Changed, result.Covers), () => WhileBusyAsync(async () =>
             {
                 await Task.Run(() => imports.UndoAsync(result.Undo));
                 await ShowPlanAsync(plan.Reader, page);

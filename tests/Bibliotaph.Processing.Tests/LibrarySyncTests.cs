@@ -116,7 +116,8 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         public void Start(bool webLibrary = false)
         {
             var followUp = new SyncFollowUp(covers: Covers);
-            Sync = new LibrarySync(new LibrarySyncStore(Contexts, Metadata, new VocabularyStore(Contexts), clock, chosenCovers: followUp.ReadChosenCovers, webLibrary: webLibrary),
+            Sync = new LibrarySync(new LibrarySyncStore(Contexts, Metadata, new VocabularyStore(Contexts), clock, chosenCovers: followUp.ReadChosenCovers,
+                importedCovers: followUp.ReadImportedCovers, webLibrary: webLibrary),
                 new SettingsStore(Contexts), catalog, null, clock, null, name, [new Channel(hub, name)], followUp);
         }
 
@@ -806,6 +807,39 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         await RoundAsync();
 
         Assert.Empty(_desk.Covers.ReadAllChosen());
+    }
+
+    [Fact]
+    public async Task A_cover_imported_from_an_online_library_shows_on_the_other_PC_beside_a_chosen_one_and_so_does_taking_it_away()
+    {
+        var vellum = await new EntryStore(_desk.Contexts).AddElsewhereAsync(Ct);
+        var syncId = (await new EntryStore(_desk.Contexts).GetCurrentAsync([vellum], Ct)).Single().SyncId!.Value;
+        byte[] imported = [0xFF, 0xD8, 0xFF, 4, 5, 6];
+        _desk.Covers.KeepImported(syncId, imported);
+
+        await RoundAsync();
+
+        Assert.Equal(imported, _laptop.Covers.ReadAllImported()[syncId]);
+        Assert.Empty(_laptop.Covers.ReadAllChosen());
+        Assert.StartsWith("online-", _laptop.Covers.FindElsewhere(syncId));
+
+        // A cover chosen on the laptop goes before it, and the imported one stays for when it's taken away.
+        _laptop.Later(5);
+        byte[] chosen = [0xFF, 0xD8, 0xFF, 7, 8, 9];
+        _laptop.Covers.KeepChosen(syncId, chosen);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        await RoundAsync();
+        Assert.Equal(chosen, _desk.Covers.ReadAllChosen()[syncId]);
+        Assert.Equal(imported, _desk.Covers.ReadAllImported()[syncId]);
+        Assert.StartsWith("chosen-", _desk.Covers.FindElsewhere(syncId));
+
+        _laptop.Later(10);
+        _laptop.Covers.DeleteImported(syncId);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        await RoundAsync();
+
+        Assert.Empty(_desk.Covers.ReadAllImported());
+        Assert.Equal(chosen, _desk.Covers.ReadAllChosen()[syncId]);
     }
 
     [Fact]

@@ -16,7 +16,8 @@ static partial class Composition
             sp.GetRequiredService<ForgetText>(), sp.GetRequiredService<CoverPages>(), sp.GetRequiredService<CoverCache>(), sp.GetRequiredService<ILogger<SyncFollowUp>>()));
         services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<LibrarySyncStore>>(), sp.GetRequiredService<LookupRecordStore>(), sp.GetRequiredService<SyncFollowUp>().ReadChosenCovers));
+            sp.GetRequiredService<ILogger<LibrarySyncStore>>(), sp.GetRequiredService<LookupRecordStore>(), sp.GetRequiredService<SyncFollowUp>().ReadChosenCovers,
+            sp.GetRequiredService<SyncFollowUp>().ReadImportedCovers));
         services.AddSingleton(sp => new LibrarySync(sp.GetRequiredService<LibrarySyncStore>(), sp.GetRequiredService<SettingsStore>(),
             sp.GetRequiredService<CatalogDatabase>(), sp.GetRequiredService<MetadataProjector>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<LibrarySync>>(), channels: [sp.GetRequiredService<WebLibrary>()], followUp: sp.GetRequiredService<SyncFollowUp>()));

@@ -67,12 +67,12 @@ public abstract partial class PipelineTests
             Assert.Equal(["2025"], await Values(atlas.EntryId, MetadataFields.Year));
             Assert.True(Assert.Single((await _metadata.GetAsync(atlas.EntryId, Ct)).Metadata[MetadataFields.Title].Values).Confirmed);
             Assert.NotNull(atlas.Cover);
-            Assert.True(File.Exists(Path.Combine(_paths.Cache, "covers", atlas.Cover)));
+            Assert.True(File.Exists(Path.Combine(_paths.Covers, atlas.Cover)));
 
             // Undo: the new book and its cover go, and the card is as it was.
             await import.UndoAsync(result.Undo, Ct);
             Assert.DoesNotContain(await search.ListAsync(new LibraryFilter(), ct: Ct), c => c.EntryId == atlas.EntryId);
-            Assert.False(File.Exists(Path.Combine(_paths.Cache, "covers", atlas.Cover)));
+            Assert.False(File.Exists(Path.Combine(_paths.Covers, atlas.Cover)));
             Assert.Equal(["dnd-beyond"], await Values(vault.Value, MetadataFields.AlsoOwn));
 
             // Imported again, then again once the user has set a year: the second time only empty fields are filled.
@@ -81,13 +81,59 @@ public abstract partial class PipelineTests
             var again = await import.PlanAsync(saved.Reader, saved.Page, Ct);
             Assert.Equal([OnlineOutcome.Update, OnlineOutcome.Unchanged], again.Rows.Select(r => r.Outcome));
             Assert.Equal([MetadataFields.System, MetadataFields.Edition, MetadataFields.Types], again.Rows[0].Fills);
+            // The card never had a cover, and the page has one for it.
+            Assert.Equal("Fills Game system, Edition, Type, and gets its cover back.", OnlineImportText.Detail(again.Rows[0]));
 
             var filled = await import.ImportAsync(again, again.Rows, ct: Ct);
             Assert.Equal((0, 1), (filled.Added, filled.Changed));
             Assert.Equal(["dnd-5e"], await Values(vault.Value, MetadataFields.Edition));
             Assert.Equal(["adventure"], await Values(vault.Value, MetadataFields.Types));
             Assert.Equal(["2020"], await Values(vault.Value, MetadataFields.Year));
+
+            // Nothing left to fill, but no picture came with the page for its cover, so it is still offered.
+            var cover = await import.PlanAsync(saved.Reader, saved.Page, Ct);
+            Assert.Equal([(OnlineOutcome.Update, true), (OnlineOutcome.Unchanged, false)], cover.Rows.Select(r => (r.Outcome, r.Cover)));
+            Assert.Equal("Gets its cover back.", OnlineImportText.Detail(cover.Rows[0]));
+            var back = await import.ImportAsync(cover, cover.Rows, SentCovers("639000000000000001.jpeg"), Ct);
+            Assert.Equal((0, 0, 1), (back.Added, back.Changed, back.Covers));
+            Assert.Equal("1 book got its cover back.", OnlineImportText.Imported(saved.Reader, back.Added, back.Changed, back.Covers));
+            Assert.NotNull((await search.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct)).Single(c => c.EntryId == vault).Cover);
             Assert.All((await import.PlanAsync(saved.Reader, saved.Page, Ct)).Rows, r => Assert.Equal(OnlineOutcome.Unchanged, r.Outcome));
+        }
+
+        [Fact]
+        public async Task A_cover_kept_by_an_earlier_version_in_the_cache_moves_to_the_users_covers_and_a_lost_one_comes_back_on_import()
+        {
+            await _service.StartAsync(Ct);
+            var search = new LibraryQueries(_index);
+            var import = OnlineImports();
+            var saved = LibraryPage("dndbeyond-library.html");
+            var plan = await import.PlanAsync(saved.Reader, saved.Page, Ct);
+            await import.ImportAsync(plan, plan.Rows, SentCovers("639000000000000001.jpeg", "639000000000000002.jpeg"), Ct);
+            var cards = await search.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct);
+            Assert.All(cards, c => Assert.StartsWith("online-", c.Cover));
+            var covers = new CoverCache(_paths);
+
+            // One kept as earlier versions kept it, in the cache: moved to the user's covers, and its card shows it.
+            var first = (await _entries.GetCurrentAsync([cards[0].EntryId], Ct)).Single().SyncId!.Value;
+            var jpeg = await File.ReadAllBytesAsync(Path.Combine(_paths.Covers, covers.FindImported(first)!), Ct);
+            covers.DeleteImported(first);
+            Directory.CreateDirectory(covers.Folder);
+            await File.WriteAllBytesAsync(Path.Combine(covers.Folder, $"elsewhere-{first:N}.jpg"), jpeg, Ct);
+            Assert.Equal(1, covers.MoveOldImported());
+            Assert.Empty(Directory.EnumerateFiles(covers.Folder, "elsewhere-*"));
+            Assert.Equal(jpeg, covers.ReadAllImported()[first]);
+            await _projector.ProjectElsewhereAsync(Ct);
+            Assert.Equal(covers.FindImported(first), (await search.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct)).Single(c => c.EntryId == cards[0].EntryId).Cover);
+
+            // Both lost, as on a new PC: reading the page again offers them back, and nothing else.
+            covers.DeleteImported(first);
+            covers.DeleteImported((await _entries.GetCurrentAsync([cards[1].EntryId], Ct)).Single().SyncId!.Value);
+            var again = await import.PlanAsync(saved.Reader, saved.Page, Ct);
+            Assert.All(again.Rows, r => Assert.Equal((OnlineOutcome.Update, true, 0), (r.Outcome, r.Cover, r.Fills.Count)));
+            var result = await import.ImportAsync(again, again.Rows, SentCovers("639000000000000001.jpeg", "639000000000000002.jpeg"), Ct);
+            Assert.Equal((0, 0, 2), (result.Added, result.Changed, result.Covers));
+            Assert.All(await search.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct), c => Assert.StartsWith("online-", c.Cover));
         }
 
         [Fact]
@@ -129,10 +175,12 @@ public abstract partial class PipelineTests
             Assert.Null(bestiary.OnlineLink);
 
             // The links differ only after the #, and each book is still known by its own: the card that had no publisher is
-            // offered the page's.
+            // offered the page's, and both, imported with no pictures, their covers.
             var again = await import.PlanAsync(reader, reader.Read(html)!, Ct);
-            Assert.Equal([(OnlineOutcome.Update, lanterns), (OnlineOutcome.Unchanged, bestiary.EntryId)], again.Rows.Select(r => (r.Outcome, r.EntryId)));
+            Assert.Equal([(OnlineOutcome.Update, lanterns, true), (OnlineOutcome.Update, bestiary.EntryId, true)],
+                again.Rows.Select(r => (r.Outcome, r.EntryId, r.Cover)));
             Assert.Equal([MetadataFields.Publisher], again.Rows[0].Fills);
+            Assert.Empty(again.Rows[1].Fills);
         }
 
         [Fact]

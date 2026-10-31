@@ -42,7 +42,7 @@ public static class OnlineImportText
             ? $"Each becomes a book owned elsewhere, opening on {reader.Name}."
             : $"Each becomes a book to get from {reader.Name}, until you download its file.",
         OnlineOutcome.AddToCard => $"A card with its title is here already: it gets {reader.Name} and the link, rather than a second card.",
-        OnlineOutcome.Update => "Only fields that are empty are filled. Nothing you have set changes.",
+        OnlineOutcome.Update => "Only fields that are empty are filled, and a cover that is missing. Nothing you have set changes.",
         _ => "Nothing to change.",
     };
 
@@ -54,6 +54,8 @@ public static class OnlineImportText
     {
         OnlineOutcome.AddToCard when row.CardTitle != row.Book.Title => $"Goes on your card {row.CardTitle}.",
         OnlineOutcome.AddToCard => "Goes on its card.",
+        OnlineOutcome.Update when row.Fills.Count == 0 => "Gets its cover back.",
+        OnlineOutcome.Update when row.Cover => $"Fills {string.Join(", ", row.Fills.Select(f => f.Label))}, and gets its cover back.",
         OnlineOutcome.Update => $"Fills {string.Join(", ", row.Fills.Select(f => f.Label))}.",
         _ => string.Join(" · ", new object?[] { row.Book.Publisher, row.Book.Type, row.Book.Edition, row.Book.Year }.OfType<object>()),
     };
@@ -66,14 +68,25 @@ public static class OnlineImportText
         var n => $"Import {n.ToString("N0", CultureInfo.CurrentCulture)} books",
     };
 
-    /// <summary>What an import did, beside its Undo.</summary>
-    public static string Imported(IOnlineLibraryReader reader, int added, int changed) => (added, changed) switch
+    /// <summary>What an import did, beside its Undo; <paramref name="covers"/> is the books imported before that got only their cover back.</summary>
+    public static string Imported(IOnlineLibraryReader reader, int added, int changed, int covers = 0)
     {
-        (0, 0) => "Nothing needed changing.",
-        (_, 0) => $"Added {Count(added, "book")} owned on {reader.Name}.",
-        (0, _) => $"Updated {Count(changed, "card")} already in your library.",
-        _ => $"Added {Count(added, "book")} owned on {reader.Name} and updated {Count(changed, "card")} already in your library.",
-    };
+        var did = (added, changed) switch
+        {
+            (0, 0) when covers > 0 => "",
+            (0, 0) => "Nothing needed changing.",
+            (_, 0) => $"Added {Count(added, "book")} owned on {reader.Name}.",
+            (0, _) => $"Updated {Count(changed, "card")} already in your library.",
+            _ => $"Added {Count(added, "book")} owned on {reader.Name} and updated {Count(changed, "card")} already in your library.",
+        };
+        var back = covers switch
+        {
+            0 => "",
+            1 => "1 book got its cover back.",
+            var n => $"{Count(n, "book")} got their covers back.",
+        };
+        return did.Length == 0 ? back : back.Length == 0 ? did : $"{did} {back}";
+    }
 
     public static string Removed(string title) => $"Removed {title} from your library.";
 

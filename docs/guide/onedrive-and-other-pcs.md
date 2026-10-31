@@ -96,8 +96,8 @@ matched to a book you own elsewhere, and **Not the same book**, which parts them
 file travel with their pages, levels and everything else on them, and so does removing one; your answers to an
 adventure proposal and to "You own this elsewhere. Is this its file?" travel too. So does what you chose for each
 book: the page you used as its cover, **Forget its text** (and **Read it again**), a **Cataloged wrong…** you left
-open, the collections you said Never to, the cover picture you chose for a book you own elsewhere, and its Ask this
-book conversation. A book opens where you last left it, on whichever device you read it last. A change reaches the
+open, the collections you said Never to, the cover picture you chose for a book you own elsewhere or the one it was
+imported with from an online library, and its Ask this book conversation. A book opens where you last left it, on whichever device you read it last. A change reaches the
 web a few seconds after you make it, and your other PCs within a minute or so. Where two PCs change the same thing, the
 newer change wins; changes to different things are all kept.
 
