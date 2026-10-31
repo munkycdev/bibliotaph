@@ -262,12 +262,21 @@ public partial class App : Application
         // Stop on the thread pool: hosted services must not need the UI thread to finish.
         if (_host is { } host)
         {
-            Task.Run(async () =>
+            try
             {
-                await host.StopAsync(TimeSpan.FromSeconds(5));
-                if (host is IAsyncDisposable disposable) await disposable.DisposeAsync();
-                else host.Dispose();
-            }).GetAwaiter().GetResult();
+                Task.Run(async () =>
+                {
+                    await host.StopAsync(TimeSpan.FromSeconds(5));
+                    if (host is IAsyncDisposable disposable) await disposable.DisposeAsync();
+                    else host.Dispose();
+                }).GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                // The user asked to close and there is nothing left to fix it from, so it goes to the log, not a
+                // message box; letting it out would also skip flushing the log below.
+                Log.Error(ex, "Stopping Bibliotaph failed");
+            }
         }
         Log.Information("Bibliotaph stopped");
         Log.CloseAndFlush();
