@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed: text in a note box started halfway down.** Typing a page note, a book's note or a binder's notes now starts
+  at the top of the box.
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1070 (30 October 2026):
