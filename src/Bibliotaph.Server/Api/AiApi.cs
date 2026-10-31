@@ -12,7 +12,7 @@ using Bibliotaph.Server.Libraries;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// /api/ai: Settings › AI, as the Windows app's model server setup has it, over <see cref="AiService"/>: Connect,
+/// /api/ai: Settings › AI, over <see cref="AiService"/>: Connect,
 /// Save with a key, Use AI on and off, the folders sent to AI, Reclassify and Test with a book. Only a model service on
 /// the internet, over https, can be used (<see cref="ModelServices"/>), and a key is never sent back.
 /// </summary>
@@ -134,8 +134,8 @@ public static class AiApi
             return new AiNote(AiText.Reclassified(await lease.Library.Get<AiService>().ReclassifyAsync(ct)), null);
         });
 
-        // Holds the request while the model reads, as the Windows dialog waits; closing the dialog cancels it.
-        // Asked for every second while the page shows, as the Windows page looks at the feed on a timer.
+        // Holds the request while the model reads; closing the dialog cancels it.
+        // Asked for every second while the page shows.
         ai.MapGet("/reading", async (ClaimsPrincipal principal, UserLibraries libraries, TimeProvider clock, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);

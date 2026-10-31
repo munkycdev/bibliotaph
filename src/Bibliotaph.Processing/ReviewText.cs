@@ -14,7 +14,7 @@ public static class ReviewText
 {
     public const string Heading = "A little clarification.";
 
-    public const string Reassurance = "Your corrections are preserved when books are reindexed.";
+    public const string Reassurance = "Your corrections stay when books are read again.";
 
     public const string Updated = "The suggestions have changed since this list was made.";
 

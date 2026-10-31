@@ -4,14 +4,14 @@ using Microsoft.AspNetCore.Components;
 namespace Bibliotaph.Web.Services;
 
 /// <summary>
-/// The first-run tour, as the Windows app's: callouts over the page's own controls, a chapter at a time. The Folders
+/// The first-run tour: callouts over the page's own controls, a chapter at a time. The Folders
 /// chapter starts on Home before any folder is in, goes on in Settings › Library (connect a storage, pick a folder:
 /// whichever the account still needs, so it carries on after a provider's sign-in brings the page back) and ends on
 /// the status line once the first folder is in. The Books chapter opens the first time Home or the Library shows
 /// books. Skipping ends the whole tour; Settings › Preferences starts it again. How far it has gone is the library's
 /// <c>tour.stage</c> setting, so it never comes back on its own, and the Windows app sees the same.
 /// </summary>
-public sealed class TourGuide(ApiClient api, NavigationManager navigation)
+public sealed class TourGuide(LibraryClient libraryApi, SettingsClient settingsApi, NavigationManager navigation)
 {
     const int StorageStep = 1, FolderStep = 2, StatusStep = 3;
 
@@ -77,7 +77,7 @@ public sealed class TourGuide(ApiClient api, NavigationManager navigation)
     /// <summary>Settings › Preferences › Show the tour again: on Home, the chapter the library is ready for.</summary>
     public async Task ReplayAsync()
     {
-        var summary = await api.LibraryOverviewAsync();
+        var summary = await libraryApi.LibraryOverviewAsync();
         var chapter = summary.Folders > 0 ? TourChapter.Books : TourChapter.Folders;
         if (navigation.ToBaseRelativePath(navigation.Uri).TrimEnd('/') == "home")
         {
@@ -146,7 +146,7 @@ public sealed class TourGuide(ApiClient api, NavigationManager navigation)
         Changed?.Invoke();
         try
         {
-            await api.SetTourProgressAsync(stage);
+            await settingsApi.SetTourProgressAsync(stage);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -159,7 +159,7 @@ public sealed class TourGuide(ApiClient api, NavigationManager navigation)
         if (_stageKnown) return _stage;
         try
         {
-            _stage = (await api.TourProgressAsync()).Stage;
+            _stage = (await settingsApi.TourProgressAsync()).Stage;
             _stageKnown = true;
             return _stage;
         }

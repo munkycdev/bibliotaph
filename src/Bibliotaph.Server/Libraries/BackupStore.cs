@@ -13,7 +13,7 @@ public sealed record KeptBackup(string Name, DateTimeOffset Created, long Bytes)
 }
 
 /// <summary>
-/// How kept backups are named: their kind, then their UTC time, as the Windows app names its automatic backups. Only
+/// How kept backups are named: their kind, then their UTC time. Only
 /// these names are ever read or written, so a name from a request can't reach anything else.
 /// </summary>
 public static partial class BackupNames

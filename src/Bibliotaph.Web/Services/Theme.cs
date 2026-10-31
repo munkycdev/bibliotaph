@@ -3,7 +3,7 @@ using Microsoft.JSInterop;
 namespace Bibliotaph.Web.Services;
 
 /// <summary>
-/// Light, dark or the device's choice, as the Windows app's Theme button cycles them. wwwroot/js/theme.js applies it
+/// Light, dark or the device's choice. wwwroot/js/theme.js applies it
 /// before the client starts, so the page never flashes the wrong colours.
 /// </summary>
 public sealed class Theme(IJSRuntime js)

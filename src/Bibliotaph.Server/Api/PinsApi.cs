@@ -11,7 +11,7 @@ using Bibliotaph.Server.Libraries;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// /api/pins: the sidebar's Pinned group, as the Windows app's PinDirectory shows it: each pin with its target's
+/// /api/pins: the sidebar's Pinned group: each pin with its target's
 /// current name, in order, a pin whose target has gone left out. Each change answers with the pins as they are now.
 /// </summary>
 public static class PinsApi

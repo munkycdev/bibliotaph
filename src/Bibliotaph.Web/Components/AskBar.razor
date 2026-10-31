@@ -1,4 +1,4 @@
-@* .bt-askbar: Ask's panel under the top bar while Ask is on, as the Windows app's: what to do, a reading in progress, or
+@* .bt-askbar: Ask's panel under the top bar while Ask is on: what to do, a reading in progress, or
    the request read as chips (a field and an editable value, or words to find) with notes on anything changed or left
    out, and Search, which puts the chips in the box as query text and runs it. Or, with Answer from my books
    (Ctrl+Enter), the request as a question answered from the pages of the books the Library shows, each citation
@@ -6,7 +6,7 @@
    a link to Settings > AI. *@
 @using Bibliotaph.Core.Search
 @implements IDisposable
-@inject ApiClient Api
+@inject AskClient AskApi
 @inject AskScope Scope
 @inject NavigationManager Navigation
 
@@ -164,7 +164,7 @@
         Scope.Changed += OnScopeChanged;
         try
         {
-            _aiReady = (await Api.AskStatusAsync()).Ready;
+            _aiReady = (await AskApi.AskStatusAsync()).Ready;
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -200,7 +200,7 @@
         StateHasChanged();
         try
         {
-            var reading = await Api.ReadRequestAsync(request, work.Token);
+            var reading = await AskApi.ReadRequestAsync(request, work.Token);
             if (work.IsCancellationRequested) return;
             if (reading.Problem is { } problem)
             {
@@ -246,7 +246,7 @@
         StateHasChanged();
         try
         {
-            await foreach (var update in Api.AskLibraryAsync(question, Scope.Query, work.Token))
+            await foreach (var update in AskApi.AskLibraryAsync(question, Scope.Query, work.Token))
             {
                 Apply(update);
                 StateHasChanged();

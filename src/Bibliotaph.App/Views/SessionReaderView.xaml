@@ -20,7 +20,7 @@
 
     <!--
       A page in the list: its number, name, pages and note. The one in hand stands out; one that can't open is dimmed.
-      F2, a double-click or the pencil puts the name in a box to type over (Binders plan, choice 5).
+      F2, a double-click or the pencil puts the name in a box to type over.
     -->
     <DataTemplate DataType="{x:Type vm:SessionItemRow}">
       <Grid x:Name="RowRoot" Margin="0,0,0,2">
@@ -177,7 +177,7 @@
     <Border Grid.Row="1" Grid.Column="2" Width="260" Margin="12,0,0,0" Visibility="{Binding ShowNotes, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <DockPanel>
         <TextBlock DockPanel.Dock="Top" Text="Binder notes" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,10" />
-        <!-- The notes on the item's pages (slice 3 plan, choice 18), added in the reader with Note. -->
+        <!-- The notes on the item's pages, added in the reader with Note. -->
         <StackPanel DockPanel.Dock="Bottom" Margin="0,14,0,0" Visibility="{Binding HasItemNotes, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <TextBlock Text="On these pages" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" Margin="0,0,0,8" />
           <ScrollViewer MaxHeight="260" VerticalScrollBarVisibility="Auto" Focusable="False">

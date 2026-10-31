@@ -1,0 +1,38 @@
+@* .bt-notespanel: the notes on the open book's pages, beside them, each with its pages, its text and why it may be off. *@
+
+<aside class="bt-notespanel" aria-label="Notes">
+    <span class="bt-eyebrow">NOTES</span>
+    @if (Notes is { Notes.Count: > 0 } notes)
+    {
+        <div aria-label="Notes on its pages">
+            @foreach (var note in notes.Notes)
+            {
+                <div class="bt-readernote" aria-label="@($"{note.Pages}: {note.Text}{(note.Reason is { } why ? ". " + why : "")}")">
+                    <div class="bt-readernotehead">
+                        <button class="bt-link" title="Go to these pages" aria-label="@($"Go to {note.Pages}")" @onclick="() => GoTo.InvokeAsync(note)">@note.Pages</button>
+                        <button class="bt-icon" title="Change this note" aria-label="Change this note" @onclick="() => Edit.InvokeAsync(note)"><Icon Name="Pencil" Size="13" /></button>
+                        <button class="bt-icon" title="Delete this note" aria-label="Delete this note" @onclick="() => Delete.InvokeAsync(note)"><Icon Name="Trash2" Size="13" /></button>
+                    </div>
+                    <div class="bt-notetext">@note.Text</div>
+                    @if (note.Reason is { } reason)
+                    {
+                        <div class="bt-notereason @(note.Changed ? "changed" : "")"><Icon Name="TriangleAlert" Size="12" /><span>@reason</span></div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="bt-small">No notes yet. Note adds one on the page in view.</div>
+    }
+</aside>
+
+@code {
+    /// <summary>The notes, or null while they're still being read.</summary>
+    [Parameter] public ReaderNotes? Notes { get; set; }
+
+    [Parameter] public EventCallback<ReaderNote> GoTo { get; set; }
+    [Parameter] public EventCallback<ReaderNote> Edit { get; set; }
+    [Parameter] public EventCallback<ReaderNote> Delete { get; set; }
+}

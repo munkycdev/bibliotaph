@@ -1,7 +1,7 @@
-@* Settings › Backup, as the Windows app's: a backup to download, which the Windows app restores too, the weekly backups
+@* Settings › Backup: a backup to download, which the Windows app restores too, the weekly backups
    the server keeps, Restore with its preview before anything changes, and the library exported as CSV or JSON. The
    downloads are plain links, so the browser saves them as it saves anything else. *@
-@inject ApiClient Api
+@inject BackupClient BackupApi
 @inject LibraryActivity Activity
 
 <section class="bt-section" aria-labelledby="backup-heading">
@@ -111,7 +111,7 @@
     bool _reading;
     bool _confirming;
 
-    // The file is named for the day where the user is, as the Windows app names it.
+    // The file is named for the day where the user is.
     static string Download(string path) => $"{path}?today={DateTime.Now:yyyy-MM-dd}";
 
     protected override async Task OnInitializedAsync() => await LoadKeptAsync();
@@ -120,7 +120,7 @@
     {
         try
         {
-            _kept = await Api.KeptBackupsAsync();
+            _kept = await BackupApi.KeptBackupsAsync();
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
@@ -160,7 +160,7 @@
             + (offline == 0 ? "" : offline == 1 ? " One library folder stays offline." : $" {offline:N0} library folders stay offline.");
     }
 
-    async Task ReadKeptAsync(KeptBackupInfo backup) => await ReadAsync(() => Api.ReadKeptBackupAsync(backup.Name));
+    async Task ReadKeptAsync(KeptBackupInfo backup) => await ReadAsync(() => BackupApi.ReadKeptBackupAsync(backup.Name));
 
     async Task BackupPickedAsync(InputFileChangeEventArgs e)
     {
@@ -172,7 +172,7 @@
         await ReadAsync(async () =>
         {
             await using var zip = e.File.OpenReadStream(MostBackupBytes);
-            return await Api.ReadBackupAsync(zip);
+            return await BackupApi.ReadBackupAsync(zip);
         });
     }
 
@@ -195,7 +195,7 @@
         if (_preview is not { } preview) return;
         await RunAsync(async () =>
         {
-            var done = await Api.RestoreAsync(preview.Token);
+            var done = await BackupApi.RestoreAsync(preview.Token);
             _preview = null;
             _confirming = false;
             _restored = done;
@@ -209,7 +209,7 @@
         if (_preview is not { } preview) return;
         await RunAsync(async () =>
         {
-            await Api.CancelRestoreAsync(preview.Token);
+            await BackupApi.CancelRestoreAsync(preview.Token);
             _preview = null;
         });
     }

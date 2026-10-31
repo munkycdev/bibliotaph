@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace Bibliotaph.Web.Icons;
 
 /// <summary>
-/// The Windows app's icons (src/Bibliotaph.App/Icons/Icons.xaml, embedded here as it is), so both draw the same Lucide
+/// The app's icons (src/Bibliotaph.App/Icons/Icons.xaml, embedded here as it is), so both clients draw the same Lucide
 /// shapes from one file. WPF's path data, as that file writes it, is also valid SVG path data.
 /// </summary>
 public static partial class LucideIcons

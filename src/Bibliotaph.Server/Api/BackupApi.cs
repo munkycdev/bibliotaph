@@ -20,7 +20,7 @@ public static class BackupApi
 {
     public static void MapBackupApi(this RouteGroupBuilder api)
     {
-        // The browser says what day it is where the user is, so the file is named as the Windows app would name it there.
+        // The browser says what day it is where the user is, so the file is named for that day.
         api.MapGet("/library/backup", async (string? today, ClaimsPrincipal principal, UserLibraries libraries, TimeProvider clock, CancellationToken ct) =>
         {
             Stream file;
@@ -52,7 +52,7 @@ public static class BackupApi
     const long MostBackupBytes = 2L * 1024 * 1024 * 1024;
 
     /// <summary>
-    /// Settings › Backup's weekly backups and Restore, as the Windows app's: the kept backups to download or restore,
+    /// Settings › Backup's weekly backups and Restore: the kept backups to download or restore,
     /// a backup read and previewed before anything changes, and the restore itself.
     /// </summary>
     public static void MapRestoreApi(this RouteGroupBuilder api)

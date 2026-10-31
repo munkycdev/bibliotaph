@@ -65,7 +65,7 @@
     </DataTemplate>
 
     <!--
-      An item (choice 12): its number, cover, label and note (edited in place), book and pages, and its actions. Alt+Up and
+      An item: its number, cover, label and note (edited in place), book and pages, and its actions. Alt+Up and
       Alt+Down move it, Enter opens it, Delete takes it out; the grip drags it. One that can't open is dimmed and says why.
     -->
     <DataTemplate DataType="{x:Type vm:SessionItemRow}">
@@ -149,7 +149,7 @@
       <!-- .bt-heading: the pack's date as the eyebrow, its title, and its actions. -->
       <DockPanel Margin="0,0,42,24">
         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
-          <!-- Back to the binder's reader (Binders plan, choice 2). -->
+          <!-- Back to the binder's reader. -->
           <Button x:Name="DoneEditing" Style="{StaticResource Bt.Button.Primary}" Content="Done" c:Ui.Icon="{StaticResource Icon.Check}"
                   Margin="0,0,12,0" Command="{Binding DoneCommand}" ToolTip="Back to the binder's pages in the reader" />
           <Button x:Name="EditSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" ToolTip="Edit title and date"

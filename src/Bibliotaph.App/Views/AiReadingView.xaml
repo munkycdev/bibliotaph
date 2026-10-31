@@ -7,7 +7,7 @@
         xmlns:p="clr-namespace:Bibliotaph.Processing;assembly=Bibliotaph.Processing"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:AiReadingViewModel}">
-  <!-- AI reading (Built-in AI plan, choices 12 and 13): the book being read now, then the last books read. -->
+  <!-- AI reading: the book being read now, then the last books read. -->
   <StackPanel MaxWidth="860" HorizontalAlignment="Left" Margin="0,0,42,24">
     <TextBlock Text="AI reading." Style="{StaticResource Text.H1}" />
     <TextBlock Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" TextWrapping="Wrap"

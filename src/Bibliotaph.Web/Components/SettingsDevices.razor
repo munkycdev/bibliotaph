@@ -1,6 +1,6 @@
 @* Settings › Devices, the web's side of the Windows app's Web library: the PCs connected to this library, and
    disconnecting one. *@
-@inject ApiClient Api
+@inject AccountClient AccountApi
 
 <section class="bt-section bt-subsection" aria-labelledby="pcs-heading">
     <h3 class="bt-subheading" id="pcs-heading">Windows PCs</h3>
@@ -25,11 +25,11 @@
 @code {
     IReadOnlyList<ConnectedDevice>? _devices;
 
-    protected override async Task OnInitializedAsync() => _devices = await Api.DevicesAsync();
+    protected override async Task OnInitializedAsync() => _devices = await AccountApi.DevicesAsync();
 
     async Task Disconnect(ConnectedDevice device)
     {
-        await Api.DisconnectDeviceAsync(device.Id);
-        _devices = await Api.DevicesAsync();
+        await AccountApi.DisconnectDeviceAsync(device.Id);
+        _devices = await AccountApi.DevicesAsync();
     }
 }

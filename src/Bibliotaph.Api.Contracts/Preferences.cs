@@ -1,7 +1,7 @@
 namespace Bibliotaph.Api.Contracts;
 
 /// <summary>
-/// Settings › Library below the folders, as the Windows app's: the folder names read as labels and the folder rules
+/// Settings › Library below the folders: the folder names read as labels and the folder rules
 /// answered in Needs review, each with its switch, and where Bibliotaph starts, which Preferences shows.
 /// </summary>
 public sealed record LibraryPreferences(bool StartOnLibrary, IReadOnlyList<FolderRuleSwitch> FolderRules);
@@ -12,7 +12,7 @@ public sealed record FolderRuleSwitch(long Id, string Folder, string Meaning, st
 
 public sealed record StartPageChoice(bool Library);
 
-/// <summary>How far the first-run tour has gone: null before it, then "folders" and "books", as the Windows app keeps it.</summary>
+/// <summary>How far the first-run tour has gone: null before it, then "folders" and "books".</summary>
 public sealed record TourProgress(string? Stage);
 
 

@@ -7,7 +7,7 @@ namespace Bibliotaph.Api.Contracts;
 public sealed record KeptBackupInfo(string Name, DateTimeOffset Created, long Bytes, bool Weekly);
 
 /// <summary>
-/// A backup read for restoring, as the Windows app's Restore shows it before anything changes: when and by what it was
+/// A backup read for restoring: when and by what it was
 /// made, what it holds, and its library folders, each found in this library's storage or staying offline.
 /// </summary>
 public sealed record RestorePreviewInfo(string Token, DateTimeOffset Created, string App, int Books, int Collections, int Notes,

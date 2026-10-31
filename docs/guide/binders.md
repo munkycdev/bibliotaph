@@ -2,16 +2,17 @@
 
 [Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Binders
 
-A binder is your next session, gathered in one place: the books and pages you'll need, in the order you'll need them,
-with your notes. At the table you step through it instead of hunting through folders.
+A binder gathers books and pages in one place, in your order, with your notes. It can be a focused set of references,
+everything an adventure needs, or any other collection of pages you want together. You step through it instead of
+hunting through folders.
 
 ## Make a binder
 
-On the **Binders** page, click **New binder**. Give it a title and, if you like, the date you'll play. Binders with a
+On the **Binders** page, click **New binder**. Give it a title and, if you like, a date. Binders with a
 date list under **Upcoming**; the rest under **No date yet**, and past ones behind a link at the bottom. Each group is in
 name order.
 
-The binder you worked on last is your current one. Home shows it under **Continue preparing**.
+The binder you worked on last is your current one. Home shows it under **Current binder**.
 
 ## Add books and pages
 
@@ -20,7 +21,7 @@ The binder you worked on last is your current one. Home shows it under **Continu
 - **One page**: the **+** beside a matching page in the search results, or **Add to binder** in the reader, which lists your binders. A page added from
   the reader is labelled after the bookmark it's under.
 - **A range of pages**: in the reader, **Add to binder** has **Add pages…** at the bottom of its menu. Give the range a label you'll
-  recognize at the table, such as "Warehouse ambush", and pick a section.
+  recognize at a glance, such as "Warehouse ambush", and pick a section.
 - **A page you read online**: in the online reader, **Add this page** adds the page you're on, such as a chapter of a
   book on D&D Beyond, labelled with the page's own name. See [Online libraries](online-libraries.md#pages-in-binders).
 
@@ -48,11 +49,11 @@ the middle, and the binder's notes are on the right.
 
 ### Rules at hand
 
-Some binders aren't for one session: a binder of rules, tables and references you look up mid-game. When you make one
-(or later, with **Edit title and date**), tick **Keep at hand during games**, and choose its game system if you like.
+Some binders are references you come back to from any other: rules, tables and the like. When you make one (or later,
+with **Edit title and date**), tick **Keep at hand**, and choose its game system if you like.
 These binders list under **At hand** on the Binders page.
 
-In any other binder, the **At hand** button lists them with their pages, those for the game you're running first.
+In any other binder, the **At hand** button lists them with their pages, those for the game systems of the binder's books first.
 Pick one and the page opens in a window of its own, so the binder and page you're on stay put.
 
 ## Edit a binder
@@ -63,7 +64,7 @@ Pick one and the page opens in a window of its own, so the binder and page you'r
 - Drag an item by its grip to move it, or use **Alt+Up** and **Alt+Down**. Each item's menu moves it to another
   section.
 - Each item has a label (blank shows the book's title) and a note.
-- **Duplicate** copies the binder (without its date) for a similar session; **Delete** removes it, with **Undo**. The
+- **Duplicate** copies the binder (without its date) to start a similar one; **Delete** removes it, with **Undo**. The
   books stay in your library either way.
 - **Show these books in the Library** shows just this binder's books; **Find resources** opens the Library to find
   more.

@@ -1,0 +1,67 @@
+@* A pack's files as thumbnails, each able to be its cover, with the mosaic and Split. *@
+@using Bibliotaph.Core
+@inject BooksClient BooksApi
+
+<DetailSection Section="@DetailSections.Pack" Heading="@Book.PackFilesHeading">
+    <Actions>
+        @if (Book.PackFiles.Any(f => f.IsCover))
+        {
+            <button class="bt-link" title="Show the pack's first four files on its card again" @onclick="() => UseCoverAsync(null)">Use the mosaic</button>
+        }
+        <button class="bt-link" title="@Book.SplitPackTip" @onclick="SplitAsync">@Book.SplitPackLabel</button>
+    </Actions>
+    <ChildContent>
+        <div class="bt-packfiles">
+            @foreach (var file in Book.PackFiles)
+            {
+                <div class="bt-packfile" @key="file.EntryId">
+                    <button class="bt-packthumb" title="@file.Name" aria-label="@file.Name" aria-expanded="@(_menu == file.EntryId)"
+                            @onclick="() => _menu = _menu == file.EntryId ? null : file.EntryId">
+                        @if (file.Cover is { } cover) { <img src="@BookCover.CoverUrl(cover)" alt="" loading="lazy" /> }
+                        @if (file.IsPdf) { <span class="bt-packmark pdf">PDF</span> }
+                        @if (file.IsCover) { <span class="bt-packmark cover" aria-label="The pack's cover">Cover</span> }
+                    </button>
+                    <div class="bt-packname">@file.Name</div>
+                    @if (_menu == file.EntryId)
+                    {
+                        <div class="bt-packmenu">
+                            @if (file.IsCover)
+                            {
+                                <button class="bt-link" @onclick="() => UseCoverAsync(null)">Use the mosaic</button>
+                            }
+                            else
+                            {
+                                <button class="bt-link" @onclick="() => UseCoverAsync(file.EntryId)">Use as the pack's cover</button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </ChildContent>
+</DetailSection>
+
+@code {
+    [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
+    [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
+
+    /// <summary>The file whose menu is open.</summary>
+    long? _menu;
+
+    /// <summary>A file as the pack's cover, or null for the mosaic of its first four.</summary>
+    async Task UseCoverAsync(long? member)
+    {
+        _menu = null;
+        if (await Host.TryAsync(() => BooksApi.UsePackCoverAsync(Host.EntryId, member)) is not { } details) return;
+        Host.Replace(details);
+        await Host.ChangedAsync();
+    }
+
+    /// <summary>The pack goes and its files are cards again; the library says so, with Undo.</summary>
+    async Task SplitAsync()
+    {
+        if (await Host.TryAsync(() => BooksApi.SplitPackAsync(Host.EntryId)) is not { } result) return;
+        await Host.DoneAsync(result);
+        await Host.CloseAsync();
+    }
+}

@@ -378,7 +378,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     [RelayCommand]
     Task OpenItem(SessionItemRow row) => OpenAsync(row);
 
-    /// <summary>Some other binder is kept at hand during games: At hand shows.</summary>
+    /// <summary>Some other binder is kept at hand: At hand shows.</summary>
     [ObservableProperty]
     public partial bool HasAtHand { get; private set; }
 

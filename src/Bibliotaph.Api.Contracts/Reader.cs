@@ -26,7 +26,7 @@ public sealed record ReaderBook(long EntryId, long DocumentId, string Title, str
     IReadOnlyList<string?> Labels, int PageCount, int StartPage, ReaderPart? Part, IReadOnlyList<string> Marks, bool Favorite,
     ReaderProblem? Problem = null, string? Notice = null)
 {
-    /// <summary>The file's contents, as the Windows reader's contents panel lists them.</summary>
+    /// <summary>The file's contents.</summary>
     public IReadOnlyList<ReaderOutline> Outline { get; init; } = [];
 
     /// <summary>An ordinary read, whose page is kept as the reader moves, so the book opens there next time.</summary>
@@ -101,7 +101,7 @@ public sealed record ReaderPart(int FirstPage, int LastPage)
             : "outside this adventure";
 }
 
-/// <summary>Why a book can't be read, as the Windows reader says it in place of the pages.</summary>
+/// <summary>Why a book can't be read.</summary>
 public sealed record ReaderProblem(string Title, string Message);
 
 /// <summary>Where the browser reads the file from now: a short-lived link to it in the user's storage.</summary>
@@ -172,6 +172,16 @@ public static class ReaderPageNumbers
     /// <summary>What the page box shows for a page: its printed label, or its PDF page number.</summary>
     public static string Display(int index, IReadOnlyList<string?> labels) =>
         index < labels.Count && labels[index] is { Length: > 0 } label ? label.Trim() : (index + 1).ToString(CultureInfo.CurrentCulture);
+
+    /// <summary>
+    /// The pages a From and To box name, in order, To left blank for one page; null when either isn't a page of the book.
+    /// </summary>
+    public static (int First, int Last)? Range(string from, string to, IReadOnlyList<string?> labels, int pageCount)
+    {
+        if (Find(from, labels, pageCount) is not { } first) return null;
+        var last = to.Trim().Length == 0 ? first : Find(to, labels, pageCount);
+        return last is { } l ? (Math.Min(first, l), Math.Max(first, l)) : null;
+    }
 }
 
 /// <summary>The password the reader chose to remember for a PDF, which the browser tries before asking; null when none is.</summary>

@@ -1,4 +1,4 @@
-// The reader's pages, as the Windows reader shows them: a PDF drawn by PDF.js from byte ranges of the file in the user's
+// The reader's pages: a PDF drawn by PDF.js from byte ranges of the file in the user's
 // storage, every page in one scrolling column, with its text selectable, its links followed, the words of a search or
 // a find marked, and a strip of page thumbnails. The page around it is Blazor's; this reports back what the reader does.
 import { BookCache, ChunkSize, LinkError, trim } from './bookcache.js';
@@ -7,7 +7,7 @@ const base = new URL('../lib/pdfjs/', import.meta.url).href;
 const ZoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 const ThumbnailHeight = 96;
 
-// Lucide's notebook-pen, as the Windows strip's note badge.
+// Lucide's notebook-pen, the note badge on a thumbnail.
 const NoteIcon = '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M 13.4 2 H 6 a 2 2 0 0 0 -2 2 v 16 a 2 2 0 0 0 2 2 h 12 a 2 2 0 0 0 2 -2 v -7.4 M 2 6 h 4 M 2 10 h 4 M 2 14 h 4 M 2 18 h 4 M 21.378 5.626 a 1 1 0 1 0 -3.004 -3.004 l -5.01 5.012 a 2 2 0 0 0 -0.506 0.854 l -0.837 2.87 a 0.5 0.5 0 0 0 0.62 0.62 l 2.87 -0.837 a 2 2 0 0 0 0.854 -0.506 Z"/></svg>';
 
 let pdfjs = null, viewers = null;
@@ -130,7 +130,7 @@ class Reader {
       wasmUrl: base + 'wasm/',
       iccUrl: base + 'iccs/',
     });
-    // As the Windows reader asks: once, then again while the password given doesn't open it, until Cancel.
+    // Asks once, then again while the password given doesn't open it, until Cancel.
     this.task.onPassword = (update, reason) => {
       this.page.invokeMethodAsync('AskPassword', reason === pdfjs.PasswordResponses.INCORRECT_PASSWORD).then(password => {
         if (password == null) {
@@ -204,7 +204,7 @@ class Reader {
       e.preventDefault();
       this.page.invokeMethodAsync('Notice', "This PDF doesn't allow copying its text.");
     });
-    // Ctrl+wheel zooms the pages, as in the Windows reader, rather than the whole page.
+    // Ctrl+wheel zooms the pages, rather than the whole page.
     this.#listen(this.stage, 'wheel', e => {
       if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
@@ -572,7 +572,7 @@ class Thumbnails {
       this.#pump();
     }, { root: strip, rootMargin: '0px 400px' });
     for (const item of this.items) this.observer.observe(item);
-    // The wheel scrolls the strip sideways, as the Windows strip does.
+    // The wheel scrolls the strip sideways.
     reader.listeners.push(listen(strip, 'wheel', e => {
       if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       e.preventDefault();
@@ -686,7 +686,7 @@ function display(index, labels) {
 }
 
 /** Pops the reader out into a window of its own, as the Windows reader's Pop out does. */
-// A picture, as the Windows reader shows one: fitted to the window or at a zoom step, the pack's next and previous on
+// A picture: fitted to the window or at a zoom step, the pack's next and previous on
 // the arrow keys. The whole file is read through the same cache as a PDF's pages.
 const ImageTypes = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
 
@@ -815,10 +815,10 @@ class ImageReader {
   }
 }
 
-// An e-book, as the Windows reader shows one: the page that reader shows, built by the same .NET code in the browser,
+// An e-book: the page the Windows reader shows, built by the same .NET code in the browser,
 // in a frame whose every request ebook-sw.js brings back here to answer from the book. The frame is same-origin so
 // the reader can call the page's script directly (bt.goTo, bt.find); what keeps the book's content from running is
-// the page's own policy, a nonce for the reader's style and script and nothing else, as in the Windows reader.
+// the page's own policy, a nonce for the reader's style and script and nothing else.
 const EbookScope = '/ebook-res/';
 const ThemeSlot = '<!--bt-theme-->';
 const ThemeTokens = ['--bt-bg', '--bt-side', '--bt-text', '--bt-muted', '--bt-line', '--bt-accent', '--bt-accent-text'];
@@ -907,7 +907,7 @@ class EbookReader {
     ebooks.set(this.session, this);
     this.#listen(window, 'message', e => this.#message(e));
     this.#listen(document, 'keydown', e => this.#key(e));
-    // The page follows the theme, as the Windows reader's does.
+    // The page follows the theme.
     const dark = matchMedia('(prefers-color-scheme: dark)');
     this.#listen(dark, 'change', () => this.#reload());
     const theme = new MutationObserver(() => this.#reload());
@@ -992,7 +992,7 @@ class EbookReader {
     e.preventDefault();
   }
 
-  // The page script's messages, as the Windows reader takes them: only from this frame's page.
+  // The page script's messages: only from this frame's page.
   #message(e) {
     if (e.origin !== location.origin || !this.frame || e.source !== this.frame.contentWindow) return;
     const message = e.data;
@@ -1046,7 +1046,7 @@ class EbookReader {
     this.#bt?.goTo(index);
   }
 
-  // A zoom step is the page's own zoom, as the Windows reader's is the browser's; a fitted size is 100%.
+  // A zoom step is the page's own zoom; a fitted size is 100%.
   #zoomFrame() {
     try {
       const root = this.frame.contentDocument?.documentElement;
