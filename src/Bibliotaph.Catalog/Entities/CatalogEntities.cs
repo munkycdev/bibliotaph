@@ -666,7 +666,7 @@ public sealed class SessionPack
     public DateTime CreatedUtc { get; set; }
     /// <summary>When it was last opened or changed.</summary>
     public DateTime TouchedUtc { get; set; }
-    /// <summary>A binder of rules and references to look up mid-game: At hand offers its pages.</summary>
+    /// <summary>A binder of rules and references looked up often: At hand offers its pages.</summary>
     public bool KeepAtHand { get; set; }
     /// <summary>The game system its references are for, as a system vocabulary key; null for any system.</summary>
     public string? GameSystem { get; set; }

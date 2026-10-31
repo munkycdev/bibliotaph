@@ -53,7 +53,7 @@ public sealed partial class SessionDialogViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Asks for a title and an optional date, or whether it's kept at hand during games and for which of
+    /// Asks for a title and an optional date, or whether it's kept at hand and for which of
     /// <paramref name="systems"/>, filled in for Edit.
     /// </summary>
     public static SessionDialogViewModel Naming(string heading, string actionText, IReadOnlyList<Choice<string?>> systems, string title = "", DateOnly? date = null,
@@ -116,7 +116,7 @@ public sealed partial class SessionDialogViewModel : ObservableObject
 
     public bool ShowsAtHand => Kind == SessionDialogKind.Naming;
 
-    /// <summary>Keep at hand during games: At hand in any binder offers its pages.</summary>
+    /// <summary>Keep at hand: At hand in any binder offers its pages.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsDate), nameof(DateProblem))]
     [NotifyCanExecuteChangedFor(nameof(SaveCommand))]

@@ -12,7 +12,7 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// Home: the books opened last and added last, a cover each, Continue preparing: the session pack worked on last, and
+/// Home: the books opened last and added last, a cover each, Current binder: the binder worked on last, and
 /// the sidebar's pins in the same order. Before any folder is added it explains what Bibliotaph does.
 /// </summary>
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
@@ -39,7 +39,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     /// <summary>Add to session from a cover's menu, with its dialog and note.</summary>
     public SessionActions Sessions { get; } = sessions;
 
-    /// <summary>Continue preparing: the session pack worked on last, as a card; null before there is one.</summary>
+    /// <summary>Current binder: the binder worked on last, as a card; null before there is one.</summary>
     [ObservableProperty]
     public partial SessionCardViewModel? ContinuePreparing { get; private set; }
 
@@ -269,7 +269,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         if (request.Target is LibraryItemViewModel item) Sessions.Add([item.EntryId], item.Title, request.Choice);
     }
 
-    /// <summary>Continue preparing's card: the pack's page.</summary>
+    /// <summary>Current binder's card: the binder's page.</summary>
     [RelayCommand]
     void OpenSession(SessionCardViewModel card) => sessionPages.Open(card.Id);
 

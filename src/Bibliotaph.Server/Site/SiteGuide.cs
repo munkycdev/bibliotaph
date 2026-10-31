@@ -22,7 +22,7 @@ public static class SiteGuide
         new("reading", "The reader, notes on pages, Ask this book, windows of their own, e-books and protected books."),
         new("cataloging", "Where suggestions come from, fixing details, Needs review, copies, packs, adventures, vocabulary and your tags."),
         new("organizing", "Favorites, collections, pins, saved searches and exporting a list."),
-        new("binders", "Gather a session's books and pages in a binder, and run it at the table."),
+        new("binders", "Gather books and pages in a binder, in your order, and step through them."),
         new("summary", "The Summary page: how much you have, where it came from, what it is and what you've done with it."),
         new("online-libraries", "The books you own on D&D Beyond, Demiplane, Humble Bundle and DriveThruRPG."),
         new("ai", "What the AI does and sends, setting it up on your PC or with a model server, and scanning whole books."),

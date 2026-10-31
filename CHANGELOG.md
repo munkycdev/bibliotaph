@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Binders are described as any set of pages you want together**, such as a focused set of references, rather than
+  only a session's material. Home's **Continue preparing** is now **Current binder**, the dialog's **Date played** is
+  **Date**, and **Keep at hand during games** is **Keep at hand**. See [Binders](docs/guide/binders.md).
 - **Filter books by the catalogue that found them.** **Found online**, under Housekeeping in **More filters**, shows the
   books RPGGeek, AdventureLookup, Open Library or Google Books found, each with how many, or **Not found online** for
   those none found, on Windows and the web, and a saved search keeps it. See
