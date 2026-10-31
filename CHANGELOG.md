@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.4 ┬╖ 28 October 2026
+
+New in 1.4.1065 (30 October 2026):
+
 - **Library settings and folder answers now sync.** The theme, Needs review for every suggestion, the start page, the
   Library's order while browsing and searching, Packs or Each file, site icons and how books owned online open are the
   same on every PC, and the web library takes Needs review and the start page. Folder rules you turned on or off, and folders you made into collections or said Never
@@ -59,8 +63,6 @@
 - **The "Powered by BGG" logo has moved** from the foot of every web page to where RPGGeek's data shows: under a
   book's details when some of them came from RPGGeek, on Windows and the web. It's also in About on Windows and on the
   website's licences page. See [Cataloging](docs/guide/cataloging.md).
-
-## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1019 (29 October 2026):
 
