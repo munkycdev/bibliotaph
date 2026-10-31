@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.4 ┬╖ 28 October 2026
+
+New in 1.4.1141 (31 October 2026):
+
 - **Clearer wording in a few places**: Needs review says your corrections stay when books are read again, a
   protected file's details name its protection plainly, and Same book on a catalogue record says its values replace the
   AI's guesses.
@@ -50,8 +54,6 @@
   vocabulary, levels, players, favorites, PDFs and "not …", with quoted phrases as words and the rest as `about:`.
   A note says it was read without AI. Answer from my books still needs AI. On Windows and the web. See
   [Searching](docs/guide/searching.md#ask-in-plain-english).
-
-## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1070 (30 October 2026):
 
