@@ -132,6 +132,19 @@ CREATE TABLE entry_doc (
 CREATE INDEX entry_doc_document ON entry_doc (document_id);
 CREATE INDEX entry_doc_parent ON entry_doc (parent_id) WHERE parent_id IS NOT NULL;
 
+-- Each card's vector of what it is about, for search by meaning: made in the background from its title, details, notes
+-- and what the AI found in its chapters, by the embedding model named, and made again when that text changes.
+CREATE TABLE entry_vec (
+    entry_id      INTEGER PRIMARY KEY,
+    model         TEXT    NOT NULL,
+    version       INTEGER NOT NULL,
+    profile_hash  TEXT    NOT NULL,                -- of the text it was made from; a card whose text has changed gets a new one
+    vector        BLOB    NOT NULL
+);
+CREATE TRIGGER entry_vec_ad AFTER DELETE ON entry_doc BEGIN
+    DELETE FROM entry_vec WHERE entry_id = old.entry_id;
+END;
+
 -- The cover of an adventure inside a file (slice 5): its first page, drawn like a document's cover.
 CREATE TABLE page_cover (
     document_id  INTEGER NOT NULL,
@@ -355,4 +368,4 @@ CREATE TABLE shared_state (
     value           TEXT    NOT NULL
 );
 
-PRAGMA user_version = 22;
+PRAGMA user_version = 23;

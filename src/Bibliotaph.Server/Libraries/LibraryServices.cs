@@ -213,6 +213,8 @@ public static class LibraryServices
         // find pages by meaning as the library is read for it in the background.
         services.AddSingleton<PlainSearchService>();
         services.AddSingleton<LibraryAskQueries>();
+        services.AddSingleton<BookVectorQueries>();
+        services.AddSingleton<BookVectors>();
         services.AddSingleton<LibraryAskService>();
         services.AddSingleton<MeaningSearchService>();
         services.AddSingleton<LibraryVectors>();

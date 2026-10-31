@@ -32,6 +32,7 @@ public sealed partial class LibraryAskTests : IAsyncLifetime
     LibraryAskService _ask = null!;
     LibraryVectors _vectors = null!;
     MeaningSearchService _search = null!;
+    BookVectors _books = null!;
     AiUse _use = null!;
     long _keptRoot;
     long _lich;
@@ -113,8 +114,9 @@ public sealed partial class LibraryAskTests : IAsyncLifetime
         _bookAsk = new AskService(_ai, library, new AskQueries(_index), new IndexQueries(_index), store, new EntryStore(contexts),
             new AskHistoryStore(contexts), _use);
         _ask = new LibraryAskService(_ai, new LibraryAskQueries(_index), new LibraryQueries(_index), new IndexQueries(_index), library, _use);
-        _vectors = new LibraryVectors(_ai, _bookAsk, new LibraryAskQueries(_index), library, _use, _clock);
-        _search = new MeaningSearchService(_ai, new LibraryAskQueries(_index), new LibraryQueries(_index), _use);
+        _books = new BookVectors(_ai, new BookVectorQueries(_index), store, library, _clock);
+        _vectors = new LibraryVectors(_ai, _bookAsk, new LibraryAskQueries(_index), library, _use, _books, _clock);
+        _search = new MeaningSearchService(_ai, new LibraryAskQueries(_index), new LibraryQueries(_index), new BookVectorQueries(_index), _use);
 
         // Three invented books: one with the lich on every page, one with a lich among other things, and one in a folder kept from AI.
         long[] ids;
@@ -301,7 +303,8 @@ public sealed partial class LibraryAskTests : IAsyncLifetime
 
         var steps = new List<LibraryVectorsStep>();
         while (steps.Count < 10 && (steps.Count == 0 || steps[^1] != LibraryVectorsStep.Done)) steps.Add(await _vectors.FillNextAsync(Ct));
-        Assert.Equal([LibraryVectorsStep.Read, LibraryVectorsStep.Read, LibraryVectorsStep.Done], steps);
+        // The cards' vectors first, in one batch, then each book's pages.
+        Assert.Equal([LibraryVectorsStep.Read, LibraryVectorsStep.Read, LibraryVectorsStep.Read, LibraryVectorsStep.Done], steps);
         // The book in the folder kept from AI isn't read.
         Assert.Equal(7, Vectors());
         Assert.Equal(new LibraryVectorsStatus(LibraryVectorsState.Done, 7, 7, null), _vectors.Status);
@@ -321,7 +324,8 @@ public sealed partial class LibraryAskTests : IAsyncLifetime
     {
         await SetUpAsync("embed-a");
         _clock.Advance(LibraryVectors.Quiet);
-        // Only the first book is read for meaning.
+        // The cards' vectors, then only the first book's pages.
+        Assert.Equal(LibraryVectorsStep.Read, await _vectors.FillNextAsync(Ct));
         Assert.Equal(LibraryVectorsStep.Read, await _vectors.FillNextAsync(Ct));
 
         var found = await _ask.FindAsync("Where does the lich keep its phylactery?", [], Ct);

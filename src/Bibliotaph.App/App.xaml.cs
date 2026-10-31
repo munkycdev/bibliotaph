@@ -263,6 +263,8 @@ public partial class App : Application
         builder.Services.AddSingleton(sp => new AiUse(sp.GetRequiredService<TimeProvider>()));
         builder.Services.AddSingleton<AskService>();
         builder.Services.AddSingleton<LibraryAskQueries>();
+        builder.Services.AddSingleton<BookVectorQueries>();
+        builder.Services.AddSingleton<BookVectors>();
         builder.Services.AddSingleton<LibraryAskService>();
         builder.Services.AddSingleton<MeaningSearchService>();
         builder.Services.AddSingleton<ExampleFinder>();

@@ -33,8 +33,9 @@
   a lighthouse"`, and Inside documents shows the pages closest in meaning first, even when they never use your words,
   with their books on Documents. Fields and plain words still narrow it, so `about:"a heist gone wrong" system:5e`
   ranks only 5th-edition books. It uses the embedding model in Settings > AI and the pages read for meaning so far;
-  without one it finds pages with any of your words. Works on the web too. See
-  [Searching](docs/guide/searching.md#search-by-meaning).
+  without one it finds pages with any of your words. Documents ranks books by their pages and by their own title,
+  details, tags and notes, read for meaning within minutes of choosing an embedding model, so a book you own
+  elsewhere is found too. Works on the web as well. See [Searching](docs/guide/searching.md#search-by-meaning).
 
 ## 1.4 ┬╖ 28 October 2026
 

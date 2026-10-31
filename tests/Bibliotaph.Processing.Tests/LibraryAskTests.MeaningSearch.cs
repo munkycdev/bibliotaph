@@ -1,11 +1,14 @@
+using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
+using Dapper;
 
 namespace Bibliotaph.Processing.Tests;
 
 /// <summary>
 /// The search box's about:, which ranks the library's pages as a question to the library does, without an answer: by
-/// its words and, once pages have vectors, by meaning; within the fields and filters; after the plain words.
+/// its words and, once pages have vectors, by meaning; within the fields and filters; after the plain words. Books
+/// are ranked by their pages and by their cards' own vectors.
 /// </summary>
 public sealed partial class LibraryAskTests
 {
@@ -74,5 +77,24 @@ public sealed partial class LibraryAskTests
         Assert.Equal([(_city, 0)], Pages(results));
         Assert.Contains("embedding model", results.Note, StringComparison.Ordinal);
         Assert.Empty(_server.Embedded);
+    }
+
+    [Fact]
+    public async Task A_book_with_no_pages_is_found_by_its_cards_vector_and_a_book_kept_from_ai_gets_none()
+    {
+        await SetUpAsync("embed-a");
+        var printed = new EntryId(1099);
+        var store = new IndexStore(_writer);
+        await store.SetEntriesAsync([new EntryDocRow(printed, null, EntryKind.Elsewhere, Copies: 0) { AddedUtc = DateTime.UtcNow }], Ct);
+        await store.SetMetadataAsync([new EntryMetaRow { EntryId = printed, Title = "Pearl Phylactery Atlas" }], Ct);
+        await ReadLibraryForMeaningAsync();
+
+        var results = await SearchAsync("about:\"phylactery pearl\"");
+
+        Assert.DoesNotContain(results.Pages.Entries, e => e.Entry.EntryId == printed);
+        // First by its own vector, as the best page's book is first by its pages.
+        Assert.Contains(printed, results.Documents.Take(2).Select(d => d.EntryId));
+        await using var connection = _index.OpenRead();
+        Assert.Equal([_lich + 1000, _city + 1000, printed.Value], await connection.QueryAsync<long>("SELECT entry_id FROM entry_vec ORDER BY entry_id"));
     }
 }

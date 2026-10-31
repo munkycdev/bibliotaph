@@ -58,10 +58,12 @@ public enum LibraryVectorsStep
 /// a minute after starting, gives way between batches while the AI is being used (and for half a minute after) or a
 /// book being read wants its vectors, and stops for a while when the model server fails. Vectors are kept as they are
 /// made, so it carries on where it was after a restart. It runs with an embedding model set, and can be switched off in
-/// Settings > AI.
+/// Settings > AI. Ahead of the pages it has <see cref="BookVectors"/> make each card's vector, which runs whenever an
+/// embedding model is set, even with the pages switched off.
 /// </summary>
 public sealed class LibraryVectors(
-    AiSettings ai, AskService ask, LibraryAskQueries queries, LibraryStore library, AiUse use, TimeProvider? clock = null, ILogger<LibraryVectors>? log = null)
+    AiSettings ai, AskService ask, LibraryAskQueries queries, LibraryStore library, AiUse use, BookVectors books, TimeProvider? clock = null,
+    ILogger<LibraryVectors>? log = null)
     : IHostedService, IDisposable
 {
     /// <summary>How long after starting it waits, so the app's own start-up work goes first.</summary>
@@ -184,17 +186,30 @@ public sealed class LibraryVectors(
     }
 
     /// <summary>
-    /// One step: unless it is off or the AI is in use, makes the vectors of the next book that lacks some (as many as it
-    /// can before giving way), and says what it did.
+    /// One step: unless the AI is in use, makes the next few cards' vectors, or, unless it is off, the vectors of the next
+    /// book that lacks some (as many as it can before giving way), and says what it did.
     /// </summary>
     public async Task<LibraryVectorsStep> FillNextAsync(CancellationToken ct = default)
     {
+        var quiet = use.QuietFor(Quiet);
+        if (quiet)
+        {
+            // The cards' vectors are few and quick, and go first.
+            switch (await books.FillNextAsync(ct))
+            {
+                case BookVectorsStep.Made:
+                    return LibraryVectorsStep.Read;
+                case BookVectorsStep.Failed:
+                    await RefreshStatusAsync(ct, LibraryVectorsState.Stopped, books.Problem);
+                    return LibraryVectorsStep.Failed;
+            }
+        }
         if (!IsWanted || ai.Setup.EmbeddingName is not { } model)
         {
             await RefreshStatusAsync(ct);
             return LibraryVectorsStep.Waiting;
         }
-        if (!use.QuietFor(Quiet))
+        if (!quiet)
         {
             Report(_status with { State = LibraryVectorsState.Waiting });
             return LibraryVectorsStep.Waiting;

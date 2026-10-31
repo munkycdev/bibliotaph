@@ -144,6 +144,10 @@ box](searching.md#search-by-meaning) can find a page by what it means, not only 
 say) and for a little after, gives way to a book you've just opened, and carries on where it was after you restart
 Bibliotaph. Books in folders kept from AI are left out.
 
+Before the pages, it reads each book's title, details, tags, notes and what the AI found in its chapters, which takes
+minutes rather than hours, so `about:` can rank books straight away. That part runs whenever an embedding model is set,
+and a book whose details change is read again.
+
 **Settings > AI > Read the whole library for meaning** shows how many pages are read so far. Untick **Read the library
 for meaning in the background** to stop it; questions to your library and `about:` then find the remaining pages by
 their words.
