@@ -81,6 +81,13 @@ public enum SearchField
 
     /// <summary><c>opened:</c> yes or no (or never): the books opened at least once, or never.</summary>
     Opened,
+
+    /// <summary>
+    /// <c>about:</c>, what the books or pages are about in the user's own words: found by meaning through the page
+    /// vectors when an embedding model is set up, and by those words otherwise. It ranks rather than filters, so it
+    /// can't be left out.
+    /// </summary>
+    About,
 }
 
 /// <summary>
@@ -299,6 +306,11 @@ sealed class QueryParser(string text)
         }
         var operand = ParsePrimary(depth);
         if (operand is NotNode inner) return inner.Operand; // --word is word
+        if (operand is FieldNode { Field: SearchField.About })
+        {
+            Issue("about: finds by meaning, so it can't be left out. Leave out a word or a field instead, like -theme:horror.", token);
+            return null;
+        }
         return operand is null ? null : new NotNode(operand);
     }
 

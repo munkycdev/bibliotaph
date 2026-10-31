@@ -19,7 +19,7 @@ namespace Bibliotaph.Processing.Tests;
 /// model server is a stand-in that counts what it is sent.
 /// </summary>
 [Collection(SqlitePools.Name)]
-public sealed class LibraryAskTests : IAsyncLifetime
+public sealed partial class LibraryAskTests : IAsyncLifetime
 {
     readonly string _dir = Directory.CreateTempSubdirectory("bibliotaph-library-ask-").FullName;
     readonly FakeServer _server = new();
@@ -31,6 +31,7 @@ public sealed class LibraryAskTests : IAsyncLifetime
     AskService _bookAsk = null!;
     LibraryAskService _ask = null!;
     LibraryVectors _vectors = null!;
+    MeaningSearchService _search = null!;
     AiUse _use = null!;
     long _keptRoot;
     long _lich;
@@ -113,6 +114,7 @@ public sealed class LibraryAskTests : IAsyncLifetime
             new AskHistoryStore(contexts), _use);
         _ask = new LibraryAskService(_ai, new LibraryAskQueries(_index), new LibraryQueries(_index), new IndexQueries(_index), library, _use);
         _vectors = new LibraryVectors(_ai, _bookAsk, new LibraryAskQueries(_index), library, _use, _clock);
+        _search = new MeaningSearchService(_ai, new LibraryAskQueries(_index), new LibraryQueries(_index), _use);
 
         // Three invented books: one with the lich on every page, one with a lich among other things, and one in a folder kept from AI.
         long[] ids;

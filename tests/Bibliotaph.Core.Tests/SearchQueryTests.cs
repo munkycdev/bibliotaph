@@ -37,6 +37,7 @@ public class SearchQueryTests
     [InlineData("isbn:978-1-23-456789-7", "isbn:9781234567897")]
     [InlineData("isbn:123456789x", "isbn:9781234567897")]
     [InlineData("-isbn:Unknown", "-isbn:unknown")]
+    [InlineData("about:\"a haunted lighthouse\" system:5e", "AND(about:\"a haunted lighthouse\", system:5e)")]
     [InlineData("http://example.com", "http://example.com")]
     [InlineData("or nor", "AND(or, nor)")]
     public void Parses(string text, string expected) => Assert.Equal(expected, Tree(text));
@@ -153,6 +154,15 @@ public class SearchQueryTests
     [InlineData("favorite:ye*")]
     public void A_favorite_that_isnt_yes_or_no_is_reported(string text) =>
         Assert.Contains("favorite: can be yes or no", OnlyIssue(text).Message, StringComparison.Ordinal);
+
+    [Fact]
+    public void About_ranks_rather_than_filters_so_it_cant_be_left_out()
+    {
+        var query = SearchQuery.Parse("-about:horror lighthouse");
+
+        Assert.Equal("lighthouse", query.Root!.ToString());
+        Assert.Contains("about: finds by meaning", Assert.Single(query.Issues).Message, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void Opened_that_isnt_yes_or_no_is_reported() =>

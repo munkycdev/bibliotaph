@@ -518,6 +518,41 @@ public sealed class LibraryQueriesTests : IndexFixture
     public async Task The_inside_documents_tab_needs_words_to_look_for(string query) =>
         Assert.Same(PageResults.None, await _library.SearchPagesAsync(Plan(query), new LibraryFilter(), ct: Ct));
 
+    long PageId(long document, int pdfPage) =>
+        Connection.ExecuteScalar<long>("SELECT id FROM page WHERE document_id = @document AND pdf_page = @pdfPage", new { document, pdfPage });
+
+    [Fact]
+    public async Task Pages_ranked_by_meaning_keep_their_order_group_by_book_and_still_take_the_filters()
+    {
+        RankedPageHit[] ranked =
+        [
+            new(PageId(Lairs, 1), "maps of a lair"), new(PageId(Gazetteer, 3), "it wakes"), new(PageId(HauntedInn, 0), "a secret door"),
+            new(PageId(Gazetteer, 1), "the mill"),
+        ];
+
+        var results = await _library.RankedPagesAsync(ranked, Plan("about:\"sleeping dragons\""), new LibraryFilter(), ct: Ct);
+
+        Assert.Equal([Lairs, Gazetteer, HauntedInn], results.Entries.Select(e => e.Entry.DocumentId));
+        var gazetteer = results.Entries.Single(e => e.Entry.DocumentId == Gazetteer);
+        Assert.Equal([3, 1], gazetteer.Pages.Select(p => p.PdfPage));
+        Assert.Equal(["it wakes", "the mill"], gazetteer.Pages.Select(p => p.Snippet));
+        Assert.Equal((3, 4L), (results.MatchingEntries, results.MatchingPages));
+
+        var filtered = await _library.RankedPagesAsync(ranked, Plan("about:\"sleeping dragons\" -title:lairs"), new LibraryFilter(), ct: Ct);
+        Assert.Equal([Gazetteer, HauntedInn], filtered.Entries.Select(e => e.Entry.DocumentId));
+        Assert.Same(PageResults.None, await _library.RankedPagesAsync([], Plan("about:dragons"), new LibraryFilter(), ct: Ct));
+    }
+
+    [Fact]
+    public void About_is_kept_apart_from_the_words_the_index_matches()
+    {
+        var plan = Plan("about:\"a sleeping dragon\" tavern about:mill");
+
+        Assert.Equal("a sleeping dragon mill", plan.About);
+        Assert.Equal(Plan("tavern").TextMatch, plan.TextMatch);
+        Assert.False(Plan("about:mill").IsEmpty);
+    }
+
     [Fact]
     public async Task Pages_from_ocr_say_so()
     {

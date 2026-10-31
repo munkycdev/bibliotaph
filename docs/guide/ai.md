@@ -139,13 +139,14 @@ themes and creatures in each chapter, with the pages they're on.
 ## Reading your library for meaning
 
 With an embedding model set, Bibliotaph slowly reads every book in your library for meaning in the background, so
-[a question to your library](searching.md#ask-your-library-a-question) can find a page by what it means, not only by
-its words. For a large library this takes hours. It goes last: it waits while you're using the AI (asking a question,
+[a question to your library](searching.md#ask-your-library-a-question) and [`about:` in the search
+box](searching.md#search-by-meaning) can find a page by what it means, not only by its words. For a large library this takes hours. It goes last: it waits while you're using the AI (asking a question,
 say) and for a little after, gives way to a book you've just opened, and carries on where it was after you restart
 Bibliotaph. Books in folders kept from AI are left out.
 
 **Settings > AI > Read the whole library for meaning** shows how many pages are read so far. Untick **Read the library
-for meaning in the background** to stop it; questions to your library then find the remaining pages by their words.
+for meaning in the background** to stop it; questions to your library and `about:` then find the remaining pages by
+their words.
 
 ---
 

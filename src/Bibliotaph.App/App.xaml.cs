@@ -264,6 +264,7 @@ public partial class App : Application
         builder.Services.AddSingleton<AskService>();
         builder.Services.AddSingleton<LibraryAskQueries>();
         builder.Services.AddSingleton<LibraryAskService>();
+        builder.Services.AddSingleton<MeaningSearchService>();
         builder.Services.AddSingleton<ExampleFinder>();
         builder.Services.AddSingleton<ClassifierInputs>();
         builder.Services.AddSingleton<ClassificationResults>();

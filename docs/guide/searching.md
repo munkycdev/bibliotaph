@@ -29,6 +29,7 @@ While Bibliotaph is still reading your library, the results say how much is cove
 | `undead -vampire` | The first word but not the second. |
 | `lantern*` | Words starting with "lantern". |
 | `type:adventure level:3` | Fields, which narrow by a book's details. Mix them with words. |
+| `about:"a haunted lighthouse"` | Pages and books about that, in your own words, found by meaning. See [Search by meaning](#search-by-meaning). |
 
 ### The search guide
 
@@ -41,6 +42,7 @@ guide at any time, and **Esc** closes it (press **Esc** again to clear the searc
 
 | Field | Finds | Example |
 | --- | --- | --- |
+| `about:` | What it's about, in your own words, found by meaning (see [Search by meaning](#search-by-meaning)) | `about:"a haunted lighthouse"` |
 | `title:` | Words in the title | `title:abbey` |
 | `system:` | A game system, or an edition, by any of its names | `system:5e` |
 | `edition:` | An edition of a game system | `edition:pf2e` |
@@ -72,6 +74,23 @@ Any field also takes `unknown`, for books where nobody knows yet: `system:unknow
 A level filter only matches books whose levels are known, unless you say otherwise.
 
 If something you type can't be understood, the search says what and where, and keeps what you typed.
+
+## Search by meaning
+
+`about:` finds what your books are *about*, not just the words on their pages. `about:"something creepy in a
+lighthouse"` finds pages about dread and haunted lights even when they never say "creepy". Put what you mean in
+quotes after it, in your own words.
+
+- **It ranks rather than filters.** Inside documents shows the pages that come closest first, at most three from a
+  book, and Documents shows their books in the same order when the order is **Best match**.
+- **Fields and words still narrow it.** `about:"a heist gone wrong" system:5e level:3` ranks only the 5th-edition
+  books for level 3. A plain word must still be on the page: `harbour about:smugglers` ranks the pages that say
+  "harbour" by how much they are about smugglers.
+- **It can't be left out.** `-about:` isn't a search; leave out a word or a field instead, like `-theme:horror`.
+- **It needs an embedding model for meaning.** With one chosen in [Settings > AI](ai.md#reading-your-library-for-meaning),
+  your words are turned into a vector by that model (only your words: nothing of your books is sent), and pages are
+  found by meaning once they've been read for it. Pages not read yet, and every page without an embedding model,
+  are found by any of your words instead, and a line over the results says so.
 
 ## Ask in plain English
 
