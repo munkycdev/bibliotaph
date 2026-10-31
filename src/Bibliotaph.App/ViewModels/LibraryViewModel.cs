@@ -67,6 +67,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     readonly LibraryPackView _packView;
     readonly WebShelfCache _shelf;
     readonly TourViewModel _tour;
+    readonly MeaningSearchService _meaning;
+    // How about: found the results shown, when the search has one and meaning didn't cover everything.
+    string? _meaningNote;
     // Whether the order shown was chosen for a search, so the order changes only when searching starts or stops.
     bool _sortSearching;
 
@@ -75,9 +78,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         PackService packs, ElsewhereService elsewhere, FavoritesService favorites, CollectionActions collections, SessionActions sessions,
         SmartViewDirectory views, LibraryPages pages, BookTextActions text, PinDirectory pins, CorrectionService corrections, AskService ask,
         ChosenCovers chosenCovers, LibraryAskScope askScope, IFilePicker files, InspectorFactory inspectors, LibrarySelectionFactory selection,
-        LibrarySorts sorts, LibraryPackView packView, WebShelfCache shelf, TourViewModel tour, TimeProvider time, ILogger<LibraryViewModel> log)
+        LibrarySorts sorts, LibraryPackView packView, WebShelfCache shelf, TourViewModel tour, MeaningSearchService meaning, TimeProvider time,
+        ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
+        _meaning = meaning;
         _shelf = shelf;
         _tour = tour;
         _files = files;
@@ -458,6 +463,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
                 var browseFacets = await CountFacetsAsync(filter, null);
                 if (version != _version) return;
                 _away = away;
+                _meaningNote = null;
                 Filters.ShowFacets(browseFacets);
                 ShowResults(entries, null, null, SearchQuery.Parse(""));
                 NotifyViewState();
@@ -466,13 +472,25 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
             var query = Search.Query;
             var plan = SearchPlan.From(query);
-            var documents = Task.Run(() => _queries.SearchDocumentsAsync(plan, filter));
-            var pages = Task.Run(() => _queries.SearchPagesAsync(plan, filter));
-            var found = await documents;
-            var pageResults = await pages;
+            IReadOnlyList<LibraryEntry> found;
+            PageResults pageResults;
+            string? note = null;
+            if (plan.About is not null)
+            {
+                var meaning = await Task.Run(() => _meaning.SearchAsync(query, plan, filter));
+                (found, pageResults, note) = (meaning.Documents, meaning.Pages, meaning.Note);
+            }
+            else
+            {
+                var documents = Task.Run(() => _queries.SearchDocumentsAsync(plan, filter));
+                var pages = Task.Run(() => _queries.SearchPagesAsync(plan, filter));
+                found = await documents;
+                pageResults = await pages;
+            }
             var facets = await CountFacetsAsync(filter, plan);
             if (version != _version) return;
             _away = away;
+            _meaningNote = note;
             Filters.ShowFacets(facets);
             ShowResults(found, pageResults, plan, query);
             NotifyViewState();
@@ -529,9 +547,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         }
 
         DocumentsTabLabel = $"Documents · {documents.Count.ToString("N0", CultureInfo.CurrentCulture)}";
-        PagesTabLabel = plan.TextMatch is null ? "Inside documents" : $"Inside documents · {pages.MatchingPages.ToString("N0", CultureInfo.CurrentCulture)}";
+        PagesTabLabel = plan.TextMatch is null && plan.About is null ? "Inside documents" : $"Inside documents · {pages.MatchingPages.ToString("N0", CultureInfo.CurrentCulture)}";
         var progress = Activity.Progress;
-        Coverage = Tab == ResultsTab.Pages && progress.Searchable < progress.Documents ? CoverageText(progress) : null;
+        Coverage = _meaningNote ?? (Tab == ResultsTab.Pages && progress.Searchable < progress.Documents ? CoverageText(progress) : null);
         var forQuery = $"for “{Search.Text}”";
 
         if (Tab == ResultsTab.Documents)
@@ -551,7 +569,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             + $"{(pages.MatchingEntries == 1 ? "document" : "documents")} {forQuery}";
         if (pages.Entries.Count < pages.MatchingEntries)
             CountLabel += $", best {pages.Entries.Count.ToString("N0", CultureInfo.CurrentCulture)} shown";
-        if (plan.TextMatch is null)
+        if (plan.TextMatch is null && plan.About is null)
             SetEmpty(("Inside documents looks for words.", "Add a word to search the pages, or see the matching books on the Documents tab.",
                 "Show documents", ShowDocumentsCommand));
         else SetEmpty(Hits.Count > 0 ? null : NoResults(filtered));

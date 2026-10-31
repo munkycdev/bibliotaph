@@ -42,6 +42,7 @@ static partial class Composition
         services.AddSingleton<AskService>();
         services.AddSingleton<LibraryAskQueries>();
         services.AddSingleton<LibraryAskService>();
+        services.AddSingleton<MeaningSearchService>();
         services.AddSingleton<ExampleFinder>();
         services.AddSingleton<ClassifierInputs>();
         services.AddSingleton<ClassificationResults>();

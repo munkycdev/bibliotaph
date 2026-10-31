@@ -79,8 +79,14 @@ public sealed record SearchPlan
     public IReadOnlyList<OpenedCondition> Opened { get; init; } = [];
     public IReadOnlyList<IsbnCondition> Isbns { get; init; } = [];
 
+    /// <summary>
+    /// What <c>about:</c> asks for, in the user's words (several joined by spaces), or null. It isn't SQL: the pages and
+    /// books it finds are ranked by meaning and words outside the database and handed back as ids.
+    /// </summary>
+    public string? About { get; init; }
+
     /// <summary>True when the query asks for nothing at all, so the library shows everything.</summary>
-    public bool IsEmpty => TextMatch is null && TextExclude is null && FieldMatch is null && FieldExclude is null
+    public bool IsEmpty => About is null && TextMatch is null && TextExclude is null && FieldMatch is null && FieldExclude is null
         && Formats.Count == 0 && ExcludedFormats.Count == 0 && Folders.Count == 0 && ExcludedFolders.Count == 0
         && Facets.Count == 0 && Levels.Count == 0 && Players.Count == 0 && Scopes.Count == 0 && Wheres.Count == 0 && Opened.Count == 0 && Isbns.Count == 0;
 
@@ -141,6 +147,7 @@ public sealed record SearchPlan
         var wheres = new List<WhereCondition>();
         var opened = new List<OpenedCondition>();
         var isbns = new List<IsbnCondition>();
+        var about = new List<string>();
         var formats = new List<string>();
         var excludedFormats = new List<string>();
         var folders = new List<string>();
@@ -192,6 +199,9 @@ public sealed record SearchPlan
                     case SearchField.Opened:
                         opened.Add(new OpenedCondition(negated != (value == SearchQuery.Yes)));
                         break;
+                    case SearchField.About when !negated:
+                        about.Add(value);
+                        break;
                 }
             }
             else if (negated) excluded.Add(node);
@@ -219,6 +229,7 @@ public sealed record SearchPlan
             Wheres = wheres,
             Opened = opened,
             Isbns = isbns,
+            About = about.Count == 0 ? null : string.Join(' ', about),
         };
     }
 

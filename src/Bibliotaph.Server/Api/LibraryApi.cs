@@ -133,8 +133,9 @@ public static class LibraryApi
         var parsed = SearchQuery.Parse(searching ? text : "");
         var plan = searching ? SearchPlan.From(parsed) : null;
 
-        var documents = plan is null ? await queries.ListAsync(filter, ct: ct) : await queries.SearchDocumentsAsync(plan, filter, ct: ct);
-        var pages = plan is null ? null : await queries.SearchPagesAsync(plan, filter, ct: ct);
+        var meaning = plan?.About is null ? null : await library.Get<MeaningSearchService>().SearchAsync(parsed, plan, filter, ct);
+        var documents = meaning?.Documents ?? (plan is null ? await queries.ListAsync(filter, ct: ct) : await queries.SearchDocumentsAsync(plan, filter, ct: ct));
+        var pages = meaning?.Pages ?? (plan is null ? null : await queries.SearchPagesAsync(plan, filter, ct: ct));
         var menus = await MenusAsync(library, filter, plan, query, ct);
         var filtered = IsFiltering(query);
         var issue = parsed.Issues.Count == 0 ? null : CardText.Issue(parsed, parsed.Issues[0]);
@@ -162,7 +163,7 @@ public static class LibraryApi
         }
 
         var documentsTab = $"Documents · {N(documents.Count)}";
-        var pagesTab = plan.TextMatch is null ? "Inside documents" : $"Inside documents · {N(pages.MatchingPages)}";
+        var pagesTab = plan.TextMatch is null && plan.About is null ? "Inside documents" : $"Inside documents · {N(pages.MatchingPages)}";
         var forQuery = $"for “{text}”";
         EmptyLibrary NoResults() => filtered
             ? new("Nothing here. Yet.", "Try fewer or shorter words, or clear the filters.", "clear-all", "Clear search and filters")
@@ -170,16 +171,16 @@ public static class LibraryApi
 
         if (!query.IsPagesTab)
             return new LibraryResults([.. documents.Select(Card)], [], N(documents.Count), $"{(documents.Count == 1 ? "document" : "documents")} {forQuery}",
-                documentsTab, pagesTab, issue, null, documents.Count > 0 ? null : NoResults(), menus, scopeText);
+                documentsTab, pagesTab, issue, meaning?.Note, documents.Count > 0 ? null : NoResults(), menus, scopeText);
 
         var progress = await library.Get<IndexQueries>().GetProgressAsync(ct);
-        var coverage = progress.Searchable < progress.Documents ? CardText.Coverage(progress) : null;
+        var coverage = meaning?.Note ?? (progress.Searchable < progress.Documents ? CardText.Coverage(progress) : null);
         var matches = pages.Entries.Select(d => new BookMatches(Card(d.Entry),
             [.. d.Pages.Select(p => new PageMatch(p.PdfPage, CardText.Where(p), p.Snippet, CardText.Source(p), p.DocumentId))],
             CardText.MorePages(d.MatchingPages, d.Pages.Count))).ToList();
         var label = $"matching {(pages.MatchingPages == 1 ? "page" : "pages")} in {N(pages.MatchingEntries)} {(pages.MatchingEntries == 1 ? "document" : "documents")} {forQuery}";
         if (pages.Entries.Count < pages.MatchingEntries) label += $", best {N(pages.Entries.Count)} shown";
-        var emptyPages = plan.TextMatch is null
+        var emptyPages = plan.TextMatch is null && plan.About is null
             ? new EmptyLibrary("Inside documents looks for words.", "Add a word to search the pages, or see the matching books on the Documents tab.",
                 "show-documents", "Show documents")
             : matches.Count > 0 ? null : NoResults();

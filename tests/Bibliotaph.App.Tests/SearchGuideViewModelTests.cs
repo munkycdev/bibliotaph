@@ -113,7 +113,7 @@ public class SearchGuideViewModelTests
         _guide.PickCommand.Execute(_guide.Suggestions[0]);
 
         Assert.Equal(SearchFields.All.Count, _guide.Suggestions.Count);
-        Assert.Equal([new GuideEdit("dragon title:", 13)], _edits);
+        Assert.Equal([new GuideEdit("dragon about:", 13)], _edits);
     }
 
     [Fact]

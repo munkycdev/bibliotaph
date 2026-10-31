@@ -214,6 +214,7 @@ public static class LibraryServices
         services.AddSingleton<PlainSearchService>();
         services.AddSingleton<LibraryAskQueries>();
         services.AddSingleton<LibraryAskService>();
+        services.AddSingleton<MeaningSearchService>();
         services.AddSingleton<LibraryVectors>();
         services.AddSingleton<IStageCatalog, StageCatalog>();
         services.AddSingleton(new IndexingOptions { OnlineOnlyReserveBytes = 0, Foreground = host.Foreground });

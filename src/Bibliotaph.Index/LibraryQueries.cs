@@ -214,6 +214,9 @@ public sealed record ValueCount(string Value, string Label, long Count, string N
 /// <summary>A page that matched, with its indexed text quoted around the hits. Hits sit between <see cref="LibraryQueries.HitStart"/> and <see cref="LibraryQueries.HitEnd"/>.</summary>
 public sealed record PageHit(EntryId EntryId, long DocumentId, int PdfPage, string? Label, string Snippet, bool FromOcr);
 
+/// <summary>A page ranked outside the database, for <see cref="LibraryQueries.RankedPagesAsync"/>, with the snippet to show for it.</summary>
+public sealed record RankedPageHit(long PageId, string Snippet);
+
 public sealed record EntryHits(LibraryEntry Entry, IReadOnlyList<PageHit> Pages, long MatchingPages);
 
 /// <summary>Inside-documents results: the best pages of the best books, and how many matched in all.</summary>
@@ -557,9 +560,64 @@ public sealed class LibraryQueries(IndexDatabase database)
         SearchPlan plan, LibraryFilter filter, int maxDocuments = 100, int pagesPerDocument = 3, CancellationToken ct = default)
     {
         if (plan.TextMatch is not { } match) return PageResults.None;
-
         var where = new Where(filter, plan, titleAsFilter: true);
         where.Parameters.Add("match", match);
+        const string matched = """
+            SELECT p.document_id AS doc, p.pdf_page AS pdf_page, p.id AS page_id, page_fts.rank AS score
+            FROM page_fts JOIN page p ON p.id = page_fts.rowid
+            WHERE page_fts MATCH @match
+            """;
+        return await PagesAsync(matched, where, filter, maxDocuments, pagesPerDocument, async (connection, ids) =>
+            (await connection.QueryAsync<HitRow>(new CommandDefinition(
+                """
+                SELECT p.id AS PageId, p.document_id AS DocumentId, p.pdf_page AS PdfPage, p.label AS Label, p.text_source AS Source,
+                       snippet(page_fts, 0, @start, @end, '…', @tokens) AS Snippet
+                FROM page_fts JOIN page p ON p.id = page_fts.rowid
+                WHERE page_fts MATCH @match AND page_fts.rowid IN (SELECT value FROM json_each(@ids))
+                """,
+                new { match, start = HitStart.ToString(), end = HitEnd.ToString(), tokens = SnippetTokens, ids = JsonSerializer.Serialize(ids) },
+                cancellationToken: ct))).ToList(), ct);
+    }
+
+    /// <summary>
+    /// The Inside documents tab for pages ranked outside the database (by meaning and words, for <c>about:</c>): the same
+    /// cards, filters and grouping as <see cref="SearchPagesAsync"/>, with <paramref name="ranked"/>'s order standing in
+    /// for bm25, so a book's place is its best page's. Each page's snippet is the one given, marked as search marks its hits.
+    /// </summary>
+    public async Task<PageResults> RankedPagesAsync(
+        IReadOnlyList<RankedPageHit> ranked, SearchPlan plan, LibraryFilter filter, int maxDocuments = 100, int pagesPerDocument = 3,
+        CancellationToken ct = default)
+    {
+        if (ranked.Count == 0) return PageResults.None;
+        var where = new Where(filter, plan, titleAsFilter: true);
+        where.Parameters.Add("ranked", JsonSerializer.Serialize(ranked.Select(r => r.PageId)));
+        const string matched = """
+            SELECT p.document_id AS doc, p.pdf_page AS pdf_page, p.id AS page_id, r.key AS score
+            FROM json_each(@ranked) r JOIN page p ON p.id = r.value
+            """;
+        var snippets = ranked.GroupBy(r => r.PageId).ToDictionary(g => g.Key, g => g.First().Snippet);
+        return await PagesAsync(matched, where, filter, maxDocuments, pagesPerDocument, async (connection, ids) =>
+            [.. (await connection.QueryAsync<HitRow>(new CommandDefinition(
+                """
+                SELECT p.id AS PageId, p.document_id AS DocumentId, p.pdf_page AS PdfPage, p.label AS Label, p.text_source AS Source
+                FROM page p WHERE p.id IN (SELECT value FROM json_each(@ids))
+                """,
+                new { ids = JsonSerializer.Serialize(ids) }, cancellationToken: ct)))
+                .Select(h => new HitRow
+                {
+                    PageId = h.PageId, DocumentId = h.DocumentId, PdfPage = h.PdfPage, Label = h.Label, Source = h.Source,
+                    Snippet = snippets.GetValueOrDefault(h.PageId) ?? "",
+                })], ct);
+    }
+
+    /// <summary>
+    /// Both page tabs' grouping: the <paramref name="matched"/> pages (doc, pdf_page, page_id and a score, lower is better)
+    /// given to the cards that show them, at most <paramref name="pagesPerDocument"/> a card, best card first, with the
+    /// hits <paramref name="hits"/> reads for the pages returned.
+    /// </summary>
+    async Task<PageResults> PagesAsync(string matched, Where where, LibraryFilter filter, int maxDocuments, int pagesPerDocument,
+        Func<Microsoft.Data.Sqlite.SqliteConnection, IEnumerable<long>, Task<List<HitRow>>> hits, CancellationToken ct)
+    {
         where.Parameters.Add("perDocument", pagesPerDocument);
         // While each file has a card of its own, its pages are its own card's; otherwise they are the pack's.
         var inPacks = filter.PackFiles ? "" : $"""
@@ -573,9 +631,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             """;
         var sql = $"""
             WITH matched AS (
-                SELECT p.document_id AS doc, p.pdf_page AS pdf_page, p.id AS page_id, page_fts.rank AS score
-                FROM page_fts JOIN page p ON p.id = page_fts.rowid
-                WHERE page_fts MATCH @match
+                {matched}
             ),
             owned AS (
                 SELECT coalesce(e.pack_file, e.entry_id) AS entry, e.kind AS kind, m.page_id, m.score
@@ -614,33 +670,17 @@ public sealed class LibraryQueries(IndexDatabase database)
         var matchingPages = books.Sum(b => b.Pages);
         var shown = books.Take(maxDocuments).ToList();
 
-        var hits = (await connection.QueryAsync<HitRow>(new CommandDefinition(
-            """
-            SELECT p.id AS PageId, p.document_id AS DocumentId, p.pdf_page AS PdfPage, p.label AS Label, p.text_source AS Source,
-                   snippet(page_fts, 0, @start, @end, '…', @tokens) AS Snippet
-            FROM page_fts JOIN page p ON p.id = page_fts.rowid
-            WHERE page_fts MATCH @match AND page_fts.rowid IN (SELECT value FROM json_each(@ids))
-            """,
-            new
-            {
-                match,
-                start = HitStart.ToString(),
-                end = HitEnd.ToString(),
-                tokens = SnippetTokens,
-                ids = JsonSerializer.Serialize(shown.SelectMany(b => b.PageIds)),
-            },
-            cancellationToken: ct))).ToDictionary(h => h.PageId);
-
+        var found = (await hits(connection, shown.SelectMany(b => b.PageIds))).ToDictionary(h => h.PageId);
         var entries = (await GetEntriesAsync(connection, shown.Select(b => b.Entry), ct, filter.PartsInBooks, filter.PackFiles)).ToDictionary(e => e.CardId.Value);
-        var found = shown
+        var results = shown
             .Where(b => entries.ContainsKey(b.Entry))
             .Select(b => new EntryHits(
                 entries[b.Entry],
-                [.. b.PageIds.Where(hits.ContainsKey).Select(id => hits[id]).Select(h =>
+                [.. b.PageIds.Where(found.ContainsKey).Select(id => found[id]).Select(h =>
                     new PageHit(new EntryId(b.Entry), h.DocumentId, (int)h.PdfPage, h.Label, h.Snippet, h.Source == "ocr"))],
                 b.Pages))
             .ToList();
-        return new PageResults(found, books.Count, matchingPages);
+        return new PageResults(results, books.Count, matchingPages);
     }
 
     /// <summary>

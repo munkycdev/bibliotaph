@@ -193,6 +193,20 @@ public sealed class LibraryAskQueries(IndexDatabase database)
             yield return new LibraryPageVector(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt32(2), VectorBlob.FromBytes((byte[])reader.GetValue(3)));
     }
 
+    /// <summary>The vectors <paramref name="model"/> made of these pages at this text version; pages without one are left out.</summary>
+    public async Task<IReadOnlyList<LibraryPageVector>> GetVectorsAsync(string model, int version, IReadOnlyCollection<long> pageIds, CancellationToken ct = default)
+    {
+        if (pageIds.Count == 0) return [];
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long PageId, long DocumentId, long PdfPage, byte[] Vector)>(new CommandDefinition(
+            """
+            SELECT v.page_id, p.document_id, p.pdf_page, v.vector
+            FROM page_vec v JOIN page p ON p.id = v.page_id
+            WHERE v.model = @model AND v.version = @version AND v.page_id IN (SELECT value FROM json_each(@ids))
+            """, new { model, version, ids = JsonSerializer.Serialize(pageIds) }, cancellationToken: ct));
+        return [.. rows.Select(r => new LibraryPageVector(r.PageId, r.DocumentId, (int)r.PdfPage, VectorBlob.FromBytes(r.Vector)))];
+    }
+
     /// <summary>How many books in scope have text, and how many of their pages have text and a vector from this model and version.</summary>
     public async Task<LibraryCoverage> GetCoverageAsync(string? model, int version, PageScope scope, CancellationToken ct = default)
     {
