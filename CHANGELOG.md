@@ -8,6 +8,8 @@
   [Searching](docs/guide/searching.md#filters).
 - **Summary moved below Needs review in the sidebar**, in the Windows app and on the web, so the pages you work in come
   first. See [Summary](docs/guide/summary.md).
+- **A book no catalogue knows now says "Unable to find in any online listing."** in its details, in place of a list of
+  every catalogue asked. See [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
 
 ## 1.4 ┬╖ 28 October 2026
 

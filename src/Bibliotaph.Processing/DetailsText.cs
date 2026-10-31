@@ -213,7 +213,8 @@ public static class DetailsText
     {
         StageStatus.Complete => "Done",
         StageStatus.Partial => stage.Reason is null ? "Partly done" : $"Partly done: {stage.Reason}",
-        StageStatus.Skipped => stage.Stage is Stage.Classify or Stage.ChapterScan or Stage.Identify or Stage.LookUp && stage.Reason is { } why ? why : "Not needed",
+        StageStatus.Skipped when stage.Stage == Stage.LookUp && stage.Reason is { } why => BookLookups.Shown(why),
+        StageStatus.Skipped => stage.Stage is Stage.Classify or Stage.ChapterScan or Stage.Identify && stage.Reason is { } why ? why : "Not needed",
         // A whole-book scan waits a long time, and says how far it has got or what it waits for.
         StageStatus.Pending when stage.Stage == Stage.ChapterScan && stage.Reason is { } waiting => waiting,
         StageStatus.Pending => "Waiting",
