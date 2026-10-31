@@ -31,7 +31,8 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   its monsters (bosses first) and magic items, which plain search finds, what it includes (pre-generated characters,
   handouts, battle maps, or that it plays solo), and its edition, setting, environments and series, in your lists' terms: its "Dungeon" and "Cave" are your
   Underground, its "Town/Village" your Urban. Because of it, books that print no ISBN or product code are looked up
-  too, by title; an image, which prints no title, isn't. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
+  too, by title; an image, which prints no title, isn't. **Looking up online** in **Settings > Processing** counts
+  them all, not only the books that print an ISBN. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
   book is asked again once there's somewhere more to ask, such as when the app connects. A record is used only when
   its title is printed in the book, so a misprinted ISBN can't rename it; when it isn't, Needs review asks you
   **Same book?** about it (see below). These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and

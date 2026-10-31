@@ -7,7 +7,8 @@ namespace Bibliotaph.Processing;
 /// Finds the ISBNs and product codes a book prints about itself (<see cref="BookIdentifiers"/>), from the text already in
 /// index.db and an e-book's package, so a book can be searched for by its ISBN and named exactly by a lookup. It waits
 /// for the book's scanned pages, since a scanned back cover's barcode number is only text once OCR has read it, and it
-/// never reads the file. Another file that prints the same ISBN is proposed as a new version of it.
+/// never reads the file. Another file that prints the same ISBN is proposed as a new version of it. A book printing
+/// neither is still looked up, by its title, where a catalogue finds books by title alone.
 /// </summary>
 public sealed class IdentifyStage(IndexStore index, IndexQueries queries, VersionFinder versions) : IStage
 {
@@ -22,6 +23,8 @@ public sealed class IdentifyStage(IndexStore index, IndexQueries queries, Versio
 
     public StageNames Names => new("Finding its ISBN", "Finding its ISBN", "Working on");
 
+    public const string NothingPrinted = "No ISBN or product code printed in it.";
+
     public async Task<StageOutcome> RunAsync(JobRecord job, CancellationToken ct)
     {
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.Ocr, ct) is StageStatus.Pending or StageStatus.Running)
@@ -30,6 +33,6 @@ public sealed class IdentifyStage(IndexStore index, IndexQueries queries, Versio
         var identifiers = BookIdentifiers.Find(await queries.GetAllPageTextsAsync(job.DocumentId, ct), await queries.GetPackageIsbnAsync(job.DocumentId, ct));
         await index.SetIdentifiersAsync(job.DocumentId, identifiers, ct);
         if (identifiers.Any(i => i.Kind == IdentifierKind.Isbn)) await versions.ProposeByIsbnAsync(job.DocumentId, ct);
-        return identifiers.Count > 0 ? StageOutcome.Complete() : new StageOutcome.Done(StageStatus.Skipped, [], "No ISBN or product code printed in it.");
+        return identifiers.Count > 0 ? StageOutcome.Complete() : new StageOutcome.Done(StageStatus.Skipped, [Stage.LookUp], NothingPrinted);
     }
 }
