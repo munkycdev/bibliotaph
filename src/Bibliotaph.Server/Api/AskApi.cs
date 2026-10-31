@@ -42,7 +42,7 @@ public static class AskApi
                 var result = await search.InterpretAsync(asked.Question, ct);
                 return result.Interpretation is { } reading
                     ? new AskReading([.. reading.Parts.Select(p => new AskChip(p.Field?.Name, p.Value, p.Exclude))], reading.Notes, null)
-                    : new AskReading([], [], result.Problem, NeedsAi: !search.IsReady);
+                    : new AskReading([], [], result.Problem);
             }
             catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException))
             {

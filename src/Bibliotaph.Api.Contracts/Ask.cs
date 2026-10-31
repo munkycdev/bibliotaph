@@ -66,7 +66,7 @@ public sealed record AskUpdate
     public AskTurn? Turn { get; init; }
 }
 
-/// <summary>Whether Ask in the top bar can read a request or answer a question: AI is set up and on.</summary>
+/// <summary>Whether Ask in the top bar can answer a question from the books: AI is set up and on. Requests are read without it too.</summary>
 public sealed record AskStatus(bool Ready);
 
 /// <summary>A question to the books the Library shows: its filters and the search box's fields in <see cref="Scope"/>.</summary>
@@ -74,9 +74,9 @@ public sealed record AskLibraryQuestion(string Question, LibraryQuery Scope);
 
 /// <summary>
 /// A request read as a search: the chips, each a field and its value or words to find, and notes on anything changed
-/// or left out. Or why there is no reading: <see cref="NeedsAi"/> when AI is off.
+/// or left out. Or why there is no reading.
 /// </summary>
-public sealed record AskReading(IReadOnlyList<AskChip> Parts, IReadOnlyList<string> Notes, string? Problem, bool NeedsAi = false);
+public sealed record AskReading(IReadOnlyList<AskChip> Parts, IReadOnlyList<string> Notes, string? Problem);
 
 /// <summary>One chip: the search field's name ("system"), or null for words to find, its value, and whether it leaves the value out.</summary>
 public sealed record AskChip(string? Field, string Value, bool Exclude);

@@ -97,7 +97,7 @@ quotes after it, in your own words.
 
 ## Ask in plain English
 
-With AI set up, the sparkle button beside the search box switches it to **Ask**. Type what you're after the way you'd
+The sparkle button beside the search box switches it to **Ask**. Type what you're after the way you'd
 say it, for example "Mothership, level 4, jungle world with terraforming", and press **Enter**. Typing doesn't search
 while Ask is on; nothing happens until you press **Enter**.
 
@@ -111,15 +111,20 @@ ignored." Click **Search** and the chips go into the search box as an ordinary s
 any other.
 
 Ask only uses fields and words you could have typed yourself, and only your own words: it never adds a game system,
-level or tag you didn't ask for. Click the button again to go back to ordinary searching. Without AI, Ask says it
-needs AI, with a link to [set it up](ai.md).
+level or tag you didn't ask for. Click the button again to go back to ordinary searching.
+
+Without AI, Ask still reads your request, by rules instead: it picks out the names in your
+[vocabulary](cataloging.md#vocabulary) (game systems, types, themes and so on, plurals included), levels ("level 4", "levels 3 to
+5", "5th-level"), players ("four players", "a party of 5", "solo"), favorites, PDFs and anything you leave out ("not
+horror", "without maps"). A phrase in quotes becomes words a book must have, and the rest becomes the `about:` chip.
+A note under the chips says it was read without AI. [Setting AI up](ai.md) lets Ask read requests more fully.
 
 ## Ask your library a question
 
 In Ask mode you can also ask a question about what's *in* your books, such as "how does grappling work?" or "which
 adventures have a lich in a crypt?". Type it and press **Ctrl+Enter**, or click **Answer from my books**. Bibliotaph
 looks through the pages of your books, picks the few that answer it best (no more than three from any one book), and
-the AI answers from those pages only.
+the AI answers from those pages only. This needs AI: without it, Ask says so, with a link to set it up.
 
 - **Each claim cites its book and page**, like *[The Sunken Keep, p. 112]*. Click it to open that book at that page,
   with the quoted words marked. The pages it read are listed under the answer, and each opens its page too.

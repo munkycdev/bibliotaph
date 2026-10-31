@@ -11,9 +11,10 @@ namespace Bibliotaph.App.Services;
 static partial class SmokeTest
 {
     /// <summary>
-    /// With AI off, the Ask button opens Ask's panel saying it needs AI, with its link to Settings > AI; typing a
-    /// request doesn't search, and Enter still only says it needs AI. The link opens Settings > AI and leaves Ask.
-    /// Back in the Library the search box searches as it always has, and Esc leaves Ask keeping the text.
+    /// With AI off, the Ask button opens Ask's panel; typing a request doesn't search, and Enter reads it by rules into
+    /// chips that say they were read without AI. Answer from my books says it needs AI, with its link to Settings > AI,
+    /// which opens Settings > AI and leaves Ask. Back in the Library the search box searches as it always has, and Esc
+    /// leaves Ask keeping the text.
     /// </summary>
     static async Task PlainSearchWithoutAiAsync(IServiceProvider services, Window window, int books)
     {
@@ -30,18 +31,25 @@ static partial class SmokeTest
         if (shell.PlainSearch.IsOn || panel.IsVisible || search.IsSearching) throw new InvalidOperationException("Ask is on, or a search is running, before the Ask check.");
 
         Click(window.FindName("PlainSearchButton") as Button, "Ask");
-        await WaitUntilAsync(window, () => shell.PlainSearch is { IsOn: true, NeedsAi: true } && panel.IsVisible && message.Text == PlainSearchText.NeedsAi && Shown(window, "PlainSearchSetUpAi"),
-            () => $"With AI off, the Ask button showed “{message.Text}” (panel showing {panel.IsVisible}), not that Ask needs AI with a link to set it up.");
+        await WaitUntilAsync(window, () => shell.PlainSearch is { IsOn: true, NeedsAi: false } && panel.IsVisible && Shown(window, "LibraryAskButton")
+                && !Shown(window, "PlainSearchSetUpAi"),
+            () => $"With AI off, the Ask button showed “{message.Text}” (panel showing {panel.IsVisible}), not Ask ready to read a request.");
 
-        // A request is read on Enter, never searched as it is typed; without AI, Enter only says Ask needs AI.
+        // A request is read on Enter, never searched as it is typed; without AI, by rules, and the reading says so.
         box.Text = "Mothership, level 4, jungle world with terraforming";
         await Task.Delay(500);
         await Settle(window);
         if (search.IsSearching) throw new InvalidOperationException($"Typing a request in Ask searched for “{search.Text}”.");
         Press(box, Key.Enter);
-        await WaitUntilAsync(window, () => shell.PlainSearch is { NeedsAi: true, Parts.Count: 0 } && !search.IsSearching,
-            () => $"Enter in Ask with AI off left “{message.Text}” and searched {search.IsSearching}.");
+        await WaitUntilAsync(window, () => shell.PlainSearch is { IsInterpreted: true, Parts.Count: > 0 } && shell.PlainSearch.Notes.Contains(PlainSearchText.ReadByRules)
+                && shell.PlainSearch.Parts.Any(p => p.Field?.Field == Bibliotaph.Core.Search.SearchField.About) && !search.IsSearching,
+            () => $"Enter in Ask with AI off left “{message.Text}” with {shell.PlainSearch.Parts.Count} chips ({shell.PlainSearch.QueryText}) and searched {search.IsSearching}.");
         await AuditAsync(window, "Ask with AI off");
+
+        // Answering from the books needs AI, and says so with the link to set it up.
+        Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "LibraryAskButton"), "Answer from my books");
+        await WaitUntilAsync(window, () => shell.PlainSearch is { NeedsAi: true, Parts.Count: 0 } && message.Text == PlainSearchText.NeedsAi && Shown(window, "PlainSearchSetUpAi"),
+            () => $"Answer from my books with AI off showed “{message.Text}”, not that it needs AI with a link to set it up.");
 
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "PlainSearchSetUpAi"), "Ask's Set AI up");
         await ExpectSettingsAsync(window, shell, SettingsSection.Ai, "Ask's Set AI up link");
