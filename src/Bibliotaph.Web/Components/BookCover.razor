@@ -1,4 +1,4 @@
-@* .bt-bookcover, as the Windows app's Cover template: the book's own cover, a pack's mosaic, or a plain one with its
+@* .bt-bookcover: the book's own cover, a pack's mosaic, or a plain one with its
    initial while there is none; with the marks for a book owned elsewhere, away, locked, found inside its book or read by AI. *@
 <div class="bt-bookcover @(Book.Availability.Length > 0 ? "away" : "")">
     @if (Book.Mosaic.Count > 0)

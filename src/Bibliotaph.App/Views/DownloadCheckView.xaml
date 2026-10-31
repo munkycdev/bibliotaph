@@ -7,7 +7,7 @@
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:DownloadCheckViewModel}">
-  <!-- Check a download (F5b): a folder or ZIP checked against the library, grouped by verdict, New first. -->
+  <!-- Check a download: a folder or ZIP checked against the library, grouped by verdict, New first. -->
   <StackPanel MaxWidth="860" HorizontalAlignment="Left" Margin="0,0,42,24">
     <TextBlock Text="Check a download." Style="{StaticResource Text.H1}" />
     <TextBlock Style="{StaticResource Text.Subtitle}" Margin="0,9,0,24" TextWrapping="Wrap"

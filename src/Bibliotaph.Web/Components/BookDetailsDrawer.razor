@@ -1,4 +1,4 @@
-@* .bt-drawer: a book's details, as the Windows app's details drawer shows them and changes them. Esc, the close button or a click outside closes it. *@
+@* .bt-drawer: a book's details. Esc, the close button or a click outside closes it. *@
 @implements IAsyncDisposable
 @inject ApiClient Api
 @inject CollectionActions Collections
@@ -82,7 +82,7 @@
             <div class="bt-detailbuttons">
                 @if (book.Card.OnlineLink is { } online)
                 {
-                    @* As the Windows app's: the book's page where it's owned online, in a tab of its own. *@
+                    @* The book's page where it's owned online, in a tab of its own. *@
                     <a class="bt-button" href="@online" target="_blank" rel="noopener noreferrer" title="@online"><Icon Name="SquareArrowOutUpRight" />Open on @(book.Card.OnlineLabel ?? "the web")</a>
                 }
                 @if (book.CanAsk)
@@ -620,7 +620,7 @@
     [Parameter] public EventCallback Changed { get; set; }
 
     /// <summary>
-    /// A change whose note belongs to the library rather than these details, as on Windows: a pack split into its files,
+    /// A change whose note belongs to the library rather than these details: a pack split into its files,
     /// or the books from the same folder corrected too. The library shows it with its Undo.
     /// </summary>
     [Parameter] public EventCallback<ActionResult> Done { get; set; }
@@ -773,7 +773,7 @@
         _noteText = notes.Text;
     }
 
-    /// <summary>Saved as you type, a moment after the typing stops, as on Windows.</summary>
+    /// <summary>Saved as you type, a moment after the typing stops.</summary>
     void NoteTyped(ChangeEventArgs e)
     {
         _noteText = e.Value as string ?? "";
@@ -991,10 +991,10 @@
         await LoadAsync();
     }
 
-    /// <summary>The library shows what Add to binder did, with its Undo, as on Windows.</summary>
+    /// <summary>The library shows what Add to binder did, with its Undo.</summary>
     Task AddedToBinderAsync(ActionResult result) => Done.InvokeAsync(result);
 
-    /// <summary>A chip opens its collection in the library, as on Windows.</summary>
+    /// <summary>A chip opens its collection in the library.</summary>
     async Task OpenCollectionAsync(long collectionId)
     {
         await Close();
@@ -1082,7 +1082,7 @@
         await ChangedAsync();
     }
 
-    /// <summary>The library says the book went, with Undo, as on Windows.</summary>
+    /// <summary>The library says the book went, with Undo.</summary>
     async Task RemoveFromLibraryAsync()
     {
         if (await TryAsync(() => Api.RemoveElsewhereAsync(EntryId)) is not { } result) return;

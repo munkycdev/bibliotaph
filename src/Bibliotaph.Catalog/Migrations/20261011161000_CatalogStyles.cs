@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Bibliotaph.Catalog.Migrations;
 
 /// <summary>
-/// Style splits off Themes (scenario review, row 6): the starter themes that name a kind of adventure (heist, dungeon
+/// Style splits off Themes: the starter themes that name a kind of adventure (heist, dungeon
 /// crawl, exploration) become style terms with their keys, labels and aliases, and every value, rejection and switched-off
 /// folder label of theirs moves with them. Saved searches that asked for them by key ask for the style instead. Aliases
 /// that now belong to new starter terms leave the old ones: hexcrawl and pointcrawl leave exploration, jungle leaves

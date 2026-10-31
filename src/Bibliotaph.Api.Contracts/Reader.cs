@@ -26,7 +26,7 @@ public sealed record ReaderBook(long EntryId, long DocumentId, string Title, str
     IReadOnlyList<string?> Labels, int PageCount, int StartPage, ReaderPart? Part, IReadOnlyList<string> Marks, bool Favorite,
     ReaderProblem? Problem = null, string? Notice = null)
 {
-    /// <summary>The file's contents, as the Windows reader's contents panel lists them.</summary>
+    /// <summary>The file's contents.</summary>
     public IReadOnlyList<ReaderOutline> Outline { get; init; } = [];
 
     /// <summary>An ordinary read, whose page is kept as the reader moves, so the book opens there next time.</summary>
@@ -101,7 +101,7 @@ public sealed record ReaderPart(int FirstPage, int LastPage)
             : "outside this adventure";
 }
 
-/// <summary>Why a book can't be read, as the Windows reader says it in place of the pages.</summary>
+/// <summary>Why a book can't be read.</summary>
 public sealed record ReaderProblem(string Title, string Message);
 
 /// <summary>Where the browser reads the file from now: a short-lived link to it in the user's storage.</summary>

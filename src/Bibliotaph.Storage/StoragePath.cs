@@ -5,7 +5,7 @@ public readonly record struct StorageLocation(string Provider, string Account, s
 
 /// <summary>
 /// A folder or file in connected storage, as a library path: <c>/&lt;provider&gt;/&lt;account&gt;/&lt;path inside it&gt;</c>, such
-/// as <c>/onedrive/&lt;drive id&gt;/RPG</c>. Library folders are kept as paths, as the Windows app keeps its own, so scanning,
+/// as <c>/onedrive/&lt;drive id&gt;/RPG</c>. Library folders are kept as paths, so scanning,
 /// moves and relative paths work unchanged; the provider and account stand where a Windows path has its drive letter.
 /// </summary>
 public static class StoragePath

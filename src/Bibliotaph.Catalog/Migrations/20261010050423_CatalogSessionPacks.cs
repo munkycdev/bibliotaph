@@ -11,7 +11,7 @@ public partial class CatalogSessionPacks : Migration
     /// <inheritdoc />
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        // Nothing wrote page_ref before session packs, so its columns are reshaped rather than carried over (choice 20).
+        // Nothing wrote page_ref before session packs, so its columns are reshaped rather than carried over.
         migrationBuilder.DropColumn(name: "is_stale", table: "page_ref");
         migrationBuilder.DropColumn(name: "printed_labels", table: "page_ref");
         migrationBuilder.DropColumn(name: "label", table: "page_ref");

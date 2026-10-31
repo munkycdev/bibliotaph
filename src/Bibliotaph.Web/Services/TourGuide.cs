@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Components;
 namespace Bibliotaph.Web.Services;
 
 /// <summary>
-/// The first-run tour, as the Windows app's: callouts over the page's own controls, a chapter at a time. The Folders
+/// The first-run tour: callouts over the page's own controls, a chapter at a time. The Folders
 /// chapter starts on Home before any folder is in, goes on in Settings › Library (connect a storage, pick a folder:
 /// whichever the account still needs, so it carries on after a provider's sign-in brings the page back) and ends on
 /// the status line once the first folder is in. The Books chapter opens the first time Home or the Library shows

@@ -5,7 +5,7 @@ namespace Bibliotaph.Web.Services;
 public enum PhaseState { Waiting, Running, Paused, Done }
 
 /// <summary>
-/// One step of indexing as Settings › Processing shows it, as the Windows app's <c>PhaseProgress</c>: a bar and "1,100 of
+/// One step of indexing as Settings › Processing shows it: a bar and "1,100 of
 /// 1,240 · 2 minutes left". The rate is fed from each poll, so the time left settles as the section stays open.
 /// </summary>
 public sealed class ProcessingPhase(string label, string detail, string unit = "")

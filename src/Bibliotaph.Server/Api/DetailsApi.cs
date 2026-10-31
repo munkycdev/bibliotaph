@@ -12,7 +12,7 @@ using Bibliotaph.Server.Storage;
 
 namespace Bibliotaph.Server.Api;
 
-/// <summary>/api/library/books/{entryId}: a book's details, as the Windows app's details drawer shows them.</summary>
+/// <summary>/api/library/books/{entryId}: a book's details.</summary>
 public static class DetailsApi
 {
     public static void MapDetailsApi(this RouteGroupBuilder api)
@@ -36,7 +36,7 @@ public static class DetailsApi
     }
 
     /// <summary>
-    /// Everything the details show, read as the Windows app's inspector reads it: the card, its fields and their
+    /// Everything the details show: the card, its fields and their
     /// sources, its adventures or pack files, what is known of its file, where it is, its copies and its processing.
     /// Null for a book that isn't in the library, or whose file hasn't been looked at yet.
     /// </summary>

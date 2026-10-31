@@ -6,7 +6,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-@* The Windows app's binder list page, from Edit binder: its date as the eyebrow, its title and actions, Done back to
+@* A binder's list page, from Edit binder: its date as the eyebrow, its title and actions, Done back to
    the binder's reader; the sequence of sections and items, each item's label and note edited in place and Open at its
    pages; and the binder's notes, saved as they're typed. *@
 @if (_page is not { } binder)
@@ -144,7 +144,7 @@ else
         Actions.Pending = null;
         try
         {
-            // Opening it makes it the binder Add to binder adds to, as on Windows.
+            // Opening it makes it the binder Add to binder adds to.
             Show(await Api.OpenBinderAsync(Id));
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
@@ -258,7 +258,7 @@ else
         return RunAsync(() => Api.RemoveBinderItemAsync(item.Id));
     }
 
-    /// <summary>A label or note is saved once the box is left or Enter is pressed, as on Windows.</summary>
+    /// <summary>A label or note is saved once the box is left or Enter is pressed.</summary>
     Task SaveItemAsync(BinderItem item, string? label, string? note) => RunAsync(() => Api.SetBinderItemAsync(item.Id, label ?? item.Label, note ?? item.Note));
 
     static string Text(ChangeEventArgs e) => e.Value as string ?? "";

@@ -1,4 +1,4 @@
-@* The reader, as the Windows app's ViewerView: the book's title over a toolbar, its pages in a scrolling column with the
+@* The reader: the book's title over a toolbar, its pages in a scrolling column with the
    contents beside them and the thumbnails under them, and where the page in view is in the book underneath. The pages
    are read straight from the user's storage; the server never passes a book's bytes on. *@
 @using Bibliotaph.Core.Reading
@@ -238,7 +238,7 @@ else
                         else { <div class="bt-picture"></div> }
                     </div>
                     @if (!_opened) { <div class="bt-small bt-opening">Opening…</div> }
-                    @* What Add page and the last note change did, with Undo, over the pages as in the Windows reader. *@
+                    @* What Add page and the last note change did, with Undo, over the pages. *@
                     <div class="bt-readerbars">
                         @if (book.Item is { Banner: { } banner })
                         {
@@ -420,7 +420,7 @@ else
             @(asking.Retry ? "That password didn't open it. Check it and try again." : "Enter its password to read it, and to make its text searchable.")
         </div>
         <label class="bt-field">Password<input type="password" aria-label="Password" @bind="_passwordText" @bind:event="oninput" @ref="_passwordBox" /></label>
-        @* As the Windows dialog: remembering it lets indexing use it too, so ticking Remember ticks and locks Searchable. *@
+        @* Remembering it lets indexing use it too, so ticking Remember ticks and locks Searchable. *@
         <label class="bt-check bt-passwordtick"><input type="checkbox" aria-label="Make its text searchable" checked="@(_searchable || _rememberPassword)"
                disabled="@_rememberPassword" @onchange="e => _searchable = e.Value is true" />Make its text searchable</label>
         <div class="bt-small bt-passwordnote">Bibliotaph reads the book for search now. Untick to only read it.</div>
@@ -481,7 +481,7 @@ else
     [Parameter] public long? Item { get; set; }
 
     /// <summary>
-    /// The reader inside a binder's page, as on Windows: the binder has the breadcrumb and Pop out, and stepping
+    /// The reader inside a binder's page: the binder has the breadcrumb and Pop out, and stepping
     /// through a pack stays on the binder's page.
     /// </summary>
     [Parameter] public bool InBinder { get; set; }
@@ -642,7 +642,7 @@ else
         _favorite = _book.Favorite;
         _page = _book.StartPage;
         _pageEntry = ReaderPageNumbers.Display(_page, _book.Labels);
-        // The next picture in a pack shows at the same zoom, as in the Windows reader.
+        // The next picture in a pack shows at the same zoom.
         if (!(_book.Kind == ReaderKinds.Image && wasImage)) _scale = _book.Kind == ReaderKinds.Image ? "page-fit" : "page-width";
         _linkBack = null;
         _opened = false;
@@ -674,7 +674,7 @@ else
     void ReportPlace()
     {
         if (!PlaceChanged.HasDelegate || _book is not { } book) return;
-        // A pack stepped to another file has left the item behind, as on Windows.
+        // A pack stepped to another file has left the item behind.
         var outside = book.Item is { WholeBook: false } item ? IsPdf && (_page < item.FirstPage || _page > item.LastPage) : Item is not null && book.Item is null;
         _ = PlaceChanged.InvokeAsync(new ReaderPlace(book.DocumentId, _page, book.Kind, outside, book.Item));
     }
@@ -718,7 +718,7 @@ else
         if (_book is { Item: { } item } book) _book = book with { Item = item with { Banner = null, CanUsePage = false } };
     }
 
-    /// <summary>The thumbnails mark the binder item's pages, as the Windows strip does; none for a whole book.</summary>
+    /// <summary>The thumbnails mark the binder item's pages; none for a whole book.</summary>
     Task MarkItemPagesAsync() =>
         !IsPdf ? Task.CompletedTask
         : _book?.Item is { WholeBook: false } item ? CallAsync("itemPages", item.FirstPage, item.LastPage)
@@ -860,7 +860,7 @@ else
         if (_showAsk) _showNotes = false;
     }
 
-    // Ask this book, as the Windows reader's Ask panel.
+    // Ask this book.
 
     /// <summary>Whether the book can be asked and its conversation so far; opening it starts its pages being read for meaning.</summary>
     async Task LoadAskAsync(ReaderBook book)
@@ -919,7 +919,7 @@ else
         await ShowMatchAsync(next);
     }
 
-    // The Notes panel and Note, as the Windows reader's.
+    // The Notes panel and Note.
 
     async Task LoadNotesAsync(ReaderBook book)
     {
@@ -1065,7 +1065,7 @@ else
         else if (e.Key == "Enter" && e.CtrlKey) await SaveNoteAsync();
     }
 
-    // The reader's own actions, as the Windows reader's header: the cover, adventures and binders.
+    // The reader's own actions: the cover, adventures and binders.
 
     /// <summary>
     /// Use this page as the cover, for a file whose first page is blank or a plain title sheet. The first page does the
@@ -1431,7 +1431,7 @@ else
     }
 
     /// <summary>
-    /// The password for pdf.js to try, as the Windows reader opens a locked book: one that opened it in this tab, or
+    /// The password for pdf.js to try: one that opened it in this tab, or
     /// else a remembered one, first; then the reader is asked, again while what they type doesn't open it.
     /// </summary>
     [JSInvokable]
@@ -1457,7 +1457,7 @@ else
                 return password;
             }
         }
-        // A wrong password keeps the ticks; a new ask starts as the Windows dialog does.
+        // A wrong password keeps the ticks; a new ask starts.
         if (!retry) (_searchable, _rememberPassword) = (true, false);
         var answer = new TaskCompletionSource<string?>();
         _password = (retry, answer);
@@ -1685,7 +1685,7 @@ else
         await CallAsync("keepOffline", _kept);
     }
 
-    /// <summary>The book moves to a window of its own, at the page in view, as the Windows reader's Pop out.</summary>
+    /// <summary>The book moves to a window of its own, at the page in view.</summary>
     async Task PopOutAsync()
     {
         if (_book is null) return;
@@ -1701,7 +1701,7 @@ else
         if (!await ModuleAsync<bool>("returnToMain", Navigation.ToAbsoluteUri(url).ToString())) Navigation.NavigateTo(url, forceLoad: true);
     }
 
-    // Find, as the Windows reader's: Enter finds, Enter again (or F3) goes to the next match, round from the last to the
+    // Find: Enter finds, Enter again (or F3) goes to the next match, round from the last to the
     // first; Shift+Enter and Shift+F3 go back; Esc clears. Reading an adventure, it looks in the adventure's pages.
 
     async Task FindKeyAsync(KeyboardEventArgs e)

@@ -158,7 +158,7 @@
         return Task.CompletedTask;
     }
 
-    /// <summary>Pages that don't read open the text boxes, with the line saying which, as on Windows.</summary>
+    /// <summary>Pages that don't read open the text boxes, with the line saying which.</summary>
     async Task AcceptAsync()
     {
         var rows = Draft.Rows.Select((r, i) => (Row: r, Index: i)).Where(x => x.Row.Ticked)

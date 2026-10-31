@@ -174,7 +174,7 @@
               </Button.ContextMenu>
             </Button>
           </StackPanel>
-          <!-- A collection's own actions (slice 3 plan, choice 9). Deleting it never deletes its books. -->
+          <!-- A collection's own actions. Deleting it never deletes its books. -->
           <StackPanel x:Name="CollectionActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
                       Visibility="{Binding ShowsCollectionActions, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <Button x:Name="NewSubCollection" Content="New collection" c:Ui.Icon="{StaticResource Icon.FolderPlus}" Margin="0,0,8,0"
@@ -188,7 +188,7 @@
             <Button x:Name="DeleteCollection" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" Command="{Binding DeleteCollectionCommand}"
                     ToolTip="Delete the collection. Its books stay in your library, and Undo brings it back." AutomationProperties.Name="Delete the collection" />
           </StackPanel>
-          <!-- A saved search's own actions (slice 3 plan, choice 17; Pinned Views plan, choice 7). Deleting it never deletes a book. -->
+          <!-- A saved search's own actions. Deleting it never deletes a book. -->
           <StackPanel x:Name="ViewActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
                       Visibility="{Binding SmartViews.IsView, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <Button x:Name="RenameView" Content="Rename" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Command="{Binding SmartViews.RenameViewCommand}"
@@ -198,7 +198,7 @@
             <Button x:Name="DeleteView" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Trash2}" Command="{Binding SmartViews.DeleteViewCommand}"
                     ToolTip="Delete the saved search. Your books stay as they are, and Undo brings it back." AutomationProperties.Name="Delete the saved search" />
           </StackPanel>
-          <!-- Favorites pins and unpins here (Pinned Views plan, choice 7). -->
+          <!-- Favorites pins and unpins here. -->
           <StackPanel x:Name="FavoritesActions" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top"
                       Visibility="{Binding IsFavoritesPage, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <Button x:Name="PinFavorites" Content="{Binding PinLabel}" c:Ui.Icon="{StaticResource Icon.Pin}" Command="{Binding TogglePinCommand}"
@@ -228,7 +228,7 @@
               <Button x:Name="SaveView" Content="Save search" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding SmartViews.SaveViewCommand}" Margin="0,0,8,8"
                       ToolTip="Keep this search, its filters and order, pinned in the sidebar"
                       Visibility="{Binding SmartViews.CanSaveView, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              <!-- Every saved search, pinned or not, each with its pin, Rename and Delete (Pinned Views plan, choice 11). -->
+              <!-- Every saved search, pinned or not, each with its pin, Rename and Delete. -->
               <Button x:Name="SavedSearches" Content="Saved searches" c:Ui.Icon="{StaticResource Icon.List}" Command="{Binding SmartViews.ShowSavedSearchesCommand}" Margin="0,0,8,8"
                       ToolTip="Every search you've saved, pinned or not"
                       Visibility="{Binding SmartViews.HasSavedSearches, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -499,7 +499,7 @@
 
         <!-- .bt-sectionline -->
         <StackPanel Grid.Row="3" Margin="0,23,42,0">
-          <!-- The part of the library shown, such as Favorites (slice 3 plan, choice 3); its × shows the whole library. -->
+          <!-- The part of the library shown, such as Favorites; its × shows the whole library. -->
           <Border x:Name="ScopeChip" Style="{StaticResource Bt.Chip}" HorizontalAlignment="Left" Margin="0,0,0,12" Padding="10,2,2,2"
                   Visibility="{Binding HasScope, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <StackPanel Orientation="Horizontal">
@@ -522,7 +522,7 @@
               </ItemsControl.ItemsPanel>
             </ItemsControl>
           </DockPanel>
-          <!-- A collection's sub-collections, as cards above its books, and the switch that leaves their books out (choice 9). -->
+          <!-- A collection's sub-collections, as cards above its books, and the switch that leaves their books out. -->
           <StackPanel Visibility="{Binding HasSubCollections, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <ItemsControl x:Name="SubCollections" ItemsSource="{Binding SubCollections}" ItemTemplate="{StaticResource CollectionCard}"
                           Focusable="False" AutomationProperties.Name="Collections inside this one" KeyboardNavigation.TabNavigation="Continue">
@@ -911,14 +911,14 @@
                 <Button x:Name="PinBook" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pin}" c:Ui.IsActive="{Binding IsPinned}"
                         ToolTip="{Binding PinAction}" AutomationProperties.Name="{Binding PinAction}" CommandParameter="{Binding Item}"
                         Command="{Binding DataContext.TogglePinBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                <!-- Add to binder (slice 3c): the current session, another or a new one. -->
+                <!-- Add to binder: the current session, another or a new one. -->
                 <Button x:Name="AddToSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.NotebookPen}" Margin="2,0,0,0"
                         Click="DropDown_Click" ToolTip="Add to binder" AutomationProperties.Name="Add to binder">
                   <Button.ContextMenu>
                     <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" />
                   </Button.ContextMenu>
                 </Button>
-                <!-- Cataloged wrong… (scenario review, row 8): the details below, open to correct, with the guesses marked. -->
+                <!-- Cataloged wrong…: the details below, open to correct, with the guesses marked. -->
                 <Button x:Name="CatalogedWrong" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="2,0,0,0"
                         ToolTip="Cataloged wrong? Correct its details: the values Bibliotaph guessed are marked" AutomationProperties.Name="Cataloged wrong…"
                         Command="{Binding StartCorrectingCommand}" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
@@ -935,22 +935,22 @@
                           Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                           CommandParameter="{Binding Item}" />
                 </StackPanel>
-                <!-- Online libraries (O1, O2b): the book's page where it is owned online, in the online reader. -->
+                <!-- Online libraries: the book's page where it is owned online, in the online reader. -->
                 <Button x:Name="OpenOnline" Content="{Binding Item.OnlineAction}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
                         ToolTip="{Binding Item.OnlineLink}" AutomationProperties.Name="{Binding Item.OnlineAction}"
                         Command="{Binding DataContext.OpenOnlineCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding Item}" Visibility="{Binding Item.HasOnlineLink, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <!-- Ask this book (Ask plan, choice 11): shown only for a PDF with text while AI is on, when it can run. -->
+                <!-- Ask this book: shown only for a PDF with text while AI is on, when it can run. -->
                 <Button x:Name="AskBook" Content="Ask this book" c:Ui.Icon="{StaticResource Icon.Sparkles}" Margin="0,0,8,8"
                         ToolTip="Open this book with its Ask panel, to ask it a question" AutomationProperties.Name="Ask this book"
                         Command="{Binding DataContext.AskBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}"
                         Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <!-- A PDF whose protection Bibliotaph can't open (4i): the user's default PDF app may. -->
+                <!-- A PDF whose protection Bibliotaph can't open: the user's default PDF app may. -->
                 <Button x:Name="OpenElsewhere" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
                         ToolTip="Opens the file in your default PDF app" AutomationProperties.Name="Open in another app"
                         Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                         CommandParameter="{Binding Item}" Visibility="{Binding Item.CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it (F5 plan, choice 5). -->
+                <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it. -->
                 <!-- A book with no file has no page to draw a cover from: the user can pick a picture of their own. -->
                 <Button x:Name="ChooseCover" Content="Choose a cover image…" c:Ui.Icon="{StaticResource Icon.Image}" Margin="0,0,8,8"
                         ToolTip="Use a picture of your own as this book's cover" Command="{Binding ChooseCoverCommand}"
@@ -965,7 +965,7 @@
             </DockPanel>
             <TextBlock Text="{Binding CoverProblem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,4,0,0"
                        Visibility="{Binding CoverProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
-            <!-- Details and Notes (slice 3f): the book's own note, saved as you type, and the notes on its pages. -->
+            <!-- Details and Notes: the book's own note, saved as you type, and the notes on its pages. -->
             <StackPanel Orientation="Horizontal" Margin="0,24,0,0" AutomationProperties.Name="Details or notes">
               <RadioButton x:Name="DetailsTab" Style="{StaticResource Bt.Tab}" Content="Details" IsChecked="{Binding IsDetailsTab}" />
               <RadioButton x:Name="NotesTab" Style="{StaticResource Bt.Tab}" Content="{Binding Notes.TabLabel, FallbackValue=Notes}" IsChecked="{Binding IsNotesTab}" />
@@ -1009,7 +1009,7 @@
             </StackPanel>
 
             <StackPanel Visibility="{Binding IsDetailsTab, Converter={StaticResource Bt.VisibleWhenTrue}}">
-            <!-- The collections the book is in (slice 3 plan, choice 10): a chip opens one, its × takes the book out. -->
+            <!-- The collections the book is in: a chip opens one, its × takes the book out. -->
             <DockPanel Margin="0,28,0,10">
               <Button x:Name="AddToCollection" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Add to collection"
                       c:Ui.Icon="{StaticResource Icon.FolderPlus}" Click="DropDown_Click" ToolTip="Add this book to a collection">
@@ -1314,7 +1314,7 @@
                     Visibility="{Binding FromRpgGeek, Converter={StaticResource Bt.VisibleWhenTrue}}" />
 
             <!--
-              Adventures inside a compilation (slice 5): a file lists those marked in it, each a card of its own, with Add,
+              Adventures inside a compilation: a file lists those marked in it, each a card of its own, with Add,
               Edit range and Remove; an adventure says which file it is in. Pages are typed as the file numbers them.
             -->
             <StackPanel x:Name="FileParts" Visibility="{Binding CanMarkParts, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -1486,7 +1486,7 @@
                          AutomationProperties.LiveSetting="Polite" />
             </StackPanel>
 
-            <!-- The book's files when it has more than one (F2): which one opens, Make current, and Not the same book. -->
+            <!-- The book's files when it has more than one: which one opens, Make current, and Not the same book. -->
             <StackPanel Visibility="{Binding HasCopies, Converter={StaticResource Bt.VisibleWhenTrue}}">
               <TextBlock Text="{Binding CopiesHeading}" Style="{StaticResource SectionHead}" />
               <ItemsControl ItemsSource="{Binding Copies}" Focusable="False" AutomationProperties.Name="Copies">
@@ -1544,7 +1544,7 @@
       </Border>
     </Grid>
 
-    <!-- Add a book I own elsewhere (F5a), a dialog over the page. Esc or Cancel closes it. -->
+    <!-- Add a book I own elsewhere, a dialog over the page. Esc or Cancel closes it. -->
     <Grid Grid.RowSpan="3" Visibility="{Binding AddElsewhereDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
       <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
@@ -1571,7 +1571,7 @@
       </ScrollViewer>
     </Grid>
 
-    <!-- Naming or picking a collection (slice 3b), a dialog over the page. Esc or Cancel closes it. -->
+    <!-- Naming or picking a collection, a dialog over the page. Esc or Cancel closes it. -->
     <Grid Grid.RowSpan="3" Visibility="{Binding Collections.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
       <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
@@ -1580,7 +1580,7 @@
       </ScrollViewer>
     </Grid>
 
-    <!-- Naming or picking a session (slice 3c), a dialog over the page. Esc or Cancel closes it. -->
+    <!-- Naming or picking a session, a dialog over the page. Esc or Cancel closes it. -->
     <Grid Grid.RowSpan="3" Visibility="{Binding Sessions.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
       <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
@@ -1589,7 +1589,7 @@
       </ScrollViewer>
     </Grid>
 
-    <!-- Naming a saved search (slice 3e), a dialog over the page. Esc or Cancel closes it. -->
+    <!-- Naming a saved search, a dialog over the page. Esc or Cancel closes it. -->
     <Grid Grid.RowSpan="3" Visibility="{Binding SmartViews.ViewDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" />
       <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->

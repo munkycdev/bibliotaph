@@ -27,9 +27,9 @@ public sealed record GuideValueRow(SearchFieldInfo Field, GuideValue Value) : Gu
 }
 
 /// <summary>
-/// The Windows app's field guide under the search box: the fields you can search, and after a field's colon its values
+/// The field guide under the search box: the fields you can search, and after a field's colon its values
 /// in your library. It opens when the box gets focus while empty, narrows to the field names that start with the word at
-/// the cursor, and opens anywhere with Ctrl+Space or Down. What to offer is <see cref="SearchGuide"/>'s, as on Windows;
+/// the cursor, and opens anywhere with Ctrl+Space or Down. What to offer is <see cref="SearchGuide"/>'s;
 /// this keeps the state and loads the values.
 /// </summary>
 public sealed class SearchGuideModel(ApiClient api)

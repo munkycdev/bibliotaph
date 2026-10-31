@@ -12,7 +12,7 @@ using Bibliotaph.Server.Libraries;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// /api/ask: Ask, as the Windows app asks. /api/ask/{documentId} is Ask this book, the reader's Ask panel;
+/// /api/ask: Ask. /api/ask/{documentId} is Ask this book, the reader's Ask panel;
 /// /api/ask/search and /api/ask/library are Ask in the top bar, which reads a request as a search or answers a question
 /// from the books the Library shows. A question is answered in one request whose body is a stream of
 /// <see cref="AskUpdate"/> lines, one per change, so the answer shows as the model writes it; closing the request stops
@@ -31,7 +31,7 @@ public static class AskApi
             return new AskStatus(lease.Library.Get<PlainSearchService>().IsReady);
         });
 
-        // Holds the request while the model reads, as the Windows panel waits; closing the panel cancels it.
+        // Holds the request while the model reads; closing the panel cancels it.
         api.MapPost("/ask/search", async (AskQuestion asked, ClaimsPrincipal principal, UserLibraries libraries, ILogger<PlainSearchService> log,
             CancellationToken ct) =>
         {
@@ -70,7 +70,7 @@ public static class AskApi
 
         var ask = api.MapGroup("/ask/{documentId:long}");
 
-        // Opening a book in the reader starts its pages being read for meaning, as the Windows reader does.
+        // Opening a book in the reader starts its pages being read for meaning.
         ask.MapGet("", async (long documentId, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);

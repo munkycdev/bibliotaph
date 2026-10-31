@@ -3,7 +3,7 @@ using Bibliotaph.Core.Reading;
 
 namespace Bibliotaph.Server.Tests;
 
-/// <summary>The web reader's page box reads page numbers as the Windows reader's does.</summary>
+/// <summary>The web reader's page box reads page numbers.</summary>
 public sealed class ReaderPageNumbersTests
 {
     static readonly IReadOnlyList<string?> Labels = ["Cover", "i", "ii", "1", "2", null, "4", " xii "];

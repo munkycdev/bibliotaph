@@ -100,7 +100,7 @@ public sealed record FilterChoice(string Value, string Label);
 
 /// <summary>
 /// The filter panel's counted menus, each counted without its own choice so picking a system still shows how many
-/// books the other systems have. The Show flags hide a menu the library has nothing for, as the Windows app does.
+/// books the other systems have. The Show flags hide a menu the library has nothing for.
 /// </summary>
 public sealed record LibraryMenus(
     IReadOnlyList<FilterChoice> Systems, IReadOnlyList<FilterChoice> Types, IReadOnlyList<FilterChoice> Styles,
@@ -170,7 +170,7 @@ public static class LibraryChoices
 }
 
 /// <summary>
-/// Home's rows, as the Windows app's: the books opened last and added last, a cover each, and what the library is
+/// Home's rows: the books opened last and added last, a cover each, and what the library is
 /// doing, for the note shown before any book has been read. <see cref="AskAboutAi"/> is the Windows app's first-run step: folders are in, AI isn't set up, and the user hasn't
 /// said Not now.
 /// </summary>

@@ -1,7 +1,7 @@
 namespace Bibliotaph.Api.Contracts;
 
 /// <summary>
-/// Settings › Processing, as the Windows app's: the counts behind each step's bar, what each part of indexing is on
+/// Settings › Processing: the counts behind each step's bar, what each part of indexing is on
 /// now, and which lanes are paused. The browser works out the time left from how the counts move between polls, as the
 /// Windows app does between ticks. Looking books up online is counted like the AI: why it waits, the books done and
 /// still to do, and where they're looked up (<see cref="LookupCatalogues"/>, "Open Library or Google Books"). Scanning

@@ -31,7 +31,7 @@
               <StackPanel>
                 <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
                 <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
-                <!-- A folder that moved for good (4g): pointed to its new place, its books follow without being read again. -->
+                <!-- A folder that moved for good: pointed to its new place, its books follow without being read again. -->
                 <Button x:Name="PointToNewPlace" Content="Point to its new place" c:Ui.Icon="{StaticResource Icon.FolderInput}" HorizontalAlignment="Left"
                         Margin="0,10,0,0" ToolTip="If this folder moved for good, as to a new disk, pick where it is now. Its books and everything you did with them follow."
                         AutomationProperties.Name="{Binding Path, StringFormat='Point {0} to its new place'}"
@@ -86,7 +86,7 @@
     <TextBlock Style="{StaticResource Text.Small}" Margin="0,12,0,0"
                Text="Removing a folder keeps your notes, collections and corrections. Files are never deleted." />
 
-    <!-- Folder rules (scenario review, row 8): proposed in Needs review after the same value was set on several books from a folder. -->
+    <!-- Folder rules: proposed in Needs review after the same value was set on several books from a folder. -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0"
             Visibility="{Binding HasAnsweredRules, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <StackPanel>

@@ -3,7 +3,7 @@ using Bibliotaph.Api.Contracts;
 namespace Bibliotaph.Web.Services;
 
 /// <summary>
-/// What pages do with binders, as the Windows app's SessionActions: making one through the dialog, and the note a
+/// What pages do with binders: making one through the dialog, and the note a
 /// page shows after it was left, as after a binder was deleted from its own page.
 /// </summary>
 public sealed class BinderActions(ApiClient api, BinderDialogs dialogs)
@@ -19,7 +19,7 @@ public sealed class BinderActions(ApiClient api, BinderDialogs dialogs)
     }
 
     /// <summary>
-    /// One of Add to binder's choices, as on Windows: the binder named, one picked from all of them, or a new one named
+    /// One of Add to binder's choices: the binder named, one picked from all of them, or a new one named
     /// first. <paramref name="what"/> names what's added in the picker's heading. Null when cancelled.
     /// </summary>
     public async Task<ActionResult?> AddAsync(BinderMenu menu, BinderMenuChoice choice, string what, BinderAdd add)

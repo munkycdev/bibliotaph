@@ -13,7 +13,7 @@
 }
 else if (!HasLibrary)
 {
-    @* First run, as the Windows app's Home: what Bibliotaph does, and that the files stay put. A library that came
+    @* First run: what Bibliotaph does, and that the files stay put. A library that came
        from a connected PC, or holds only books owned elsewhere, is past its first run without a folder here. *@
     <div class="bt-welcome">
         <span class="bt-eyebrow bt-eyebrow-block">WELCOME TO BIBLIOTAPH</span>
@@ -40,7 +40,7 @@ else
     }
     @if (_shelves is { AskAboutAi: true } && !_aiLater)
     {
-        @* The Windows app's first run, once folders are in: AI now or later. Everything works without it. *@
+        @* First run, once folders are in: AI now or later. Everything works without it. *@
         <div class="bt-aistep">
             <div class="bt-row">Fill in the catalog with AI?</div>
             <p class="bt-copy">
@@ -171,7 +171,7 @@ else
         });
     }
 
-    /// <summary>A cover: the Library with that book's details open, as on Windows.</summary>
+    /// <summary>A cover: the Library with that book's details open.</summary>
     void ShowDetails(BookCard book) => Navigation.NavigateTo($"library?book={book.EntryId}");
 
     void CorrectBook(BookCard book) => Navigation.NavigateTo($"library?book={book.EntryId}&correct=true");

@@ -1,4 +1,4 @@
-@* .bt-reviewitem: one field of one book, as the Windows app's field card: what it shows now, what it suggests and the
+@* .bt-reviewitem: one field of one book: what it shows now, what it suggests and the
    evidence, with Accept, Accept all, Edit and Reject. Each answer sits under the value it keeps, so which side a button
    picks is plain: Reject under what the book has, Accept and Edit under the suggestion. Decided, it folds to one line
    with Undo. *@
@@ -121,7 +121,7 @@
     string? _resolution;
     CancellationTokenSource? _resolving;
 
-    /// <summary>Picks made, so the list is drawn afresh after each and reads "Pick from the list" again, as on Windows.</summary>
+    /// <summary>Picks made, so the list is drawn afresh after each and reads "Pick from the list" again.</summary>
     int _picks;
 
     [Parameter, EditorRequired] public ReviewFieldCard Card { get; set; } = default!;
@@ -191,7 +191,7 @@
         return ResolveAsync();
     }
 
-    /// <summary>How a term field will file what's typed, asked once typing pauses, as the Windows editor shows it.</summary>
+    /// <summary>How a term field will file what's typed, asked once typing pauses.</summary>
     async Task ResolveAsync()
     {
         _resolving?.Cancel();

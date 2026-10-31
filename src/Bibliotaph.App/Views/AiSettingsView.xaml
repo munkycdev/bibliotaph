@@ -97,7 +97,7 @@
       </StackPanel>
     </Border>
 
-    <!-- Built in or a model server (Built-in AI plan, choice 7) -->
+    <!-- Built in or a model server -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
       <DockPanel>
         <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
@@ -174,7 +174,7 @@
       <TextBlock Text="{Binding Note}" Style="{StaticResource Note}" Visibility="{Binding Note, Converter={StaticResource Bt.VisibleWhenSet}}" />
       <TextBlock Text="{Binding Problem}" Style="{StaticResource Problem}" Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
 
-      <!-- Ask this book's embedding model, run by a second engine (Ask plan, choice 3) -->
+      <!-- Ask this book's embedding model, run by a second engine -->
       <TextBlock Text="Ask this book" Style="{StaticResource Text.Row}" Margin="0,18,0,4" />
       <TextBlock x:Name="BuiltInEmbeddingText" Text="{Binding EmbeddingText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
       <StackPanel Visibility="{Binding CanOfferEmbedding, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -222,7 +222,7 @@
     <TextBlock Style="{StaticResource Note}"
                Text="On a graphics card with 8 GB, a model of 7 to 9 billion parameters fits. Bigger ones run, but slowly." />
 
-    <!-- Ask this book's embedding model (Ask plan, choice 3) -->
+    <!-- Ask this book's embedding model -->
     <TextBlock Text="Embedding model, for Ask this book" Style="{StaticResource FieldLabel}" Margin="0,16,0,5" />
     <ComboBox x:Name="EmbeddingModelChoice" Style="{StaticResource Bt.Select}" ItemsSource="{Binding EmbeddingChoices}" SelectedValuePath="Value"
               SelectedValue="{Binding EmbeddingModel}" HorizontalAlignment="Stretch" AutomationProperties.Name="Embedding model"
@@ -311,7 +311,7 @@
       </StackPanel>
     </Border>
 
-    <!-- The model pilot, only when the app starts with the pilot switch (slice 2d) -->
+    <!-- The model pilot, only when the app starts with the pilot switch -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="0,18" Margin="0,12,0,0"
             Visibility="{Binding ShowPilot, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <StackPanel DataContext="{Binding Pilot}" d:DataContext="{d:DesignInstance vm:PilotPanelViewModel}">

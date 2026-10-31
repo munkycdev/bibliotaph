@@ -632,7 +632,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal("Saved Maps. It's pinned in the sidebar.", created.Result.Message);
         Assert.Equal(("harbor", "Title", "Images", true, true), (created.Search.Query.Q, created.Search.Query.Sort, created.Search.Query.Kind, created.Search.Query.Favorites, created.Search.List));
         Assert.Equal(("Maps (2)", true), (created.Search.CopyName, created.Search.Pinned));
-        // Favorites starts pinned, as in the Windows app.
+        // Favorites starts pinned.
         Assert.Equal([("Favorites", "library?favorites=true", "Heart"), ("Maps", $"library?view={id}", "SlidersHorizontal")], pinned!.Items.Select(i => (i.Label, i.Href, i.Icon)));
         Assert.Equal("Updated Maps.", updated.Message);
         Assert.Equal(("dnd5e", null, "RecentlyAdded"), (afterUpdate!.Query.System, afterUpdate.Query.Q, afterUpdate.Query.Sort));
@@ -2133,7 +2133,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         Assert.Equal(2, _models.Requests.Count);
         Assert.All(_models.Requests, r => Assert.Equal(("https://api.example.com", FakeModelService.Key), (r.Endpoint, r.Key)));
         Assert.DoesNotContain(FakeModelService.Key, sealedKeys, StringComparison.Ordinal);
-        // The one book is too short to be a sample, so the test says so, as the Windows dialog does.
+        // The one book is too short to be a sample, so the test says so.
         Assert.Equal("There's no book with text to try yet. Add a folder, or wait for its books to be read.", report.Problem);
         Assert.Equal(AiText.SwitchedOff, off.Note);
         Assert.Null(forgotten.KeyEnding);
@@ -2762,7 +2762,7 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
         }
     }
 
-    /// <summary>A PC connected to the user's web library, as the Windows app connects, with its key.</summary>
+    /// <summary>A PC connected to the user's web library, with its key.</summary>
     async Task<(WebLibrary Pc, string Key)> ConnectPcAsync(HttpClient web, CancellationToken ct)
     {
         var path = Path.Combine(_folder.Path, $"pc-{Guid.NewGuid():N}.db");

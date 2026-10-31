@@ -20,7 +20,7 @@
     </Style>
   </UserControl.Resources>
 
-  <!-- F5 plan, choice 1: a title and the few fields most books need; the inspector opens after for the rest. -->
+  <!-- A title and the few fields most books need; the inspector opens after for the rest. -->
   <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="10">
     <Border.Effect>
       <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.15" />
