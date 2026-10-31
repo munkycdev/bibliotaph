@@ -1,0 +1,81 @@
+@* The collections a book is in: a chip opens one, its × takes the book out, and Add to collection puts it in another. The
+   library shows each change's note with its Undo. *@
+@using Bibliotaph.Core
+@inject ApiClient Api
+@inject CollectionActions Collections
+@inject NavigationManager Navigation
+
+<DetailSection Section="@DetailSections.Collections" Heading="COLLECTIONS">
+    <Actions>
+        <div class="bt-menuanchor">
+            <button class="bt-link bt-iconlink" title="Add this book to a collection" aria-haspopup="menu" aria-expanded="@(_menu is not null)"
+                    @onclick="OpenMenuAsync"><Icon Name="FolderPlus" Size="13" />Add to collection</button>
+            @if (_menu is { } menu)
+            {
+                <div class="bt-backdrop fixed bt-menuback" @onclick="() => _menu = null"></div>
+                <div class="bt-menu" role="menu" aria-label="Add to collection">
+                    @foreach (var item in menu)
+                    {
+                        <button class="bt-menuitem" role="menuitem" title="@item.Path" @onclick="() => AddAsync(item)">@item.Label</button>
+                    }
+                </div>
+            }
+        </div>
+    </Actions>
+    <ChildContent>
+        @if (Book.Collections.Count == 0)
+        {
+            <div class="bt-small">Not in any collection yet.</div>
+        }
+        else
+        {
+            <div class="bt-chips" aria-label="Collections this book is in">
+                @foreach (var collection in Book.Collections)
+                {
+                    <span class="bt-chip on" @key="collection.Id"><button class="bt-chiplink" title="@collection.Path" aria-label="Open @collection.Path"
+                            @onclick="() => OpenAsync(collection.Id)">@collection.Name</button><button class="bt-chipx" title="Take this book out of @collection.Name"
+                            aria-label="Remove from @collection.Name" @onclick="() => RemoveAsync(collection)"><Icon Name="X" Size="12" /></button></span>
+                }
+            </div>
+        }
+    </ChildContent>
+</DetailSection>
+
+@code {
+    [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
+    [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
+
+    IReadOnlyList<CollectionMenuItem>? _menu;
+
+    async Task OpenMenuAsync()
+    {
+        if (_menu is not null)
+        {
+            _menu = null;
+            return;
+        }
+        if (await Host.TryAsync(() => Api.CollectionsAsync()) is { } list) _menu = list.Menu;
+    }
+
+    async Task AddAsync(CollectionMenuItem item)
+    {
+        _menu = null;
+        await ChangedAsync(await Collections.AddAsync([Book.Card.EntryId], Book.Card.Title, item));
+    }
+
+    async Task RemoveAsync(CollectionChip collection) =>
+        await ChangedAsync(await Collections.RemoveAsync([Book.Card.EntryId], Book.Card.Title, collection.Id));
+
+    async Task ChangedAsync(ActionResult? result)
+    {
+        if (result is null) return;
+        await Host.DoneAsync(result);
+        await Host.RefreshAsync();
+    }
+
+    async Task OpenAsync(long collectionId)
+    {
+        await Host.CloseAsync();
+        Navigation.NavigateTo($"library?collection={collectionId.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+    }
+}

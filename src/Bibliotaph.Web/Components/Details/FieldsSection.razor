@@ -1,0 +1,258 @@
+@* A book's fields, each editable, with where its values came from and the other suggestions. While correcting, the
+   guesses are marked and the section can't fold. *@
+@implements IDisposable
+@using Bibliotaph.Core
+@inject ApiClient Api
+
+<DetailSection Section="@DetailSections.Details" Heading="DETAILS" ForceOpen="Correcting">
+    <Actions>
+        @if (Book.Fields.Any(f => !f.Known && !f.Primary))
+        {
+            <button class="bt-link" @onclick="() => View.All = !View.All">@(View.All ? "Fewer fields" : "More fields")</button>
+        }
+    </Actions>
+    <ChildContent>
+        <div class="bt-fields">
+            @foreach (var field in Book.Fields.Where(f => View.All || f.Known || f.Primary))
+            {
+                var editing = _editing == field.Key;
+                <div class="bt-fieldrow @(_busy == field.Key ? "busy" : "")" @key="field.Key" aria-label="@field.Label">
+                    <div class="bt-fieldline">
+                        <div>
+                            <div class="bt-fieldlabel">@field.Label</div>
+                            <div class="bt-inline bt-fieldvalues">
+                                <span class="bt-fieldvalue @(field.Known ? "" : "unknown")">@field.Display</span>
+                                @if (Correcting && field.Known && field.Suggested)
+                                {
+                                    <span class="bt-chip bt-guessed" title="Nobody has confirmed this yet">Guessed</span>
+                                }
+                                @if (field.Known || field.Alternatives.Count > 0)
+                                {
+                                    <button class="bt-link bt-evidencelink" aria-expanded="@View.Open.Contains(field.Key)" aria-label="Where @field.Label came from"
+                                            @onclick="() => View.Toggle(field.Key)">
+                                        <Icon Name="@(field.NeedsReview ? "TriangleAlert" : field.Suggested ? "Sparkles" : "TextSearch")" Size="12" />@field.EvidenceLabel
+                                    </button>
+                                }
+                            </div>
+                            @foreach (var link in field.Values.Where(v => v.Url is not null))
+                            {
+                                <a class="bt-link bt-storelink" href="@link.Url" target="_blank" rel="noopener noreferrer" title="@link.Url">
+                                    <Icon Name="SquareArrowOutUpRight" Size="12" />@link.LinkText
+                                </a>
+                            }
+                        </div>
+                        @if (!editing)
+                        {
+                            <button class="bt-icon" title="Edit" aria-label="Edit @field.Label" disabled="@(_busy is not null)" @onclick="() => StartEdit(field)"><Icon Name="Pencil" Size="14" /></button>
+                        }
+                    </div>
+
+                    @if (editing)
+                    {
+                        <div class="bt-fieldedit">
+                            <input class="bt-input" aria-label="@field.Label" value="@_editText" @oninput="EditTyped" @onkeydown="EditKeyDown" @onkeydown:stopPropagation="true" @ref="_editor" />
+                            @if (field.EditHint.Length > 0) { <div class="bt-small bt-edithint">@field.EditHint</div> }
+                            @if (_resolution.Length > 0) { <div class="bt-row bt-resolution">@_resolution</div> }
+                            @if (field.Choices.Count > 0)
+                            {
+                                <label class="bt-field bt-choices">
+                                    <span>@field.ChoicesLabel</span>
+                                    <select aria-label="@field.ChoicesLabel" value="" @onchange="e => PickAsync(field, e)">
+                                        <option value=""></option>
+                                        @foreach (var choice in field.Choices) { <option value="@choice">@choice</option> }
+                                    </select>
+                                </label>
+                            }
+                            @if (_editProblem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
+                            <div class="bt-boxactions">
+                                <button class="bt-button primary" disabled="@(_busy is not null)" @onclick="() => SaveAsync(field)"><Icon Name="Check" Size="14" />Save</button>
+                                <button class="bt-button" @onclick="CancelEdit">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (View.Open.Contains(field.Key))
+                    {
+                        <div class="bt-evidence">
+                            @foreach (var value in field.Values)
+                            {
+                                <div class="bt-evidencevalue">
+                                    <div class="bt-evidenceline">
+                                        <strong>@value.Text</strong>
+                                        <button class="bt-link" aria-label="@value.Text is not right" disabled="@(_busy is not null)"
+                                                @onclick='() => ActAsync(field, "reject", value.Normalized)'>Not right</button>
+                                    </div>
+                                    @foreach (var source in value.Sources) { <div>@source</div> }
+                                </div>
+                            }
+                            @if (field.Suggested)
+                            {
+                                <button class="bt-link bt-evidenceaction" aria-label="Keep this @field.Label" disabled="@(_busy is not null)"
+                                        @onclick='() => ActAsync(field, "keep")'><Icon Name="Check" Size="12" />Keep this</button>
+                            }
+                            @if (field.Alternatives.Count > 0)
+                            {
+                                <span class="bt-eyebrow bt-eyebrow-block bt-othersuggestions">OTHER SUGGESTIONS</span>
+                                @foreach (var value in field.Alternatives)
+                                {
+                                    <div class="bt-evidencevalue">
+                                        <div class="bt-evidenceline">
+                                            <span class="bt-alternative">@value.Text</span>
+                                            <span class="bt-inline">
+                                                <button class="bt-link" aria-label="Use @value.Text" disabled="@(_busy is not null)"
+                                                        @onclick='() => ActAsync(field, "use", value.Value)'>Use this</button>
+                                                <button class="bt-link" aria-label="@value.Text is not right" disabled="@(_busy is not null)"
+                                                        @onclick='() => ActAsync(field, "reject", value.Normalized)'>Not right</button>
+                                            </span>
+                                        </div>
+                                        @foreach (var source in value.Sources) { <div>@source</div> }
+                                    </div>
+                                }
+                            }
+                            @if (field.CanReset)
+                            {
+                                <button class="bt-link bt-evidenceaction" title="Forget what you set here and go back to what the sources suggest" disabled="@(_busy is not null)"
+                                        @onclick='() => ActAsync(field, "reset")'><Icon Name="Undo2" Size="12" />Reset to suggestion</button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            @if (Book.FromRpgGeek)
+            {
+                @* BoardGameGeek's terms ask for its logo where its data is shown. *@
+                <a class="bt-poweredby bt-detailsbgg" href="https://boardgamegeek.com" target="_blank" rel="noopener"
+                   title="Details looked up on RPGGeek come from BoardGameGeek" aria-label="Powered by BGG"></a>
+            }
+        </div>
+    </ChildContent>
+</DetailSection>
+
+@code {
+    [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
+    [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
+    [Parameter, EditorRequired] public FieldsView View { get; set; } = default!;
+
+    /// <summary>Cataloged wrong… is on: the guesses are marked.</summary>
+    [Parameter] public bool Correcting { get; set; }
+
+    /// <summary>A field was changed or a value kept, so leaving Cataloged wrong… leaves no reminder.</summary>
+    [Parameter] public EventCallback Decided { get; set; }
+
+    /// <summary>The change could go to other books too, such as those from the same folder.</summary>
+    [Parameter] public EventCallback<CorrectionOffer> Offered { get; set; }
+
+    string? _editing;
+    string _editText = "";
+    string _resolution = "";
+    string? _editProblem;
+    string? _busy;
+    ElementReference _editor;
+    bool _focusEditor;
+    CancellationTokenSource? _resolving;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusEditor) return;
+        _focusEditor = false;
+        await _editor.FocusAsync();
+    }
+
+    void StartEdit(DetailField field)
+    {
+        _editing = field.Key;
+        _editText = string.Join(", ", field.Values.Select(v => v.Text));
+        _editProblem = null;
+        _resolution = "";
+        _focusEditor = true;
+        _ = ResolveAsync(field);
+    }
+
+    void CancelEdit()
+    {
+        _editing = null;
+        _editProblem = null;
+    }
+
+    void EditTyped(ChangeEventArgs e)
+    {
+        _editText = e.Value as string ?? "";
+        if (Book.Fields.FirstOrDefault(f => f.Key == _editing) is { } field) _ = ResolveAsync(field);
+    }
+
+    async Task EditKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CancelEdit();
+        else if (e.Key == "Enter" && Book.Fields.FirstOrDefault(f => f.Key == _editing) is { } field) await SaveAsync(field);
+    }
+
+    /// <summary>For a term field, how what is typed will be filed: "“Campaign” is another name for Adventure".</summary>
+    async Task ResolveAsync(DetailField field)
+    {
+        if (field.Choices.Count == 0) return;
+        _resolving?.Cancel();
+        var resolving = _resolving = new CancellationTokenSource();
+        try
+        {
+            await Task.Delay(250, resolving.Token);
+            var text = await Api.ResolutionAsync(field.Key, _editText, resolving.Token);
+            if (resolving != _resolving || _editing != field.Key) return;
+            _resolution = text;
+            StateHasChanged();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ApiProblemException)
+        {
+        }
+    }
+
+    /// <summary>A value picked from the list: in place of what's typed, or added to it for a field with several.</summary>
+    async Task PickAsync(DetailField field, ChangeEventArgs e)
+    {
+        if (e.Value is not string { Length: > 0 } value) return;
+        if (!field.Multiple) _editText = value;
+        else
+        {
+            var current = _editText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (!current.Contains(value, StringComparer.CurrentCultureIgnoreCase)) _editText = string.Join(", ", current.Append(value));
+        }
+        await ResolveAsync(field);
+    }
+
+    async Task SaveAsync(DetailField field)
+    {
+        if (_busy is not null) return;
+        await RunAsync(field, () => Api.SetFieldAsync(Host.EntryId, field.Key, _editText), saved: true);
+    }
+
+    Task ActAsync(DetailField field, string action, string text = "") =>
+        _busy is not null ? Task.CompletedTask : RunAsync(field, () => Api.FieldActionAsync(Host.EntryId, field.Key, action, text), saved: false);
+
+    async Task RunAsync(DetailField field, Func<Task<EditResult>> change, bool saved)
+    {
+        _busy = field.Key;
+        try
+        {
+            var entryId = Host.EntryId;
+            if (await Host.TryAsync(change) is not { } result || entryId != Host.EntryId) return;
+            if (result.Problem is { } problem)
+            {
+                _editProblem = problem;
+                return;
+            }
+            if (saved) _editing = null;
+            await Decided.InvokeAsync();
+            if (result.Details is { } details) Host.Replace(details);
+            if (result.Offer is { } offer) await Offered.InvokeAsync(offer);
+            await Host.ChangedAsync();
+        }
+        finally
+        {
+            _busy = null;
+        }
+    }
+
+    public void Dispose() => _resolving?.Cancel();
+}
