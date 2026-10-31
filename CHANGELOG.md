@@ -10,6 +10,8 @@
   first. See [Summary](docs/guide/summary.md).
 - **A book no catalogue knows now says "Unable to find in any online listing."** in its details, in place of a list of
   every catalogue asked. See [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+- **Fixed: on the web, some headings in a book's details were shown far too large.** About the file, Where it is,
+  Copies, Indexing, On its pages and In a file now match the other headings there.
 
 ## 1.4 ┬╖ 28 October 2026
 
