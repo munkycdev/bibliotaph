@@ -1,0 +1,67 @@
+@* Add to binder over the reader: the binders worked on most recently, another, a new one, or Add pages…. *@
+@using Bibliotaph.Core.Reading
+@inject BindersClient BindersApi
+
+<div class="bt-menuanchor">
+    <button class="bt-button primary" title="@AddToBinderMenu.Tooltip" aria-haspopup="menu" aria-expanded="@(_menu is not null)"
+            @onclick="ToggleAsync"><Icon Name="Plus" />@AddToBinderMenu.Label<Icon Name="ChevronDown" Size="14" /></button>
+    @if (_menu is { } menu)
+    {
+        <div class="bt-backdrop fixed bt-menuback" @onclick="() => _menu = null"></div>
+        <div class="bt-menu" role="menu" aria-label="Add the page in view to">
+            @foreach (var item in AddToBinderMenu.For([.. menu.All.Select(b => (b.Id, b.Title))]))
+            {
+                <button class="bt-menuitem" role="menuitem" title="@item.Label" @onclick="() => PickAsync(menu, Choice(item))">@item.Label</button>
+            }
+            <button class="bt-menuitem" role="menuitem" @onclick="PagesAsync">@AddToBinderMenu.Pages</button>
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>A binder picked from the menu, with the menu it came from.</summary>
+    [Parameter] public EventCallback<(BinderMenu Menu, BinderMenuChoice Choice)> Picked { get; set; }
+
+    [Parameter] public EventCallback AddPages { get; set; }
+
+    /// <summary>The binders couldn't be listed: what went wrong.</summary>
+    [Parameter] public EventCallback<ActionResult> Failed { get; set; }
+
+    BinderMenu? _menu;
+
+    async Task ToggleAsync()
+    {
+        if (_menu is not null)
+        {
+            _menu = null;
+            return;
+        }
+        try
+        {
+            _menu = await BindersApi.BinderMenuAsync();
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            await Failed.InvokeAsync(new ActionResult(e.Message));
+        }
+    }
+
+    Task PickAsync(BinderMenu menu, BinderMenuChoice choice)
+    {
+        _menu = null;
+        return Picked.InvokeAsync((menu, choice));
+    }
+
+    Task PagesAsync()
+    {
+        _menu = null;
+        return AddPages.InvokeAsync();
+    }
+
+    static BinderMenuChoice Choice(AddToBinderMenu.Item item) => new(item.Kind switch
+    {
+        AddToBinderMenu.Kind.Binder => BinderMenuKind.Binder,
+        AddToBinderMenu.Kind.Another => BinderMenuKind.Choose,
+        _ => BinderMenuKind.New,
+    }, item.Id, item.Label);
+}

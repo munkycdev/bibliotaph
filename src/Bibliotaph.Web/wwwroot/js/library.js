@@ -1,5 +1,5 @@
 // The Library page's helpers: what this browser remembers about how the library is shown, and a watch on the end of
-// the cards so more are drawn as it comes into view, as the Windows app only creates the covers in view.
+// the cards so more are drawn as it comes into view.
 (function () {
   var prefix = 'bibliotaph.';
   window.bibliotaphPrefs = {
@@ -29,7 +29,7 @@ document.addEventListener('dragstart', function (e) {
     e.dataTransfer.setData('text/plain', '');
   }
 });
-// Select mode's keys, as in the Windows app: Ctrl+A ticks everything shown and Esc leaves, unless a box or a dialog
+// Select mode's keys: Ctrl+A ticks everything shown and Esc leaves, unless a box or a dialog
 // has them.
 window.bibliotaphSelect = (function () {
   var page = null;
@@ -67,7 +67,7 @@ window.bibliotaphCopy = function (text) {
   if (!navigator.clipboard) return Promise.resolve(false);
   return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return false; });
 };
-// The keys that work everywhere, as in the Windows app: Ctrl+K (or /, as on the web) puts the keyboard in the search
+// The keys that work everywhere: Ctrl+K (or /, as on the web) puts the keyboard in the search
 // box, Ctrl+B folds the sidebar, and Ctrl+/ shows every shortcut. In a reader popped out of the main window, Ctrl+K searches in that window.
 // Shift+Enter or a middle-click on a book's card pops it out into a window of its own.
 window.bibliotaphShell = (function () {
@@ -102,7 +102,7 @@ window.bibliotaphShell = (function () {
     if (ctrl && !e.shiftKey && (e.key === 'k' || e.key === 'K')) {
       if (focusSearch()) e.preventDefault();
     } else if (ctrl && !e.shiftKey && (e.key === 'b' || e.key === 'B') && !typing(e.target)) {
-      // Ctrl+B folds the sidebar, as in the Windows app; in a text box it stays the box's (bold, in some).
+      // Ctrl+B folds the sidebar; in a text box it stays the box's (bold, in some).
       if (!shell || document.querySelector('.bt-dialog') || !document.querySelector('.bt-sidebar')) return;
       e.preventDefault();
       shell.invokeMethodAsync('ToggleSidebarFromKeyAsync');
@@ -124,7 +124,7 @@ window.bibliotaphShell = (function () {
     stop: function () { shell = null; }
   };
 })();
-// The search box's field guide, as in the Windows app: the shell draws it, and this tells it where the cursor is, since
+// The search box's field guide: the shell draws it, and this tells it where the cursor is, since
 // a Blazor event doesn't say. The box keeps the keyboard, so while the guide is open (data-guide="open") the arrow keys
 // move its highlight, Enter or Tab picks the highlighted row and Esc closes it, before the box's own keys see them.
 window.bibliotaphGuide = {

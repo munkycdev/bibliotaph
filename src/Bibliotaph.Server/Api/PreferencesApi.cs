@@ -12,7 +12,7 @@ using Bibliotaph.Server.Storage;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// /api/settings: the choices in Settings › Library below the folders and in Preferences, as the Windows app has them, on
+/// /api/settings: the choices in Settings › Library below the folders and in Preferences, on
 /// the same services: the start page and the folder rules answered in Needs review.
 /// </summary>
 public static class PreferencesApi

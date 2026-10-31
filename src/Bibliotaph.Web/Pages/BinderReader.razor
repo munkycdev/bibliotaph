@@ -1,11 +1,11 @@
 @page "/binders/{Id:long}"
 @implements IAsyncDisposable
-@inject ApiClient Api
+@inject BindersClient BindersApi
 @inject NavigationManager Navigation
 @inject Pins Pins
 @inject IJSRuntime JS
 
-@* A binder's page, as the Windows app's binder reader: its pages listed down the left, numbered under their sections;
+@* A binder's page: its pages listed down the left, numbered under their sections;
    the reader for the page in hand, with every other page of the book still reachable; and the binder's notes on the
    right, folding away. Next and Previous (Ctrl+Right and Ctrl+Left) step through the pages, which are renamed in the
    list (F2). Edit binder opens the list page, for sections, order and the rest. *@
@@ -218,8 +218,8 @@ else
         _missing = false;
         try
         {
-            // Opening it makes it the binder Add to binder adds to, as on Windows.
-            Show(await Api.OpenBinderAsync(Id));
+            // Opening it makes it the binder Add to binder adds to.
+            Show(await BindersApi.OpenBinderAsync(Id));
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
         {
@@ -235,7 +235,7 @@ else
         {
             _focusRename = false;
             await _renameBox.FocusAsync();
-            // The name is ready to type over, as on Windows.
+            // The name is ready to type over.
             try
             {
                 if (await ModuleAsync() is { } module) await module.InvokeVoidAsync("selectAll", _renameBox);
@@ -259,7 +259,7 @@ else
     {
         try
         {
-            Show(await Api.BinderAsync(Id));
+            Show(await BindersApi.BinderAsync(Id));
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
         {
@@ -353,7 +353,7 @@ else
         }
         try
         {
-            _atHand = await Api.AtHandAsync(Id);
+            _atHand = await BindersApi.AtHandAsync(Id);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -410,7 +410,7 @@ else
         BinderItemAdded added;
         try
         {
-            added = await Api.AddBinderPageAsync(Id, new BinderPageAdd(place.DocumentId, place.Page, place.Kind == ReaderKinds.Image, Current?.Id));
+            added = await BindersApi.AddBinderPageAsync(Id, new BinderPageAdd(place.DocumentId, place.Page, place.Kind == ReaderKinds.Image, Current?.Id));
         }
         catch (ApiProblemException)
         {
@@ -440,7 +440,7 @@ else
         if (label == item.Label) return;
         try
         {
-            await Api.SetBinderItemAsync(item.Id, label, item.Note);
+            await BindersApi.SetBinderItemAsync(item.Id, label, item.Note);
         }
         catch (ApiProblemException)
         {
@@ -488,7 +488,7 @@ else
         _notesSave = null;
         try
         {
-            await Api.SetBinderNotesAsync(_shownId, _notes);
+            await BindersApi.SetBinderNotesAsync(_shownId, _notes);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {

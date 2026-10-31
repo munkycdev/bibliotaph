@@ -1,7 +1,7 @@
 namespace Bibliotaph.Api.Contracts;
 
 /// <summary>
-/// A term in Settings › Vocabulary, as the Windows app lists it: its name, the short one shown on covers, whether the
+/// A term in Settings › Vocabulary: its name, the short one shown on covers, whether the
 /// user added it, and its other names.
 /// </summary>
 public sealed record VocabularyTerm(long Id, string Label, string? ShortLabel, bool Yours, IReadOnlyList<VocabularyAlias> Aliases);

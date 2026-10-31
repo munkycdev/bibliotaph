@@ -1,12 +1,12 @@
 @page "/binders/{Id:long}/edit"
 @implements IDisposable
-@inject ApiClient Api
+@inject BindersClient BindersApi
 @inject BinderActions Actions
 @inject BinderDialogs Dialogs
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-@* The Windows app's binder list page, from Edit binder: its date as the eyebrow, its title and actions, Done back to
+@* A binder's list page, from Edit binder: its date as the eyebrow, its title and actions, Done back to
    the binder's reader; the sequence of sections and items, each item's label and note edited in place and Open at its
    pages; and the binder's notes, saved as they're typed. *@
 @if (_page is not { } binder)
@@ -110,7 +110,7 @@ else
 
 @code {
     // The Windows page's words, as its BinderText has them; the web doesn't reference it.
-    const string Subtitle = "Your next session, gathered in one place.";
+    const string Subtitle = "Books and pages gathered in one place, in your order.";
     const string Sequence = "Binder sequence";
     const string SequenceNote = "Books and pages, ready at hand";
     const string Notes = "Binder notes";
@@ -144,8 +144,8 @@ else
         Actions.Pending = null;
         try
         {
-            // Opening it makes it the binder Add to binder adds to, as on Windows.
-            Show(await Api.OpenBinderAsync(Id));
+            // Opening it makes it the binder Add to binder adds to.
+            Show(await BindersApi.OpenBinderAsync(Id));
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
         {
@@ -164,7 +164,7 @@ else
     {
         try
         {
-            Show(await Api.BinderAsync(Id));
+            Show(await BindersApi.BinderAsync(Id));
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
         {
@@ -199,14 +199,14 @@ else
         if (_page is not { } binder) return;
         var start = new BinderEdit(binder.Title, binder.Date, binder.KeepAtHand, binder.GameSystem);
         if (await Dialogs.NameAsync("Edit binder", "Save", binder.Systems, start) is not { } edit) return;
-        await RunAsync(() => Api.EditBinderAsync(Id, edit));
+        await RunAsync(() => BindersApi.EditBinderAsync(Id, edit));
     }
 
     async Task DuplicateAsync()
     {
         try
         {
-            Navigation.NavigateTo($"binders/{(await Api.DuplicateBinderAsync(Id)).Id}");
+            Navigation.NavigateTo($"binders/{(await BindersApi.DuplicateBinderAsync(Id)).Id}");
         }
         catch (ApiProblemException e)
         {
@@ -221,7 +221,7 @@ else
         {
             _notesSave?.Cancel();
             _notesSave = null;
-            Actions.Pending = await Api.DeleteBinderAsync(Id);
+            Actions.Pending = await BindersApi.DeleteBinderAsync(Id);
             Navigation.NavigateTo("binders");
         }
         catch (ApiProblemException e)
@@ -235,31 +235,31 @@ else
         _sectionMenu = false;
         name ??= await Dialogs.NameSectionAsync("Add section", "Add");
         if (string.IsNullOrWhiteSpace(name)) return;
-        await RunAsync(() => Api.AddSectionAsync(Id, name));
+        await RunAsync(() => BindersApi.AddSectionAsync(Id, name));
     }
 
     async Task RenameSectionAsync(BinderSection section)
     {
         if (await Dialogs.NameSectionAsync("Rename section", "Save", section.Name) is not { Length: > 0 } name || name == section.Name) return;
-        await RunAsync(() => Api.RenameSectionAsync(Id, section.Id, name));
+        await RunAsync(() => BindersApi.RenameSectionAsync(Id, section.Id, name));
     }
 
-    Task DeleteSectionAsync(BinderSection section) => RunAsync(() => Api.DeleteSectionAsync(Id, section.Id));
+    Task DeleteSectionAsync(BinderSection section) => RunAsync(() => BindersApi.DeleteSectionAsync(Id, section.Id));
 
     Task MoveAsync(BinderItem item, BinderItemMove move)
     {
         _itemMenu = null;
-        return RunAsync(() => (Task)Api.MoveBinderItemAsync(item.Id, move));
+        return RunAsync(() => (Task)BindersApi.MoveBinderItemAsync(item.Id, move));
     }
 
     Task RemoveAsync(BinderItem item)
     {
         _itemMenu = null;
-        return RunAsync(() => Api.RemoveBinderItemAsync(item.Id));
+        return RunAsync(() => BindersApi.RemoveBinderItemAsync(item.Id));
     }
 
-    /// <summary>A label or note is saved once the box is left or Enter is pressed, as on Windows.</summary>
-    Task SaveItemAsync(BinderItem item, string? label, string? note) => RunAsync(() => Api.SetBinderItemAsync(item.Id, label ?? item.Label, note ?? item.Note));
+    /// <summary>A label or note is saved once the box is left or Enter is pressed.</summary>
+    Task SaveItemAsync(BinderItem item, string? label, string? note) => RunAsync(() => BindersApi.SetBinderItemAsync(item.Id, label ?? item.Label, note ?? item.Note));
 
     static string Text(ChangeEventArgs e) => e.Value as string ?? "";
 
@@ -345,7 +345,7 @@ else
         _notesSave = null;
         try
         {
-            await Api.SetBinderNotesAsync(_shownId, _notes);
+            await BindersApi.SetBinderNotesAsync(_shownId, _notes);
         }
         catch (ApiProblemException e)
         {

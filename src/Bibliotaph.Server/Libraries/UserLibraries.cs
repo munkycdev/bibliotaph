@@ -38,7 +38,7 @@ public sealed class UserLibrary
     public IndexingService Indexing => Get<IndexingService>();
     public UserDrives Drives => Get<UserDrives>();
 
-    /// <summary>For the Catalog stores, which take a context factory as the Windows app's DI gives them.</summary>
+    /// <summary>For the Catalog stores, which take a context factory.</summary>
     public IDbContextFactory<CatalogDbContext> Contexts => Get<IDbContextFactory<CatalogDbContext>>();
 
     /// <summary>
@@ -316,7 +316,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         {
             var library = await slot.Opening.Value;
             // Sync first, so the web library's own file has everything done here; then indexing, so it can still
-            // record the job it was on; then the writer, as the Windows app stops them.
+            // record the job it was on; then the writer.
             await library.Get<WebShelfPublisher>().StopAsync();
             await library.Get<SharedResults>().StopAsync(CancellationToken.None);
             await library.Get<LibrarySync>().StopAsync(CancellationToken.None);

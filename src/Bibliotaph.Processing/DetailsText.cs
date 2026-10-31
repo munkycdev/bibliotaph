@@ -162,7 +162,7 @@ public static class DetailsText
                 facts.Add(("Password", "Needs a password to open. Open it to enter it; its text becomes searchable once it's unlocked."));
                 break;
             case TextAccess.Protected:
-                facts.Add(("Protection", "A scheme Bibliotaph can't open, such as DRM. Its details stay editable, and Open in another app uses your default app for the file."));
+                facts.Add(("Protection", "Protection Bibliotaph can't open, such as DRM. Its details stay editable, and Open in another app uses your default app for the file."));
                 break;
         }
         // A file that forbids copying is still read for search; only copying text out stays off.

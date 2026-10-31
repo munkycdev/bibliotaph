@@ -1,6 +1,6 @@
 @* Settings › Members, for admins: making a one-time link, every link made with whether it was used, copying an open
    one's link again, and deleting one. *@
-@inject ApiClient Api
+@inject AccountClient AccountApi
 @inject IJSRuntime JS
 
 <section class="bt-section bt-subsection" aria-labelledby="invites-heading">
@@ -71,16 +71,16 @@
     string? _note, _message, _copiedLink, _copiedId;
     bool _admin, _busy;
 
-    protected override async Task OnInitializedAsync() => _invites = await Api.InvitesAsync();
+    protected override async Task OnInitializedAsync() => _invites = await AccountApi.InvitesAsync();
 
     async Task CreateInvite()
     {
-        _created = await Api.CreateInviteAsync(new CreateInvite(_note, _admin));
+        _created = await AccountApi.CreateInviteAsync(new CreateInvite(_note, _admin));
         _copiedLink = null;
         _note = null;
         _message = null;
         _admin = false;
-        _invites = await Api.InvitesAsync();
+        _invites = await AccountApi.InvitesAsync();
     }
 
     /// <summary>The link again, from the server, since only it can give the code; then onto the clipboard.</summary>
@@ -90,14 +90,14 @@
         _message = null;
         try
         {
-            var link = await Api.InviteLinkAsync(invite.Id);
+            var link = await AccountApi.InviteLinkAsync(invite.Id);
             if (await CopyAsync(link.Link)) _copiedId = invite.Id;
             else _created = link;
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
             _message = "That invitation's link can't be copied: it has been used or has expired, or it was made before links could be copied again.";
-            _invites = await Api.InvitesAsync();
+            _invites = await AccountApi.InvitesAsync();
         }
         _busy = false;
     }
@@ -134,7 +134,7 @@
         _busy = true;
         try
         {
-            await Api.DeleteInviteAsync(invite.Id);
+            await AccountApi.DeleteInviteAsync(invite.Id);
             if (_copiedId == invite.Id) _copiedId = null;
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
@@ -143,7 +143,7 @@
         }
         _deleting = null;
         _busy = false;
-        _invites = await Api.InvitesAsync();
+        _invites = await AccountApi.InvitesAsync();
     }
 
     static bool IsOpen(InviteInfo invite) => invite.Redeemed is null && invite.Expires > DateTimeOffset.UtcNow;

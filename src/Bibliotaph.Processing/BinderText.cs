@@ -12,12 +12,12 @@ namespace Bibliotaph.Processing;
 /// </summary>
 public static class BinderText
 {
-    public const string Subtitle = "Your next session, gathered in one place.";
+    public const string Subtitle = "Books and pages gathered in one place, in your order.";
 
     public const string EmptyTitle = "An empty notebook.";
 
     public const string EmptyMessage =
-        "A binder gathers the books and pages you'll want at the table, in your order, with your notes. Make one here, or add a book or page from your library to a new one.";
+        "A binder gathers books and pages in your order, with your notes: a focused set of references, an adventure's maps and encounters, or any other pages you want together. Make one here, or add a book or page from your library to a new one.";
 
     public const string EmptyBinderMessage = "Add a book or page from your library to get started: right-click a book, or use Add to binder in the reader.";
 
@@ -171,7 +171,7 @@ public sealed record BinderGroups(IReadOnlyList<SessionPackInfo> Upcoming, IRead
             ByTitle(dated.Where(p => p.Date < today)));
     }
 
-    /// <summary>The binder worked on last that's for a game rather than kept at hand: Home's Continue preparing.</summary>
+    /// <summary>The binder worked on last that isn't kept at hand: Home's Current binder.</summary>
     public static SessionPackInfo? Preparing(IReadOnlyList<SessionPackInfo> all) => all.FirstOrDefault(p => !p.KeepAtHand);
 }
 

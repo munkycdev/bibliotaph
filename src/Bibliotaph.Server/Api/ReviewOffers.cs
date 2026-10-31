@@ -15,7 +15,7 @@ using ReviewList = Bibliotaph.Processing.ReviewList;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// Needs review's cards that ask one question each, as the Windows app's: new versions, image packs, books owned
+/// Needs review's cards that ask one question each: new versions, image packs, books owned
 /// elsewhere, catalogue records that may be a book's, places to check in a new version, books cataloged wrong, folder
 /// rules, collections from folders and books for collections. Each is found again by its id and answered only when it still says what the page showed.
 /// </summary>
@@ -59,7 +59,7 @@ static class ReviewOffers
         });
 
         // Accept on a proposal: a card for each ticked adventure, as typed. Pages that don't read keep the card, saying
-        // which, as on Windows.
+        // which.
         review.MapPost("/offers/parts/accept", async (ReviewPartsAccept accept, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);

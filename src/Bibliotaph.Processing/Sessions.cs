@@ -90,7 +90,7 @@ public sealed class SessionsService(SessionStore sessions, EntryStore entries, L
 
     public Task<SessionPackInfo> CreateAsync(string title, DateOnly? date = null, CancellationToken ct = default) => CreateAsync(title, date, false, null, ct);
 
-    /// <summary>A new pack, kept at hand during games for <paramref name="gameSystem"/> (or any system) if <paramref name="keepAtHand"/>.</summary>
+    /// <summary>A new pack, kept at hand for <paramref name="gameSystem"/> (or any system) if <paramref name="keepAtHand"/>.</summary>
     public async Task<SessionPackInfo> CreateAsync(string title, DateOnly? date, bool keepAtHand, string? gameSystem, CancellationToken ct = default)
     {
         var created = await sessions.CreateAsync(title, date, keepAtHand, gameSystem, ct);

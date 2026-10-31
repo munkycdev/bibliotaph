@@ -7,7 +7,7 @@ public sealed record KeyboardShortcut(string Keys, string Action);
 public sealed record KeyboardShortcutArea(string Name, IReadOnlyList<KeyboardShortcut> Shortcuts);
 
 /// <summary>
-/// The Windows app's Keyboard shortcuts list (Ctrl+/), with only what works in the browser: written by hand from the
+/// The Keyboard shortcuts list (Ctrl+/), with only what works in the browser: written by hand from the
 /// pages' key handlers and the scripts', so a new shortcut belongs here too. The Windows app's Alt+Space has no web page
 /// to act on, and the browser keeps Ctrl+mouse wheel for its own zoom.
 /// </summary>

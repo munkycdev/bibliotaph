@@ -13,7 +13,7 @@
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource Bt.Panel}" Foreground="{DynamicResource Bt.Text}"
         FontFamily="{StaticResource Font.Sans}" FontSize="12" UseLayoutRounding="True">
-  <!-- The in-app browser (online libraries, O2): the service's own pages, and Read this page for the one in view. -->
+  <!-- The in-app browser: the service's own pages, and Read this page for the one in view. -->
   <DockPanel>
     <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="12,8">
       <DockPanel>
@@ -35,7 +35,7 @@
         </StackPanel>
       </DockPanel>
     </Border>
-    <!-- Store downloads (O5): each file, how far it has got, and where it went. -->
+    <!-- Store downloads: each file, how far it has got, and where it went. -->
     <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="12,6" MaxHeight="132"
             Visibility="{Binding HasDownloads, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">

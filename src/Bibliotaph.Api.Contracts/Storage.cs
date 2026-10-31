@@ -23,7 +23,7 @@ public sealed record StorageFolder(string Name, string Path, bool InLibrary);
 /// <summary>One folder's subfolders, and how many files sit directly in it.</summary>
 public sealed record StorageFolderList(string StorageId, string Path, IReadOnlyList<StorageFolder> Folders, int Files);
 
-/// <summary>A library folder, described as the Windows app's Library folders list describes it.</summary>
+/// <summary>A library folder, as the folders list describes it.</summary>
 public sealed record LibraryFolder(long Id, string Name, string Location, string Detail, bool Offline);
 
 public sealed record AddLibraryFolder(string StorageId, string Path);

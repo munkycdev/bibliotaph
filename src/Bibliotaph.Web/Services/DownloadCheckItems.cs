@@ -24,7 +24,7 @@ public sealed record CheckTarget(int Id, string? Entry, string Location, string 
 }
 
 /// <summary>
-/// What a check reads, as the Windows app lists it: the PDFs, e-books and images in a folder and its subfolders, with
+/// What a check reads: the PDFs, e-books and images in a folder and its subfolders, with
 /// those in its ZIPs, or in one ZIP; ZIPs inside ZIPs, password-protected members and the like are listed with why
 /// they aren't read.
 /// </summary>
@@ -37,7 +37,7 @@ public static class DownloadCheckItems
         var items = new List<CheckTarget>();
         foreach (var file in files.OrderBy(f => f.Path, NaturalOrder.Instance))
         {
-            // Folder names are read below the folder picked, or beside the ZIP picked, as on Windows.
+            // Folder names are read below the folder picked, or beside the ZIP picked.
             var relative = folder && file.Path.IndexOf('/') is var slash and >= 0 ? file.Path[(slash + 1)..] : file.Path;
             if (SourceFormats.IsArchive(file.Path))
             {

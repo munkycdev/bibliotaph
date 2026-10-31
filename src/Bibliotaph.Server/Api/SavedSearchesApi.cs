@@ -80,7 +80,7 @@ public static class SavedSearchesApi
         [.. (await library.Get<PinsService>().ListAsync(ct)).Where(p => p.Target.Kind == PinKind.SavedSearch).Select(p => p.Target.Id!.Value)];
 
     /// <summary>
-    /// A saved search as the web opens it. A scope that has gone is left out, as the Windows app leaves it out, and the
+    /// A saved search as the web opens it. A scope that has gone is left out, and the
     /// note says so.
     /// </summary>
     static async Task<SavedSearch> OpenAsync(UserLibrary library, SmartViewInfo view, CancellationToken ct)
@@ -106,7 +106,7 @@ public static class SavedSearchesApi
         scope.StartsWith("collection:", StringComparison.Ordinal)
         && long.TryParse(scope["collection:".Length..], NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : null;
 
-    /// <summary>What the web's Library shows, as the Windows Library's CurrentView keeps it.</summary>
+    /// <summary>What the web's Library shows.</summary>
     internal static SmartViewDefinition ToDefinition(LibraryQuery q, bool list) => new(
         Query: q.Q?.Trim() ?? "",
         Scope: q.Collection is { } collection ? ScopeKeys.Collection(collection) : q.Binder is { } binder ? ScopeKeys.Session(binder)

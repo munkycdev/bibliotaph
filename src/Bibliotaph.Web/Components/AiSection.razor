@@ -1,9 +1,9 @@
-@* Settings › AI, as the Windows app's with a model server: Use AI on and off with how far it has got, Scan whole
+@* Settings › AI: Use AI on and off with how far it has got, Scan whole
    books, the server's address, Connect and its models, the embedding model for Ask, the key (never shown again), Save,
    Test with a book, Reclassify, and the folders sent to AI. The server only reaches a model
    service on the internet, over https. *@
 @implements IDisposable
-@inject ApiClient Api
+@inject AiClient AiApi
 @inject LibraryActivity Activity
 
 <section class="bt-section" aria-labelledby="ai-heading">
@@ -286,7 +286,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _page = await Api.AiAsync();
+        _page = await AiApi.AiAsync();
         _endpoint = _page.Endpoint is { } endpoint ? endpoint + "/v1" : "";
         _model = _page.Model ?? "";
         _embedding = _page.EmbeddingModel ?? "";
@@ -315,7 +315,7 @@
         _connection = new AiConnection(null, "Connecting…", null, []);
         try
         {
-            _connection = await Api.ConnectAiAsync(new AiConnect(_endpoint, _key.Length > 0 ? _key : null));
+            _connection = await AiApi.ConnectAiAsync(new AiConnect(_endpoint, _key.Length > 0 ? _key : null));
         }
         catch (HttpRequestException)
         {
@@ -339,7 +339,7 @@
         _saving = true;
         try
         {
-            var result = await Api.SaveAiAsync(new AiSave(_endpoint, _model, _key.Length > 0 ? _key : null, _remoteAllowed, _embedding.Trim()));
+            var result = await AiApi.SaveAiAsync(new AiSave(_endpoint, _model, _key.Length > 0 ? _key : null, _remoteAllowed, _embedding.Trim()));
             (_saveNote, _saveProblem) = (result.Note, result.Problem);
             if (result.Problem is null)
             {
@@ -359,7 +359,7 @@
     async Task SwitchAsync(bool on)
     {
         if (_page is null || _page.Enabled == on) return;
-        var result = await Api.SwitchAiAsync(on);
+        var result = await AiApi.SwitchAiAsync(on);
         (_switchNote, _switchProblem) = (result.Note, result.Problem);
         await RefreshAsync();
     }
@@ -367,37 +367,37 @@
     async Task ForgetKeyAsync()
     {
         if (_page?.Endpoint is not { } endpoint) return;
-        await Api.ForgetAiKeyAsync(endpoint);
+        await AiApi.ForgetAiKeyAsync(endpoint);
         await RefreshAsync();
     }
 
     async Task ReclassifyAsync()
     {
-        _saveNote = (await Api.ReclassifyAsync()).Note;
+        _saveNote = (await AiApi.ReclassifyAsync()).Note;
         await RefreshAsync();
     }
 
     async Task ScanWholeBooksAsync(bool on)
     {
-        await Api.ScanWholeBooksAsync(on);
+        await AiApi.ScanWholeBooksAsync(on);
         await RefreshAsync();
     }
 
     async Task ReadLibraryAsync(bool on)
     {
-        await Api.ReadLibraryAsync(on);
+        await AiApi.ReadLibraryAsync(on);
         await RefreshAsync();
     }
 
     async Task SendFolderAsync(AiFolder folder, bool send)
     {
-        await Api.SendFolderToAiAsync(folder.Id, send);
+        await AiApi.SendFolderToAiAsync(folder.Id, send);
         await RefreshAsync();
     }
 
     async Task RefreshAsync()
     {
-        _page = await Api.AiAsync();
+        _page = await AiApi.AiAsync();
         Activity.Refresh();
     }
 
@@ -423,7 +423,7 @@
         _ = TickAsync(test, ticking.Token);
         try
         {
-            test.Report = await Api.TestAiAsync(new AiTest(_endpoint, test.Model, _remoteAllowed), test.Stop.Token);
+            test.Report = await AiApi.TestAiAsync(new AiTest(_endpoint, test.Model, _remoteAllowed), test.Stop.Token);
         }
         catch (OperationCanceledException) when (test.Stop.IsCancellationRequested)
         {
@@ -461,7 +461,7 @@
     {
         if (!_focusDialog || _test is null) return;
         _focusDialog = false;
-        // Esc closes it, as the Windows dialog's Cancel does.
+        // Esc closes it.
         await _dialog.FocusAsync();
     }
 

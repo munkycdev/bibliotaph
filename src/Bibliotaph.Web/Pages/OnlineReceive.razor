@@ -1,5 +1,5 @@
 @page "/online/receive"
-@inject ApiClient Api
+@inject OnlineClient OnlineApi
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
@@ -45,7 +45,7 @@
     {
         try
         {
-            var sites = (await Api.OnlineServicesAsync()).Select(s => Site(s.LibraryPage)).OfType<string>().Distinct().ToArray();
+            var sites = (await OnlineApi.OnlineServicesAsync()).Select(s => Site(s.LibraryPage)).OfType<string>().Distinct().ToArray();
             _module = await JS.InvokeAsync<IJSObjectReference>("import", "./js/receive.js");
             var page = await _module.InvokeAsync<SentPage?>("take", PageWait * 2, sites, (int)PageWait.TotalMilliseconds);
             if (page is null)
@@ -58,7 +58,7 @@
             _status = "Reading the page…";
             StateHasChanged();
             using var html = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(page.Html));
-            var read = await Api.ReadOnlinePageAsync(html);
+            var read = await OnlineApi.ReadOnlinePageAsync(html);
             if (read.Preview is not { } preview)
             {
                 _status = "That page couldn't be read.";
@@ -80,7 +80,7 @@
                     using var image = new MemoryStream(bytes);
                     try
                     {
-                        await Api.AddOnlineImageAsync(preview.Token, cover.Name, image, cover.Type.Length > 0 ? cover.Type : "application/octet-stream");
+                        await OnlineApi.AddOnlineImageAsync(preview.Token, cover.Name, image, cover.Type.Length > 0 ? cover.Type : "application/octet-stream");
                     }
                     catch (ApiProblemException)
                     {

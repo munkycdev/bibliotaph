@@ -1,0 +1,67 @@
+@* Where a book's file is, each place with its state, and Reprocess under the first; Reprocess with OCR on every page
+   asks first, since a long book takes a while. *@
+@using Bibliotaph.Core
+@inject BooksClient BooksApi
+
+<DetailSection Section="@DetailSections.Where" Heading="WHERE IT IS">
+    @for (var i = 0; i < Book.Locations.Count; i++)
+    {
+        var location = Book.Locations[i];
+        <div class="bt-detailbox">
+            @if (location.Service is { } service) { <div class="bt-service"><Icon Name="Cloud" Size="14" />@service</div> }
+            <div class="bt-row bt-path">@location.Path</div>
+            @if (location.State.Length > 0) { <div class="bt-small">@location.State</div> }
+            @if (i == 0 && Book.PackFiles.Count == 0)
+            {
+                var label = Book.Reprocessing ? "Reprocessing…" : "Reprocess";
+                <div class="bt-boxactions bt-menuanchor">
+                    <button class="bt-button" title="Read the file again: pages, text, cover and hints from names. What you added stays." aria-label="@label"
+                            disabled="@Book.Reprocessing" @onclick="() => ReprocessAsync(false)"><Icon Name="RotateCcw" Size="14" />@label</button>
+                    @if (Book.OcrEveryPageQuestion is not null)
+                    {
+                        <button class="bt-button bt-dropbutton" title="More ways to reprocess" aria-label="More ways to reprocess" aria-haspopup="menu"
+                                aria-expanded="@_menu" disabled="@Book.Reprocessing" @onclick="() => _menu = !_menu"><Icon Name="ChevronDown" Size="14" /></button>
+                        @if (_menu)
+                        {
+                            <div class="bt-backdrop fixed bt-menuback" @onclick="() => _menu = false"></div>
+                            <div class="bt-menu" role="menu" aria-label="More ways to reprocess">
+                                <button class="bt-menuitem" role="menuitem" @onclick="AskOcrEveryPage">Reprocess with OCR on every page…</button>
+                            </div>
+                        }
+                    }
+                </div>
+                @if (_askingOcr && Book.OcrEveryPageQuestion is { } question)
+                {
+                    <div class="bt-confirmbox" role="alertdialog" aria-label="Reprocess with OCR on every page?">
+                        <div class="bt-row">Reprocess with OCR on every page?</div>
+                        <div class="bt-small">@question</div>
+                        <div class="bt-boxactions">
+                            <button class="bt-button primary" @onclick="() => ReprocessAsync(true)">Reprocess</button>
+                            <button class="bt-button" @onclick="() => _askingOcr = false">Cancel</button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    }
+</DetailSection>
+
+@code {
+    [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
+    [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
+
+    bool _menu;
+    bool _askingOcr;
+
+    void AskOcrEveryPage()
+    {
+        _menu = false;
+        _askingOcr = true;
+    }
+
+    async Task ReprocessAsync(bool ocr)
+    {
+        _askingOcr = false;
+        if (await Host.TryAsync(() => BooksApi.ReprocessAsync(Host.EntryId, ocr)) is { } details) Host.Replace(details);
+    }
+}

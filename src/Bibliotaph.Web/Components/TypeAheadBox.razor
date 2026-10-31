@@ -2,7 +2,7 @@
    with how many books each has, and picking one adds a chip under the box. Arrows move through the list, Enter picks,
    Esc empties the box. *@
 @implements IDisposable
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
 
 <div class="bt-field bt-typeahead">
     <span>@Box.Label</span>
@@ -67,7 +67,7 @@
         try
         {
             await Task.Delay(Pause, typing.Token);
-            var suggestions = await Api.SuggestAsync(Box.Key, _text, Query, typing.Token);
+            var suggestions = await LibraryApi.SuggestAsync(Box.Key, _text, Query, typing.Token);
             if (typing.IsCancellationRequested) return;
             _suggestions = suggestions;
             _highlight = 0;

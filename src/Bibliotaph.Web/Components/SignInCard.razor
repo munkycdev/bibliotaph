@@ -1,5 +1,5 @@
 @* Sign-in, shown in place of the shell when nobody is signed in. With an invitation code, it's also how an account starts. *@
-@inject ApiClient Api
+@inject AccountClient AccountApi
 @inject NavigationManager Navigation
 
 <PageTitle>Sign in · Bibliotaph</PageTitle>
@@ -47,7 +47,7 @@
     [Parameter] public string? Invite { get; set; }
     [Parameter] public string? Problem { get; set; }
 
-    protected override async Task OnInitializedAsync() => _providers = await Api.ProvidersAsync();
+    protected override async Task OnInitializedAsync() => _providers = await AccountApi.ProvidersAsync();
 
     string SignInUrl(SignInProvider provider)
     {

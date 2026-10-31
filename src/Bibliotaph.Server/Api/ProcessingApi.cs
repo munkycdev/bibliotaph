@@ -10,7 +10,7 @@ using Bibliotaph.Server.Libraries;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// /api/processing: Settings › Processing, as the Windows app's <c>LibraryActivity</c> gathers it, pausing each lane,
+/// /api/processing: Settings › Processing, pausing each lane,
 /// running a step again for every book, and whether books are looked up online. A pause is kept with the library, so it holds after the server closes an idle
 /// library and opens it again.
 /// </summary>

@@ -1,6 +1,6 @@
 @page "/home"
 @implements IDisposable
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
 @inject NavigationManager Navigation
 @inject LibraryActivity Activity
 @inject Pins Pins
@@ -13,7 +13,7 @@
 }
 else if (!HasLibrary)
 {
-    @* First run, as the Windows app's Home: what Bibliotaph does, and that the files stay put. A library that came
+    @* First run: what Bibliotaph does, and that the files stay put. A library that came
        from a connected PC, or holds only books owned elsewhere, is past its first run without a folder here. *@
     <div class="bt-welcome">
         <span class="bt-eyebrow bt-eyebrow-block">WELCOME TO BIBLIOTAPH</span>
@@ -40,7 +40,7 @@ else
     }
     @if (_shelves is { AskAboutAi: true } && !_aiLater)
     {
-        @* The Windows app's first run, once folders are in: AI now or later. Everything works without it. *@
+        @* First run, once folders are in: AI now or later. Everything works without it. *@
         <div class="bt-aistep">
             <div class="bt-row">Fill in the catalog with AI?</div>
             <p class="bt-copy">
@@ -71,12 +71,12 @@ else
         {
             @if (shelves.Preparing is { } preparing)
             {
-                @* The binder worked on last that's for a game. *@
+                @* The binder worked on last that isn't kept at hand. *@
                 <div class="bt-sectionline">
-                    <strong>Continue preparing</strong>
+                    <strong>Current binder</strong>
                     <a class="bt-link bt-inline" href="binders">All binders<Icon Name="ArrowRight" Size="13" /></a>
                 </div>
-                <div class="bt-collectioncards" aria-label="Continue preparing"><BinderTile Card="preparing" /></div>
+                <div class="bt-collectioncards" aria-label="Current binder"><BinderTile Card="preparing" /></div>
             }
             @if (shelves.Opened.Count > 0)
             {
@@ -127,7 +127,7 @@ else
         _aiLater = true;
         try
         {
-            await Api.AiLaterAsync();
+            await LibraryApi.AiLaterAsync();
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -139,7 +139,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _summary = await Api.LibraryOverviewAsync();
+        _summary = await LibraryApi.LibraryOverviewAsync();
         if (HasLibrary) await LoadAsync();
         // The tour's first chapter, before any folder; its second once books show, here or in the Library.
         else await Tour.OfferFoldersAsync();
@@ -152,7 +152,7 @@ else
 
     async Task LoadAsync()
     {
-        _shelves = await Api.HomeAsync();
+        _shelves = await LibraryApi.HomeAsync();
         _loaded = DateTime.UtcNow;
         if (_shelves.Added.Count > 0) await Tour.OfferBooksAsync();
     }
@@ -171,7 +171,7 @@ else
         });
     }
 
-    /// <summary>A cover: the Library with that book's details open, as on Windows.</summary>
+    /// <summary>A cover: the Library with that book's details open.</summary>
     void ShowDetails(BookCard book) => Navigation.NavigateTo($"library?book={book.EntryId}");
 
     void CorrectBook(BookCard book) => Navigation.NavigateTo($"library?book={book.EntryId}&correct=true");

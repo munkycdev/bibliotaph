@@ -24,7 +24,7 @@ public sealed record CheckPages(IReadOnlyList<string?> Fingerprints, int PagesWi
 
 /// <summary>
 /// A file's verdict, with the heading and the meaning of its group, the line under its name, and the book it matched.
-/// <paramref name="Order"/> sorts the groups, New first, as the Windows page does. <paramref name="Owned"/> is the very
+/// <paramref name="Order"/> sorts the groups, New first. <paramref name="Owned"/> is the very
 /// same file, whose pages needn't be read.
 /// </summary>
 public sealed record CheckResult(int Order, string Label, string Explanation, string? Detail, long? MatchEntryId, long? MatchDocumentId,

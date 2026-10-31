@@ -1,10 +1,10 @@
-@* Settings › Preferences, as the Windows app's: how Bibliotaph looks, where it opens, and what waits for review. Light
+@* Settings › Preferences: how Bibliotaph looks, where it opens, and what waits for review. Light
    or dark is kept in this browser, as the Windows app keeps it on each PC, and the top bar's button changes the same
    setting; the other two belong to the library. Changing what waits for review counts every book's cards again, which
    the sidebar's count then shows. *@
 @implements IDisposable
 @inject Theme Theme
-@inject ApiClient Api
+@inject SettingsClient SettingsApi
 @inject LibraryActivity Activity
 @inject TourGuide Tour
 
@@ -71,8 +71,8 @@
     {
         Theme.Changed += OnThemeChanged;
         _mode = await Theme.CurrentAsync();
-        var start = Api.StartPageAsync();
-        var review = Api.ReviewModeAsync();
+        var start = SettingsApi.StartPageAsync();
+        var review = SettingsApi.ReviewModeAsync();
         _startOnLibrary = (await start).Library;
         _all = (await review).All;
     }
@@ -90,7 +90,7 @@
         _problem = null;
         try
         {
-            await Api.SetStartPageAsync(library);
+            await SettingsApi.SetStartPageAsync(library);
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
@@ -108,7 +108,7 @@
         _note = "Counting what needs review…";
         try
         {
-            _all = (await Api.SetReviewModeAsync(all)).All;
+            _all = (await SettingsApi.SetReviewModeAsync(all)).All;
             Activity.Refresh();
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
