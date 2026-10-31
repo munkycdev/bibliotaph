@@ -43,7 +43,7 @@ It is made for a game master with a large, mixed collection across several game 
 
 ## Screens
 
-The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Summary**, **Needs review** (with a count), the **Pinned** group and **Settings**. Its button beside Settings, or **Ctrl+B**, folds it to its icons, with the monogram still at the top and the button under Settings, and it stays as it was left. The search box is always at the top (**Ctrl+K**).
+The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Needs review** (with a count), **Summary**, the **Pinned** group and **Settings**. Its button beside Settings, or **Ctrl+B**, folds it to its icons, with the monogram still at the top and the button under Settings, and it stays as it was left. The search box is always at the top (**Ctrl+K**).
 
 **Home** shows **Continue preparing** (the next binder), **Recently opened**, **Recently added** and the pins, with the library's size and a link to Summary under the welcome. **Start on** in **Settings > Preferences** can open the Library instead.
 

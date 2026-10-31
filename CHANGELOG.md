@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Summary moved below Needs review in the sidebar**, in the Windows app and on the web, so the pages you work in come
+  first. See [Summary](docs/guide/summary.md).
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1070 (30 October 2026):
