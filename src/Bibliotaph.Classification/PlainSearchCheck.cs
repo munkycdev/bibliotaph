@@ -36,13 +36,17 @@ public sealed record PlainSearchContext(Vocabulary Vocabulary, IReadOnlyCollecti
 /// the user typed those words, and is dropped otherwise. Words to find, and the values of free-text fields, must be
 /// words of the request (or the start of one: "terraform" for "terraforming"), so a model can't add searches nobody
 /// asked for. Levels and players must read as numbers or ranges, and a level asked of a game system whose books have no
-/// levels is ignored. Every change is said in a note, and each chip is parsed by the search box's own parser before it
-/// is kept. Explicit filters are never loosened, and nothing unknown is filled in.
+/// levels is ignored. What the request describes goes to about, found by meaning, and must be its words too. Every
+/// change is said in a note, and each chip is parsed by the search box's own parser before it is kept. Explicit filters
+/// are never loosened, and nothing unknown is filled in.
 /// </summary>
 public static class PlainSearchCheck
 {
     /// <summary>A value longer than this is a sentence, not a search.</summary>
     const int MaxValueLength = 80;
+
+    /// <summary>What a request describes may be a longer phrase, since it is found by meaning rather than matched.</summary>
+    const int MaxAboutLength = 200;
 
     /// <summary>A word of a value this short must match a word of the request whole: "a" is no start of "adventure".</summary>
     const int MinWordStart = 3;
@@ -70,6 +74,11 @@ public static class PlainSearchCheck
         {
             var value = MetadataText.Tidy(claim.Value);
             if (value.Length == 0) continue;
+            if (claim.Field == PlainSearchPrompt.About)
+            {
+                CheckAbout(value);
+                continue;
+            }
             if (value.Length > MaxValueLength)
             {
                 notes.Add("Part of the answer was too long to be a search, so it was left out.");
@@ -120,6 +129,15 @@ public static class PlainSearchCheck
             var texts = parts.Where(f => f.Field is { Kind: SearchFieldKind.Text }).Select(f => MetadataText.Normalize(f.Value)).ToHashSet(StringComparer.Ordinal);
             parts.RemoveAll(p => p.Field is null && !p.Exclude
                 && (texts.Contains(MetadataText.Normalize(p.Value)) || terms.Values.Any(t => context.Vocabulary.Resolve(t.Vocabulary, p.Value) == t)));
+        }
+
+        // One about, of the user's own words: it ranks rather than filters, so it is never left out of the results.
+        void CheckAbout(string value)
+        {
+            if (parts.Any(p => p.Field == SearchFields.About)) return;
+            if (value.Length > MaxAboutLength) notes.Add("What you described was too long to search for by meaning, so it was left out.");
+            else if (FromRequest(value, requestWords)) Add(new InterpretedPart(SearchFields.About, value));
+            else notes.Add($"“{value}” isn't in what you asked, so it wasn't searched for by meaning.");
         }
 
         void CheckTerm(SearchFieldInfo field, string value, bool exclude)

@@ -36,6 +36,10 @@
   without one it finds pages with any of your words. Documents ranks books by their pages and by their own title,
   details, tags and notes, read for meaning within minutes of choosing an embedding model, so a book you own
   elsewhere is found too. Works on the web as well. See [Searching](docs/guide/searching.md#search-by-meaning).
+- **Ask finds what you describe by meaning.** Ask now keeps only names and exact terms as words a book must have,
+  and turns the rest of your request into an `about:` chip, so "jungle world with terraforming" finds the closest
+  books and pages instead of only those with every word. See
+  [Searching](docs/guide/searching.md#ask-in-plain-english).
 
 ## 1.4 ┬╖ 28 October 2026
 
