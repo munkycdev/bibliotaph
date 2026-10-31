@@ -102,7 +102,10 @@ say it, for example "Mothership, level 4, jungle world with terraforming", and p
 while Ask is on; nothing happens until you press **Enter**.
 
 The AI turns your request into a search, and a panel under the top bar shows what it made of it as chips: each field
-with its value, which you can change, and the words it kept, each with an × to drop it. When it had to change
+with its value, which you can change, and the words it kept, each with an × to drop it. Names and exact terms (a
+villain, a spell) become words a book must have; the rest of what you describe, such as "jungle world with
+terraforming", becomes an `about:` chip, so it [finds books and pages by meaning](#search-by-meaning) rather than
+asking for every word. When it had to change
 something, it says what and why, for example "Mothership has no character levels in your library, so level 4 was
 ignored." Click **Search** and the chips go into the search box as an ordinary search, which you can then edit like
 any other.

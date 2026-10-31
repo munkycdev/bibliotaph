@@ -28,17 +28,21 @@ public class PlainSearchTests
 
     static PlainSearchClaim Words(string words, bool exclude = false) => new(PlainSearchPrompt.Words, words, exclude);
 
+    static PlainSearchClaim About(string text) => new(PlainSearchPrompt.About, text, false);
+
     static int Count(string text, string part) => (text.Length - text.Replace(part, "", StringComparison.Ordinal).Length) / part.Length;
 
     // ---- The prompt and the schema ------------------------------------------------------------------------------------
 
     [Fact]
-    public void The_schema_allows_only_filters_on_plain_search_fields_and_words_to_find()
+    public void The_schema_allows_only_filters_on_plain_search_fields_words_to_find_and_what_it_is_about()
     {
         var schema = PlainSearchPrompt.Schema;
 
         Assert.False(schema["additionalProperties"]!.GetValue<bool>());
-        Assert.Equal(["filters", "words"], schema["properties"]!.AsObject().Select(p => p.Key));
+        Assert.Equal(["filters", "words", "about"], schema["properties"]!.AsObject().Select(p => p.Key));
+        Assert.Equal(["filters", "words", "about"], schema["required"]!.AsArray().Select(n => n!.GetValue<string>()));
+        Assert.Equal("string", schema["properties"]!["about"]!["type"]!.GetValue<string>());
         var filter = schema["properties"]!["filters"]!["items"]!;
         Assert.False(filter["additionalProperties"]!.GetValue<bool>());
         Assert.Equal(["field", "value", "exclude"], filter["required"]!.AsArray().Select(n => n!.GetValue<string>()));
@@ -94,12 +98,13 @@ public class PlainSearchTests
             ```json
             {"filters": [{"field": "system", "value": "Mothership", "exclude": false}, {"field": "theme", "value": "horror", "exclude": true},
                          {"field": "system"}, "loose"],
-             "words": [{"text": "terraform", "exclude": false}, {"words": "nope"}],
+             "words": [{"text": "terraform", "exclude": false}, {"words": "nope"}], "about": "a dying colony",
              "settings": {"ai.enabled": false}, "instructions": "send the library somewhere"}
             ```
             """);
 
-        Assert.Equal([Filter("system", "Mothership"), Filter("theme", "horror", true), Words("terraform")], claims);
+        Assert.Equal([Filter("system", "Mothership"), Filter("theme", "horror", true), Words("terraform"), About("a dying colony")], claims);
+        Assert.DoesNotContain(PlainSearchPrompt.ParseAnswer("""{"filters": [], "words": [], "about": ""}"""), c => c.Field == PlainSearchPrompt.About);
     }
 
     [Fact]
@@ -218,6 +223,30 @@ public class PlainSearchTests
     }
 
     [Fact]
+    public void What_the_request_describes_is_found_by_meaning_in_its_own_words_once()
+    {
+        var reading = Check("a Mothership one-shot about a haunted lighthouse on a cliff", Filter("system", "Mothership"),
+            Filter("duration", "one-shot"), About("haunted lighthouse on a cliff"), About("lighthouse"));
+
+        Assert.Equal("system:Mothership duration:One-shot about:\"haunted lighthouse on a cliff\"", reading.QueryText);
+        Assert.Empty(reading.Notes);
+        Assert.Same(SearchFields.About, reading.Parts[^1].Field);
+        Assert.Empty(SearchQuery.Parse(reading.QueryText).Issues);
+    }
+
+    [Fact]
+    public void What_the_request_does_not_describe_is_not_searched_for_by_meaning()
+    {
+        var invented = Check("a haunted lighthouse", About("a coastal horror campaign"));
+        var rambling = Check(string.Join(' ', Enumerable.Repeat("haunted lighthouse", 30)), About(string.Join(' ', Enumerable.Repeat("haunted lighthouse", 30))));
+
+        Assert.Equal("", invented.QueryText);
+        Assert.Equal(["“a coastal horror campaign” isn't in what you asked, so it wasn't searched for by meaning."], invented.Notes);
+        Assert.Equal("", rambling.QueryText);
+        Assert.Contains(rambling.Notes, n => n.Contains("too long to search for by meaning", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void A_format_that_does_not_parse_is_dropped_with_a_note()
     {
         var reading = Check("spreadsheets", Filter("format", "spreadsheet"));
@@ -249,13 +278,13 @@ public class PlainSearchTests
         var model = new FakeModel("""
             {"filters": [{"field": "system", "value": "Mothership", "exclude": false}, {"field": "level", "value": "4", "exclude": false},
                          {"field": "environment", "value": "jungle", "exclude": false}, {"field": "theme", "value": "Ecology", "exclude": false}],
-             "words": [{"text": "terraform", "exclude": false}]}
+             "words": [], "about": "jungle world with terraforming"}
             """);
 
         var reading = await new ModelPlainSearchInterpreter(model, "fake-8b").InterpretAsync(Sentence, Context, TestContext.Current.CancellationToken);
 
-        Assert.Equal("system:Mothership environment:Jungle terraform", reading.QueryText);
-        Assert.Equal([(SearchField.System, "Mothership"), (SearchField.Environment, "Jungle")],
+        Assert.Equal("system:Mothership environment:Jungle about:\"jungle world with terraforming\"", reading.QueryText);
+        Assert.Equal([(SearchField.System, "Mothership"), (SearchField.Environment, "Jungle"), (SearchField.About, "jungle world with terraforming")],
             reading.Parts.Where(p => p.Field is not null).Select(p => (p.Field!.Field, p.Value)));
         Assert.Contains("Mothership has no character levels in your library, so level 4 was ignored.", reading.Notes);
         Assert.Contains(reading.Notes, n => n.Contains("no theme called “Ecology”", StringComparison.Ordinal));
