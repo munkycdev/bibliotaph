@@ -42,6 +42,19 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     /// </summary>
     public static bool HadNoIsbn(string? reason) => reason == "It prints no ISBN to look up.";
 
+    /// <summary>What a book's details say for a lookup no catalogue had a record for.</summary>
+    public const string NotFoundOnline = "Unable to find in any online listing.";
+
+    /// <summary>
+    /// The words a lookup's reason is shown in. A miss is stored naming the catalogues asked, which <see cref="AskedOfFewer"/>
+    /// needs, but the reader only needs to know nothing was found.
+    /// </summary>
+    public static string Shown(string reason) =>
+        reason.StartsWith(NoRecordBefore, StringComparison.Ordinal) || reason.StartsWith(NoCodeRecordBefore, StringComparison.Ordinal)
+        || reason.StartsWith(NoTitleRecordBefore, StringComparison.Ordinal)
+            ? NotFoundOnline
+            : reason;
+
     /// <summary>Where a book was looked up, at the end of how its lookup ended, so it is asked again where more can be asked.</summary>
     public static string AskedOf(string catalogues) => $"{AskedBefore}{catalogues}.";
 

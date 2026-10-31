@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **A book no catalogue knows now says "Unable to find in any online listing."** in its details, in place of a list of
+  every catalogue asked. See [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1070 (30 October 2026):
