@@ -43,7 +43,7 @@ It is made for a game master with a large, mixed collection across several game 
 
 ## Screens
 
-The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Summary**, **Needs review** (with a count), the **Pinned** group and **Settings**. Its button beside Settings, or **Ctrl+B**, folds it to its icons, with the monogram still at the top and the button under Settings, and it stays as it was left. The search box is always at the top (**Ctrl+K**).
+The sidebar has **Home**, **Library**, **Collections**, **Binders**, **Needs review** (with a count), **Summary**, the **Pinned** group and **Settings**. Its button beside Settings, or **Ctrl+B**, folds it to its icons, with the monogram still at the top and the button under Settings, and it stays as it was left. The search box is always at the top (**Ctrl+K**).
 
 **Home** shows **Continue preparing** (the next binder), **Recently opened**, **Recently added** and the pins, with the library's size and a link to Summary under the welcome. **Start on** in **Settings > Preferences** can open the Library instead.
 
@@ -61,7 +61,7 @@ The box takes words, quoted phrases, `OR`, `-word` and `word*`, mixed with field
 
 Results have two tabs, **Documents** and **Inside documents**. Snippets are always the page's own text, and while books are still being read, results say how much is covered ("Searching text in 70 of 84 documents.").
 
-**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** are boxes to type in: they list the matching values with how many books have each, and a picked value becomes a chip. **Collection** shows the books in a collection, or those in none yet. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
+**Filters** offers **Game system**, **Type**, **Character level** and **Players**, with the rest under **More filters**. **Setting**, **Themes**, **Environments**, **Publisher** and **Edition** are boxes to type in: they list the matching values with how many books have each, and a picked value becomes a chip. **Collection** shows the books in a collection, or those in none yet. **Found online** shows the books a catalogue found (RPGGeek, AdventureLookup, Open Library or Google Books, each with how many books it found), counting a book once for each catalogue whose record it uses and never for a record waiting in a Same book? card or answered Not this book, or **Not found online** for the books none found, including those not looked up yet; it shows once a catalogue has found a book, and a book with copies is found by what found any of its files. Choices within a filter widen it; different filters narrow together. Active filters show as **filter chips** above the results, each with ×. A level matches books whose range contains it; books with unknown levels match only with **Include unknown levels**. Filters are never quietly relaxed.
 
 **Save search** keeps the search, scope, filters, order and layout, not a list of books, and pins it.
 

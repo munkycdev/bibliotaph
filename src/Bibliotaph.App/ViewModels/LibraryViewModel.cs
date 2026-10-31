@@ -497,7 +497,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             await _queries.GetFacetCountsAsync("style", filter with { Styles = null }, plan),
             await _queries.GetFacetCountsAsync("duration", filter with { Durations = null }, plan),
             await _queries.GetFacetCountsAsync("store", filter with { Stores = null }, plan),
-            await Task.WhenAll(chips.Select(key => _queries.GetValueCountsAsync(key, filter with { Picked = filter.Picked?.Without(key) }, plan)))));
+            await Task.WhenAll(chips.Select(key => _queries.GetValueCountsAsync(key, filter with { Picked = filter.Picked?.Without(key) }, plan))),
+            await _queries.GetFacetCountsAsync(FoundOnline.Field, filter with { Found = null }, plan, FoundOnline.NotFound)));
     }
 
     void ShowResults(IReadOnlyList<LibraryEntry> documents, PageResults? pages, SearchPlan? plan, SearchQuery query)

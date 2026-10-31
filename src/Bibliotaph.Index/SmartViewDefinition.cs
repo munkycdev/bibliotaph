@@ -61,7 +61,8 @@ public sealed record SmartViewDefinition(
     bool HideParts = false,
     CollectionFilter Collections = CollectionFilter.All,
     PickedValues? Picked = null,
-    AdventureCards Adventures = AdventureCards.InBooks)
+    AdventureCards Adventures = AdventureCards.InBooks,
+    string? Found = null)
 {
     /// <summary>2: <see cref="Adventures"/>, which defaults to inside their books, took over from <see cref="HideParts"/>.</summary>
     public const int CurrentVersion = 2;

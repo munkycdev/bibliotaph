@@ -159,6 +159,8 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         {
             // A record no catalogue gives any more isn't worth asking about.
             await records.SaveAsync(job.ContentHash, [], _ => false, ct);
+            // Found online follows the records the book uses, which may have just gone.
+            if (await entries.GetEntryAsync(job.DocumentId, ct) is { } none) await projector.ProjectAsync([none.EntryId], ct);
             return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NoRecordIn(answer.AskedOf, byCode: isbns.Count == 0, byTitle: byTitle));
         }
 
@@ -174,12 +176,10 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         {
             var (changed, grew) = await records.ApplyAsync(entry.EntryId, job.ContentHash, ct);
             if (grew) await projector.ProjectVocabularyAsync(ct);
-            if (changed)
-            {
-                await projector.ProjectAsync([entry.EntryId], ct);
-                // Match looked for a book of the same title and publisher before the record named this one properly.
-                if (saved.Used.Count > 0) await versions.ProposeByTitleAndPublisherAsync(job.DocumentId, ct);
-            }
+            // Projected even when no value changed: Found online follows which catalogues' records the book uses.
+            await projector.ProjectAsync([entry.EntryId], ct);
+            // Match looked for a book of the same title and publisher before the record named this one properly.
+            if (changed && saved.Used.Count > 0) await versions.ProposeByTitleAndPublisherAsync(job.DocumentId, ct);
         }
         if (saved.Used.Count > 0) return new StageOutcome.Done(StageStatus.Complete, [], asked);
         if (saved.Waiting.Count == 0 && saved.Refused.Count == 0)
