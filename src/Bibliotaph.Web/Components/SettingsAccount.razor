@@ -1,5 +1,5 @@
 @* Settings › Account: who is signed in, with which sign-ins, linking another, signing out and closing the account. *@
-@inject ApiClient Api
+@inject AccountClient AccountApi
 @inject Session Session
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -71,7 +71,7 @@
     /// <summary>"taken" when a sign-in being linked already belongs to another account.</summary>
     [Parameter] public string? Problem { get; set; }
 
-    protected override async Task OnInitializedAsync() => _providers = await Api.ProvidersAsync();
+    protected override async Task OnInitializedAsync() => _providers = await AccountApi.ProvidersAsync();
 
     async Task CloseAccount()
     {

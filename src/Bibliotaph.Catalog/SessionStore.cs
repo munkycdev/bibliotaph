@@ -30,7 +30,7 @@ public sealed record PageRefCheck(PageCheck Outcome, long DocumentId, int FirstP
 
 /// <summary>
 /// A pack as the Sessions page shows it: how many items it has, and the books of its first two, for covers. One kept at
-/// hand holds rules to look up mid-game, for <see cref="GameSystem"/> (a system vocabulary key) or any system.
+/// hand holds rules looked up often, for <see cref="GameSystem"/> (a system vocabulary key) or any system.
 /// </summary>
 public sealed record SessionPackInfo(long Id, string Title, DateOnly? Date, string? Notes, DateTime TouchedUtc, int ItemCount, IReadOnlyList<EntryId> FirstEntries,
     bool KeepAtHand = false, string? GameSystem = null);

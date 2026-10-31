@@ -1,5 +1,5 @@
-@* Picks a folder in connected storage, as the Windows app's folder dialog does: walk down from the top, then use the folder you're in. *@
-@inject ApiClient Api
+@* Picks a folder in connected storage: walk down from the top, then use the folder you're in. *@
+@inject StorageClient StorageApi
 
 <div class="bt-backdrop fixed" @onclick="Cancel"></div>
 <aside class="bt-drawer fixed" role="dialog" aria-modal="true" aria-labelledby="picker-heading">
@@ -105,7 +105,7 @@
         _problem = null;
         try
         {
-            _list = await Api.StorageFoldersAsync(_storage.Id, path);
+            _list = await StorageApi.StorageFoldersAsync(_storage.Id, path);
         }
         catch (ApiProblemException problem)
         {

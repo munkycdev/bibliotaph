@@ -2,7 +2,8 @@
    ticked, with their titles and pages, which Edit makes text boxes; Accept makes a card for each ticked one. An
    adventure whose pages weren't found in its file as it is now gets Set its pages, typed in place, or Remove
    adventure. Answered, either folds to one line with Undo. *@
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
+@inject ReviewClient ReviewApi
 
 <article class="bt-reviewitem" aria-label="@($"{Card.Chip}: {Card.Title}")">
     @if (State.IsDone)
@@ -147,7 +148,7 @@
     PartsDraft Draft => (PartsDraft)(State.Draft ??= new PartsDraft { Rows = [.. (Card.Proposed ?? []).Select(p => new Row(p))] });
 
     Task AnswerAsync(string choice) =>
-        State.DecideAsync(() => Api.AnswerOfferAsync(new ReviewOfferAnswer(Card.Id, Card.Stamp, choice)), Decided.InvokeAsync);
+        State.DecideAsync(() => ReviewApi.AnswerOfferAsync(new ReviewOfferAnswer(Card.Id, Card.Stamp, choice)), Decided.InvokeAsync);
 
     Task ChooseAsync(string choice)
     {
@@ -158,17 +159,17 @@
         return Task.CompletedTask;
     }
 
-    /// <summary>Pages that don't read open the text boxes, with the line saying which, as on Windows.</summary>
+    /// <summary>Pages that don't read open the text boxes, with the line saying which.</summary>
     async Task AcceptAsync()
     {
         var rows = Draft.Rows.Select((r, i) => (Row: r, Index: i)).Where(x => x.Row.Ticked)
             .Select(x => new ReviewPartRow(x.Index, x.Row.Title, x.Row.From, x.Row.To)).ToList();
-        if (!await State.DecideAsync(() => Api.AcceptPartsAsync(new ReviewPartsAccept(Card.Id, Card.Stamp, rows)), Decided.InvokeAsync)) Draft.Editing = true;
+        if (!await State.DecideAsync(() => ReviewApi.AcceptPartsAsync(new ReviewPartsAccept(Card.Id, Card.Stamp, rows)), Decided.InvokeAsync)) Draft.Editing = true;
     }
 
     async Task SavePagesAsync()
     {
-        if (await State.DecideAsync(() => Api.SetPartPagesAsync(new ReviewPartPagesSet(Card.Id, Card.Stamp, Draft.From, Draft.To)), Decided.InvokeAsync))
+        if (await State.DecideAsync(() => ReviewApi.SetPartPagesAsync(new ReviewPartPagesSet(Card.Id, Card.Stamp, Draft.From, Draft.To)), Decided.InvokeAsync))
             Draft.Editing = false;
     }
 
@@ -184,5 +185,5 @@
         else if (e.Key == "Escape") CancelPages();
     }
 
-    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+    Task UndoAsync() => State.UndoAsync(LibraryApi, Decided.InvokeAsync);
 }

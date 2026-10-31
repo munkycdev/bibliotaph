@@ -2,7 +2,7 @@ namespace Bibliotaph.Web.Services;
 
 /// <summary>
 /// Passwords that opened a PDF in this tab, by content hash, so the book opening again (another file of its pack and
-/// back, or from a binder) isn't asked for again, as the Windows app keeps them for its sitting. Never stored.
+/// back, or from a binder) isn't asked for again. Never stored.
 /// </summary>
 public sealed class UnlockedBooks
 {

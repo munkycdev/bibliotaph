@@ -1,5 +1,5 @@
-@* .bt-donenote: what a change did, with Undo when it can be undone and × to dismiss it, as the Windows app's undo notes. *@
-@inject ApiClient Api
+@* .bt-donenote: what a change did, with Undo when it can be undone and × to dismiss it. *@
+@inject LibraryClient LibraryApi
 
 @if (_shown is { Length: > 0 } message)
 {
@@ -45,7 +45,7 @@
         try
         {
             // Undone, the note goes; what couldn't be undone says so.
-            var result = await Api.RunHeldAsync(token);
+            var result = await LibraryApi.RunHeldAsync(token);
             _shown = result.Message;
         }
         catch (ApiProblemException e)

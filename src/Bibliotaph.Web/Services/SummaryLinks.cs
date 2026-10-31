@@ -4,7 +4,7 @@ using Bibliotaph.Core;
 
 namespace Bibliotaph.Web.Services;
 
-/// <summary>Where a Summary figure goes on the web: the Library's address with its search and filters, as the Windows app opens it.</summary>
+/// <summary>Where a Summary figure goes on the web: the Library's address with its search and filters.</summary>
 public static class SummaryLinks
 {
     public static string Href(SummaryLink link) => link.Goal switch

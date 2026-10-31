@@ -97,10 +97,10 @@ The sidebar on the left has the main pages:
 
 | Page | What's there |
 | --- | --- |
-| **Home** | Where you left off: **Continue preparing** (your next binder), **Recently opened**, **Recently added** and your pins. |
+| **Home** | Where you left off: **Current binder** (the binder you worked on last), **Recently opened**, **Recently added** and your pins. |
 | **Library** | Every book, map and handout, as covers or a list, with search, filters and the details panel. |
 | **Collections** | Books you've gathered around a campaign, a setting or an idea. |
-| **Binders** | The books and pages for each session, in order. |
+| **Binders** | Books and pages gathered in your order, with your notes. |
 | **Summary** | Your library by the numbers, each figure a link into the Library. See [Your library in numbers](summary.md). |
 | **Needs review** | Suggestions to check and files that need something from you. The number is how many are waiting. |
 | **Pinned** | Anything you've pinned: a book, Favorites, a collection, a binder or a saved search. |

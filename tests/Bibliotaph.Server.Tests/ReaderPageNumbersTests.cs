@@ -3,7 +3,7 @@ using Bibliotaph.Core.Reading;
 
 namespace Bibliotaph.Server.Tests;
 
-/// <summary>The web reader's page box reads page numbers as the Windows reader's does.</summary>
+/// <summary>The web reader's page box reads page numbers.</summary>
 public sealed class ReaderPageNumbersTests
 {
     static readonly IReadOnlyList<string?> Labels = ["Cover", "i", "ii", "1", "2", null, "4", " xii "];
@@ -30,4 +30,19 @@ public sealed class ReaderPageNumbersTests
         for (var page = 0; page < Labels.Count + 2; page++)
             Assert.Equal(PageNumbers.Display(page, Labels), ReaderPageNumbers.Display(page, Labels));
     }
+
+    [Theory]
+    [InlineData("ii", "", 2, 2)]
+    [InlineData("1", "4", 3, 6)]
+    [InlineData("4", "1", 3, 6)]
+    [InlineData("2", " ", 4, 4)]
+    public void From_and_to_name_their_pages_in_order(string from, string to, int first, int last) =>
+        Assert.Equal((first, last), ReaderPageNumbers.Range(from, to, Labels, Labels.Count));
+
+    [Theory]
+    [InlineData("nowhere", "")]
+    [InlineData("1", "nowhere")]
+    [InlineData("", "4")]
+    public void A_range_with_a_page_the_book_lacks_is_none(string from, string to) =>
+        Assert.Null(ReaderPageNumbers.Range(from, to, Labels, Labels.Count));
 }

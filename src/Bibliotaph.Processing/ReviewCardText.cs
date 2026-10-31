@@ -192,7 +192,7 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
     }
 
     public string Detail =>
-        $"Same book fills in this book's details from the record, shown as {Record.Source}'s rather than yours, so the AI's guesses give way to them and anything you set yourself stays.";
+        $"Same book fills in this book's details from {Record.Source}'s record. Its values replace the AI's guesses, and anything you set yourself stays.";
 
     public string SameBook => $"Filled in {Item.BookTitle} from {Record.Source}'s record.";
 

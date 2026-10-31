@@ -149,7 +149,7 @@ public static class CollectionsApi
 
     /// <summary>
     /// Each collection's card: how many books it holds, its sub-collections' included, and the covers of the two added
-    /// last. Only books in the library's shown folders count, as on Windows.
+    /// last. Only books in the library's shown folders count.
     /// </summary>
     static async Task<IReadOnlyList<CollectionCard>> CardsAsync(UserLibrary library, IReadOnlyList<CollectionInfo> shown,
         IReadOnlyDictionary<long, CollectionInfo> all, CancellationToken ct)

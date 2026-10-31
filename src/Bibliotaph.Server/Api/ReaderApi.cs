@@ -17,12 +17,12 @@ using Microsoft.EntityFrameworkCore;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// The reader: a book to open, as the Windows reader opens it, and a short-lived link to its file in the user's
+/// The reader: a book to open, and a short-lived link to its file in the user's
 /// storage, which the browser reads byte ranges from itself. A book's bytes never pass through the server.
 /// </summary>
 public static partial class ReaderApi
 {
-    /// <summary>Find stops counting here, as the Windows reader's does.</summary>
+    /// <summary>Find stops counting here.</summary>
     const int MaxMatches = 2000;
 
     public static void MapReaderApi(this RouteGroupBuilder api)
@@ -169,7 +169,7 @@ public static partial class ReaderApi
     }
 
     /// <summary>
-    /// As the Windows reader's banner over a binder item's pages: a page that changed since it was added, with Use
+    /// The banner over a binder item's pages: a page that changed since it was added, with Use
     /// this page; or why it opens where it does, as in the file it was added from.
     /// </summary>
     static ReaderItem ToItem((SessionItemInfo Item, string Binder, string Heading, SessionItemTarget Target) open, bool hasPages)
@@ -195,7 +195,7 @@ public static partial class ReaderApi
     }
 
     /// <summary>
-    /// Where the book's printed page numbers are, as the Windows reader finds them: its page labels, or failing those
+    /// Where the book's printed page numbers are: its page labels, or failing those
     /// the numbers printed at the top or foot of its pages; and the pages under an index or contents bookmark.
     /// </summary>
     internal static async Task<ReaderPrintedPages> PrintedPagesAsync(UserLibrary library, long documentId, CancellationToken ct)
@@ -228,7 +228,7 @@ public static partial class ReaderApi
 
     /// <summary>
     /// The file's bookmarks, with what the AI found in each chapter under the bookmark the chapter starts at. A file with
-    /// no bookmarks lists the scanned chapters themselves, as the Windows reader does.
+    /// no bookmarks lists the scanned chapters themselves.
     /// </summary>
     static async Task<IReadOnlyList<ReaderOutline>> OutlineAsync(UserLibrary library, long documentId, int pageCount, IReadOnlyList<string?> labels,
         ReaderPart? part, CancellationToken ct)
@@ -237,8 +237,8 @@ public static partial class ReaderApi
         var found = chapters.Where(c => c.Tags.Count > 0)
             .GroupBy(c => c.FirstPage)
             .ToDictionary(g => g.Key, g => "Found inside: " + string.Join(" · ", ChapterFields.Describe(g.First().Tags)));
-        // Index as its own adventure… runs a bookmark's pages to the next at its depth or above, as the Windows reader
-        // does, over every bookmark the file has, shown or not.
+        // Index as its own adventure… runs a bookmark's pages to the next at its depth or above,
+        // over every bookmark the file has, shown or not.
         var bookmarks = await library.Get<IndexQueries>().GetOutlineAsync(documentId, ct);
         var starts = bookmarks.Select(o => (o.PdfPage, Math.Min(o.Depth, 5))).ToList();
         var outline = bookmarks

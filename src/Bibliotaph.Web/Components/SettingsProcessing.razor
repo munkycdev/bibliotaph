@@ -1,10 +1,10 @@
-@* Settings › Processing, as the Windows app's: indexing step by step with the time left, each with a button at the end
+@* Settings › Processing: indexing step by step with the time left, each with a button at the end
    of its row to run it again for every book where that helps (asked first, as on Windows), what each part is on now,
    pause and resume for each lane, and what the AI on the user's connected PCs is doing. It asks the server again every
    couple of seconds while it shows. *@
 @using Bibliotaph.Core.Progress
 @implements IDisposable
-@inject ApiClient Api
+@inject SettingsClient SettingsApi
 @inject LibraryActivity Activity
 
 <section class="bt-section" aria-labelledby="processing-heading">
@@ -134,7 +134,7 @@
 @code {
     static readonly string[] SearchedByName = ["RPGGeek", "AdventureLookup"];
 
-    /// <summary>What else goes to the catalogues searched by name, as the Windows app says it.</summary>
+    /// <summary>What else goes to the catalogues searched by name.</summary>
     static string ByName(string catalogues)
     {
         var named = SearchedByName.Where(c => catalogues.Split(" or ").Contains(c)).ToList();
@@ -190,7 +190,7 @@
     {
         try
         {
-            Show(await Api.ProcessingAsync(_stop.Token));
+            Show(await SettingsApi.ProcessingAsync(_stop.Token));
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
@@ -203,7 +203,7 @@
         _saving = true;
         try
         {
-            Show(await Api.PauseLanesAsync(paused, _stop.Token));
+            Show(await SettingsApi.PauseLanesAsync(paused, _stop.Token));
             Activity.Refresh();
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
@@ -233,7 +233,7 @@
         _saving = true;
         try
         {
-            _runNote = (await Api.RunAgainAsync(offer.Step, _stop.Token)).Note;
+            _runNote = (await SettingsApi.RunAgainAsync(offer.Step, _stop.Token)).Note;
             await RefreshAsync();
             Activity.Refresh();
         }

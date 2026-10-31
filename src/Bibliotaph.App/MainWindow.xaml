@@ -90,7 +90,7 @@
         </Grid>
 
         <!--
-          The main navigation stays put; the Pinned group below it scrolls on its own (Pinned Views plan, choice 10). On a
+          The main navigation stays put; the Pinned group below it scrolls on its own. On a
           window too short for the navigation itself, the two scroll together, as the group is never shorter than the
           navigation: nothing is cut off at the minimum size.
         -->
@@ -116,7 +116,7 @@
             </ItemsControl>
 
             <!--
-              .bt-sidegroup: Pinned (Pinned Views plan): books, Favorites, collections, binders and saved searches, in order. A pin
+              .bt-sidegroup: Pinned: books, Favorites, collections, binders and saved searches, in order. A pin
               is dragged to a new place, with a line where it will land, or moved with Alt+Up and Alt+Down or its menu.
             -->
             <DockPanel Grid.Row="1" Margin="0,22,0,0">
@@ -183,7 +183,7 @@
                         <Button.Style>
                           <Style TargetType="Button" BasedOn="{StaticResource Bt.NavButton}">
                             <Style.Triggers>
-                              <!-- A book whose file is offline or missing keeps its pin, dimmed (choice 9). -->
+                              <!-- A book whose file is offline or missing keeps its pin, dimmed. -->
                               <DataTrigger Binding="{Binding IsDimmed}" Value="True">
                                 <Setter Property="Opacity" Value="0.55" />
                               </DataTrigger>
@@ -201,7 +201,7 @@
 
         <!-- .bt-sidebottom: an update ready to apply, processing status, then Settings. -->
         <StackPanel Grid.Row="2">
-          <!-- Downloaded in the background (slice 4l); it waits for this click, as a game may be under way. -->
+          <!-- Downloaded in the background; it waits for this click, as a game may be under way. -->
           <Button x:Name="UpdateReady" Margin="4,0,4,6" Cursor="Hand" HorizontalContentAlignment="Stretch"
                   FocusVisualStyle="{StaticResource Bt.FocusVisual}" Command="{Binding RestartToUpdateCommand}"
                   AutomationProperties.Name="Update ready: restart to update" ToolTip="Close Bibliotaph, update it and open it again"
@@ -265,7 +265,7 @@
                 <!-- Two lines at most, so a long count can't push Settings down; the tooltip has it all. -->
                 <TextBlock x:Name="StatusSummary" Text="{Binding Activity.Summary}" FontSize="11" Foreground="{DynamicResource Bt.Muted}"
                            TextWrapping="Wrap" TextTrimming="CharacterEllipsis" LineStackingStrategy="BlockLineHeight" LineHeight="15" MaxHeight="30" />
-                <!-- Folders that can't be reached (4g): their books stay, dimmed and marked Offline. -->
+                <!-- Folders that can't be reached: their books stay, dimmed and marked Offline. -->
                 <TextBlock x:Name="OfflineFolders" Text="{Binding Activity.OfflineText}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" Margin="0,2,0,0"
                            TextTrimming="CharacterEllipsis" Visibility="{Binding Activity.HasOfflineFolders, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 <!-- This PC can't reach its web library: lookups, sync and web books wait on it. -->
@@ -336,7 +336,7 @@
             <Hyperlink Command="{Binding OpenSectionCommand}"
                        AutomationProperties.Name="{Binding Section, Mode=OneWay, StringFormat='Go to {0}'}"><Run Text="{Binding Section, Mode=OneWay}" /></Hyperlink><Run Text="  /  " Foreground="{DynamicResource Bt.Line}" /><Run Text="{Binding Title, Mode=OneWay}" />
           </TextBlock>
-          <!-- Ask (scenario review, row 5): the box takes a request in plain English, read by AI on Enter. -->
+          <!-- Ask: the box takes a request in plain English, read by AI on Enter. -->
           <Button x:Name="PlainSearchButton" Grid.Column="3" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Sparkles}"
                   c:Ui.IsActive="{Binding PlainSearch.IsOn}" Command="{Binding PlainSearch.ToggleCommand}" Margin="6,0,0,0"
                   ToolTip="Ask in plain English" AutomationProperties.Name="Ask in plain English" />

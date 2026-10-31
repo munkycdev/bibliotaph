@@ -13,7 +13,7 @@ namespace Bibliotaph.Server.Libraries;
 /// <summary>A backup read for restoring, waiting for the user's choice, with which of its folders this library has.</summary>
 public sealed record RestoreChoice(string Token, RestorePreview Preview, IReadOnlySet<long> Found);
 
-/// <summary>The one backup a library has read for restoring; a newer one replaces it, as the Windows app's preview does.</summary>
+/// <summary>The one backup a library has read for restoring; a newer one replaces it.</summary>
 public sealed class HeldRestore
 {
     RestoreChoice? _held;
@@ -31,9 +31,9 @@ public sealed class HeldRestore
 }
 
 /// <summary>
-/// The Windows app's weekly backups and Restore, for the web library. The server's disk is only a working copy, so the
+/// Weekly backups and Restore, for the web library. The server's disk is only a working copy, so the
 /// backups are kept in <see cref="IBackupStore"/>. A restore swaps the backup's catalog in while the library is closed,
-/// as the Windows app does at its next start, but by copying it into catalog.db page by page through SQLite: the file
+/// by copying it into catalog.db page by page through SQLite: the file
 /// Litestream replicates stays the same file, and the restore reaches the replica as one more change to it. index.db is
 /// emptied the same way, or given the backup's own, since it describes the catalog it was made with; the books are read
 /// again from their files.
@@ -148,7 +148,7 @@ public sealed class WebBackups(UserLibraries libraries, IBackupStore store, Serv
             File.Delete(index);
         }
         // Opened again at once, so the books start being read and the next page finds it ready. Books owned elsewhere
-        // have no file to read, so the catalog is projected into the new index.db as the Windows app does at its start.
+        // have no file to read, so the catalog is projected into the new index.db.
         await using (var lease = await libraries.OpenAsync(userId, ct))
             await lease.Library.Get<MetadataProjector>().ProjectAllAsync(ct);
         return null;

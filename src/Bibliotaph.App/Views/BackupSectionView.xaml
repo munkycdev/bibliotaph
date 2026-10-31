@@ -12,7 +12,7 @@
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
                Text="A backup holds your catalog: folders, corrections, collections, binders and notes. Your books aren't in it; they stay where they are." />
 
-    <!-- Back up now (slice 4j plan, choice 2): a ZIP saved where the user picks; the weekly ones go to the backups folder. -->
+    <!-- Back up now: a ZIP saved where the user picks; the weekly ones go to the backups folder. -->
     <WrapPanel Margin="0,12,0,0">
       <Button x:Name="BackUpNow" Style="{StaticResource Bt.Button.Primary}" Content="Back up now…" c:Ui.Icon="{StaticResource Icon.HardDrive}"
               Margin="0,0,8,0" Command="{Binding BackUpNowCommand}" AutomationProperties.Name="Back up now" />
@@ -31,7 +31,7 @@
       </StackPanel>
     </CheckBox>
 
-    <!-- Restore (choice 4): pick a backup, see each of its folders found or not, point the missing ones, then restart. -->
+    <!-- Restore: pick a backup, see each of its folders found or not, point the missing ones, then restart. -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
       <StackPanel>
         <TextBlock Text="Restore" Style="{StaticResource Text.Row}" />
@@ -86,7 +86,7 @@
       </StackPanel>
     </Border>
 
-    <!-- Export (choice 7): the library for a spreadsheet, or everything for whatever comes next. -->
+    <!-- Export: the library for a spreadsheet, or everything for whatever comes next. -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
       <StackPanel>
         <TextBlock Text="Export" Style="{StaticResource Text.Row}" />

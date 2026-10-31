@@ -10,7 +10,7 @@ public sealed record BinderCard(long Id, string Title, string Date, string Count
 public sealed record BinderList(IReadOnlyList<BinderCard> Upcoming, IReadOnlyList<BinderCard> AtHand, IReadOnlyList<BinderCard> Undated,
     IReadOnlyList<BinderCard> Earlier, string ShowEarlier, string HideEarlier, IReadOnlyList<FilterChoice> Systems);
 
-/// <summary>New binder and Edit title and date: a title, a date or none, or kept at hand during games for a game system (null for any).</summary>
+/// <summary>New binder and Edit title and date: a title, a date or none, or kept at hand for a game system (null for any).</summary>
 public sealed record BinderEdit(string Title, DateOnly? Date, bool KeepAtHand, string? GameSystem);
 
 /// <summary>
@@ -20,7 +20,7 @@ public sealed record BinderEdit(string Title, DateOnly? Date, bool KeepAtHand, s
 public sealed record BinderPage(long Id, string Title, string Eyebrow, string Count, DateOnly? Date, bool KeepAtHand, string? GameSystem, string Notes,
     IReadOnlyList<BinderLine> Rows, IReadOnlyList<FilterChoice> Systems, IReadOnlyList<string> SuggestedSections)
 {
-    /// <summary>Some other binder is kept at hand during games, so its reader shows At hand.</summary>
+    /// <summary>Some other binder is kept at hand, so its reader shows At hand.</summary>
     public bool HasAtHand { get; init; }
 }
 
@@ -105,7 +105,7 @@ public enum BinderMenuKind
 public sealed record BinderMenuChoice(BinderMenuKind Kind, long? Id, string Label);
 
 /// <summary>
-/// Add to binder's menu, as the Windows app's: the binder worked on last, then another (with every binder for the
+/// Add to binder's menu: the binder worked on last, then another (with every binder for the
 /// picker) and a new one (with the game systems for its dialog); and the words of those dialogs.
 /// </summary>
 public sealed record BinderMenu(IReadOnlyList<BinderMenuChoice> Choices, IReadOnlyList<BinderChoice> All, IReadOnlyList<FilterChoice> Systems,

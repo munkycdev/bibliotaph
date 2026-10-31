@@ -22,7 +22,7 @@ public sealed record BinderDialogRequest(BinderDialogKind Kind, string Heading, 
 }
 
 /// <summary>
-/// The dialog over a page for binders, as the Windows app's session dialog: naming a binder (New binder, Edit title
+/// The dialog over a page for binders: naming a binder (New binder, Edit title
 /// and date), naming a section, or picking a binder. A page awaits the answer; the shell draws the dialog.
 /// </summary>
 public sealed class BinderDialogs

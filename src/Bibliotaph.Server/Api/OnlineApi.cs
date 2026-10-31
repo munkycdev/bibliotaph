@@ -13,7 +13,7 @@ namespace Bibliotaph.Server.Api;
 /// <summary>
 /// Settings › Online libraries on the web: a library page from the service, read by the Windows app's readers, its
 /// preview, the images given with it for covers, and the import with Undo. A browser page can't hold the service's own
-/// site as the Windows app's browser does, so the page arrives from the user's browser: sent by the Send to Bibliotaph
+/// site, so the page arrives from the user's browser: sent by the Send to Bibliotaph
 /// bookmark or extension, which also fetch the covers the preview still wants, or saved with Save as. The server never
 /// visits the service.
 /// </summary>

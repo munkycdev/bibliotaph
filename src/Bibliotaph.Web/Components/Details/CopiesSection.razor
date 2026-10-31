@@ -1,0 +1,41 @@
+@* A book's other files: copies and versions of it, each able to be the one that opens, or a book of its own again. *@
+@using Bibliotaph.Core
+@inject BooksClient BooksApi
+
+<DetailSection Section="@DetailSections.Copies" Heading="@Book.CopiesHeading">
+    <div aria-label="Copies">
+        @foreach (var copy in Book.Copies)
+        {
+            <div class="bt-detailbox" aria-label="@copy.Heading">
+                <div class="bt-copyheading">@copy.Heading</div>
+                <div class="bt-small">@copy.Detail</div>
+                @if (copy.Service is { } service) { <div class="bt-service"><Icon Name="Cloud" Size="14" />@service</div> }
+                @if (copy.Path is { } path) { <div class="bt-row bt-path">@path</div> }
+                <div class="bt-boxactions">
+                    @if (!copy.IsCurrent && copy.Path is not null)
+                    {
+                        <button class="bt-button" title="Open this copy: its cover, pages and page hits become the book's. No file changes."
+                                @onclick="() => CopyAsync(copy.DocumentId, false)"><Icon Name="Check" Size="14" />Make current</button>
+                    }
+                    <button class="bt-button" title="Give this file a card of its own again. Bibliotaph won't join them again."
+                            @onclick="() => CopyAsync(copy.DocumentId, true)">Not the same book</button>
+                </div>
+            </div>
+        }
+    </div>
+</DetailSection>
+
+@code {
+    [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
+    [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
+
+    /// <summary>Make current, or Not the same book; the details shown next are the book the change leaves in view.</summary>
+    async Task CopyAsync(long documentId, bool notSame)
+    {
+        var entryId = Host.EntryId;
+        if (await Host.TryAsync(() => notSame ? BooksApi.NotSameBookAsync(entryId, documentId) : BooksApi.MakeCurrentAsync(entryId, documentId)) is not { } result) return;
+        await Host.ChangedAsync();
+        if (result.Show is { } show && show != entryId) await Host.ShowAsync(show);
+        else await Host.RefreshAsync();
+    }
+}

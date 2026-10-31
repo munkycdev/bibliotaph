@@ -12,7 +12,7 @@
     <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
   </UserControl.InputBindings>
 
-  <!-- Multi-select plan, choices 2 to 5: the ticked cards' files, and which one opens once they are one book. -->
+  <!-- The ticked cards' files, and which one opens once they are one book. -->
   <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="10">
     <Border.Effect>
       <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.15" />

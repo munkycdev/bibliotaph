@@ -1,11 +1,11 @@
 @page "/check"
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @implements IAsyncDisposable
 
-@* The Windows app's Check a download: a folder or ZIP checked against the library, file by file, grouped by verdict,
+@* Check a download: a folder or ZIP checked against the library, file by file, grouped by verdict,
    New first. The browser reads the files: each one's hash and, for a PDF that isn't the very same file, its pages'
    fingerprints go to the server for the verdict, never the file. *@
 <PageHeading Title="Check a download." TabTitle="Check a download"
@@ -193,7 +193,7 @@
                 file = file with { Problem = $"It couldn't be read: {FirstLine(e.Message)}" };
             }
         }
-        var result = await Api.CheckAsync(file, ct);
+        var result = await LibraryApi.CheckAsync(file, ct);
         if (file.Hash is null || !item.IsPdf || result.Owned) return result;
 
         PickedPages pages;
@@ -206,7 +206,7 @@
             pages = new PickedPages("invalid", null, null, null, null, null);
         }
         var texts = pages.Texts ?? [];
-        return await Api.CheckAsync(file with
+        return await LibraryApi.CheckAsync(file with
         {
             Pages = new CheckPages(pages.Texts is null ? [] : PageFingerprints.Compute(texts), texts.Count(t => !string.IsNullOrWhiteSpace(t)),
                 pages.Unread, pages.Title, pages.Author, pages.Subject, pages.Keywords),

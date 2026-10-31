@@ -346,8 +346,8 @@ books stay ticked, so another change can follow.
 
 **Binders** in the sidebar shows your binders as cards, each with its date, how many items it holds and its first
 books' covers, in groups as in the Windows app: **Upcoming**, **At hand**, **No date yet**, and **Show earlier
-binders** for those whose date has passed. Home's **Continue preparing** shows the binder you worked on last.
-**New binder** asks for a title and, if you like, the date it's played, or **Keep at hand during games** for rules and
+binders** for those whose date has passed. Home's **Current binder** shows the binder you worked on last.
+**New binder** asks for a title and, if you like, a date, or **Keep at hand** for rules and
 references, for one game system or any. The binder opens at once.
 
 Opening a binder shows its reader, as in the Windows app. Its items are listed down the left, numbered under their
@@ -369,7 +369,7 @@ them listing the page notes on the item's pages (all of the book's for a whole b
   its own.
 - **Pin** puts the binder in the sidebar's Pinned group and on Home, the panel button folds the notes away, and the
   pencil (**Edit binder**) opens the binder's list for sections, order and the rest.
-- **At hand** lists the binders kept at hand during games with their pages, those for this binder's game systems
+- **At hand** lists the binders kept at hand with their pages, those for this binder's game systems
   first. Pick a page and it opens in a window of its own, so the binder and page you're on stay put; a page on an
   online library opens in a tab. Your browser may ask once to allow pop-ups for bibliotaph.online.
 - **Pop out** moves the binder into its own window, for a second screen. **Return to main window** brings it back at

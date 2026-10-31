@@ -12,7 +12,7 @@ using Bibliotaph.Server.Libraries;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// The changes the details drawer makes, as the Windows inspector makes them: a field's value typed, kept, used,
+/// The changes the details drawer makes: a field's value typed, kept, used,
 /// rejected or reset, Cataloged wrong… and its look-alikes, the heart, the book's note, Reprocess, adventures marked
 /// in a file, a pack's cover and split, and a book's copies. Each answers with the details as they are now, or what
 /// it did with the token that undoes it.
@@ -221,7 +221,7 @@ public static class EditApi
 
     /// <summary>
     /// A change to one field, then the details as they are now. After a value was typed, chosen or rejected, the books
-    /// from the same folder that showed what this one did are offered the same correction, as on Windows.
+    /// from the same folder that showed what this one did are offered the same correction.
     /// </summary>
     static async Task<IResult> EditAsync(UserLibraries libraries, ClaimsPrincipal principal, long entryId, string key,
         Func<MetadataService, MetadataField, Task<string?>> change, bool offers, CancellationToken ct)
@@ -268,7 +268,7 @@ public static class EditApi
     }
 
     /// <summary>
-    /// Keeps an Undo for the client to ask for by its token. Undone, the note goes, as on Windows; what couldn't be
+    /// Keeps an Undo for the client to ask for by its token. Undone, the note goes; what couldn't be
     /// undone says so in <paramref name="failed"/>.
     /// </summary>
     internal static string? Hold(UserLibrary library, Func<Task>? undo, string failed) =>

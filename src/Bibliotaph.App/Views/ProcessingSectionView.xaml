@@ -195,7 +195,7 @@
       </StackPanel>
     </Border>
 
-    <!-- Dale's review, row 2: files indexing downloaded from OneDrive go back to online-only, so a big cloud library fits. -->
+    <!-- Files indexing downloaded from OneDrive go back to online-only, so a big cloud library fits. -->
     <CheckBox x:Name="ReturnOnlineOnly" Margin="0,20,0,0" IsChecked="{Binding ReturnOnlineOnly}" VerticalContentAlignment="Top"
               Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Return files to online-only after indexing">
       <StackPanel Margin="4,0,0,0">

@@ -1,8 +1,11 @@
-@* A book's right-click menu, as the Windows app's: open it, open its page where it's owned online, its details, Ask
+@* A book's right-click menu: open it, open its page where it's owned online, its details, Ask
    this book, favorite, pin, Cataloged wrong…, download a file Bibliotaph can't read, Forget its text or Read it again,
    add it to a collection or a binder, and take a book owned elsewhere out of the library. Add to collection and Add to
    binder open their lists in the same menu, read as they open. *@
-@inject ApiClient Api
+@inject BindersClient BindersApi
+@inject BooksClient BooksApi
+@inject CollectionsClient CollectionsApi
+@inject ReaderClient ReaderApi
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 @inject Pins Pins
@@ -121,7 +124,7 @@
         await Closed.InvokeAsync();
         await Attempt(async () =>
         {
-            await Api.SetFavoriteAsync(Book.EntryId, !Book.Favorite);
+            await BooksApi.SetFavoriteAsync(Book.EntryId, !Book.Favorite);
             await Changed.InvokeAsync();
         });
     }
@@ -132,9 +135,9 @@
         await Pins.ToggleAsync(PinKinds.Book, Book.EntryId);
     }
 
-    async Task OpenCollectionsAsync() => await Attempt(async () => _collections = (await Api.CollectionsAsync()).Menu);
+    async Task OpenCollectionsAsync() => await Attempt(async () => _collections = (await CollectionsApi.CollectionsAsync()).Menu);
 
-    async Task OpenBindersAsync() => await Attempt(async () => _binders = await Api.BinderMenuAsync());
+    async Task OpenBindersAsync() => await Attempt(async () => _binders = await BindersApi.BinderMenuAsync());
 
     async Task AddToCollectionAsync(CollectionMenuItem item)
     {
@@ -161,7 +164,7 @@
         await Closed.InvokeAsync();
         await Attempt(async () =>
         {
-            var result = await Api.RemoveElsewhereAsync(Book.EntryId);
+            var result = await BooksApi.RemoveElsewhereAsync(Book.EntryId);
             await Changed.InvokeAsync();
             await Done.InvokeAsync(result);
         });
@@ -170,7 +173,7 @@
     async Task DownloadAsync()
     {
         await Closed.InvokeAsync();
-        await Attempt(() => FileDownload.OpenAsync(Api, JS, Book.DocumentId, Done));
+        await Attempt(() => FileDownload.OpenAsync(ReaderApi, JS, Book.DocumentId, Done));
     }
 
     async Task ForgetTextAsync()
@@ -178,7 +181,7 @@
         await Closed.InvokeAsync();
         await Attempt(async () =>
         {
-            var result = await Api.ForgetTextAsync(Book.EntryId);
+            var result = await BooksApi.ForgetTextAsync(Book.EntryId);
             await Changed.InvokeAsync();
             await Done.InvokeAsync(result);
         });
@@ -189,7 +192,7 @@
         await Closed.InvokeAsync();
         await Attempt(async () =>
         {
-            var result = await Api.ReadAgainAsync(Book.EntryId);
+            var result = await BooksApi.ReadAgainAsync(Book.EntryId);
             await Changed.InvokeAsync();
             await Done.InvokeAsync(result);
         });

@@ -62,7 +62,7 @@ public partial class CatalogEntries : Migration
             });
 
         // Every document becomes one whole-document entry with the same id, so the user's work moves across 1:1 by
-        // renaming its document_id columns (catalog entry design, choices 1 and 2).
+        // renaming its document_id columns.
         migrationBuilder.Sql("INSERT INTO entry (id, kind, parent_entry_id, created_utc) SELECT id, 'Whole', NULL, created_utc FROM document;");
         migrationBuilder.Sql("INSERT INTO entry_source (entry_id, document_id, first_pdf_page, last_pdf_page, is_current) SELECT id, id, NULL, NULL, 1 FROM document;");
 

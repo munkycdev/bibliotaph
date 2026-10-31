@@ -1,4 +1,4 @@
-// Check a download, as the Windows app's: the folder or ZIP picked is read here in the browser and never uploaded.
+// Check a download: the folder or ZIP picked is read here in the browser and never uploaded.
 // Each file is hashed with SHA-256, the library's own identity for a file, and a PDF's pages are read for their text,
 // which the page turns into fingerprints; only those go to the server. ZIPs are read in place, a member at a time.
 
