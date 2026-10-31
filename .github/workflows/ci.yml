@@ -9,17 +9,54 @@ on:
 permissions:
   contents: read
 
-# A new push to a pull request makes its earlier run moot, but every commit on main keeps its run: a release waits
-# for CI on the commit it tags, so a merge landing just after the release commit mustn't cancel that commit's run.
+# A new push to a pull request makes its earlier run moot, but every push to main keeps its run: each checks only what
+# its own push changed, so a run cut short would leave those changes unchecked.
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Which checks the change needs: the Windows app's (the two Windows jobs), the web app's (the two Linux jobs), both or
+  # neither. build/changes.ps1 decides from the projects that build each changed file, so a change to a shared project
+  # such as Core or Processing runs both. The jobs it leaves out show as skipped, under the same names. Run workflow
+  # runs everything, as does a push with no earlier commit to compare with.
+  changes:
+    name: Changed parts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      windows: ${{ steps.changes.outputs.windows }}
+      web: ${{ steps.changes.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A pull request is checked out as its merge commit, whose first parent is the base branch. A push to main
+          # compares with the commit before it, which can be any distance back.
+          fetch-depth: ${{ github.event_name == 'pull_request' && 2 || 0 }}
+
+      - id: changes
+        shell: pwsh
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          $before = $false
+          if ($env:EVENT -eq 'push' -and $env:BEFORE -notmatch '^0*$') {
+            git cat-file -e "$env:BEFORE^{commit}" 2>$null
+            $before = $LASTEXITCODE -eq 0
+          }
+          if ($env:EVENT -eq 'pull_request') { ./build/changes.ps1 -Base HEAD^1 }
+          elseif ($before) { ./build/changes.ps1 -Base $env:BEFORE }
+          else { ./build/changes.ps1 -All }
+          # The runner fails a pwsh step on the last native exit code, even the one handled above.
+          exit 0
+
   # Two jobs side by side: the smoke test takes about as long as the tests, so running it beside them, rather than
-  # after, puts it on every pull request for no more wall time than the slower of the two.
+  # after, puts it on every change to the Windows app for no more wall time than the slower of the two.
   build-and-test:
     name: Build and test (Windows)
+    needs: changes
+    if: needs.changes.outputs.windows == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -48,9 +85,10 @@ jobs:
         shell: pwsh
         run: ./build/verify.ps1 -Step Licenses
 
+      # The web server's tests have their own job on Linux, where the server runs.
       - name: Test
         shell: pwsh
-        run: ./build/verify.ps1 -Step Test
+        run: ./build/verify.ps1 -Step Test -SkipTests Server
 
       # Source files are read-only by construction: a write API in Core must fail the build.
       - name: Banned file APIs fail the build
@@ -71,10 +109,67 @@ jobs:
           path: TestResults
           if-no-files-found: ignore
 
+  # The web server's tests, on Linux like the container it runs in. Only their project and what it references are
+  # built; the Windows job builds the rest of the solution.
+  web-tests:
+    name: Web tests (Linux)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK; use '11.0.x' with
+      # dotnet-quality ga then.
+      DOTNET_SDK: '11.0.100-rc.2.26504.105'
+      DOTNET_INSTALL_DIR: /home/runner/dotnet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.DOTNET_INSTALL_DIR }}
+          key: dotnet-${{ runner.os }}-${{ env.DOTNET_SDK }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_SDK }}
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ env.NUGET_PACKAGES }}
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', 'global.json') }}
+          restore-keys: nuget-${{ runner.os }}-
+
+      - name: Restore
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Restore
+
+      - name: Build (Debug, warnings as errors)
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Build -OnlyTests Server
+
+      - name: Test
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Test -OnlyTests Server
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-test-results
+          path: TestResults
+          if-no-files-found: ignore
+
   # The web server's image, built on Linux like the container it runs in. Pull requests only build it; main pushes it
   # to GitHub's container registry, tagged with its commit and as main, for the deploy job and infra/setup.ps1.
   server-image:
     name: Server image (Linux)
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -128,12 +223,15 @@ jobs:
             docker push "$IMAGE:$tag"
           done
 
-  # Every push to main that passes the Windows build and tests goes live. infra/setup.ps1 makes the app and prints
-  # the repository variables this needs; until they're set, nothing deploys.
+  # Every push to main that changes the web app and passes its tests and image goes live, without waiting for the
+  # Windows jobs. infra/setup.ps1 makes the app and prints the repository variables this needs; until they're set,
+  # nothing deploys.
   deploy-server:
     name: Deploy bibliotaph.online
-    needs: [build-and-test, server-image]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != ''
+    needs: [changes, web-tests, server-image]
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID != '' &&
+      needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -170,9 +268,11 @@ jobs:
             --image ghcr.io/${{ github.repository_owner }}/bibliotaph-server:${{ github.sha }} -o none
 
   # Opens the real window, visits every screen in light and dark, reads a synthetic PDF and image, and fails on any
-  # exception or binding error. A release waits for it on its tagged commit, so no release ships without it.
+  # exception or binding error.
   smoke:
     name: App smoke test (Windows)
+    needs: changes
+    if: needs.changes.outputs.windows == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     env:

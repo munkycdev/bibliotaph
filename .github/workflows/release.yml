@@ -1,24 +1,65 @@
 name: Release
 
 # A version tag (vMAJOR.MINOR.PATCH, such as v1.2.130, where PATCH is the commit count on main at the tagged commit)
-# publishes the app self-contained for win-x64, packs it with Velopack, waits for CI to pass on the tagged commit, and
-# leaves a DRAFT GitHub Release holding Setup.exe and the update files. Nothing is public until someone presses Publish
-# on the draft.
+# publishes the app self-contained for win-x64, packs it with Velopack, runs the tests on the tagged commit beside it,
+# and leaves a DRAFT GitHub Release holding Setup.exe and the update files. Nothing is public until someone presses
+# Publish on the draft.
 on:
   push:
     tags: ['v*.*.*']
 
-# Only this workflow may write: it creates the draft release. CI keeps contents: read. checks: read lets it see CI's
-# result on the tagged commit.
+# Only this workflow may write: it creates the draft release. CI keeps contents: read. actions: read lets the release
+# job see how the tests job did.
 permissions:
   contents: write
-  checks: read
+  actions: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  # CI checks each pull request and each push to main for only the parts it changed, so this is the sanity check that
+  # nothing slipped through between them: every test project, the web server's included, on the tagged commit. It runs
+  # beside the release job, which waits for it before drafting.
+  tests:
+    name: Tests (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+      NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
+      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK as in ci.yml; use '11.0.x'
+      # with dotnet-quality ga then.
+      DOTNET_SDK: '11.0.100-rc.2.26504.105'
+      DOTNET_INSTALL_DIR: D:\dotnet
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup
+        with:
+          github-token: ${{ github.token }}
+
+      - name: Build (Debug, warnings as errors)
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Build
+
+      - name: Test
+        shell: pwsh
+        run: ./build/verify.ps1 -Step Test
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults
+          if-no-files-found: ignore
+
   release:
     name: Build, pack and draft the release
     runs-on: windows-latest
@@ -64,7 +105,7 @@ jobs:
           "number=$($Matches[1]).$($Matches[2]).$($Matches[3])" >> $env:GITHUB_OUTPUT
 
       # What publishing needs: packages, the built-in AI's engine (copied in by the app build) and the Release build of
-      # the licence tool. The tests and smoke test are CI's, which the draft waits for below.
+      # the licence tool. The tests are the tests job's, which the draft waits for below.
       - name: Restore, engine and Release build
         shell: pwsh
         run: ./build/verify.ps1 -Step Restore, Engine, Release
@@ -135,27 +176,25 @@ jobs:
             --runtime win-x64 --channel win --noPortable --outputDir releases
           if ($LASTEXITCODE -ne 0) { throw 'vpk pack failed.' }
 
-      # CI runs on every push to main, so the tagged commit has its own "Build and test (Windows)" and "App smoke test
-      # (Windows)": the draft waits for both to pass rather than running the same build, tests and smoke test again here.
-      - name: Wait for CI on this commit
+      # A failed test fails the release here, after the pack, so a flaky one needs only Re-run failed jobs: both jobs
+      # run again. Re-run attempts carry earlier jobs over, so the latest attempt of the tests job is the one that counts.
+      - name: Wait for the tests
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $deadline = (Get-Date).AddMinutes(40)
-          foreach ($name in 'Build and test (Windows)', 'App smoke test (Windows)') {
-            $checks = "repos/$env:GITHUB_REPOSITORY/commits/$env:GITHUB_SHA/check-runs?check_name=$([Uri]::EscapeDataString($name))"
-            while ($true) {
-              $runs = @(gh api $checks --jq '.check_runs[] | {status, conclusion}' | ConvertFrom-Json)
-              if ($LASTEXITCODE -ne 0) { throw "Reading the checks on $env:GITHUB_SHA failed." }
-              if ($runs | Where-Object { $_.conclusion -eq 'success' }) { Write-Host "$name passed on this commit."; break }
-              if (-not ($runs | Where-Object { $_.status -ne 'completed' })) {
-                $found = if ($runs) { @($runs.conclusion) -join ', ' } else { 'it never ran' }
-                throw "$name hasn't passed on $env:GITHUB_SHA ($found). Re-run it, or tag a commit where it passed."
-              }
-              if ((Get-Date) -gt $deadline) { throw "$name on $env:GITHUB_SHA hasn't finished after 40 minutes." }
-              Start-Sleep 30
+          $jobs = "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID/jobs?filter=all&per_page=100"
+          while ($true) {
+            $job = gh api $jobs --jq '[.jobs[] | select(.name == "Tests (Windows)")] | max_by(.run_attempt) | {status, conclusion}' |
+              ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw "Reading this run's jobs failed." }
+            if ($job.status -eq 'completed') {
+              if ($job.conclusion -eq 'success') { Write-Host 'The tests passed on this commit.'; break }
+              throw "The tests didn't pass on $env:GITHUB_SHA ($($job.conclusion)). Re-run the failed jobs, or tag a commit where they pass."
             }
+            if ((Get-Date) -gt $deadline) { throw "The tests haven't finished after 40 minutes." }
+            Start-Sleep 20
           }
 
       # This build's entries in the feed vpk wrote (the full package, and a delta when there was a release before),
@@ -195,11 +234,3 @@ jobs:
           gh release create $env:TAG @files --repo $env:GITHUB_REPOSITORY --draft --verify-tag --title "Bibliotaph $env:VERSION" `
             --notes-file notes.md --generate-notes @since
           if ($LASTEXITCODE -ne 0) { throw 'Creating the draft release failed.' }
-
-      - name: Upload test results
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: TestResults
-          if-no-files-found: ignore

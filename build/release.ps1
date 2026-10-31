@@ -13,8 +13,8 @@
          section, as a commit "Release notes for MAJOR.MINOR.N" pushed to main first, so the notes are in the tagged
          commit (N counts that commit). The commit is made in a temporary worktree; your checkout isn't touched.
       5. Shows the commit, the version and what will be pushed, and asks before anything leaves your PC.
-      6. Tags the commit and pushes the tag. The release workflow then builds, waits for CI on that commit and leaves
-         a draft release: publish it on GitHub, keeping every file (Setup.exe, the full and delta packages and
+      6. Tags the commit and pushes the tag. The release workflow then builds, runs the tests on that commit beside the
+         build and leaves a draft release: publish it on GitHub, keeping every file (Setup.exe, the full and delta packages and
          releases.win.json), or installed copies can't update.
 
     A new MAJOR.MINOR is a pull request (Directory.Build.props, CHANGELOG.md, README.md, CONTRIBUTING.md and the
@@ -73,7 +73,6 @@ $gh = Get-Command gh -ErrorAction SilentlyContinue
 # 2. The count on main: the next build number.
 $tip = "$Remote/$Branch"
 $count = [int] (Invoke-Git $root rev-list --count $tip)
-$tipFull = Invoke-Git $root rev-parse $tip
 $tipSha = Invoke-Git $root rev-parse --short $tip
 $tipSubject = Invoke-Git $root log -1 --format=%s $tip
 
@@ -104,18 +103,10 @@ $remoteTag = Invoke-Git $root ls-remote --tags $Remote "refs/tags/$tag"
 if ($remoteTag) { throw "$tag already exists on $Remote." }
 if (Invoke-Git $root tag --list $tag) { throw "$tag already exists here. Delete it with: git tag -d $tag" }
 
-# What the release workflow will wait for: CI on the tagged commit. Shown for a tip without a notes commit; a notes
-# commit gets its own run after the push.
 $published = $null
-$checks = @()
 if ($gh -and $slug) {
     $published = & $gh.Source api "repos/$slug/releases/latest" --jq .tag_name 2>$null
     if ($LASTEXITCODE -ne 0) { $published = $null }
-    if (-not $notesCommit) {
-        $checks = @(& $gh.Source api "repos/$slug/commits/$tipFull/check-runs?per_page=100" `
-            --jq '.check_runs[] | select(.name == "Build and test (Windows)" or .name == "App smoke test (Windows)") | "\(.name): \(.status) \(.conclusion // "")"' 2>$null)
-        if ($LASTEXITCODE -ne 0) { $checks = @() }
-    }
 }
 
 # 5. What will happen, then the question.
@@ -130,13 +121,7 @@ if ($notesCommit) {
     Write-Host "  notes     nothing under Unreleased; the release's notes are the '## $minor' section as it stands"
 }
 Write-Host "  published $(if ($published) { "$published is the latest release" } elseif ($gh) { 'no release is published yet' } else { 'unknown; gh is not installed' })"
-if ($notesCommit) {
-    Write-Host '  CI        runs on the notes commit after the push; the release workflow waits up to 40 minutes for it'
-} elseif ($checks.Count -gt 0) {
-    foreach ($check in $checks) { Write-Host "  CI        $check" }
-} else {
-    Write-Host "  CI        $(if ($gh) { 'not run on this commit yet' } else { 'unknown; gh is not installed' }); the release workflow waits up to 40 minutes for it"
-}
+Write-Host '  tests     the release workflow runs the tests on the tagged commit beside its build'
 Write-Host ''
 
 $action = if ($notesCommit) { "push the release notes commit to $Branch, then tag it $tag and push the tag" } else { "tag $tipSha $tag and push the tag" }

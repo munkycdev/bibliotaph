@@ -32,7 +32,7 @@ dotnet run --project src\Bibliotaph.App -- --data-root $env:TEMP\bibliotaph-scra
 ```
 
 `--smoke-test` opens the window, visits every screen in light and dark, and exits with 0 or 1. CI runs it on every pull
-request and every push to main, and every release waits for it.
+request and every push to main that changes the Windows app.
 
 ## The verify script
 
@@ -43,14 +43,30 @@ Before pushing, run the same checks as CI (in PowerShell 7):
 ./build/verify.ps1 -SkipSmoke  # the same without opening the app's window
 ./build/verify.ps1 -Step Build, Test
 ./build/verify.ps1 -Step Restore, AppBuild, Licenses, Smoke  # just the smoke test, building only the app
+./build/verify.ps1 -Step Build, Test -OnlyTests Server  # just the web server's tests (-SkipTests leaves projects out)
+./build/changes.ps1 -Base origin/main  # which of CI's checks this branch's commits need
 ```
 
-CI runs each step of this script, so a green run here should mean a green run there. It runs two jobs side by side:
-**Build and test (Windows)** (build, licences, tests, banned-API probe) and **App smoke test (Windows)** (just the app's
-build, licences and the smoke test). Pull requests skip the Release build, which pushes to main run. CI's runner draws
-at 100% scaling, so a change to layout under other scaling is still worth a smoke run on your own PC. Off Windows the
-Engine and Smoke steps are skipped. The Test step ends with the fifteen slowest tests, which is where to look when it
-gets slow.
+CI runs each step of this script, so a green run here should mean a green run there. It checks only the parts a
+change touches. Its first job, **Changed parts**, runs `build/changes.ps1`, which matches each changed file to the
+projects that build it (its own folder, or a project that links or embeds it from elsewhere) and follows the project
+references up to the two apps:
+
+- **The Windows app** (the app, its tests and every other test project but the server's, the tools):
+  **Build and test (Windows)** (build, licences, tests but the server's, banned-API probe) and **App smoke test
+  (Windows)** (just the app's build, licences and the smoke test), side by side.
+- **The web app** (the server, its tests, the Blazor UI, storage, the container and `infra/`): **Web tests (Linux)**
+  (the server's tests, building only their project) and **Server image (Linux)** (the image starts and its PDF worker
+  is confined).
+
+A change to a shared project (Core, Catalog, Index, Processing, Api.Contracts and the PDF projects) runs both, and so
+do the user guide and `CHANGELOG.md`, which the site embeds, and the app files the web UI embeds (the icons and the
+e-book reader). Docs and markdown no project embeds run neither. Build scripts, workflows, `Directory.*.props`,
+`global.json` and any file the script doesn't recognise run both, so getting it wrong costs time rather than a missed
+check. The jobs left out show as skipped. **Run workflow** on the CI workflow's Actions page runs everything on a
+branch. Pull requests skip the Release build, which pushes to main run. CI's runner draws at 100% scaling, so a change
+to layout under other scaling is still worth a smoke run on your own PC. Off Windows the Engine and Smoke steps are
+skipped. The Test step ends with the fifteen slowest tests, which is where to look when it gets slow.
 
 ## Layout
 
@@ -148,8 +164,9 @@ git tag "v1.4.$n" origin/main
 git push origin "v1.4.$n"
 ```
 
-The draft waits for CI on the tagged commit. Every push to main gets its own run, so merging more pull requests
-straight after the release commit doesn't hold the release up. Publish the draft keeping every file: Setup.exe, the
+Since CI checks only what each change touches, the release is the sanity check that nothing slipped through between
+them: its **Tests (Windows)** job runs every test project on the tagged commit, beside the build and pack, and the
+draft waits for it. A flaky test needs only **Re-run failed jobs** on the release run, not a new tag. Publish the draft keeping every file: Setup.exe, the
 full and delta packages and `releases.win.json`, or installed copies can't update.
 
 `Directory.Build.props` keeps `MAJOR.MINOR.0` for local builds. A new MINOR starts its own `## MAJOR.MINOR · date`
