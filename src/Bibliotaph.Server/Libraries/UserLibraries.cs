@@ -105,7 +105,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
 
     public async Task<LibraryLease> OpenAsync(string userId, CancellationToken ct = default)
     {
-        UserIds.Require(userId);
+        userId = UserIds.Require(userId);
         while (true)
         {
             var slot = _slots.GetOrAdd(userId, id => new Slot(new Lazy<Task<UserLibrary>>(() => OpenLibraryAsync(id))));
@@ -144,7 +144,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
     /// </summary>
     public LibraryOpening BeginOpening(string userId)
     {
-        UserIds.Require(userId);
+        userId = UserIds.Require(userId);
         if (_slots.TryGetValue(userId, out var slot) && slot.Opening.IsValueCreated && slot.Opening.Value.IsCompletedSuccessfully)
         {
             lock (slot)
@@ -199,7 +199,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
     /// </summary>
     public async Task ReplaceAsync(string userId, Func<AppPaths, Task> replace)
     {
-        UserIds.Require(userId);
+        userId = UserIds.Require(userId);
         var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         // Holds the user's place, closed until the files are replaced, so OpenAsync waits on it as on a closing library.
         var holder = new Slot(new Lazy<Task<UserLibrary>>(() => Task.FromException<UserLibrary>(new InvalidOperationException("The library is being replaced."))));
@@ -420,7 +420,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
     /// </summary>
     public async Task DeleteAsync(string userId)
     {
-        UserIds.Require(userId);
+        userId = UserIds.Require(userId);
         while (_slots.TryGetValue(userId, out var slot))
         {
             Task? closing;
@@ -455,7 +455,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
     /// </summary>
     public async Task<SyncFiles> SyncFilesAsync(string userId, CancellationToken ct = default)
     {
-        UserIds.Require(userId);
+        userId = UserIds.Require(userId);
         var opening = _syncFiles.GetOrAdd(userId, id => new Lazy<Task<SyncFiles>>(() => OpenSyncFilesAsync(id)));
         try
         {
