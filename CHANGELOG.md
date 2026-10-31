@@ -5,6 +5,10 @@
 - **Fixed: closing the Windows app could say "Something went wrong".** On a PC connected to the web library, when the
   web library was slow to answer as the app closed, the last sync of your work gave up and showed an error. It now
   closes quietly, and what hadn't reached the web library yet is sent the next time Bibliotaph starts.
+- **Fixed: bibliotaph.online took ten to twenty-five minutes to open a library after an update.** The server keeps each
+  library in storage as a snapshot plus every change since, and it was only taking that snapshot once a day at
+  midnight, so after a busy day it replayed thousands of small changes one at a time. It now takes one every hour while
+  a library changes, so a library is back within a minute or so. See [Bibliotaph on the web](docs/guide/web.md#signing-in-and-out).
 
 ## 1.4 ┬╖ 28 October 2026
 
