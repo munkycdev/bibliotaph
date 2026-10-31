@@ -172,6 +172,16 @@ public static class ReaderPageNumbers
     /// <summary>What the page box shows for a page: its printed label, or its PDF page number.</summary>
     public static string Display(int index, IReadOnlyList<string?> labels) =>
         index < labels.Count && labels[index] is { Length: > 0 } label ? label.Trim() : (index + 1).ToString(CultureInfo.CurrentCulture);
+
+    /// <summary>
+    /// The pages a From and To box name, in order, To left blank for one page; null when either isn't a page of the book.
+    /// </summary>
+    public static (int First, int Last)? Range(string from, string to, IReadOnlyList<string?> labels, int pageCount)
+    {
+        if (Find(from, labels, pageCount) is not { } first) return null;
+        var last = to.Trim().Length == 0 ? first : Find(to, labels, pageCount);
+        return last is { } l ? (Math.Min(first, l), Math.Max(first, l)) : null;
+    }
 }
 
 /// <summary>The password the reader chose to remember for a PDF, which the browser tries before asking; null when none is.</summary>
