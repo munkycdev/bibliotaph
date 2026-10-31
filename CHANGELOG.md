@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed: on the web, some headings in a book's details were shown far too large.** About the file, Where it is,
+  Copies, Indexing, On its pages and In a file now match the other headings there.
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1070 (30 October 2026):
