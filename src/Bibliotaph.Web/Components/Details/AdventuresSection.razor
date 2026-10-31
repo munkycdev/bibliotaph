@@ -1,0 +1,181 @@
+@* A book's adventures: those marked in a compilation, or the file an adventure is in, with the pages editor and what the
+   last change did. *@
+@using Bibliotaph.Core
+@inject ApiClient Api
+
+@if (Book.CanMarkParts)
+{
+    <DetailSection Section="@DetailSections.Adventures" Heading="@Book.PartsHeading">
+        <Actions>
+            <button class="bt-link" title="Give pages of this file a card of their own, as an adventure" aria-label="Add an adventure in this file"
+                    @onclick="AddPart"><Icon Name="Plus" Size="13" />Add</button>
+        </Actions>
+        <ChildContent>
+            @if (Book.Parts.Count == 0)
+            {
+                <div class="bt-small bt-partsintro">A compilation's adventures can each have a card of their own that opens at their pages. The file isn't changed.</div>
+            }
+            <div aria-label="Adventures in this file">
+                @foreach (var part in Book.Parts)
+                {
+                    <div class="bt-detailbox" @key="part.EntryId" aria-label="@part.Title">
+                        <button class="bt-titlelink" aria-label="Details for @part.Title" @onclick="() => Host.ShowAsync(part.EntryId)">@part.Title</button>
+                        <div class="bt-small">@part.Pages</div>
+                        <div class="bt-boxactions">
+                            <button class="bt-button" aria-label="Edit the pages of @part.Title" @onclick="() => EditPart(part.EntryId, part.Title, part.From, part.To)"><Icon Name="Pencil" Size="14" />Edit range</button>
+                            <button class="bt-button" title="Its card goes; its pages are only the file's again" aria-label="Remove the adventure @part.Title"
+                                    @onclick="() => RemovePartAsync(part.EntryId, false)"><Icon Name="Trash2" Size="14" />Remove</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </ChildContent>
+    </DetailSection>
+}
+
+@if (Book.PartOf is { } partOf)
+{
+    <DetailSection Section="@DetailSections.InFile" Heading="IN A FILE">
+        <div class="bt-detailbox">
+            <div class="bt-row">@partOf</div>
+            <div class="bt-small">Values set on the file, such as its system and publisher, are this adventure's too unless it has its own.</div>
+            <div class="bt-boxactions">
+                @if (Book.PartOfEntryId is { } file)
+                {
+                    <button class="bt-button" aria-label="Show the file this adventure is in" @onclick="() => Host.ShowAsync(file)"><Icon Name="ArrowUpRight" Size="14" />Show the file</button>
+                }
+                <button class="bt-button" aria-label="Edit this adventure's pages" @onclick="() => EditPart(Book.Card.EntryId, Book.Card.Title, Book.PartFrom, Book.PartTo)"><Icon Name="Pencil" Size="14" />Edit range</button>
+                <button class="bt-button" title="This card goes; its pages are only the file's again" @onclick="() => RemovePartAsync(Book.Card.EntryId, true)"><Icon Name="Trash2" Size="14" />Remove adventure</button>
+            </div>
+        </div>
+    </DetailSection>
+}
+
+@if (_part is { } editor)
+{
+    <div class="bt-parteditor" aria-label="@editor.Heading" @onkeydown="PartKeyDown" @onkeydown:stopPropagation="true">
+        <div class="bt-drawer-head">
+            <div>
+                <span class="bt-eyebrow bt-eyebrow-block">ADVENTURE IN THIS FILE</span>
+                <h3 class="bt-partheading">@editor.Heading</h3>
+            </div>
+            <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="() => _part = null"><Icon Name="X" /></button>
+        </div>
+        @if (editor.PartId is null)
+        {
+            <label class="bt-field">Title<input aria-label="Adventure title" @bind="editor.Title" @bind:event="oninput" /></label>
+        }
+        <div class="bt-pagefields">
+            <label class="bt-field">First page<input aria-label="First page" @bind="editor.From" @bind:event="oninput" /></label>
+            <label class="bt-field">Last page<input aria-label="Last page" @bind="editor.To" @bind:event="oninput" /></label>
+        </div>
+        <div class="bt-small bt-edithint">Type pages as the file numbers them, or PDF page numbers.</div>
+        @if (editor.Problem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
+        <div class="bt-small bt-edithint">The file isn't changed: the adventure gets a card of its own that opens these pages.</div>
+        <div class="bt-boxactions end">
+            <button class="bt-button" @onclick="() => _part = null">Cancel</button>
+            <button class="bt-button primary" disabled="@(editor.Saving || (editor.PartId is null && editor.Title.Trim().Length == 0) || editor.From.Trim().Length == 0)"
+                    @onclick="SavePartAsync">@(editor.PartId is null ? "Make its card" : "Save pages")</button>
+        </div>
+    </div>
+}
+<DoneNote Result="_note" UndoName="Undo the change to the adventures" Dismissed="() => _note = null" Undone="Host.ChangedAsync" />
+
+@code {
+    [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
+    [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
+
+    /// <summary>What was done before these details opened, as removing an adventure from its own details.</summary>
+    [Parameter] public ActionResult? Note { get; set; }
+
+    PartEditor? _part;
+    ActionResult? _note;
+
+    /// <summary>An adventure's pages being typed: a new one, with its title, or one being moved.</summary>
+    sealed class PartEditor(string heading, long? partId, string title, string from, string to)
+    {
+        public string Heading { get; } = heading;
+        public long? PartId { get; } = partId;
+        public string Title { get; set; } = title;
+        public string From { get; set; } = from;
+        public string To { get; set; } = to;
+        public string? Problem { get; set; }
+        public bool Saving { get; set; }
+    }
+
+    protected override void OnInitialized() => _note = Note;
+
+    void AddPart()
+    {
+        _note = null;
+        _part = new PartEditor("Mark pages as an adventure", null, "", Book.FirstPage, "");
+    }
+
+    void EditPart(long partId, string title, string from, string to)
+    {
+        _note = null;
+        _part = new PartEditor($"The pages of “{title}”", partId, title, from, to);
+    }
+
+    async Task PartKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") _part = null;
+        else if (e.Key == "Enter") await SavePartAsync();
+    }
+
+    async Task SavePartAsync()
+    {
+        if (_part is not { Saving: false } editor) return;
+        editor.Saving = true;
+        editor.Problem = null;
+        try
+        {
+            var edit = new PartEdit(editor.PartId is null ? editor.Title : null, editor.From, editor.To);
+            if (editor.PartId is { } partId)
+            {
+                if (await Host.TryAsync(() => Api.SetPartPagesAsync(partId, edit)) is not { } moved) return;
+                if (moved.Undo is null)
+                {
+                    editor.Problem = moved.Message;
+                    return;
+                }
+                _part = null;
+                _note = moved;
+                await Host.RefreshAsync();
+            }
+            else
+            {
+                if (await Host.TryAsync(() => Api.AddPartAsync(Host.EntryId, edit)) is not { } added) return;
+                if (added.Problem is { } problem)
+                {
+                    editor.Problem = problem;
+                    return;
+                }
+                _part = null;
+                if (added.Details is { } details) Host.Replace(details);
+                _note = new ActionResult(added.Message ?? "");
+            }
+            await Host.ChangedAsync();
+        }
+        finally
+        {
+            editor.Saving = false;
+        }
+    }
+
+    /// <summary>The adventure's card goes. Removed from its own details, its file's show what was done, with Undo.</summary>
+    async Task RemovePartAsync(long partId, bool own)
+    {
+        _part = null;
+        if (await Host.TryAsync(() => Api.RemovePartAsync(partId)) is not { } removed) return;
+        await Host.ChangedAsync();
+        if (own && removed.Show is { } file)
+        {
+            Host.Carry(removed);
+            await Host.ShowAsync(file);
+            return;
+        }
+        _note = removed;
+        await Host.RefreshAsync();
+    }
+}

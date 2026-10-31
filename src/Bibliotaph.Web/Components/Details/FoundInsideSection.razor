@@ -1,0 +1,43 @@
+@* What a chapter-by-chapter scan found inside the book, which never changes the book's own details, and Scan again. *@
+@using Bibliotaph.Core
+@inject ApiClient Api
+
+@if (Book.Chapters.Count > 0)
+{
+    <DetailSection Section="@DetailSections.Found" Heading="FOUND INSIDE THE BOOK">
+        <Actions>
+            <button class="bt-link bt-iconlink" title="Forget what the AI found in this book and read it again" aria-label="Scan this book again"
+                    @onclick="ScanAgainAsync"><Icon Name="RotateCcw" Size="13" />Scan again</button>
+        </Actions>
+        <ChildContent>
+            <div class="bt-small bt-foundnote">Found by the AI reading each chapter. These describe parts of the book, not the whole book, and don't change its details.</div>
+            <div aria-label="Found inside the book">
+                @foreach (var chapter in Book.Chapters)
+                {
+                    <div class="bt-detailbox" aria-label="@chapter.Title, @chapter.Pages">
+                        <div class="bt-chapterhead"><span class="bt-chaptertitle">@chapter.Title</span><span class="bt-small">@chapter.Pages</span></div>
+                        @foreach (var line in chapter.Lines) { <div class="bt-chapterline">@line</div> }
+                        @if (chapter.Note is { } note) { <div class="bt-small">@note</div> }
+                    </div>
+                }
+            </div>
+        </ChildContent>
+    </DetailSection>
+}
+
+@if (_message is { } said) { <div class="bt-small bt-foundnote" role="status">@said</div> }
+
+@code {
+    [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
+    [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
+
+    /// <summary>What Scan again will do, until the details are opened again.</summary>
+    string? _message;
+
+    async Task ScanAgainAsync()
+    {
+        if (await Host.TryAsync(() => Api.ScanAgainAsync(Host.EntryId)) is not { } result) return;
+        if (result.Details is { } details) Host.Replace(details);
+        _message = result.Message;
+    }
+}
