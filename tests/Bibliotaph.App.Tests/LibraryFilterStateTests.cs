@@ -1,6 +1,7 @@
 using Bibliotaph.App.Services;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 
 namespace Bibliotaph.App.Tests;
@@ -19,7 +20,7 @@ public class LibraryFilterStateTests
         IReadOnlyList<string> setting = ["the-marches"];
         return new(Kind: KindFilter.Books, Folder: 7, System: "dnd5e", Type: "adventure", Level: 3, IncludeUnknownLevels: true, Ai: AiFilter.Read,
             Copies: true, Own: "print", Style: "heist", Duration: "one-shot", Players: 4, Store: "itch-io", Collections: CollectionFilter.InOne,
-            Picked: PickedValues.Of([KeyValuePair.Create(MetadataFields.Settings.Key, setting)]), Adventures: AdventureCards.Cards);
+            Picked: PickedValues.Of([KeyValuePair.Create(MetadataFields.Settings.Key, setting)]), Adventures: AdventureCards.Cards, Found: "RPGGeek");
     }
 
     [Fact]
@@ -137,7 +138,7 @@ public class LibraryFilterStateTests
         _filters.Apply(new SmartViewDefinition(System: "dnd5e"));
 
         IReadOnlyList<ValueCount> none = [];
-        _filters.ShowFacets(new FacetMenus([new FacetCount("pf2e", "Pathfinder 2e", 3)], [], [], [], [], [], [.. _filters.ChipFilters.Select(_ => none)]));
+        _filters.ShowFacets(new FacetMenus([new FacetCount("pf2e", "Pathfinder 2e", 3)], [], [], [], [], [], [.. _filters.ChipFilters.Select(_ => none)], []));
 
         Assert.Equal("dnd5e (0)", _filters.SystemChoice.Label);
         Assert.Equal(["All systems", "Pathfinder 2e (3)", "dnd5e (0)"], _filters.SystemChoices.Select(c => c.Label));
@@ -160,5 +161,26 @@ public class LibraryFilterStateTests
         Assert.False(filter.HideParts);
         Assert.False(filter.PartsInBooks);
         Assert.Equal(["the-marches"], filter.Picked?[MetadataFields.Settings.Key]);
+        Assert.Equal(["RPGGeek"], filter.Found);
+    }
+
+    [Fact]
+    public void Found_online_shows_once_a_catalogue_has_found_a_book_and_names_its_chip()
+    {
+        IReadOnlyList<ValueCount> none = [];
+        IReadOnlyList<IReadOnlyList<ValueCount>> boxes = [.. _filters.ChipFilters.Select(_ => none)];
+        _filters.ShowFacets(new FacetMenus([], [], [], [], [], [], boxes, [new FacetCount(SearchQuery.Unknown, FoundOnline.NotFound, 5)]));
+        Assert.False(_filters.ShowFoundChoice);
+
+        _filters.ShowFacets(new FacetMenus([], [], [], [], [], [], boxes,
+            [new FacetCount("RPGGeek", "RPGGeek", 2), new FacetCount(SearchQuery.Unknown, FoundOnline.NotFound, 3)]));
+        Assert.True(_filters.ShowFoundChoice);
+        Assert.Equal(["All books", "RPGGeek (2)", "Not found online (3)"], _filters.FoundChoices.Select(c => c.Label));
+
+        _filters.FoundChoice = _filters.FoundChoices[1];
+        Assert.Equal(["Found in RPGGeek"], _filters.Chips().Select(c => c.Label));
+        _filters.FoundChoice = _filters.FoundChoices[2];
+        Assert.Equal(["Not found online"], _filters.Chips().Select(c => c.Label));
+        Assert.True(_filters.IsFiltering);
     }
 }

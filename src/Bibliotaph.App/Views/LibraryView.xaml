@@ -480,6 +480,11 @@
                   <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.CopiesChoices}" SelectedItem="{Binding Filters.CopiesChoice}"
                             AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
                 </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding Filters.ShowFoundChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Found online" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.FoundChoices}" SelectedItem="{Binding Filters.FoundChoice}"
+                            AutomationProperties.Name="Found online" MinWidth="150" ToolTip="Books an online catalogue found, such as RPGGeek or Open Library, or those none found" />
+                </StackPanel>
                 <StackPanel Margin="0,0,12,12" Visibility="{Binding Filters.ShowPartsChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
                   <TextBlock Text="Adventures inside files" Style="{StaticResource FieldLabel}" />
                   <ComboBox x:Name="PartsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.PartsChoices}" SelectedItem="{Binding Filters.PartsChoice}"

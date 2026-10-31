@@ -14,7 +14,8 @@ namespace Bibliotaph.App.ViewModels;
 /// <summary>The counted choices of the filter panel's menus, and of its type-ahead boxes in their order.</summary>
 public sealed record FacetMenus(
     IReadOnlyList<FacetCount> Systems, IReadOnlyList<FacetCount> Types, IReadOnlyList<FacetCount> Owns, IReadOnlyList<FacetCount> Styles,
-    IReadOnlyList<FacetCount> Durations, IReadOnlyList<FacetCount> Stores, IReadOnlyList<IReadOnlyList<ValueCount>> Chips);
+    IReadOnlyList<FacetCount> Durations, IReadOnlyList<FacetCount> Stores, IReadOnlyList<IReadOnlyList<ValueCount>> Chips,
+    IReadOnlyList<FacetCount> Found);
 
 /// <summary>
 /// The Library's filters: the four common menus (game system, type, level, players), those folded under More filters,
@@ -38,6 +39,7 @@ public sealed partial class LibraryFilterState : ObservableObject
     static readonly Choice<string?> AnyDuration = new(null, "Any length");
     static readonly Choice<int?> AnyPlayers = new(null, "Any number");
     static readonly Choice<string?> AnyStore = new(null, "Any store");
+    static readonly Choice<string?> AnyFound = new(null, "All books");
 
     int _quiet;
     int _moreFiltersOn;
@@ -160,6 +162,17 @@ public sealed partial class LibraryFilterState : ObservableObject
     [ObservableProperty]
     public partial bool ShowCopiesChoice { get; private set; }
 
+    /// <summary>
+    /// The catalogues that found books online (RPGGeek, Open Library), with how many books each found, then those none
+    /// found: shown once some catalogue has found a book, or while one is chosen.
+    /// </summary>
+    public ObservableCollection<Choice<string?>> FoundChoices { get; } = [AnyFound];
+
+    public Choice<string?> FoundChoice { get; set => Choose(ref field, value, AnyFound); } = AnyFound;
+
+    [ObservableProperty]
+    public partial bool ShowFoundChoice { get; private set; }
+
     /// <summary>Books in some collection, or in none yet: shown once there are collections, or while it is chosen.</summary>
     public IReadOnlyList<Choice<CollectionFilter>> CollectionChoices { get; } =
         [AnyCollection, new(CollectionFilter.InOne, "In a collection"), new(CollectionFilter.NotInOne, "Not in a collection")];
@@ -212,7 +225,8 @@ public sealed partial class LibraryFilterState : ObservableObject
     public bool IsFiltering => KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
         || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || OwnChoice.Value is not null
         || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null
-        || PartsChoice.Value != AdventureCards.InBooks || CollectionChoice.Value != CollectionFilter.All || ChipFilters.Any(b => b.Picks.Count > 0);
+        || PartsChoice.Value != AdventureCards.InBooks || CollectionChoice.Value != CollectionFilter.All || FoundChoice.Value is not null
+        || ChipFilters.Any(b => b.Picks.Count > 0);
 
     partial void OnIncludeUnknownLevelsChanged(bool value)
     {
@@ -281,6 +295,7 @@ public sealed partial class LibraryFilterState : ObservableObject
             DurationChoice = AnyDuration;
             PlayersChoice = AnyPlayers;
             StoreChoice = AnyStore;
+            FoundChoice = AnyFound;
             foreach (var box in ChipFilters) box.Clear();
             IncludeUnknownLevels = false;
         });
@@ -296,13 +311,13 @@ public sealed partial class LibraryFilterState : ObservableObject
             IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), group, Styles: Selected(StyleChoice),
             Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice),
             HideParts: PartsChoice.Value == AdventureCards.Hidden, Collections: CollectionChoice.Value, Picked: ChipPicks(),
-            PartsInBooks: PartsChoice.Value == AdventureCards.InBooks);
+            PartsInBooks: PartsChoice.Value == AdventureCards.InBooks, Found: Selected(FoundChoice));
 
     /// <summary>The filters as a saved search keeps them. Its search, scope, order, layout and tab are the page's to add.</summary>
     public SmartViewDefinition ToView() => new(Kind: KindChoice.Value, Folder: FolderChoice.Value, System: SystemChoice.Value, Type: TypeChoice.Value,
         Level: LevelChoice.Value, IncludeUnknownLevels: LevelChoice.Value is not null && IncludeUnknownLevels, Ai: AiChoice.Value, Copies: CopiesChoice.Value,
         Own: OwnChoice.Value, Style: StyleChoice.Value, Duration: DurationChoice.Value, Players: PlayersChoice.Value, Store: StoreChoice.Value,
-        Collections: CollectionChoice.Value, Picked: ChipPicks(), Adventures: PartsChoice.Value);
+        Collections: CollectionChoice.Value, Picked: ChipPicks(), Adventures: PartsChoice.Value, Found: FoundChoice.Value);
 
     /// <summary>
     /// Puts a saved search's filters back, without raising <see cref="Changed"/>: the page refreshes once it has put the
@@ -322,6 +337,7 @@ public sealed partial class LibraryFilterState : ObservableObject
         StyleChoice = Pick(StyleChoices, AnyStyle, view.Style);
         StoreChoice = Pick(StoreChoices, AnyStore, view.Store);
         DurationChoice = Pick(DurationChoices, AnyDuration, view.Duration);
+        FoundChoice = Pick(FoundChoices, AnyFound, view.Found);
         foreach (var box in ChipFilters) box.Restore(view.Picked?[box.Field.Key] ?? []);
         PlayersChoice = PlayersChoices.FirstOrDefault(c => c.Value == view.Players) ?? AnyPlayers;
         LevelChoice = LevelChoices.FirstOrDefault(c => c.Value == view.Level) ?? AnyLevel;
@@ -386,6 +402,8 @@ public sealed partial class LibraryFilterState : ObservableObject
             ShowDurationChoice = facets.Durations.Any(c => c.Value != SearchQuery.Unknown) || DurationChoice.Value is not null;
             StoreChoice = ShowChoices(StoreChoices, AnyStore, facets.Stores, StoreChoice);
             ShowStoreChoice = facets.Stores.Any(c => c.Value != SearchQuery.Unknown) || StoreChoice.Value is not null;
+            FoundChoice = ShowChoices(FoundChoices, AnyFound, facets.Found, FoundChoice);
+            ShowFoundChoice = facets.Found.Any(c => c.Value != SearchQuery.Unknown) || FoundChoice.Value is not null;
             for (var i = 0; i < ChipFilters.Count; i++) ChipFilters[i].ShowCounts(facets.Chips[i]);
             OnPropertyChanged(nameof(ShowAboutFilters));
         });
@@ -449,6 +467,8 @@ public sealed partial class LibraryFilterState : ObservableObject
         Add(KindChoice.Value != KindFilter.All, KindChoice.Label, "kind", () => KindChoice = KindChoices[0], isFolded: true);
         Add(AiChoice.Value != AiFilter.All, AiChoice.Label, "AI", () => AiChoice = AiChoices[0], isFolded: true);
         Add(CopiesChoice.Value, CopiesChoice.Label, "copies", () => CopiesChoice = CopiesChoices[0], isFolded: true);
+        Add(FoundChoice.Value is not null, FoundChoice.Value == SearchQuery.Unknown ? FoundOnline.NotFound : $"Found in {Uncounted(FoundChoice.Label)}",
+            "found online", () => FoundChoice = AnyFound, isFolded: true);
         Add(PartsChoice.Value != AdventureCards.InBooks, PartsChoice.Value == AdventureCards.Hidden ? "Adventures inside files hidden" : "Adventures as cards",
             "adventures inside files", () => PartsChoice = PartsChoices[0], isFolded: true);
         Add(CollectionChoice.Value != CollectionFilter.All, CollectionChoice.Label, "collection", () => CollectionChoice = CollectionChoices[0], isFolded: true);
