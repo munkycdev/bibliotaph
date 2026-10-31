@@ -43,8 +43,13 @@ public static class ForegroundRequests
             using (waiting ? foreground.Begin() : null) await next(context);
             var took = Stopwatch.GetElapsedTime(started);
             if (took >= Slow)
-                log.LogInformation("{Method} {Route} took {Milliseconds:N0} ms", context.Request.Method,
-                    (context.GetEndpoint() as RouteEndpoint)?.RoutePattern.RawText ?? "(no route)", took.TotalMilliseconds);
+            {
+                // The endpoint's own methods and pattern, which come from our code, never the request's text.
+                var endpoint = context.GetEndpoint();
+                var methods = endpoint?.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods;
+                log.LogInformation("{Method} {Route} took {Milliseconds:N0} ms", methods is { Count: > 0 } ? string.Join(",", methods) : "(any)",
+                    (endpoint as RouteEndpoint)?.RoutePattern.RawText ?? "(no route)", took.TotalMilliseconds);
+            }
         });
     }
 }
