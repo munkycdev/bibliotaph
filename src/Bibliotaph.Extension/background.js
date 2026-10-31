@@ -1,5 +1,5 @@
-// Send to Bibliotaph's button: on a service's library page it takes the page as it shows, as the Windows app's own
-// browser does, opens Bibliotaph's /online/receive beside it and hands the page to bibliotaph.js there. Then it
+// Send to Bibliotaph's button: on a service's library page it takes the page as it shows,
+// opens Bibliotaph's /online/receive beside it and hands the page to bibliotaph.js there. Then it
 // fetches the covers that tab asks for: here first, where the services' sites and image hosts need no permission
 // from them, else on the service's page itself. Nothing is sent anywhere but Bibliotaph, and only when clicked.
 

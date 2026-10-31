@@ -1,4 +1,4 @@
-@* .bt-dialog: Edit metadata for the ticked books, as the Windows app's bulk editor: every field but the title with
+@* .bt-dialog: Edit metadata for the ticked books: every field but the title with
    what the books have in it, then Review changes, then Apply. Esc goes back from the review, or closes it. *@
 @inject ApiClient Api
 
@@ -125,7 +125,7 @@
     ElementReference _apply;
     CancellationTokenSource? _resolving;
 
-    // A list goes back to blank after a pick, as the Windows one does; a new key makes a new element.
+    // A list goes back to blank after a pick; a new key makes a new element.
     int _picks;
 
     [Parameter, EditorRequired] public BulkEditForm Form { get; set; } = default!;

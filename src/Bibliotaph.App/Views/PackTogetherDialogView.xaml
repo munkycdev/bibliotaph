@@ -12,7 +12,7 @@
     <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
   </UserControl.InputBindings>
 
-  <!-- Multi-select plan, choices 8 to 11: a new pack, images added to a pack, or packs merged, with the pack's name. -->
+  <!-- A new pack, images added to a pack, or packs merged, with the pack's name. -->
   <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="10">
     <Border.Effect>
       <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.15" />

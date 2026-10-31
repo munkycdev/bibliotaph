@@ -48,7 +48,7 @@ public static class LibraryApi
             return await HomeAsync(lease.Library, ct);
         });
 
-        // Home's Fill in the catalog with AI? answered Not now, as the Windows app remembers it.
+        // Home's Fill in the catalog with AI? answered Not now.
         api.MapPost("/home/ai-later", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
@@ -117,7 +117,7 @@ public static class LibraryApi
         && !name.Contains("..", StringComparison.Ordinal);
 
     /// <summary>
-    /// Runs the Library page's query as the Windows app's Library does: the books in scope, filtered and in order, or
+    /// Runs the Library page's query: the books in scope, filtered and in order, or
     /// the search's documents and matching pages, with the words for the count line and an empty page.
     /// </summary>
     public static async Task<LibraryResults> ResultsAsync(UserLibrary library, LibraryQuery query, CancellationToken ct)

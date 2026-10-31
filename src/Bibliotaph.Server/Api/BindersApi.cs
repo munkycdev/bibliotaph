@@ -113,7 +113,7 @@ public static class BindersApi
             return await AtHandAsync(lease.Library, id, ct) is { } list ? Results.Ok(list) : Results.NotFound();
         });
 
-        // The binder reader's Add this page: right after the item in hand, in its section, as on Windows.
+        // The binder reader's Add this page: right after the item in hand, in its section.
         binders.MapPost("/{id:long}/items", async (long id, BinderPageAdd add, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
@@ -346,7 +346,7 @@ public static class BindersApi
             OnlinePlace = row.OnlinePlace,
         };
 
-    /// <summary>At hand's list for a binder's reader, as the Windows reader builds it; null when there's no such binder.</summary>
+    /// <summary>At hand's list for a binder's reader; null when there's no such binder.</summary>
     internal static async Task<AtHandList?> AtHandAsync(UserLibrary library, long id, CancellationToken ct)
     {
         var sessions = library.Get<SessionsService>();

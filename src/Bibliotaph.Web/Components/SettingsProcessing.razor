@@ -1,4 +1,4 @@
-@* Settings › Processing, as the Windows app's: indexing step by step with the time left, each with a button at the end
+@* Settings › Processing: indexing step by step with the time left, each with a button at the end
    of its row to run it again for every book where that helps (asked first, as on Windows), what each part is on now,
    pause and resume for each lane, and what the AI on the user's connected PCs is doing. It asks the server again every
    couple of seconds while it shows. *@
@@ -134,7 +134,7 @@
 @code {
     static readonly string[] SearchedByName = ["RPGGeek", "AdventureLookup"];
 
-    /// <summary>What else goes to the catalogues searched by name, as the Windows app says it.</summary>
+    /// <summary>What else goes to the catalogues searched by name.</summary>
     static string ByName(string catalogues)
     {
         var named = SearchedByName.Where(c => catalogues.Split(" or ").Contains(c)).ToList();

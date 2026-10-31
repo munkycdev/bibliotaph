@@ -105,7 +105,7 @@ public enum BinderMenuKind
 public sealed record BinderMenuChoice(BinderMenuKind Kind, long? Id, string Label);
 
 /// <summary>
-/// Add to binder's menu, as the Windows app's: the binder worked on last, then another (with every binder for the
+/// Add to binder's menu: the binder worked on last, then another (with every binder for the
 /// picker) and a new one (with the game systems for its dialog); and the words of those dialogs.
 /// </summary>
 public sealed record BinderMenu(IReadOnlyList<BinderMenuChoice> Choices, IReadOnlyList<BinderChoice> All, IReadOnlyList<FilterChoice> Systems,

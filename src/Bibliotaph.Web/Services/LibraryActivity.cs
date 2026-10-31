@@ -3,7 +3,7 @@ using Bibliotaph.Api.Contracts;
 namespace Bibliotaph.Web.Services;
 
 /// <summary>
-/// The sidebar's status line, as the Windows app's: asked of the server every few seconds while the library is busy,
+/// The sidebar's status line: asked of the server every few seconds while the library is busy,
 /// and only now and then while it's up to date. A page that just started work (a folder added) asks for it sooner.
 /// </summary>
 public sealed class LibraryActivity(ApiClient api) : IAsyncDisposable

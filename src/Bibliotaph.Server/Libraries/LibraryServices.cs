@@ -74,7 +74,7 @@ public static class LibraryServices
         services.AddSingleton<StorageChangeFeed>();
         services.AddSingleton(host.Pdf);
         services.AddSingleton(host.Images);
-        // Passwords the reader gave a locked PDF, sealed as AI keys are, which indexing opens it with as the Windows app's do.
+        // Passwords the reader gave a locked PDF, sealed as AI keys are, which indexing opens it with.
         services.AddSingleton(sp => new ServerPdfPasswords(sp.GetRequiredService<SettingsStore>(),
             host.Protection.CreateProtector($"Bibliotaph.Pdf.Passwords.{userId}")));
         services.AddSingleton<IPasswordStore>(sp => sp.GetRequiredService<ServerPdfPasswords>());
@@ -82,7 +82,7 @@ public static class LibraryServices
         services.AddSingleton<IFileIdentity, NoFileIdentity>();
         services.AddSingleton<ICloudFiles, NoCloudFiles>();
 
-        // The stores and services indexing reaches, as the Windows app registers them.
+        // The stores and services indexing reaches.
         services.AddSingleton<LibraryStore>();
         services.AddSingleton<EntryStore>();
         services.AddSingleton<VersionStore>();
@@ -226,7 +226,7 @@ public static class LibraryServices
         services.AddSingleton<IJobControl>(sp => sp.GetRequiredService<IndexingService>());
         services.AddSingleton<IIndexingStatus>(sp => sp.GetRequiredService<IndexingService>());
 
-        // Needs review: its cards come from these, and each decision goes through them, as in the Windows app.
+        // Needs review: its cards come from these, and each decision goes through them.
         services.AddSingleton<ElsewhereService>();
         services.AddSingleton<LookupMatches>();
         services.AddSingleton<OnlineImports>();

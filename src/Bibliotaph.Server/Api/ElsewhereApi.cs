@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Http.Features;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// Books owned elsewhere, as the Windows app keeps them: Add a book I own elsewhere, a cover picture of the user's
+/// Books owned elsewhere: Add a book I own elsewhere, a cover picture of the user's
 /// own, and Remove from library with Undo. A picture is shrunk to cover size as it arrives and only that is kept.
 /// </summary>
 public static class ElsewhereApi

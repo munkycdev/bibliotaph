@@ -3,7 +3,7 @@ using Bibliotaph.Api.Contracts;
 namespace Bibliotaph.Web.Services;
 
 /// <summary>
-/// The sidebar's Pinned group, kept for the sidebar, Home and every Pin button, as the Windows app's PinDirectory: the
+/// The sidebar's Pinned group, kept for the sidebar, Home and every Pin button: the
 /// pins in order with their targets' names. It reloads after a pin changes, and when a page says a name may have.
 /// </summary>
 public sealed class Pins(ApiClient api)

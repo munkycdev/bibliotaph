@@ -9,7 +9,7 @@ using Bibliotaph.Server.Libraries;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// A locked PDF's password, as the Windows reader keeps it: the reader tries a remembered one first, forgets it when
+/// A locked PDF's password: the reader tries a remembered one first, forgets it when
 /// it no longer opens the book, and sends one the user typed with the dialog's ticks, so indexing can read the book
 /// and, when asked, the next open needn't ask. Settings › Passwords lists the books with one remembered, never the
 /// passwords, and forgets them.

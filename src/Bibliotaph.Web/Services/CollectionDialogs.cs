@@ -4,7 +4,7 @@ namespace Bibliotaph.Web.Services;
 public sealed record CollectionChoice(long? Id, string Name, string Path, int Depth);
 
 /// <summary>
-/// The dialog over a page for collections and saved searches, as the Windows app's: naming one (New collection, Save
+/// The dialog over a page for collections and saved searches: naming one (New collection, Save
 /// search, Rename), or picking a collection from all of them (Add to another collection, Move to). A page awaits the
 /// answer; the shell draws the dialog.
 /// </summary>

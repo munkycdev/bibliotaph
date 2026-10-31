@@ -3,7 +3,7 @@ using Bibliotaph.Api.Contracts;
 namespace Bibliotaph.Web.Services;
 
 /// <summary>
-/// What pages do with collections, as the Windows app's collection actions: adding books to one, new or picked, taking
+/// What pages do with collections: adding books to one, new or picked, taking
 /// them out, and making, renaming, moving and deleting collections. Each answers with the note to show and its Undo,
 /// or null when the dialog was cancelled.
 /// </summary>

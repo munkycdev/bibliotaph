@@ -5,7 +5,7 @@
 @inject Pins Pins
 @inject IJSRuntime JS
 
-@* A binder's page, as the Windows app's binder reader: its pages listed down the left, numbered under their sections;
+@* A binder's page: its pages listed down the left, numbered under their sections;
    the reader for the page in hand, with every other page of the book still reachable; and the binder's notes on the
    right, folding away. Next and Previous (Ctrl+Right and Ctrl+Left) step through the pages, which are renamed in the
    list (F2). Edit binder opens the list page, for sections, order and the rest. *@
@@ -218,7 +218,7 @@ else
         _missing = false;
         try
         {
-            // Opening it makes it the binder Add to binder adds to, as on Windows.
+            // Opening it makes it the binder Add to binder adds to.
             Show(await Api.OpenBinderAsync(Id));
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
@@ -235,7 +235,7 @@ else
         {
             _focusRename = false;
             await _renameBox.FocusAsync();
-            // The name is ready to type over, as on Windows.
+            // The name is ready to type over.
             try
             {
                 if (await ModuleAsync() is { } module) await module.InvokeVoidAsync("selectAll", _renameBox);

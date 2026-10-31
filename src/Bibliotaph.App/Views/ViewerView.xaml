@@ -98,12 +98,12 @@
                 Command="{Binding UseAsPackCoverCommand}" ToolTip="Use this image as the pack's cover"
                 AutomationProperties.Name="Use this image as the pack's cover"
                 Visibility="{Binding CanUseAsPackCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-        <!-- Mark as adventure (slice 5): pages of this file as an adventure with a card of its own. -->
+        <!-- Mark as adventure: pages of this file as an adventure with a card of its own. -->
         <Button x:Name="MarkPart" Content="Mark as adventure" c:Ui.Icon="{StaticResource Icon.BookOpen}" Margin="0,0,8,0"
                 Command="{Binding MarkPagesCommand}" ToolTip="Give pages of this file a card of their own, as an adventure"
                 AutomationProperties.Name="Mark pages as an adventure"
                 Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-        <!-- Note (slice 3f): a note on the page in view, or on the page with selected text. -->
+        <!-- Note: a note on the page in view, or on the page with selected text. -->
         <Button x:Name="AddNote" Content="Note" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Click="AddNote_Click"
                 ToolTip="Add a note on the page in view" AutomationProperties.Name="Add a note on this page"
                 Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -153,7 +153,7 @@
             </TextBox.InputBindings>
           </TextBox>
           <TextBlock Text="{Binding PageCountText}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="6,0" />
-          <!-- Opened from an adventure's card (slice 5): where the page in view is in it. -->
+          <!-- Opened from an adventure's card: where the page in view is in it. -->
           <TextBlock x:Name="PartPosition" Text="{Binding PartPosition}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="0,0,6,0"
                      Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}" ToolTip="Next page"
@@ -168,7 +168,7 @@
           <Button x:Name="ToggleNotes" Style="{StaticResource Bt.Link}" Content="{Binding Notes.Label}" c:Ui.Icon="{StaticResource Icon.NotebookPen}"
                   Command="{Binding ToggleNotesCommand}" ToolTip="Show or hide the notes on this book's pages" VerticalAlignment="Center" />
           <Border Style="{StaticResource Divider}" />
-          <!-- Ask this book: only while AI is on (Ask plan, choice 12). -->
+          <!-- Ask this book: only while AI is on. -->
           <StackPanel Orientation="Horizontal" Visibility="{Binding Ask.IsOn, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <Button x:Name="ToggleAsk" Style="{StaticResource Bt.Link}" Content="Ask" c:Ui.Icon="{StaticResource Icon.Sparkles}"
                     Command="{Binding ToggleAskCommand}" ToolTip="Ask this book a question" AutomationProperties.Name="Ask this book"
@@ -176,7 +176,7 @@
             <Border Style="{StaticResource Divider}" />
           </StackPanel>
         </StackPanel>
-        <!-- A file from a pack, an image or a PDF: step through its files (F4 plan, choice 7). -->
+        <!-- A file from a pack, an image or a PDF: step through its files. -->
         <StackPanel x:Name="PackSteps" Orientation="Horizontal" Margin="0,0,0,4">
           <StackPanel.Style>
             <Style TargetType="StackPanel">
@@ -214,7 +214,7 @@
                     AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl+mouse wheel; Ctrl+0 fits the width again)" MinWidth="110" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Plus}" ToolTip="Zoom in (Ctrl+plus)"
                   AutomationProperties.Name="Zoom in" Command="NavigationCommands.IncreaseZoom" Margin="4,0,0,0" />
-          <!-- The heart and the pin: the book, or the pack an image is in, as a favorite (slice 3 plan, choice 5) and in the sidebar. -->
+          <!-- The heart and the pin: the book, or the pack an image is in, as a favorite and in the sidebar. -->
           <Border Style="{StaticResource Divider}" />
           <Button x:Name="FavoriteButton" Style="{StaticResource Bt.HeartButton}" c:Ui.IsActive="{Binding IsFavorite}"
                   ToolTip="{Binding FavoriteAction}" AutomationProperties.Name="{Binding FavoriteAction}" Command="{Binding ToggleFavoriteCommand}" />
@@ -244,7 +244,7 @@
                   ToolTip="Previous match (Shift+F3)" AutomationProperties.Name="Previous match" Command="{Binding Find.PreviousCommand}" />
           <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.ChevronRight}"
                   ToolTip="Next match (F3)" AutomationProperties.Name="Next match" Command="{Binding Find.NextCommand}" />
-          <!-- Reading an adventure inside the file, Find looks in its pages unless this is ticked (slice 5). -->
+          <!-- Reading an adventure inside the file, Find looks in its pages unless this is ticked. -->
           <CheckBox x:Name="FindWholeFile" Content="Whole file" IsChecked="{Binding Find.WholeFile}" Foreground="{DynamicResource Bt.Text}" FontSize="11"
                     VerticalAlignment="Center" Margin="8,0,0,0" ToolTip="Find in the whole file, not only this adventure's pages"
                     Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}" />
@@ -273,7 +273,7 @@
               </ListBox.ItemContainerStyle>
               <ListBox.ItemTemplate>
                 <DataTemplate DataType="{x:Type vm:OutlineEntry}">
-                  <!-- A bookmark inside the adventure being read stands out (slice 5); any can be indexed as an adventure. -->
+                  <!-- A bookmark inside the adventure being read stands out; any can be indexed as an adventure. -->
                   <Border x:Name="Shade" BorderThickness="0">
                     <DockPanel x:Name="Row" Margin="{Binding Indent}" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}">
                       <DockPanel.ContextMenu>
@@ -307,7 +307,7 @@
             </ListBox>
           </DockPanel>
         </Border>
-        <!-- Ask this book (Ask plan): a question, the answer with its citations as links, and the pages it was read from, each opening its page. -->
+        <!-- Ask this book: a question, the answer with its citations as links, and the pages it was read from, each opening its page. -->
         <Border x:Name="AskPanel" DockPanel.Dock="Right" Width="320" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
                 BorderThickness="1,0,0,0" DataContext="{Binding Ask}">
           <Border.Style>
@@ -402,7 +402,7 @@
             </StackPanel>
           </ScrollViewer>
         </Border>
-        <!-- Notes on this book's pages (slice 3f): each goes to its pages, and can be changed or deleted. -->
+        <!-- Notes on this book's pages: each goes to its pages, and can be changed or deleted. -->
         <Border x:Name="NotesPanel" DockPanel.Dock="Right" Width="280" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
                 BorderThickness="1,0,0,0">
           <Border.Style>
@@ -531,7 +531,7 @@
                             Visibility="{Binding IsImage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <TextBlock Text="{Binding OpeningText}" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"
                      Visibility="{Binding IsOpening, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-          <!-- A session item's pages weren't where they were (choice 14), and what Add page did, with Undo. -->
+          <!-- A session item's pages weren't where they were, and what Add page did, with Undo. -->
           <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="18,14,18,0" MaxWidth="560">
             <Border x:Name="SessionBanner" Background="{DynamicResource Bt.Side}" BorderBrush="{DynamicResource Bt.Warm}" BorderThickness="1" CornerRadius="6"
                     Padding="14,10" Margin="0,0,0,8" Visibility="{Binding SessionBanner, Converter={StaticResource Bt.VisibleWhenSet}}">
@@ -601,7 +601,7 @@
       </ScrollViewer>
     </Grid>
 
-    <!-- A note on pages (slice 3f), as a dialog over the reader. Esc or Cancel closes it. -->
+    <!-- A note on pages, as a dialog over the reader. Esc or Cancel closes it. -->
     <Grid Grid.RowSpan="4" Visibility="{Binding Notes.Dialog, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Background="{DynamicResource Bt.Shadow}" />
       <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
@@ -610,7 +610,7 @@
       </ScrollViewer>
     </Grid>
 
-    <!-- Pages marked as an adventure (slice 5), as a dialog over the reader. Esc or Cancel closes it. -->
+    <!-- Pages marked as an adventure, as a dialog over the reader. Esc or Cancel closes it. -->
     <Grid Grid.RowSpan="4" Visibility="{Binding PartEditor, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border Background="{DynamicResource Bt.Shadow}" />
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">

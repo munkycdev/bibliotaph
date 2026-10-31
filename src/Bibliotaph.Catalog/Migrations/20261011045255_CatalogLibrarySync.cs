@@ -7,7 +7,7 @@ namespace Bibliotaph.Catalog.Migrations;
 
 /// <inheritdoc />
 /// <summary>
-/// Library sync (library sync plan, choice 4): a sync id on each kind of row the user makes, given to the rows already
+/// Library sync: a sync id on each kind of row the user makes, given to the rows already
 /// there before its unique index goes on, and the sync_state table that remembers what this PC last saw of each record.
 /// </summary>
 public partial class CatalogLibrarySync : Migration

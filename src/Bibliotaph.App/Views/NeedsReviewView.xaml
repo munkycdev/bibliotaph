@@ -256,7 +256,7 @@
       </Border>
     </DataTemplate>
 
-    <!-- A file that looks like a new version of a book (F2): make it current, keep it as a copy, or a separate book. -->
+    <!-- A file that looks like a new version of a book: make it current, keep it as a copy, or a separate book. -->
     <DataTemplate DataType="{x:Type vm:VersionCardViewModel}">
       <Border Style="{StaticResource Card}">
         <Grid>
@@ -302,7 +302,7 @@
       </Border>
     </DataTemplate>
 
-    <!-- A new version of a book whose places need a look (slice 4h): those that do, each with Open and Use this page, and those found. -->
+    <!-- A new version of a book whose places need a look: those that do, each with Open and Use this page, and those found. -->
     <DataTemplate DataType="{x:Type vm:RevisionCardViewModel}">
       <Border Style="{StaticResource Card}">
         <Grid>
@@ -378,7 +378,7 @@
       </Border>
     </DataTemplate>
 
-    <!-- A file with the title of a book owned elsewhere (F5a): Same book puts the file on the book's card. -->
+    <!-- A file with the title of a book owned elsewhere: Same book puts the file on the book's card. -->
     <DataTemplate DataType="{x:Type vm:ElsewhereCardViewModel}">
       <Border Style="{StaticResource Card}">
         <Grid>
@@ -451,7 +451,7 @@
       </Border>
     </DataTemplate>
 
-    <!-- Cataloged wrong… left without a change (scenario review, row 8): Fix it opens the book's details to correct again. -->
+    <!-- Cataloged wrong… left without a change: Fix it opens the book's details to correct again. -->
     <DataTemplate DataType="{x:Type vm:CorrectionCardViewModel}">
       <Border Style="{StaticResource Card}">
         <Grid>
@@ -482,7 +482,7 @@
       </Border>
     </DataTemplate>
 
-    <!-- A proposed folder rule (scenario review, row 8): the same value set on several books from one folder. -->
+    <!-- A proposed folder rule: the same value set on several books from one folder. -->
     <DataTemplate DataType="{x:Type vm:FolderRuleCardViewModel}">
       <Border Style="{StaticResource Card}">
         <Grid>
@@ -585,7 +585,7 @@
       </Border>
     </DataTemplate>
 
-    <!-- A file that looks like a compilation (slice 5b): its adventures, ticked, with Accept, Edit and Not split. -->
+    <!-- A file that looks like a compilation: its adventures, ticked, with Accept, Edit and Not split. -->
     <DataTemplate DataType="{x:Type vm:PartProposalCardViewModel}">
       <Border Style="{StaticResource Card}">
         <Grid>
@@ -653,7 +653,7 @@
       </Border>
     </DataTemplate>
 
-    <!-- An adventure inside a file whose pages weren't found in the file as it is now (slice 5): set its pages, or remove it. -->
+    <!-- An adventure inside a file whose pages weren't found in the file as it is now: set its pages, or remove it. -->
     <DataTemplate DataType="{x:Type vm:UnplacedPartCardViewModel}">
       <Border Style="{StaticResource Card}">
         <Grid>
@@ -686,7 +686,7 @@
       </Border>
     </DataTemplate>
 
-    <!-- A smaller or mixed folder of images (F4): make it one card, or keep its images separate. -->
+    <!-- A smaller or mixed folder of images: make it one card, or keep its images separate. -->
     <DataTemplate DataType="{x:Type vm:PackCardViewModel}">
       <Border Style="{StaticResource Card}">
         <Grid>

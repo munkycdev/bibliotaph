@@ -124,7 +124,7 @@
         else _owns.Remove(own);
     }
 
-    /// <summary>Read now, so a picture that can't be a cover says so before the book is made, as on Windows.</summary>
+    /// <summary>Read now, so a picture that can't be a cover says so before the book is made.</summary>
     async Task CoverPickedAsync(InputFileChangeEventArgs e)
     {
         _reading = true;

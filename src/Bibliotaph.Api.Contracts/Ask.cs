@@ -9,7 +9,7 @@ public sealed record AskBook(bool On, string? Unavailable, IReadOnlyList<AskTurn
 /// <summary>An earlier turn: the question, what it looked for when the model rewrote it, and the answer as checked.</summary>
 public sealed record AskTurn(string Question, string? LookedFor, IReadOnlyList<AskPart> Answer);
 
-/// <summary>How a piece of an answer shows, as the Windows reader shows it.</summary>
+/// <summary>How a piece of an answer shows.</summary>
 public enum AskPartKind
 {
     /// <summary>The answer's own words.</summary>

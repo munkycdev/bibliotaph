@@ -21,7 +21,7 @@
     </Style>
   </UserControl.Resources>
 
-  <!-- An adventure inside a file (slice 5): its title when new, and its first and last pages as the file numbers them. -->
+  <!-- An adventure inside a file: its title when new, and its first and last pages as the file numbers them. -->
   <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="10">
     <Border.Effect>
       <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.15" />
