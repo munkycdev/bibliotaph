@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.4 ┬╖ 28 October 2026
+
+New in 1.4.1152 (31 October 2026):
+
 - **Fixed: covers of books from D&D Beyond, Demiplane and other online libraries could disappear.** Bibliotaph kept
   them in its cover cache, which is meant to be throwaway, and never sent them to your other PCs or the web library,
   so a new PC, a cleared cache or a server restart left those books without covers. They are now kept with your own
@@ -15,8 +19,6 @@
   library in storage as a snapshot plus every change since, and it was only taking that snapshot once a day at
   midnight, so after a busy day it replayed thousands of small changes one at a time. It now takes one every hour while
   a library changes, so a library is back within a minute or so. See [Bibliotaph on the web](docs/guide/web.md#signing-in-and-out).
-
-## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1141 (31 October 2026):
 
