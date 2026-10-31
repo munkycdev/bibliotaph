@@ -39,8 +39,9 @@ public static class Pipeline
         Stage.Classify => 1,
         // 2: new-version cards, so a library matched before gets them.
         Stage.Match => 2,
-        // 2: files printing the same ISBN get new-version cards, so a library identified before gets them.
-        Stage.Identify => 2,
+        // 2: files printing the same ISBN get new-version cards, so a library identified before gets them. 3: a book
+        // printing neither an ISBN nor a product code is looked up by title, so one identified before is too.
+        Stage.Identify => 3,
         // 2: every catalogue is asked and each field comes from the one preferred, RPGGeek first, so books looked up
         // before are asked again. 3: RPGGeek's systems, categories, genres, settings and series are used too.
         Stage.LookUp => 3,

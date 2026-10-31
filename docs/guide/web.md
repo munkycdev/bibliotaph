@@ -707,7 +707,8 @@ Open Library and Google Books about the ISBNs your books print (RPGGeek and Adve
 book's title, and AdventureLookup about books that print no ISBN too), and suggests each book's title, authors,
 publisher and year, each field from the first of them that has it, as the Windows app does, from RPGGeek its system,
 edition, type, themes, setting and series, and from AdventureLookup an adventure's levels, environments, monsters, items and what it includes.
-This is always on; a book is asked again once there's somewhere more to ask. RPGGeek's data is powered by
+This is always on, and its count takes in every book, whether it prints an ISBN or not; a book is asked again once
+there's somewhere more to ask. RPGGeek's data is powered by
 [BGG](https://boardgamegeek.com), whose logo shows under a book's details when some of them came from RPGGeek. See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 ## Vocabulary
