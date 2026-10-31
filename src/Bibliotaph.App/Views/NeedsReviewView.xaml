@@ -861,7 +861,7 @@
 
     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
       <c:LucideIcon Data="{StaticResource Icon.ShieldCheck}" Size="13" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,8,0" />
-      <TextBlock Text="Your corrections are preserved when books are reindexed." Style="{StaticResource Text.Small}" FontSize="10" />
+      <TextBlock Text="Your corrections stay when books are read again." Style="{StaticResource Text.Small}" FontSize="10" />
     </StackPanel>
   </StackPanel>
 </UserControl>

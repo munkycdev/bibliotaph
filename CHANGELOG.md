@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Clearer wording in a few places**: Needs review says your corrections stay when books are read again, a
+  protected file's details name its protection plainly, and Same book on a catalogue record says its values replace the
+  AI's guesses.
 - **Fixed: the AI called too many books adventures.** It was given only the names of the types, so a rulebook, setting,
   bestiary or supplement that mentioned adventures or gave character levels often came back as an Adventure too. The
   model is now told what each type means, and an Adventure suggestion has to quote where the book calls itself one.
