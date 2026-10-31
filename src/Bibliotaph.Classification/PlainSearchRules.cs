@@ -153,7 +153,9 @@ public static partial class PlainSearchRules
         // The vocabulary's names, longest first, each word used once, in the order Ask's fields are listed.
         void FindNames()
         {
-            var fields = PlainSearchPrompt.Fields.Where(f => f.Field.Kind == SearchFieldKind.Term).Select(f => f.Field).ToList();
+            // A duration's names ("one shot", "campaign") are often a type's too, and say more, so they are tried first.
+            var fields = PlainSearchPrompt.Fields.Where(f => f.Field.Kind == SearchFieldKind.Term).Select(f => f.Field)
+                .OrderBy(f => f.Field != SearchField.Duration).ToList();
             for (var length = Math.Min(MaxNameWords, words.Count); length >= 1; length--)
             {
                 for (var at = 0; at + length <= words.Count; at++)
