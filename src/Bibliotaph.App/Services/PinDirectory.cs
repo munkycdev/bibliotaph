@@ -154,7 +154,8 @@ public sealed class PinDirectory : IPinState
             IReadOnlyList<LibraryEntry> books = [];
             IReadOnlyDictionary<EntryId, EntryAvailability> away = new Dictionary<EntryId, EntryAvailability>();
             if (entryIds.Count > 0) (books, away) = await Task.Run(async () => (await _queries.GetEntriesAsync(entryIds), await _library.GetUnavailableAsync()));
-            if (version != _version) return;
+            // A reload that finishes as the app closes has no sidebar left to fill, nor its icons.
+            if (version != _version || Application.Current is null) return;
             _pinned = [.. pins.Select(p => p.Target)];
             _order = [.. pins.Select(p => p.Target)];
             var cards = books.ToDictionary(b => b.EntryId);

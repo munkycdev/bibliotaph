@@ -163,6 +163,12 @@ public sealed partial class LibrarySync : IHostedService, IDisposable
         {
             if (ChannelsOn) await WriteNowAsync(cancellationToken);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Closing doesn't wait on a slow web library or a pass still running. Nothing is lost: what changed here is
+            // stamped from the catalog, so the first pass at the next start writes it.
+            _log.LogInformation("The library sync file wasn't written at close; it is written at the next start");
+        }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _log.LogWarning(ex, "Writing the library sync file at close failed");

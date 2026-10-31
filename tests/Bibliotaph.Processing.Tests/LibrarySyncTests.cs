@@ -29,12 +29,16 @@ public sealed class LibrarySyncTests : IAsyncLifetime
 
         public bool Offline { get; set; }
 
+        /// <summary>While set, the hub answers nothing until it completes, as a web library that is slow to answer.</summary>
+        public TaskCompletionSource? Stall { get; set; }
+
         public bool Has(string machine) => _files.ContainsKey(machine);
 
         public string Text(string machine) => System.Text.Encoding.UTF8.GetString(_files[machine]);
 
         public async Task<SyncChannelRead> ReadAsync(string machine, CancellationToken ct)
         {
+            if (Stall is { } stall) await stall.Task.WaitAsync(ct);
             if (Offline) return new SyncChannelRead([], "The web library can't be reached.");
             var peers = new List<SyncFileContent>();
             foreach (var bytes in _files.Where(f => f.Key != machine).Select(f => f.Value).ToList())
@@ -47,6 +51,7 @@ public sealed class LibrarySyncTests : IAsyncLifetime
 
         public async Task<string?> WriteAsync(string machine, Func<Stream, CancellationToken, Task> write, CancellationToken ct)
         {
+            if (Stall is { } stall) await stall.Task.WaitAsync(ct);
             if (Offline) return "The web library can't be reached.";
             using var stream = new MemoryStream();
             await write(stream, ct);
@@ -277,6 +282,49 @@ public sealed class LibrarySyncTests : IAsyncLifetime
         var contents = await new SessionStore(_laptop.Contexts).GetAsync(pack.Id, Ct);
         Assert.Equal("Bell tower", Assert.Single(contents!.Items).Label);
         Assert.Equal("Last merged from DESKTOP-1 at 09:00.", LibrarySync.DescribeWeb(_laptop.Sync.Status, _laptop.Clock.Now, TimeZoneInfo.Utc));
+    }
+
+    [Fact]
+    public async Task Closing_while_the_web_library_is_slow_stops_without_an_error_and_the_next_start_writes_what_changed()
+    {
+        var abbey = await _desk.AddBookAsync('a');
+        await _laptop.AddBookAsync('a');
+        await _desk.Metadata.SetValuesAsync(abbey, MetadataFields.Title, ["The Drowned Abbey"], Ct);
+        await _desk.Sync.StartAsync(Ct);
+        _hub.Stall = new TaskCompletionSource();
+
+        // The close write waits on the hub until the host's stop time runs out.
+        using (var stopping = CancellationTokenSource.CreateLinkedTokenSource(Ct))
+        {
+            stopping.CancelAfter(TimeSpan.FromMilliseconds(200));
+            await _desk.Sync.StopAsync(stopping.Token);
+        }
+        Assert.False(_hub.Has("DESKTOP-1"));
+
+        _hub.Stall.SetResult();
+        _hub.Stall = null;
+        await _desk.Sync.SyncNowAsync(Ct);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        Assert.Equal("The Drowned Abbey", await _laptop.TitleAsync('a'));
+    }
+
+    [Fact]
+    public async Task Closing_while_a_sync_is_still_waiting_on_the_web_library_stops_without_an_error()
+    {
+        await _desk.AddBookAsync('a');
+        await _desk.Sync.StartAsync(Ct);
+        var stall = _hub.Stall = new TaskCompletionSource();
+        var running = _desk.Sync.SyncNowAsync(Ct);
+
+        // The close write waits for the running pass, which waits on the hub, until the stop time runs out.
+        using (var stopping = CancellationTokenSource.CreateLinkedTokenSource(Ct))
+        {
+            stopping.CancelAfter(TimeSpan.FromMilliseconds(200));
+            await _desk.Sync.StopAsync(stopping.Token);
+        }
+
+        stall.SetResult();
+        await running;
     }
 
     [Fact]

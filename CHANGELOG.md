@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Fixed: closing the Windows app could say "Something went wrong".** On a PC connected to the web library, when the
+  web library was slow to answer as the app closed, the last sync of your work gave up and showed an error. It now
+  closes quietly, and what hadn't reached the web library yet is sent the next time Bibliotaph starts.
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1141 (31 October 2026):
