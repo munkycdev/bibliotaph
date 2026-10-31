@@ -3,7 +3,10 @@
    are read straight from the user's storage; the server never passes a book's bytes on. *@
 @using Bibliotaph.Core.Reading
 @implements IAsyncDisposable
-@inject ApiClient Api
+@inject AskClient AskApi
+@inject BindersClient BindersApi
+@inject BooksClient BooksApi
+@inject ReaderClient ReaderApi
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject Pins Pins
@@ -393,8 +396,8 @@ else
 
     protected override void OnInitialized()
     {
-        _passwords = new ReaderPasswords(Api, Unlocked);
-        _links = new PrintedPageLinks(Api);
+        _passwords = new ReaderPasswords(ReaderApi, Unlocked);
+        _links = new PrintedPageLinks(ReaderApi);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -415,7 +418,7 @@ else
         _problem = null;
         try
         {
-            _book = await Api.ReaderAsync(EntryId, doc, page, Q, Keep == true, item);
+            _book = await ReaderApi.ReaderAsync(EntryId, doc, page, Q, Keep == true, item);
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
         {
@@ -490,7 +493,7 @@ else
         if (_book is not { Item: { } item } book) return;
         try
         {
-            var used = await Api.UseBinderPageAsync(item.Id, new ReaderUsePage(book.DocumentId, _page));
+            var used = await BindersApi.UseBinderPageAsync(item.Id, new ReaderUsePage(book.DocumentId, _page));
             if (_book != book) return;
             _book = book with { Item = item with { FirstPage = used.FirstPage, LastPage = used.LastPage, Banner = null, CanUsePage = false } };
             _binderDone = new ActionResult(used.Message);
@@ -639,7 +642,7 @@ else
         AskBook ask;
         try
         {
-            ask = await Api.AskBookAsync(book.DocumentId);
+            ask = await AskApi.AskBookAsync(book.DocumentId);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -671,7 +674,7 @@ else
         ReaderFind found;
         try
         {
-            found = await Api.FindInBookAsync(book.DocumentId, phrase, null, null);
+            found = await ReaderApi.FindInBookAsync(book.DocumentId, phrase, null, null);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -695,7 +698,7 @@ else
         ReaderNotes notes;
         try
         {
-            notes = await Api.ReaderNotesAsync(book.DocumentId);
+            notes = await ReaderApi.ReaderNotesAsync(book.DocumentId);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -768,8 +771,8 @@ else
         try
         {
             var changed = dialog.Editing is { } note
-                ? await Api.UpdatePageNoteAsync(book.DocumentId, note.Id, edit)
-                : await Api.AddPageNoteAsync(book.DocumentId, edit);
+                ? await ReaderApi.UpdatePageNoteAsync(book.DocumentId, note.Id, edit)
+                : await ReaderApi.AddPageNoteAsync(book.DocumentId, edit);
             if (_book != book) return;
             SetNotes(changed.Notes);
             if (changed.Done.Message.Length > 0) _noteDone = changed.Done;
@@ -789,7 +792,7 @@ else
         if (_book is not { } book) return;
         try
         {
-            var changed = await Api.DeletePageNoteAsync(book.DocumentId, note.Id);
+            var changed = await ReaderApi.DeletePageNoteAsync(book.DocumentId, note.Id);
             if (_book != book) return;
             SetNotes(changed.Notes);
             _noteDone = changed.Done;
@@ -824,7 +827,7 @@ else
         if (_book is not { } book) return;
         try
         {
-            var used = await Api.UseCoverPageAsync(book.DocumentId, _page);
+            var used = await ReaderApi.UseCoverPageAsync(book.DocumentId, _page);
             if (_book != book) return;
             _coverPage = used.CoverPage;
             ShowNotice(used.Message);
@@ -840,7 +843,7 @@ else
         if (_book is not { } book || PackCoverMember is not { } member) return;
         try
         {
-            await Api.UsePackCoverAsync(book.EntryId, member);
+            await BooksApi.UsePackCoverAsync(book.EntryId, member);
             ShowNotice("This image is the pack's cover now.");
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
@@ -884,7 +887,7 @@ else
         dialog.Problem = null;
         try
         {
-            var added = await Api.MarkAdventureAsync(book.DocumentId, new PartEdit(dialog.Title, dialog.From, dialog.To));
+            var added = await ReaderApi.MarkAdventureAsync(book.DocumentId, new PartEdit(dialog.Title, dialog.From, dialog.To));
             if (added.Problem is { } problem)
             {
                 dialog.Problem = problem;
@@ -941,16 +944,16 @@ else
         }
         try
         {
-            var menu = await Api.BinderMenuAsync();
+            var menu = await BindersApi.BinderMenuAsync();
             if (menu.All.Count == 0)
             {
                 if (await BinderActions.CreateAsync(menu.Systems, menu.NewHeading, "Create") is null) return;
-                menu = await Api.BinderMenuAsync();
+                menu = await BindersApi.BinderMenuAsync();
                 if (menu.All.Count == 0) return;
             }
             var page = await SelectedPageAsync(book);
             var shown = ReaderPageNumbers.Display(page, book.Labels);
-            var label = (await Api.BookmarkAsync(book.DocumentId, page)).Title ?? "";
+            var label = (await ReaderApi.BookmarkAsync(book.DocumentId, page)).Title ?? "";
             if (_book != book) return;
             _pagesDialog = new PagesDraft { From = shown, To = shown, Label = label, Binders = menu.All, BinderId = menu.All[0].Id };
         }
@@ -967,7 +970,7 @@ else
         var add = new BinderAdd([], DocumentId: book.DocumentId, Page: range.First, LastPage: range.Last, Label: dialog.Label, SectionId: dialog.SectionId);
         try
         {
-            _binderDone = await Api.AddToBinderAsync(dialog.BinderId, add);
+            _binderDone = await BindersApi.AddToBinderAsync(dialog.BinderId, add);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -1041,7 +1044,7 @@ else
         if (_book is null) return null;
         try
         {
-            var link = await Api.ReaderLinkAsync(_book.DocumentId);
+            var link = await ReaderApi.ReaderLinkAsync(_book.DocumentId);
             if (link.Problem is { } problem) _linkProblem = problem;
             return link.Url;
         }
@@ -1178,7 +1181,7 @@ else
         _favorite = !_favorite;
         try
         {
-            await Api.SetFavoriteAsync(_book.EntryId, _favorite);
+            await BooksApi.SetFavoriteAsync(_book.EntryId, _favorite);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -1310,7 +1313,7 @@ else
         ReaderFind found;
         try
         {
-            found = await Api.FindInBookAsync(_book.DocumentId, text, part?.FirstPage, part?.LastPage);
+            found = await ReaderApi.FindInBookAsync(_book.DocumentId, text, part?.FirstPage, part?.LastPage);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -1373,7 +1376,7 @@ else
         _placeToKeep = null;
         try
         {
-            await Api.SavePositionAsync(_book.DocumentId, page);
+            await ReaderApi.SavePositionAsync(_book.DocumentId, page);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {

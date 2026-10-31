@@ -7,7 +7,7 @@ namespace Bibliotaph.Web.Components.Reader;
 /// The passwords one opening of a PDF tries: one that opened it in this tab, or else a remembered one, first; then
 /// what the reader types, again while it doesn't open it. A known password that fails is forgotten, not reported.
 /// </summary>
-public sealed class ReaderPasswords(ApiClient api, UnlockedBooks unlocked)
+public sealed class ReaderPasswords(ReaderClient readerApi, UnlockedBooks unlocked)
 {
     bool _knownTried;
     (string Password, bool Remembered)? _tryingKnown;
@@ -69,7 +69,7 @@ public sealed class ReaderPasswords(ApiClient api, UnlockedBooks unlocked)
         if (!use.Remember && !use.Searchable) return null;
         try
         {
-            await api.UsePasswordAsync(book.DocumentId, use);
+            await readerApi.UsePasswordAsync(book.DocumentId, use);
             return null;
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
@@ -83,7 +83,7 @@ public sealed class ReaderPasswords(ApiClient api, UnlockedBooks unlocked)
     {
         try
         {
-            return (await api.RememberedPasswordAsync(documentId)).Password;
+            return (await readerApi.RememberedPasswordAsync(documentId)).Password;
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -95,7 +95,7 @@ public sealed class ReaderPasswords(ApiClient api, UnlockedBooks unlocked)
     {
         try
         {
-            await api.ForgetPasswordAsync(documentId);
+            await readerApi.ForgetPasswordAsync(documentId);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {

@@ -1,6 +1,7 @@
 @* .bt-dialog: Edit metadata for the ticked books: every field but the title with
    what the books have in it, then Review changes, then Apply. Esc goes back from the review, or closes it. *@
-@inject ApiClient Api
+@inject BooksClient BooksApi
+@inject SelectionClient SelectionApi
 
 <div class="bt-backdrop fixed bt-dialogback"></div>
 <div class="bt-dialog bt-wide" role="dialog" aria-modal="true" aria-label="@Form.Heading" @onkeydown="KeyDown">
@@ -355,7 +356,7 @@
         _working = true;
         try
         {
-            var read = await Api.BulkReadAsync(new BulkReadRequest(field.Form.Key, text, Form.Books, whole));
+            var read = await SelectionApi.BulkReadAsync(new BulkReadRequest(field.Form.Key, text, Form.Books, whole));
             field.Problem = read.Problem;
             return read.Problem is null && read.Values.Count > 0 ? read : null;
         }
@@ -394,7 +395,7 @@
         try
         {
             await Task.Delay(250, resolving.Token);
-            var text = await Api.ResolutionAsync(field.Form.Key, field.Text, resolving.Token);
+            var text = await BooksApi.ResolutionAsync(field.Form.Key, field.Text, resolving.Token);
             if (resolving != _resolving) return;
             field.Resolution = text;
             StateHasChanged();
@@ -425,7 +426,7 @@
         _working = true;
         try
         {
-            _summary = await Api.BulkReviewAsync(new BulkEditRequest(Books, Changes()));
+            _summary = await SelectionApi.BulkReviewAsync(new BulkEditRequest(Books, Changes()));
             _problem = null;
             _step = Step.Summary;
             _focusApply = true;
@@ -452,7 +453,7 @@
         _step = Step.Applying;
         try
         {
-            var result = await Api.BulkApplyAsync(new BulkEditRequest(Books, Changes()));
+            var result = await SelectionApi.BulkApplyAsync(new BulkEditRequest(Books, Changes()));
             if (result.Done is { } done)
             {
                 await Closed.InvokeAsync(done);

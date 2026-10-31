@@ -2,7 +2,7 @@
    guesses are marked and the section can't fold. *@
 @implements IDisposable
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject BooksClient BooksApi
 
 <DetailSection Section="@DetailSections.Details" Heading="DETAILS" ForceOpen="Correcting">
     <Actions>
@@ -195,7 +195,7 @@
         try
         {
             await Task.Delay(250, resolving.Token);
-            var text = await Api.ResolutionAsync(field.Key, _editText, resolving.Token);
+            var text = await BooksApi.ResolutionAsync(field.Key, _editText, resolving.Token);
             if (resolving != _resolving || _editing != field.Key) return;
             _resolution = text;
             StateHasChanged();
@@ -224,11 +224,11 @@
     async Task SaveAsync(DetailField field)
     {
         if (_busy is not null) return;
-        await RunAsync(field, () => Api.SetFieldAsync(Host.EntryId, field.Key, _editText), saved: true);
+        await RunAsync(field, () => BooksApi.SetFieldAsync(Host.EntryId, field.Key, _editText), saved: true);
     }
 
     Task ActAsync(DetailField field, string action, string text = "") =>
-        _busy is not null ? Task.CompletedTask : RunAsync(field, () => Api.FieldActionAsync(Host.EntryId, field.Key, action, text), saved: false);
+        _busy is not null ? Task.CompletedTask : RunAsync(field, () => BooksApi.FieldActionAsync(Host.EntryId, field.Key, action, text), saved: false);
 
     async Task RunAsync(DetailField field, Func<Task<EditResult>> change, bool saved)
     {

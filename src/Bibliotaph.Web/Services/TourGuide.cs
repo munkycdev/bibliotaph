@@ -11,7 +11,7 @@ namespace Bibliotaph.Web.Services;
 /// books. Skipping ends the whole tour; Settings › Preferences starts it again. How far it has gone is the library's
 /// <c>tour.stage</c> setting, so it never comes back on its own, and the Windows app sees the same.
 /// </summary>
-public sealed class TourGuide(ApiClient api, NavigationManager navigation)
+public sealed class TourGuide(LibraryClient libraryApi, SettingsClient settingsApi, NavigationManager navigation)
 {
     const int StorageStep = 1, FolderStep = 2, StatusStep = 3;
 
@@ -77,7 +77,7 @@ public sealed class TourGuide(ApiClient api, NavigationManager navigation)
     /// <summary>Settings › Preferences › Show the tour again: on Home, the chapter the library is ready for.</summary>
     public async Task ReplayAsync()
     {
-        var summary = await api.LibraryOverviewAsync();
+        var summary = await libraryApi.LibraryOverviewAsync();
         var chapter = summary.Folders > 0 ? TourChapter.Books : TourChapter.Folders;
         if (navigation.ToBaseRelativePath(navigation.Uri).TrimEnd('/') == "home")
         {
@@ -146,7 +146,7 @@ public sealed class TourGuide(ApiClient api, NavigationManager navigation)
         Changed?.Invoke();
         try
         {
-            await api.SetTourProgressAsync(stage);
+            await settingsApi.SetTourProgressAsync(stage);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -159,7 +159,7 @@ public sealed class TourGuide(ApiClient api, NavigationManager navigation)
         if (_stageKnown) return _stage;
         try
         {
-            _stage = (await api.TourProgressAsync()).Stage;
+            _stage = (await settingsApi.TourProgressAsync()).Stage;
             _stageKnown = true;
             return _stage;
         }

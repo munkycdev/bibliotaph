@@ -67,7 +67,7 @@ public sealed class ReviewCardState
     }
 
     /// <summary>Undo: the card is back, and <paramref name="decided"/> hears +1. What couldn't be undone says so on it.</summary>
-    public async Task UndoAsync(ApiClient api, Func<int, Task> decided)
+    public async Task UndoAsync(LibraryClient libraryApi, Func<int, Task> decided)
     {
         if (_undos.Count == 0 || Busy) return;
         Busy = true;
@@ -76,7 +76,7 @@ public sealed class ReviewCardState
             var problems = new List<string>();
             foreach (var token in _undos)
             {
-                var result = await api.RunHeldAsync(token);
+                var result = await libraryApi.RunHeldAsync(token);
                 if (result.Message.Length > 0) problems.Add(result.Message);
             }
             Done = null;

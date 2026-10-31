@@ -1,6 +1,7 @@
 @* Terms that may be the same thing: combine them into the one picked, with Undo, or keep
    them apart for good. Decided, it folds to one line with Undo. *@
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
+@inject ReviewClient ReviewApi
 
 <article class="bt-reviewitem" aria-label="@($"{Card.Chip}: {Card.Label}")">
     @if (State.IsDone)
@@ -34,10 +35,10 @@
                     }
                 </select>
                 <button class="bt-button primary" disabled="@State.Busy" title="@OverlapText.CombineHelp"
-                        @onclick="() => DecideAsync(() => Api.CombineOverlapAsync(Card.Id, Card.Stamp, _keep))"><Icon Name="Check" />@OverlapText.Combine</button>
+                        @onclick="() => DecideAsync(() => ReviewApi.CombineOverlapAsync(Card.Id, Card.Stamp, _keep))"><Icon Name="Check" />@OverlapText.Combine</button>
             </span>
             <button class="bt-button" disabled="@State.Busy" title="@OverlapText.KeepApartHelp"
-                    @onclick="() => DecideAsync(() => Api.KeepOverlapApartAsync(Card.Id, Card.Stamp))">@OverlapText.KeepApart</button>
+                    @onclick="() => DecideAsync(() => ReviewApi.KeepOverlapApartAsync(Card.Id, Card.Stamp))">@OverlapText.KeepApart</button>
         </div>
     }
 </article>
@@ -59,5 +60,5 @@
 
     Task DecideAsync(Func<Task<ActionResult>> decide) => State.DecideAsync(decide, Decided.InvokeAsync);
 
-    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+    Task UndoAsync() => State.UndoAsync(LibraryApi, Decided.InvokeAsync);
 }

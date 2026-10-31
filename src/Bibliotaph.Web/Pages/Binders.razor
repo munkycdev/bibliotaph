@@ -1,5 +1,5 @@
 @page "/binders"
-@inject ApiClient Api
+@inject BindersClient BindersApi
 @inject BinderActions Actions
 @inject NavigationManager Navigation
 
@@ -69,7 +69,7 @@ else
     {
         try
         {
-            _list = await Api.BindersAsync(DateOnly.FromDateTime(DateTime.Now));
+            _list = await BindersApi.BindersAsync(DateOnly.FromDateTime(DateTime.Now));
         }
         catch (ApiProblemException e)
         {

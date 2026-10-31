@@ -1,7 +1,7 @@
 @* Settings › Library, above the folders: the drives connected, what each was allowed, connecting another of any kind
    this server offers, connecting one again when its provider stopped letting Bibliotaph in, and disconnecting. WebDAV
    has no sign-in page of its own, so its address, user name and password are typed here. *@
-@inject ApiClient Api
+@inject StorageClient StorageApi
 @inject LibraryActivity Activity
 
 <section class="bt-section bt-subsection" aria-labelledby="storage-heading">
@@ -135,8 +135,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _providers = await Api.StorageProvidersAsync();
-        _storage = await Api.StorageAsync();
+        _providers = await StorageApi.StorageProvidersAsync();
+        _storage = await StorageApi.StorageAsync();
     }
 
     void OpenForm(string provider)
@@ -166,7 +166,7 @@
         _formProblem = null;
         try
         {
-            await Api.ConnectWebDavAsync(new WebDavConnect(_url, _user, _password));
+            await StorageApi.ConnectWebDavAsync(new WebDavConnect(_url, _user, _password));
         }
         catch (ApiProblemException ex)
         {
@@ -184,15 +184,15 @@
         }
         CloseForm();
         _url = _user = "";
-        _storage = await Api.StorageAsync();
+        _storage = await StorageApi.StorageAsync();
         Activity.Refresh();
         await Changed.InvokeAsync();
     }
 
     async Task Disconnect(StorageAccount account)
     {
-        await Api.DisconnectStorageAsync(account.Id);
-        _storage = await Api.StorageAsync();
+        await StorageApi.DisconnectStorageAsync(account.Id);
+        _storage = await StorageApi.StorageAsync();
         Activity.Refresh();
         await Changed.InvokeAsync();
     }

@@ -1,7 +1,7 @@
 @* Where a book's file is, each place with its state, and Reprocess under the first; Reprocess with OCR on every page
    asks first, since a long book takes a while. *@
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject BooksClient BooksApi
 
 <DetailSection Section="@DetailSections.Where" Heading="WHERE IT IS">
     @for (var i = 0; i < Book.Locations.Count; i++)
@@ -62,6 +62,6 @@
     async Task ReprocessAsync(bool ocr)
     {
         _askingOcr = false;
-        if (await Host.TryAsync(() => Api.ReprocessAsync(Host.EntryId, ocr)) is { } details) Host.Replace(details);
+        if (await Host.TryAsync(() => BooksApi.ReprocessAsync(Host.EntryId, ocr)) is { } details) Host.Replace(details);
     }
 }

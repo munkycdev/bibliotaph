@@ -1,7 +1,10 @@
 @page "/library"
 @using Bibliotaph.Core.Search
 @implements IAsyncDisposable
-@inject ApiClient Api
+@inject CollectionsClient CollectionsApi
+@inject LibraryClient LibraryApi
+@inject SearchesClient SearchesApi
+@inject SelectionClient SelectionApi
 @inject TourGuide Tour
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -561,7 +564,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _select = new LibrarySelection(Api);
+        _select = new LibrarySelection(SelectionApi);
         _prefList = _list = await PrefAsync("library.layout") == "list";
         _eachFile = await PrefAsync("library.pack-view") == "files";
         _searchSort = await PrefAsync("library.sort.search");
@@ -595,7 +598,7 @@ else
         _shown = Batch;
         if (viewId is { } id)
         {
-            var view = _view ?? await Api.SavedSearchAsync(id);
+            var view = _view ?? await SearchesApi.SavedSearchAsync(id);
             if (_settled != settled) return;
             if (view is null)
             {
@@ -645,7 +648,7 @@ else
     {
         try
         {
-            _searches = await Api.SavedSearchesAsync();
+            _searches = await SearchesApi.SavedSearchesAsync();
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -685,7 +688,7 @@ else
         _loading = new CancellationTokenSource();
         try
         {
-            var results = await Api.LibraryAsync(_query with { Sort = Sort, EachFile = _eachFile }, _loading.Token);
+            var results = await LibraryApi.LibraryAsync(_query with { Sort = Sort, EachFile = _eachFile }, _loading.Token);
             if (version != _version) return;
             _results = results;
             // Ask in the top bar answers from the books shown here.
@@ -710,7 +713,7 @@ else
             _collection = null;
             return;
         }
-        var page = await Api.CollectionAsync(id);
+        var page = await CollectionsApi.CollectionAsync(id);
         if (_query.Collection != id) return;
         _collection = page;
         if (page is null) await ClearScope();
@@ -778,7 +781,7 @@ else
     {
         // An Undo of a saved search's change brings back what it was; one of a deletion, the search itself.
         await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
-        if (_viewId is { } id && !_edited && await Api.SavedSearchAsync(id) is { } view)
+        if (_viewId is { } id && !_edited && await SearchesApi.SavedSearchAsync(id) is { } view)
         {
             _view = view;
             _query = view.Query;
@@ -1009,7 +1012,7 @@ else
             _selectionMenu = null;
             return;
         }
-        if (await SearchActionAsync(() => Api.CollectionsAsync()) is { } list) _selectionMenu = list.Menu;
+        if (await SearchActionAsync(() => CollectionsApi.CollectionsAsync()) is { } list) _selectionMenu = list.Menu;
     }
 
     async Task AddSelectedToCollectionAsync(CollectionMenuItem item)
@@ -1038,7 +1041,7 @@ else
     {
         CloseDetails();
         _working = true;
-        _bulk = await SearchActionAsync(() => Api.BulkEditAsync([.. _select.Ticked]));
+        _bulk = await SearchActionAsync(() => SelectionApi.BulkEditAsync([.. _select.Ticked]));
         _working = false;
     }
 
@@ -1054,7 +1057,7 @@ else
     {
         CloseDetails();
         _working = true;
-        _sameBook = await SearchActionAsync(() => Api.SameBookAsync([.. _select.Ticked]));
+        _sameBook = await SearchActionAsync(() => SelectionApi.SameBookAsync([.. _select.Ticked]));
         _working = false;
     }
 
@@ -1069,7 +1072,7 @@ else
     {
         CloseDetails();
         _working = true;
-        _packing = await SearchActionAsync(() => Api.PackPreviewAsync([.. _select.Ticked]));
+        _packing = await SearchActionAsync(() => SelectionApi.PackPreviewAsync([.. _select.Ticked]));
         _working = false;
     }
 
@@ -1084,7 +1087,7 @@ else
     {
         CloseDetails();
         _working = true;
-        var result = await SearchActionAsync(() => Api.RemoveAdventuresAsync([.. _select.Ticked]));
+        var result = await SearchActionAsync(() => SelectionApi.RemoveAdventuresAsync([.. _select.Ticked]));
         _working = false;
         await AfterSelectionChangeAsync(result);
     }
@@ -1101,7 +1104,7 @@ else
     async Task ExportSelectedAsync()
     {
         _working = true;
-        var csv = await SearchActionAsync(() => Api.ExportAsync([.. _select.Ticked]));
+        var csv = await SearchActionAsync(() => SelectionApi.ExportAsync([.. _select.Ticked]));
         _working = false;
         if (csv is null) return;
         try
@@ -1133,7 +1136,7 @@ else
 
     async Task SaveNewAsync(string name)
     {
-        if (await SearchActionAsync(() => Api.SaveSearchAsync(new SavedSearchSave(name, Saving, _list))) is not { } created) return;
+        if (await SearchActionAsync(() => SearchesApi.SaveSearchAsync(new SavedSearchSave(name, Saving, _list))) is not { } created) return;
         _done = created.Result;
         _view = created.Search;
         await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
@@ -1142,9 +1145,9 @@ else
 
     async Task UpdateSearchAsync()
     {
-        if (_view is not { } view || await SearchActionAsync(() => Api.UpdateSearchAsync(view.Id, new SavedSearchChange(Saving, _list))) is not { } result) return;
+        if (_view is not { } view || await SearchActionAsync(() => SearchesApi.UpdateSearchAsync(view.Id, new SavedSearchChange(Saving, _list))) is not { } result) return;
         _done = result;
-        _view = await Api.SavedSearchAsync(view.Id);
+        _view = await SearchesApi.SavedSearchAsync(view.Id);
         Navigation.NavigateTo($"library?view={view.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)}", replace: true);
     }
 
@@ -1156,8 +1159,8 @@ else
     {
         _showSearches = false;
         if (await Dialogs.NameSearchAsync("Rename saved search", "Save", current) is not { } name || name == current) return;
-        if (await SearchActionAsync(() => Api.RenameSearchAsync(id, name)) is null) return;
-        if (id == _viewId && await Api.SavedSearchAsync(id) is { } renamed) _view = renamed;
+        if (await SearchActionAsync(() => SearchesApi.RenameSearchAsync(id, name)) is null) return;
+        if (id == _viewId && await SearchesApi.SavedSearchAsync(id) is { } renamed) _view = renamed;
         await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
     }
 
@@ -1169,7 +1172,7 @@ else
     async Task DeleteSearchAsync(long id)
     {
         _showSearches = false;
-        if (await SearchActionAsync(() => Api.DeleteSearchAsync(id)) is not { } result) return;
+        if (await SearchActionAsync(() => SearchesApi.DeleteSearchAsync(id)) is not { } result) return;
         _done = result;
         await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
         if (id != _viewId) return;

@@ -3,7 +3,9 @@
    picks is plain: Reject under what the book has, Accept and Edit under the suggestion. Decided, it folds to one line
    with Undo. *@
 @implements IDisposable
-@inject ApiClient Api
+@inject BooksClient BooksApi
+@inject LibraryClient LibraryApi
+@inject ReviewClient ReviewApi
 
 <article class="bt-reviewitem" aria-label="@($"{Card.FieldLabel} for {Card.Title}")">
     @if (State.IsDone)
@@ -141,15 +143,15 @@
 
     ReviewFieldDecision Decision => new(Card.Id, Card.GroupKey);
 
-    Task AcceptAsync() => DecideAsync(() => Api.AcceptSuggestionAsync(Decision));
+    Task AcceptAsync() => DecideAsync(() => ReviewApi.AcceptSuggestionAsync(Decision));
 
-    Task RejectAsync() => DecideAsync(() => Api.RejectSuggestionAsync(Decision));
+    Task RejectAsync() => DecideAsync(() => ReviewApi.RejectSuggestionAsync(Decision));
 
     Task<bool> DecideAsync(Func<Task<ActionResult>> decide) => State.DecideAsync(decide, Decided.InvokeAsync);
 
     async Task SaveAsync()
     {
-        if (await DecideAsync(() => Api.EditSuggestionAsync(new ReviewFieldEdit(Card.Id, Card.GroupKey, _text)))) _editing = false;
+        if (await DecideAsync(() => ReviewApi.EditSuggestionAsync(new ReviewFieldEdit(Card.Id, Card.GroupKey, _text)))) _editing = false;
     }
 
     void Edit()
@@ -200,7 +202,7 @@
         try
         {
             await Task.Delay(250, resolving.Token);
-            var text = await Api.ResolutionAsync(Card.FieldKey, _text, resolving.Token);
+            var text = await BooksApi.ResolutionAsync(Card.FieldKey, _text, resolving.Token);
             if (resolving != _resolving || !_editing) return;
             _resolution = text;
             StateHasChanged();
@@ -213,7 +215,7 @@
         }
     }
 
-    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+    Task UndoAsync() => State.UndoAsync(LibraryApi, Decided.InvokeAsync);
 
     public void Dispose() => _resolving?.Cancel();
 }

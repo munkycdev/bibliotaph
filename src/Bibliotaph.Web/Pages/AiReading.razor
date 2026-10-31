@@ -1,5 +1,5 @@
 @page "/ai-reading"
-@inject ApiClient Api
+@inject AiClient AiApi
 @implements IDisposable
 
 @* AI reading: the book the AI is reading now, its step, how much of the excerpt it has read when the
@@ -109,7 +109,7 @@
     {
         try
         {
-            _page = await Api.AiReadingAsync(_stop.Token);
+            _page = await AiApi.AiReadingAsync(_stop.Token);
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {

@@ -2,7 +2,8 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject Session Session
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
+@inject SettingsClient SettingsApi
 @inject Theme Theme
 @inject NavigationManager Navigation
 @inject LibraryActivity Activity
@@ -296,7 +297,7 @@ else
         {
             try
             {
-                if (await Api.LibraryOpeningAsync() is not { Ready: false } opening) return;
+                if (await LibraryApi.LibraryOpeningAsync() is not { Ready: false } opening) return;
                 _opening = opening;
             }
             catch (Exception ex) when (ex is HttpRequestException or ApiProblemException or TaskCanceledException)
@@ -465,7 +466,7 @@ else
         if (Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0] != "home") return;
         try
         {
-            if ((await Api.StartPageAsync()).Library) Navigation.NavigateTo("library", replace: true);
+            if ((await SettingsApi.StartPageAsync()).Library) Navigation.NavigateTo("library", replace: true);
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {

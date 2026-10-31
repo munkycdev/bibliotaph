@@ -1,7 +1,7 @@
 @* A book's adventures: those marked in a compilation, or the file an adventure is in, with the pages editor and what the
    last change did. *@
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject BooksClient BooksApi
 
 @if (Book.CanMarkParts)
 {
@@ -133,7 +133,7 @@
             var edit = new PartEdit(editor.PartId is null ? editor.Title : null, editor.From, editor.To);
             if (editor.PartId is { } partId)
             {
-                if (await Host.TryAsync(() => Api.SetPartPagesAsync(partId, edit)) is not { } moved) return;
+                if (await Host.TryAsync(() => BooksApi.SetPartPagesAsync(partId, edit)) is not { } moved) return;
                 if (moved.Undo is null)
                 {
                     editor.Problem = moved.Message;
@@ -145,7 +145,7 @@
             }
             else
             {
-                if (await Host.TryAsync(() => Api.AddPartAsync(Host.EntryId, edit)) is not { } added) return;
+                if (await Host.TryAsync(() => BooksApi.AddPartAsync(Host.EntryId, edit)) is not { } added) return;
                 if (added.Problem is { } problem)
                 {
                     editor.Problem = problem;
@@ -167,7 +167,7 @@
     async Task RemovePartAsync(long partId, bool own)
     {
         _part = null;
-        if (await Host.TryAsync(() => Api.RemovePartAsync(partId)) is not { } removed) return;
+        if (await Host.TryAsync(() => BooksApi.RemovePartAsync(partId)) is not { } removed) return;
         await Host.ChangedAsync();
         if (own && removed.Show is { } file)
         {

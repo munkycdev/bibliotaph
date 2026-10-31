@@ -2,7 +2,9 @@
 @implements IAsyncDisposable
 @implements IDetailsHost
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject BooksClient BooksApi
+@inject LibraryClient LibraryApi
+@inject ReaderClient ReaderApi
 @inject DetailsPane Pane
 @inject NavigationManager Navigation
 @inject Pins Pins
@@ -343,7 +345,7 @@
         await Pane.LoadAsync();
         try
         {
-            var details = await Api.BookAsync(entryId);
+            var details = await BooksApi.BookAsync(entryId);
             if (entryId != EntryId) return;
             _details = details;
             _problem = details is null ? "This book isn't in your library any more." : null;
@@ -418,7 +420,7 @@
         _details = book with { Card = book.Card with { Favorite = favorite } };
         try
         {
-            await Api.SetFavoriteAsync(book.Card.EntryId, favorite);
+            await BooksApi.SetFavoriteAsync(book.Card.EntryId, favorite);
             await ChangedAsync();
         }
         catch (ApiProblemException)
@@ -433,7 +435,7 @@
     {
         _notesTab = true;
         if (_notes is not null) return;
-        var notes = await TryAsync(() => Api.NotesAsync(EntryId));
+        var notes = await TryAsync(() => BooksApi.NotesAsync(EntryId));
         if (notes is null) return;
         _notes = notes;
         _noteText = notes.Text;
@@ -472,7 +474,7 @@
 
     async Task SaveNoteAsync(long entryId, string text)
     {
-        var saving = Api.SetNoteAsync(entryId, text);
+        var saving = BooksApi.SetNoteAsync(entryId, text);
         _noteSaving = saving;
         try
         {
@@ -509,7 +511,7 @@
         _correcting = false;
         try
         {
-            await Api.EndCorrectionAsync(entryId, _decided);
+            await BooksApi.EndCorrectionAsync(entryId, _decided);
         }
         catch (ApiProblemException e)
         {
@@ -522,7 +524,7 @@
         if (_offer is not { } offer) return;
         _offer = null;
         await Done.InvokeAsync(new ActionResult("Changing…"));
-        var result = await TryAsync(() => Api.RunHeldAsync(offer.Token));
+        var result = await TryAsync(() => LibraryApi.RunHeldAsync(offer.Token));
         if (result is not null) await Done.InvokeAsync(result);
     }
 
@@ -538,7 +540,7 @@
         _downloadProblem = null;
         try
         {
-            await FileDownload.OpenAsync(Api, JS, _details!.Card.DocumentId, EventCallback.Factory.Create<ActionResult>(this, r => _downloadProblem = r.Message));
+            await FileDownload.OpenAsync(ReaderApi, JS, _details!.Card.DocumentId, EventCallback.Factory.Create<ActionResult>(this, r => _downloadProblem = r.Message));
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -556,7 +558,7 @@
         try
         {
             await using var picture = e.File.OpenReadStream(CoverMaxBytes);
-            _details = await Api.ChooseCoverAsync(EntryId, picture, e.File.ContentType);
+            _details = await BooksApi.ChooseCoverAsync(EntryId, picture, e.File.ContentType);
             await ChangedAsync();
         }
         catch (IOException)
@@ -579,7 +581,7 @@
     async Task RemoveCoverAsync()
     {
         _coverProblem = null;
-        if (await TryAsync(() => Api.RemoveChosenCoverAsync(EntryId)) is not { } details) return;
+        if (await TryAsync(() => BooksApi.RemoveChosenCoverAsync(EntryId)) is not { } details) return;
         _details = details;
         await ChangedAsync();
     }
@@ -587,7 +589,7 @@
     /// <summary>The library says the book went, with Undo.</summary>
     async Task RemoveFromLibraryAsync()
     {
-        if (await TryAsync(() => Api.RemoveElsewhereAsync(EntryId)) is not { } result) return;
+        if (await TryAsync(() => BooksApi.RemoveElsewhereAsync(EntryId)) is not { } result) return;
         await Done.InvokeAsync(result);
         await Close();
     }

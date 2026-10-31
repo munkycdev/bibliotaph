@@ -4,7 +4,7 @@
    couple of seconds while it shows. *@
 @using Bibliotaph.Core.Progress
 @implements IDisposable
-@inject ApiClient Api
+@inject SettingsClient SettingsApi
 @inject LibraryActivity Activity
 
 <section class="bt-section" aria-labelledby="processing-heading">
@@ -190,7 +190,7 @@
     {
         try
         {
-            Show(await Api.ProcessingAsync(_stop.Token));
+            Show(await SettingsApi.ProcessingAsync(_stop.Token));
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
@@ -203,7 +203,7 @@
         _saving = true;
         try
         {
-            Show(await Api.PauseLanesAsync(paused, _stop.Token));
+            Show(await SettingsApi.PauseLanesAsync(paused, _stop.Token));
             Activity.Refresh();
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
@@ -233,7 +233,7 @@
         _saving = true;
         try
         {
-            _runNote = (await Api.RunAgainAsync(offer.Step, _stop.Token)).Note;
+            _runNote = (await SettingsApi.RunAgainAsync(offer.Step, _stop.Token)).Note;
             await RefreshAsync();
             Activity.Refresh();
         }

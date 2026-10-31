@@ -6,7 +6,7 @@ namespace Bibliotaph.Web.Services;
 /// The sidebar's Pinned group, kept for the sidebar, Home and every Pin button: the
 /// pins in order with their targets' names. It reloads after a pin changes, and when a page says a name may have.
 /// </summary>
-public sealed class Pins(ApiClient api)
+public sealed class Pins(SearchesClient searchesApi)
 {
     public IReadOnlyList<PinItem> Items { get; private set; } = [];
 
@@ -15,7 +15,7 @@ public sealed class Pins(ApiClient api)
 
     public event Action? Changed;
 
-    public async Task LoadAsync() => await ShowAsync(api.PinsAsync());
+    public async Task LoadAsync() => await ShowAsync(searchesApi.PinsAsync());
 
     public bool IsPinned(string kind, long? id = null) => Items.Any(p => p.Kind == kind && p.Id == id);
 
@@ -23,12 +23,12 @@ public sealed class Pins(ApiClient api)
 
     /// <summary>Pins it at the bottom, or unpins it.</summary>
     public Task ToggleAsync(string kind, long? id = null) =>
-        ShowAsync(IsPinned(kind, id) ? api.UnpinAsync(new PinRef(kind, id)) : api.PinAsync(new PinRef(kind, id)));
+        ShowAsync(IsPinned(kind, id) ? searchesApi.UnpinAsync(new PinRef(kind, id)) : searchesApi.PinAsync(new PinRef(kind, id)));
 
-    public Task UnpinAsync(PinItem pin) => ShowAsync(api.UnpinAsync(new PinRef(pin.Kind, pin.Id)));
+    public Task UnpinAsync(PinItem pin) => ShowAsync(searchesApi.UnpinAsync(new PinRef(pin.Kind, pin.Id)));
 
     /// <summary>Moves a pin to that place, counted once it has been taken out.</summary>
-    public Task MoveAsync(PinItem pin, int index) => ShowAsync(api.MovePinAsync(new PinMove(pin.Kind, pin.Id, index)));
+    public Task MoveAsync(PinItem pin, int index) => ShowAsync(searchesApi.MovePinAsync(new PinMove(pin.Kind, pin.Id, index)));
 
     async Task ShowAsync(Task<PinList> change)
     {

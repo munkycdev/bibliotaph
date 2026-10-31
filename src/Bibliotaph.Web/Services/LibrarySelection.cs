@@ -7,7 +7,7 @@ namespace Bibliotaph.Web.Services;
 /// several searches; the files of a pack, each on a card of its own, are ticked as their pack. The Select bar says what
 /// the ticks hold and offers what can be done with them.
 /// </summary>
-public sealed class LibrarySelection(ApiClient api)
+public sealed class LibrarySelection(SelectionClient selectionApi)
 {
     readonly List<long> _ticked = [];
     long? _anchor;
@@ -65,7 +65,7 @@ public sealed class LibrarySelection(ApiClient api)
         var showing = shown.ToHashSet();
         try
         {
-            var info = await api.SelectionAsync(new SelectionQuery([.. _ticked], _ticked.Count(id => !showing.Contains(id))));
+            var info = await selectionApi.SelectionAsync(new SelectionQuery([.. _ticked], _ticked.Count(id => !showing.Contains(id))));
             if (version == _version && On) Info = info;
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)

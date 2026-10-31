@@ -3,7 +3,7 @@
    page with the matching word marked. Each question and answer joins the book's conversation, which New conversation
    starts again. *@
 @implements IDisposable
-@inject ApiClient Api
+@inject AskClient AskApi
 
 <aside class="bt-askpanel" aria-label="Ask this book">
     <span class="bt-eyebrow">ASK THIS BOOK</span>
@@ -142,7 +142,7 @@
         var stop = _stop = new CancellationTokenSource();
         try
         {
-            await foreach (var update in Api.AskAsync(DocumentId, question, stop.Token))
+            await foreach (var update in AskApi.AskAsync(DocumentId, question, stop.Token))
             {
                 Apply(update);
                 StateHasChanged();
@@ -193,7 +193,7 @@
     {
         try
         {
-            await Api.NewAskConversationAsync(DocumentId);
+            await AskApi.NewAskConversationAsync(DocumentId);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {

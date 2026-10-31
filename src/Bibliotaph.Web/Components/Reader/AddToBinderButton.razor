@@ -1,6 +1,6 @@
 @* Add to binder over the reader: the binders worked on most recently, another, a new one, or Add pages…. *@
 @using Bibliotaph.Core.Reading
-@inject ApiClient Api
+@inject BindersClient BindersApi
 
 <div class="bt-menuanchor">
     <button class="bt-button primary" title="@AddToBinderMenu.Tooltip" aria-haspopup="menu" aria-expanded="@(_menu is not null)"
@@ -38,7 +38,7 @@
         }
         try
         {
-            _menu = await Api.BinderMenuAsync();
+            _menu = await BindersApi.BinderMenuAsync();
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {

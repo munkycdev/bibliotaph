@@ -2,7 +2,7 @@
    place, and a last tab of the user's own tags, each found in the books' pages by its words. Renaming keeps a term's
    key, so nothing filed under it moves; the server brings the library up to date once the edits pause. *@
 @using Bibliotaph.Core.Metadata
-@inject ApiClient Api
+@inject VocabularyClient VocabularyApi
 @inject LibraryActivity Activity
 
 <section class="bt-section" aria-labelledby="vocabulary-heading">
@@ -279,7 +279,7 @@
         _finding = true;
         try
         {
-            var page = await Api.FindTermOverlapsAsync(selected);
+            var page = await VocabularyApi.FindTermOverlapsAsync(selected);
             if (selected != _selected) return;
             _overlaps = page;
             _overlapsNote = null;
@@ -299,8 +299,8 @@
     async Task ForgetKeptApartAsync(KeptApartTerms pair)
     {
         var selected = _selected;
-        await Api.ForgetKeptApartAsync(selected, pair.Id);
-        var page = await Api.TermOverlapsAsync(selected);
+        await VocabularyApi.ForgetKeptApartAsync(selected, pair.Id);
+        var page = await VocabularyApi.TermOverlapsAsync(selected);
         if (selected != _selected) return;
         _overlaps = page;
         Activity.Refresh();
@@ -314,13 +314,13 @@
         _aiTermsNote = add ? "Adding the terms waiting in Needs review…" : null;
         try
         {
-            var change = await Api.SetAiTermChoiceAsync(_selected, add);
+            var change = await VocabularyApi.SetAiTermChoiceAsync(_selected, add);
             _aiTermsAdd = change.Add;
             _aiTermsNote = add ? AiTermText.Added(change.Added) : null;
             if (change.Added > 0)
             {
                 Activity.Refresh();
-                _terms = await Api.VocabularyAsync(_selected);
+                _terms = await VocabularyApi.VocabularyAsync(_selected);
             }
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
@@ -336,13 +336,13 @@
         var selected = _selected;
         if (selected == TagsKey)
         {
-            var tags = await Api.UserTagsAsync();
+            var tags = await VocabularyApi.UserTagsAsync();
             if (selected == _selected) _tags = tags;
             return;
         }
         _terms = null;
-        var terms = Api.VocabularyAsync(selected);
-        var choice = AiTerms.Extends(selected) ? Api.AiTermChoiceAsync(selected) : null;
+        var terms = VocabularyApi.VocabularyAsync(selected);
+        var choice = AiTerms.Extends(selected) ? VocabularyApi.AiTermChoiceAsync(selected) : null;
         var listed = await terms;
         var add = choice is null ? null : (bool?)(await choice).Add;
         if (selected != _selected) return; // another tab was picked meanwhile
@@ -379,7 +379,7 @@
     {
         if (string.IsNullOrWhiteSpace(_newTerm)) return;
         var added = _newTerm.Trim();
-        var change = await Api.AddTermAsync(_selected, added);
+        var change = await VocabularyApi.AddTermAsync(_selected, added);
         _addProblem = change.Problem;
         _addNote = change.Problem is null ? $"Added {added}." + (change.Note is { } note ? " " + note : "") : null;
         if (change.Problem is not null) return;
@@ -391,21 +391,21 @@
 
     async Task RenameAsync(VocabularyTerm term)
     {
-        var change = await Api.RenameTermAsync(term.Id, _editLabel, _editShort);
+        var change = await VocabularyApi.RenameTermAsync(term.Id, _editLabel, _editShort);
         await AfterEditAsync(term.Id, change, change.Note ?? "Saved.");
     }
 
     async Task AddAliasAsync(VocabularyTerm term)
     {
         if (string.IsNullOrWhiteSpace(_newAlias)) return;
-        var change = await Api.AddAliasAsync(term.Id, _newAlias);
+        var change = await VocabularyApi.AddAliasAsync(term.Id, _newAlias);
         if (change.Problem is null) _newAlias = "";
         await AfterEditAsync(term.Id, change, change.Note);
     }
 
     async Task RemoveAliasAsync(VocabularyTerm term, VocabularyAlias alias)
     {
-        await Api.RemoveAliasAsync(alias.Id);
+        await VocabularyApi.RemoveAliasAsync(alias.Id);
         await AfterEditAsync(term.Id, new VocabularyChange(term.Id, null, null), $"“{alias.Text}” no longer means {term.Label}.");
     }
 
@@ -435,7 +435,7 @@
         _searching = true;
         try
         {
-            var change = await Api.SaveUserTagAsync(null, _newTagName, _newTagWords);
+            var change = await VocabularyApi.SaveUserTagAsync(null, _newTagName, _newTagWords);
             _addProblem = change.Problem;
             _addNote = change.Tag is { } tag ? $"Added {tag.Name}. {Found(tag)}" : null;
             if (change.Tag is null) return;
@@ -455,7 +455,7 @@
         _searching = true;
         try
         {
-            var change = await Api.SaveUserTagAsync(tag.Id, _editLabel, _editShort);
+            var change = await VocabularyApi.SaveUserTagAsync(tag.Id, _editLabel, _editShort);
             if (change.Tag is not { } saved)
             {
                 _editProblem = change.Problem;
@@ -475,7 +475,7 @@
 
     async Task DeleteTagAsync(UserTag tag)
     {
-        await Api.DeleteUserTagAsync(tag.Id);
+        await VocabularyApi.DeleteUserTagAsync(tag.Id);
         _editing = null;
         _addProblem = null;
         _addNote = $"Deleted {tag.Name}. Books where you kept it keep it.";

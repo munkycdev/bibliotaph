@@ -1,6 +1,8 @@
 @* Settings › Library: the library folders, each with what it holds, adding one picked from
    connected storage, removing one, Look for changes, and the folder rules answered in Needs review. *@
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
+@inject SettingsClient SettingsApi
+@inject StorageClient StorageApi
 @inject LibraryActivity Activity
 @inject TourGuide Tour
 
@@ -90,17 +92,17 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _folders = await Api.LibraryFoldersAsync();
-        _storage = await Api.StorageAsync();
+        _folders = await StorageApi.LibraryFoldersAsync();
+        _storage = await StorageApi.StorageAsync();
         await LoadPreferencesAsync();
         // The tour's first chapter goes on here: connect a storage, then pick a folder.
         await Tour.OfferSetupAsync(_storage.Count > 0, _folders.Count > 0);
     }
 
-    async Task LoadPreferencesAsync() => await ChangeAsync(() => Api.LibraryPreferencesAsync());
+    async Task LoadPreferencesAsync() => await ChangeAsync(() => SettingsApi.LibraryPreferencesAsync());
 
     // Each switch reads the hints of the books it touches again before answering, so the others wait for it.
-    Task SwitchRuleAsync(FolderRuleSwitch rule, bool enabled) => ChangeAsync(() => Api.SwitchFolderRuleAsync(rule.Id, enabled));
+    Task SwitchRuleAsync(FolderRuleSwitch rule, bool enabled) => ChangeAsync(() => SettingsApi.SwitchFolderRuleAsync(rule.Id, enabled));
 
     async Task ChangeAsync(Func<Task<LibraryPreferences>> change)
     {
@@ -130,7 +132,7 @@
         if (_pending is null) return;
         try
         {
-            _folders = await Api.AddLibraryFolderAsync(new AddLibraryFolder(_pending.Storage.Id, _pending.Path));
+            _folders = await StorageApi.AddLibraryFolderAsync(new AddLibraryFolder(_pending.Storage.Id, _pending.Path));
             Activity.Refresh();
             if (_folders.Count == 1) await Tour.FolderAddedAsync();
         }
@@ -143,13 +145,13 @@
 
     async Task Remove(LibraryFolder folder)
     {
-        _folders = await Api.RemoveLibraryFolderAsync(folder.Id);
+        _folders = await StorageApi.RemoveLibraryFolderAsync(folder.Id);
         Activity.Refresh();
     }
 
     async Task Rescan()
     {
-        await Api.RescanAsync();
+        await LibraryApi.RescanAsync();
         Activity.Refresh();
     }
 }

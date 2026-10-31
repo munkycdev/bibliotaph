@@ -9,7 +9,7 @@ public sealed class LibrarySelectionTests
 
     static LibrarySelection Selecting()
     {
-        var select = new LibrarySelection(new ApiClient(new HttpClient()));
+        var select = new LibrarySelection(new SelectionClient(new ApiHttp(new HttpClient())));
         select.Start();
         return select;
     }
