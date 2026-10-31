@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Fixed: the AI called too many books adventures.** It was given only the names of the types, so a rulebook, setting,
+  bestiary or supplement that mentioned adventures or gave character levels often came back as an Adventure too. The
+  model is now told what each type means, and an Adventure suggestion has to quote where the book calls itself one.
+  Books the AI read before keep their suggestions until you click **Reclassify** in **Settings > AI**. See
+  [AI](docs/guide/ai.md#what-it-does).
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1070 (30 October 2026):

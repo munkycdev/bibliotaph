@@ -194,10 +194,15 @@ public static partial class EvidenceCheck
     /// <summary>
     /// Whether the quote names the value, for the fields whose values are printed in the book. A true quote next to a
     /// made-up value ("Evil Corp", quoting the copyright line) fails here. Types, duration, styles, themes and
-    /// environments are judged from what a passage describes, so for them the quote only has to be on its page.
+    /// environments are judged from what a passage describes, so for them the quote only has to be on its page; except
+    /// the Adventure type, whose quote has to call it an adventure by one of its names, as a whole word ("adventurers"
+    /// isn't one). Nearly every game book has a page that talks about adventurers, and a model given a rulebook or a
+    /// bestiary would quote any of them.
     /// </summary>
     internal static bool Shows(MetadataField field, string value, bool isNewTerm, string quote, Vocabulary vocabulary)
     {
+        if (field == MetadataFields.Types && value == AdventureType && !isNewTerm)
+            return vocabulary.Find(field.Vocabulary!, value) is { } adventure && Names(quote, adventure, vocabulary);
         if (Judged.Contains(field)) return true;
         if (field == MetadataFields.Levels) return ShowsLevels(value, quote);
         // "for 4-6 characters" or "for four to six players": each number of the value is in the quote, as digits or a word.
@@ -207,6 +212,8 @@ public static partial class EvidenceCheck
             return Mentions(quote, value) || (field.Vocabulary is { } names && vocabulary.Resolve(names, value) is { } known && Names(quote, known, vocabulary));
         return vocabulary.Find(field.Vocabulary!, value) is { } term && (Names(quote, term, vocabulary) || Mentions(quote, term.Label));
     }
+
+    const string AdventureType = "adventure";
 
     /// <summary>The fields whose values a passage describes rather than prints.</summary>
     static readonly HashSet<MetadataField> Judged =
