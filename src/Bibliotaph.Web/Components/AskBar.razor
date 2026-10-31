@@ -2,7 +2,8 @@
    the request read as chips (a field and an editable value, or words to find) with notes on anything changed or left
    out, and Search, which puts the chips in the box as query text and runs it. Or, with Answer from my books
    (Ctrl+Enter), the request as a question answered from the pages of the books the Library shows, each citation
-   opening its book at its page. Without AI it says Ask needs it, with a link to Settings > AI. *@
+   opening its book at its page. Without AI a request is read by rules, and Answer from my books says it needs AI, with
+   a link to Settings > AI. *@
 @using Bibliotaph.Core.Search
 @implements IDisposable
 @inject ApiClient Api
@@ -138,6 +139,8 @@
 
     string? _asked, _step, _message, _coverage;
     bool _answering;
+    // Asked once as the panel opens; the server says so too if AI goes off meanwhile.
+    bool _aiReady = true;
     string _passagesHeading = "";
     IReadOnlyList<AskPart> _answer = [];
     IReadOnlyList<AskPassageLine> _passages = [];
@@ -161,7 +164,7 @@
         Scope.Changed += OnScopeChanged;
         try
         {
-            if (!(await Api.AskStatusAsync()).Ready) _state = AskState.NeedsAi;
+            _aiReady = (await Api.AskStatusAsync()).Ready;
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -202,7 +205,7 @@
             if (reading.Problem is { } problem)
             {
                 _problem = problem;
-                _state = reading.NeedsAi ? AskState.NeedsAi : AskState.Problem;
+                _state = AskState.Problem;
                 return;
             }
             _chips.AddRange(reading.Parts.Select(p => new Chip(p.Field is { } name ? SearchFields.Find(name) : null, p.Value, p.Exclude)));
@@ -227,7 +230,11 @@
     {
         var work = Restart();
         question = question.Trim();
-        if (_state == AskState.NeedsAi) return;
+        if (!_aiReady)
+        {
+            _state = AskState.NeedsAi;
+            return;
+        }
         if (question.Length == 0)
         {
             _problem = AskPanelText.QuestionFirst;
@@ -292,7 +299,7 @@
         _answer = [];
         _passages = [];
         _passagesHeading = "";
-        if (_state != AskState.NeedsAi) _state = AskState.Waiting;
+        _state = AskState.Waiting;
         return work;
     }
 

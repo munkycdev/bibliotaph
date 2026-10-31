@@ -46,7 +46,7 @@ public static class PlainSearchCheck
     const int MaxValueLength = 80;
 
     /// <summary>What a request describes may be a longer phrase, since it is found by meaning rather than matched.</summary>
-    const int MaxAboutLength = 200;
+    internal const int MaxAboutLength = 200;
 
     /// <summary>A word of a value this short must match a word of the request whole: "a" is no start of "adventure".</summary>
     const int MinWordStart = 3;

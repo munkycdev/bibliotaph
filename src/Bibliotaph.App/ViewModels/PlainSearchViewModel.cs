@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.ViewModels;
 
-/// <summary>Where Ask is: waiting for a request, without AI, reading one, showing its reading, stuck, or answering a question from the library.</summary>
+/// <summary>Where Ask is: waiting for a request, asked to answer without AI, reading one, showing its reading, stuck, or answering a question from the library.</summary>
 public enum PlainSearchState
 {
     Waiting,
@@ -47,11 +47,11 @@ public sealed partial class PlainSearchPartViewModel(InterpretedPart part) : Obs
 }
 
 /// <summary>
-/// Ask, beside the search box: a request in plain English, read by AI as the search box's own fields and words and
-/// shown as chips with notes before anything runs. The chips can be changed or removed; Search puts them in the box
-/// as ordinary query text and runs it, so the syntax stays in view and can be changed too. Or a question, answered from
-/// the pages of the books the Library shows (<see cref="Library"/>). Without AI, Ask says it needs it and links to
-/// Settings > AI, and the search box works as it always has.
+/// Ask, beside the search box: a request in plain English, read by AI (or by rules, without AI) as the search box's own
+/// fields and words and shown as chips with notes before anything runs. The chips can be changed or removed; Search puts
+/// them in the box as ordinary query text and runs it, so the syntax stays in view and can be changed too. Or a
+/// question, answered from the pages of the books the Library shows (<see cref="Library"/>), which needs AI: without it,
+/// Ask says so and links to Settings > AI.
 /// </summary>
 public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch, SettingsLinks settings, LibraryAskViewModel library,
     ILogger<PlainSearchViewModel> log) : ObservableObject
@@ -113,7 +113,7 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
         Cancel();
         Clear();
         Library.Clear();
-        State = value && !plainSearch.IsReady ? PlainSearchState.NeedsAi : PlainSearchState.Waiting;
+        State = PlainSearchState.Waiting;
     }
 
     /// <summary>The Ask button: Ask mode on or off.</summary>
@@ -138,11 +138,6 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
         Cancel();
         Clear();
         Library.Clear();
-        if (!plainSearch.IsReady)
-        {
-            State = PlainSearchState.NeedsAi;
-            return;
-        }
         using var reading = new CancellationTokenSource();
         var cancel = _cancel = reading.Cancel;
         State = PlainSearchState.Reading;
@@ -153,7 +148,7 @@ public sealed partial class PlainSearchViewModel(PlainSearchService plainSearch,
             if (result.Interpretation is not { } interpretation)
             {
                 Problem = result.Problem;
-                State = plainSearch.IsReady ? PlainSearchState.Problem : PlainSearchState.NeedsAi;
+                State = PlainSearchState.Problem;
                 return;
             }
             foreach (var part in interpretation.Parts) Add(new PlainSearchPartViewModel(part));

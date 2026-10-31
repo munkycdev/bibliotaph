@@ -40,6 +40,10 @@
   and turns the rest of your request into an `about:` chip, so "jungle world with terraforming" finds the closest
   books and pages instead of only those with every word. See
   [Searching](docs/guide/searching.md#ask-in-plain-english).
+- **Ask works without AI.** With no chat model set up, Ask reads your request by rules: the names in your
+  vocabulary, levels, players, favorites, PDFs and "not …", with quoted phrases as words and the rest as `about:`.
+  A note says it was read without AI. Answer from my books still needs AI. On Windows and the web. See
+  [Searching](docs/guide/searching.md#ask-in-plain-english).
 
 ## 1.4 ┬╖ 28 October 2026
 

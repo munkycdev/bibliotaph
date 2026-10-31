@@ -12,7 +12,7 @@ public static class AskPanelText
     public const string Intro = "Describe what you're looking for, such as “a one-shot heist for 4 players in a city”, and press Enter to search. "
         + "Or ask your books a question, such as “how does grappling work?”, and press Ctrl+Enter or Answer from my books.";
 
-    public const string NeedsAi = "Ask needs AI to read your question. Set AI up in Settings > AI, or close Ask and search as usual.";
+    public const string NeedsAi = "Answer from my books needs AI to read your books. Set AI up in Settings > AI, or press Enter to search for it instead.";
     public const string Reading = "Reading your question…";
     public const string NothingToSearch = "Nothing in that could be searched for. Try saying it another way.";
     public const string Interpreted = "Here's how that reads as a search. Change or remove anything, then press Search.";

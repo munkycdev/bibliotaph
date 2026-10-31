@@ -17,14 +17,16 @@ public abstract partial class PipelineTests
     public sealed class PlainSearchTests(SyntheticPdfs synthetic) : PipelineTests(synthetic)
     {
         [Fact]
-        public async Task With_AI_off_plain_search_says_it_needs_AI_and_sends_nothing()
+        public async Task With_AI_off_plain_search_reads_a_request_by_rules_and_sends_nothing()
         {
             var plainSearch = PlainSearch();
 
-            var result = await plainSearch.InterpretAsync("Mothership jungle world with terraforming", Ct);
+            var result = await plainSearch.InterpretAsync("Mothership for 4 players, a rainforest world with terraforming", Ct);
 
             Assert.False(plainSearch.IsReady);
-            Assert.Equal((null, PlainSearchText.NeedsAi), (result.Interpretation, result.Problem));
+            Assert.Null(result.Problem);
+            Assert.Equal("system:Mothership players:4 environment:Jungle about:\"world with terraforming\"", result.Interpretation!.QueryText);
+            Assert.Equal([PlainSearchText.ReadByRules], result.Interpretation.Notes);
             Assert.Empty(_model.Requests);
         }
 

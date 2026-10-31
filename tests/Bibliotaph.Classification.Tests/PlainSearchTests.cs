@@ -255,6 +255,41 @@ public class PlainSearchTests
         Assert.Equal(["“spreadsheet” couldn't be searched for, so it was left out."], reading.Notes);
     }
 
+    // ---- Without AI, by rules ----------------------------------------------------------------------------------------
+
+    static string Rules(string request) => PlainSearchRules.Read(request, Context).QueryText;
+
+    [Fact]
+    public void Without_ai_the_vocabularys_names_levels_and_players_are_found_and_the_rest_is_found_by_meaning()
+    {
+        Assert.Equal("system:\"Dungeons & Dragons\" level:4 environment:Jungle about:\"world with terraforming\"",
+            Rules("D&D, level 4, jungle world with terraforming"));
+        Assert.Equal("style:\"Dungeon crawl\" players:4-6 level:3-5", Rules("dungeon crawls for 4 to 6 players, levels 3-5"));
+        Assert.Equal("theme:Horror players:4 level:3", Rules("something creepy for four level-3 characters"));
+        Assert.Equal("level:5-7 duration:One-shot about:heist", Rules("a 5th to 7th level one-shot heist"));
+        Assert.Equal("players:1 type:Adventure about:\"haunted lighthouse\"", Rules("solo adventures about a haunted lighthouse"));
+        Assert.Equal("favorite:yes players:5", Rules("my favorites for a party of 5"));
+    }
+
+    [Fact]
+    public void Without_ai_what_the_request_leaves_out_is_left_out_and_quotes_are_words_a_book_must_have()
+    {
+        Assert.Equal("type:Adventure -theme:Horror about:\"city of thieves\"", Rules("adventures in a city of thieves, not horror"));
+        Assert.Equal("\"Black Tower\" -format:pdf -environment:Jungle", Rules("\"Black Tower\" but no PDFs and without any jungle"));
+        Assert.Equal("-\"lich queen\" about:\"undead crypt\"", Rules("an undead crypt with no “lich queen”"));
+    }
+
+    [Fact]
+    public void Without_ai_a_level_asked_of_a_system_with_no_levels_is_still_ignored_and_filler_alone_finds_nothing()
+    {
+        var reading = PlainSearchRules.Read("Mothership level 4", Context);
+
+        Assert.Equal("system:Mothership", reading.QueryText);
+        Assert.Equal(["Mothership has no character levels in your library, so level 4 was ignored."], reading.Notes);
+        Assert.Equal("", Rules("I want something for my group please"));
+        Assert.Equal("about:dragon", Rules("the one with the dragon"));
+    }
+
     // ---- End to end, with a fake model -------------------------------------------------------------------------------
 
     sealed class FakeModel(string answer) : IModelClient
