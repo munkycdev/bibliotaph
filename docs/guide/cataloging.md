@@ -47,7 +47,7 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
 ## The details panel
 
 Click a cover in the Library to open its details on the right. Click anywhere outside them, even on another card, or
-press **Esc**, to close them.
+press **Esc**, to close them. Drag their left edge to make them wider; they stay that wide.
 
 Under the cover is a row of buttons for what you can do with the book:
 
@@ -59,22 +59,28 @@ Under the cover is a row of buttons for what you can do with the book:
 - **Remove from library**, for a book you own elsewhere. It's on the book's right-click menu in the Library too.
 - On the right, icon buttons to pin the book, add it to a binder, and correct it (**Cataloged wrong…**).
 
-The **Details** tab shows:
+The **Details** tab starts with what the book holds and ends with its file. Click a section's heading to fold it
+away, or to open it again; every book's details keep the sections as you left them on this PC. The last four start
+folded.
 
-- The fields: title, game system, edition, type, levels, players, includes, duration, style, setting, themes,
-  environments, monsters, items, publisher, authors, artists, series, year, mechanics, your tags, where else you own it (**Also own**, with the book's page online if you
-  like) and where to get it (**Get it from**, a store with an optional link). Empty fields are hidden until you click
-  **More fields**, except the main ones, and **Players** on an adventure, so you can say who it's for straight away.
-- **Suggested** marks on values nobody has confirmed yet. Open one to see where it came from, with the page and quote.
-- **Where it is**: the file's folder, with **Show in File Explorer**.
-- **Copies**, when the book is in more than one file.
-- **About the file**: its format, when it was added, its folders and what the file says of itself. It includes the
-  **ISBN** and **Product code** the book prints, as it prints them. Bibliotaph finds
-  these on the first pages and the back cover, from the text it already has, and from an e-book's own information.
-- Its collections, as chips you can remove.
+- **Adventures in this file**, for a compilation, or **In a file**, for an adventure inside one. See
+  [Adventures inside a file](#adventures-inside-a-file).
+- A pack's files.
 - **Found inside the book**, once the AI has [scanned the whole book](ai.md#scanning-whole-books): each chapter with
   its pages and the settings, environments, themes and creatures found in it. These describe parts of the book, not the
   whole book, so they never change its details. **Scan again** has the AI read it again.
+- **Collections**, as chips you can remove, with **Add to collection**.
+- **Details**: title, game system, edition, type, levels, players, includes, duration, style, setting, themes,
+  environments, monsters, items, publisher, authors, artists, series, year, mechanics, your tags, where else you own it (**Also own**, with the book's page online if you
+  like) and where to get it (**Get it from**, a store with an optional link). Empty fields are hidden until you click
+  **More fields**, except the main ones, and **Players** on an adventure, so you can say who it's for straight away.
+  **Suggested** marks values nobody has confirmed yet. Open one to see where it came from, with the page and quote.
+- **About the file**: its format, when it was added, its folders and what the file says of itself. It includes the
+  **ISBN** and **Product code** the book prints, as it prints them. Bibliotaph finds
+  these on the first pages and the back cover, from the text it already has, and from an e-book's own information.
+- **Where it is**: the file's folder, with **Show in File Explorer** and **Reprocess**.
+- **Copies**, when the book is in more than one file.
+- **Indexing**: how far reading the book has got, step by step.
 
 The **Notes** tab has a note for the whole book, saved as you type, and the notes on its pages.
 
