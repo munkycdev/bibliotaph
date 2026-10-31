@@ -154,6 +154,36 @@ public class ClassifierPromptTests
     }
 
     [Fact]
+    public void Each_starter_type_is_described_and_a_type_the_user_added_is_listed_by_name()
+    {
+        var vocabulary = new Vocabulary([new Term("type", "adventure", "Adventure"), new Term("type", "bestiary", "Bestiary"), new Term("type", "zine-pack", "Zine pack")]);
+
+        var system = ClassifierPrompt.SystemMessage(vocabulary);
+
+        Assert.Contains("  - Adventure: a scenario the game master runs", system, StringComparison.Ordinal);
+        Assert.Contains("  - Bestiary: monsters and creatures", system, StringComparison.Ordinal);
+        Assert.Contains("  - Zine pack" + Environment.NewLine, system, StringComparison.Ordinal);
+        Assert.Contains("not an adventure because it has a sample adventure", system, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Every_starter_type_has_a_meaning()
+    {
+        var starter = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "src", "Bibliotaph.Catalog", "Vocabulary", "starter-vocabulary.json")))!;
+        var types = starter["terms"]!.AsArray().Where(t => t!["vocabulary"]!.GetValue<string>() == "type").Select(t => t!["key"]!.GetValue<string>()).ToHashSet();
+
+        Assert.Equal(types.Order(), ClassifierPrompt.TypeMeanings.Keys.Order());
+    }
+
+    /// <summary>The checkout this test runs from: the folder holding Bibliotaph.slnx, above the test's output.</summary>
+    static string RepoRoot()
+    {
+        for (var folder = new DirectoryInfo(AppContext.BaseDirectory); folder is not null; folder = folder.Parent)
+            if (File.Exists(Path.Combine(folder.FullName, "Bibliotaph.slnx"))) return folder.FullName;
+        throw new InvalidOperationException($"No Bibliotaph.slnx above {AppContext.BaseDirectory}.");
+    }
+
+    [Fact]
     public void The_context_window_grows_with_the_prompt_within_limits()
     {
         Assert.Equal(8_192, ClassifierPrompt.ContextTokens("short", "short"));
@@ -274,6 +304,19 @@ public class EvidenceCheckTests
         Assert.Contains(result.Accepted, c => c.Field == MetadataFields.Year && c.Value == "2019");
         Assert.Contains(result.Accepted, c => c.Field == MetadataFields.Levels && c.Value == "3-5");
         Assert.Contains(result.Accepted, c => c.Field == MetadataFields.Types && c.Value == "adventure" && !c.IsNewTerm);
+    }
+
+    [Fact]
+    public void An_adventure_stands_only_where_its_quote_calls_the_book_one()
+    {
+        var result = Check(
+            Claim("type", "Adventure", 1, "An adventure for four to six characters"),
+            Claim("type", "Adventure", 8, "the lamps go out one by one"),
+            Claim("type", "Bestiary", 8, "the lamps go out one by one"));
+
+        Assert.Single(result.Accepted, c => c.Field == MetadataFields.Types && c.Value == "adventure" && c.PdfPage == 0);
+        Assert.Contains(result.Accepted, c => c.Field == MetadataFields.Types && c.Value == "bestiary");
+        Assert.Contains(result.Dropped, d => d.Claim.Page == 8 && d.Claim.Value == "Adventure" && d.Reason == "The quote doesn't show that value.");
     }
 
     [Fact]

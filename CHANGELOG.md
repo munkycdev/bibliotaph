@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Fixed: the AI called too many books adventures.** It was given only the names of the types, so a rulebook, setting,
+  bestiary or supplement that mentioned adventures or gave character levels often came back as an Adventure too. The
+  model is now told what each type means, and an Adventure suggestion has to quote where the book calls itself one.
+  Books the AI read before keep their suggestions until you click **Reclassify** in **Settings > AI**. See
+  [AI](docs/guide/ai.md#what-it-does).
 - **Filter books by the catalogue that found them.** **Found online**, under Housekeeping in **More filters**, shows the
   books RPGGeek, AdventureLookup, Open Library or Google Books found, each with how many, or **Not found online** for
   those none found, on Windows and the web, and a saved search keeps it. See

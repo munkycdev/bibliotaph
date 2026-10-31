@@ -27,8 +27,8 @@ public sealed record WorkedExample(IReadOnlyList<(string Field, string Value)> V
 /// </summary>
 public static partial class ClassifierPrompt
 {
-    /// <summary>2: players, duration and style, and the back cover in the excerpt.</summary>
-    public const int Version = 2;
+    /// <summary>3: each type is described, and a book is an adventure only when it is one, not when it has one.</summary>
+    public const int Version = 3;
 
     /// <summary>3: values and quotes have a longest length.</summary>
     public const int SchemaVersion = 3;
@@ -67,7 +67,9 @@ public static partial class ClassifierPrompt
         new(MetadataFields.Year, "The year it was published, usually from a copyright line."),
         new(MetadataFields.System, "The game system it is written for, from the list; a new name only when none fits. System-agnostic when it says it works with any system."),
         new(MetadataFields.Edition, "The edition of that game system, from the list, only when the book states it."),
-        new(MetadataFields.Types, "What kind of book it is, from the list; more than one when it is more than one.", MaxValues: 3),
+        new(MetadataFields.Types, "What kind of book it is, from the list, by what most of its pages are. More than one only when it is mostly each of them, such as a campaign book that is half adventure, half setting. "
+            + "Adventure only when the book is itself a scenario for the game master to run, quoting where it says so (\"an adventure for four characters of 3rd level\"). "
+            + "A rulebook, setting, bestiary or supplement is not an adventure because it has a sample adventure, adventure hooks, advice on running adventures, stat blocks, maps or character levels.", MaxValues: 3),
         new(MetadataFields.Levels, "The character levels it is written for, as \"3\" or \"1-5\". \"n/a\" only when the book says levels don't apply."),
         new(MetadataFields.Players, "How many players it is written for, as \"4\" or \"3-5\", from a line such as \"for 4-6 characters of levels 3-5\", often on the cover or back cover. Not the levels."),
         new(MetadataFields.Duration, "How long it takes to play, from the list, only when the book says so (a one-shot, a number of sessions, a campaign). Never from its length."),
@@ -152,11 +154,36 @@ public static partial class ClassifierPrompt
         text.AppendLine("Names to use:");
         foreach (var (heading, name) in names)
         {
-            var terms = vocabulary.InVocabulary(name).OrderBy(t => t.Label, StringComparer.Ordinal).Select(t => Describe(t, vocabulary)).ToList();
-            if (terms.Count > 0) text.AppendLine(CultureInfo.InvariantCulture, $"- {heading}: {string.Join("; ", terms)}");
+            var terms = vocabulary.InVocabulary(name).OrderBy(t => t.Label, StringComparer.Ordinal).ToList();
+            if (terms.Count == 0) continue;
+            if (name == "type")
+            {
+                text.AppendLine(CultureInfo.InvariantCulture, $"- {heading}:");
+                foreach (var term in terms)
+                    text.AppendLine(TypeMeanings.TryGetValue(term.Key, out var meaning) ? $"  - {Describe(term, vocabulary)}: {meaning}" : $"  - {Describe(term, vocabulary)}");
+            }
+            else text.AppendLine(CultureInfo.InvariantCulture, $"- {heading}: {string.Join("; ", terms.Select(t => Describe(t, vocabulary)))}");
         }
         return text.ToString();
     }
+
+    /// <summary>
+    /// What each starter type means. Given only the names, a small model calls nearly every book an adventure, since
+    /// most game books mention adventures and give levels; a type the user added has no meaning here and is listed by name.
+    /// </summary>
+    internal static readonly IReadOnlyDictionary<string, string> TypeMeanings = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["adventure"] = "a scenario the game master runs: a plot, encounters and places for the characters to play through, most of the book",
+        ["anthology"] = "a collection of separate adventures, each run on its own",
+        ["rulebook"] = "the rules for playing the game: core rules, a player's or game master's guide, a quick start",
+        ["bestiary"] = "monsters and creatures with their statistics",
+        ["setting"] = "a world, region or city to set games in: its places, peoples, history and factions",
+        ["supplement"] = "more rules, tools or tables for the game master: a sourcebook, a toolkit, random tables",
+        ["player-options"] = "new choices for player characters: classes, ancestries, feats, spells, equipment",
+        ["map-pack"] = "maps, with little or no adventure to go with them",
+        ["handout"] = "props or pages to hand to the players",
+        ["magazine"] = "an issue of a magazine or zine, with articles of several kinds",
+    };
 
     /// <summary>"5th edition (Dungeons &amp; Dragons)", "Dungeons &amp; Dragons (D&amp;D)".</summary>
     internal static string Describe(Term term, Vocabulary vocabulary)

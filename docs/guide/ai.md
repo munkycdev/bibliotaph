@@ -14,6 +14,11 @@ year, setting, themes and environments.
 
 - **Every suggestion has to quote the page it came from.** Bibliotaph checks the quote is really on that page, and
   throws the suggestion away if it isn't. You can see the page and quote for each one in the book's details.
+- **A book is an adventure only when it is one.** The model is told what each type means, and an Adventure
+  suggestion has to quote where the book calls itself one, such as "an adventure for four characters of 3rd level". A
+  rulebook, setting, bestiary or supplement isn't called an adventure because it has a sample adventure, adventure
+  hooks or character levels. Books the AI read before this update keep their suggestions until you
+  **Reclassify** them in **Settings > AI**.
 - **Your values always win.** Anything you've typed, accepted or rejected stays as it is. AI never fills in your tags.
 - **It learns from you.** The model is shown a few books you've already sorted out, from the same folder or system, as
   examples of how you catalog.
@@ -115,8 +120,9 @@ themes and creatures in each chapter, with the pages they're on.
 - **Library folders sent to AI**: untick a folder to keep its books away from the model. They still get suggestions
   from their names, and you can fill them in yourself.
 - If the model isn't answering, AI waits and tries again every minute. Nothing else stops.
-- Changing the model never re-reads your books on its own. **Settings > AI** counts the books an earlier model read and
-  offers **Reclassify**, with the number, to read them again.
+- Changing the model never re-reads your books on its own, and neither does an update that changes what the model is
+  asked. **Settings > AI** counts the books an earlier model or an earlier version of Bibliotaph read and offers
+  **Reclassify**, with the number, to read them again.
 - Adding names to your lists doesn't re-read your books either: a name the AI used is kept with the books it used it on,
   but a name it never used isn't found in a book it has already read. The button at the end of **Cataloguing with AI**
   in **Settings > Processing** reads every book again: it sends every book the AI has read back to it with your lists
