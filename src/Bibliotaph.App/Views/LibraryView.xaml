@@ -314,10 +314,10 @@
         <!--
           The filters: the four most books are found by first, then the rest folded under More filters in groups. Two
           rows at most before they scroll, so a short window (or 200% scaling) still has room for the books; more while
-          the groups are open.
+          the groups are open. At either end the wheel scrolls the page head around them.
         -->
         <ScrollViewer Grid.Row="2" Margin="0,15,42,-12" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                      Focusable="False" Visibility="{Binding Filters.ShowFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                      Focusable="False" c:Ui.WheelToParent="True" Visibility="{Binding Filters.ShowFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <ScrollViewer.Style>
             <Style TargetType="ScrollViewer">
               <Setter Property="MaxHeight" Value="140" />

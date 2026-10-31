@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed: on a short window, the Library's filters couldn't all be reached with the mouse wheel.** Once the filters
+  are scrolled to their end, the wheel carries on scrolling the top of the page.
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1070 (30 October 2026):
