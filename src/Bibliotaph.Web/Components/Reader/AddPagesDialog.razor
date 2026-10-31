@@ -1,0 +1,103 @@
+@* .bt-dialog: Add pages…, a range of pages with a label, for a binder and where in it. Enter adds; Esc, Cancel or a
+   click outside closes it. *@
+@inject ApiClient Api
+
+<div class="bt-backdrop fixed bt-dialogback" @onclick="Close"></div>
+<div class="bt-dialog" role="dialog" aria-modal="true" aria-label="Add pages" @onkeydown="KeyAsync">
+    <div class="bt-drawer-head bt-dialoghead">
+        <div>
+            <span class="bt-eyebrow bt-eyebrow-block">BINDER</span>
+            <h2 class="bt-dialogtitle">Add pages</h2>
+        </div>
+        <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="Close"><Icon Name="X" /></button>
+    </div>
+    <div class="bt-inline bt-notepagefields">
+        <label class="bt-field">From page<input aria-label="From page" @bind="Draft.From" @bind:event="oninput" @ref="_from" /></label>
+        <label class="bt-field">To page<input aria-label="To page" @bind="Draft.To" @bind:event="oninput" /></label>
+    </div>
+    @if (Range is null)
+    {
+        <div class="bt-small bt-notepageproblem">Type pages as the book numbers them, or PDF page numbers.</div>
+    }
+    <label class="bt-field bt-notefield">Label<input aria-label="Label" title="A name for these pages, such as Warehouse ambush" @bind="Draft.Label" @bind:event="oninput" /></label>
+    <div class="bt-inline bt-notepagefields">
+        <label class="bt-field">Binder
+            <select class="bt-select" aria-label="Binder" value="@Draft.BinderId" @onchange="BinderChosenAsync">
+                @foreach (var binder in Draft.Binders)
+                {
+                    <option value="@binder.Id">@binder.Title</option>
+                }
+            </select>
+        </label>
+        <label class="bt-field">Where
+            <select class="bt-select" aria-label="Where in the binder" value="@Draft.Where" @onchange="e => Draft.Where = e.Value?.ToString() ?? string.Empty">
+                <option value="">At the end</option>
+                @if (Draft.Sections.Count > 0)
+                {
+                    <option value="0">Before the first section</option>
+                    @foreach (var section in Draft.Sections)
+                    {
+                        <option value="@section.Id">@section.Name</option>
+                    }
+                }
+            </select>
+        </label>
+    </div>
+    <div class="bt-boxactions end bt-dialogactions">
+        <button class="bt-button" @onclick="Close">Cancel</button>
+        <button class="bt-button primary" disabled="@(Range is null)" @onclick="SaveAsync">Add</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public PagesDraft Draft { get; set; } = default!;
+    [Parameter, EditorRequired] public ReaderBook Book { get; set; } = default!;
+
+    /// <summary>The pages chosen, first to last, once they're pages of the book.</summary>
+    [Parameter] public EventCallback<(int First, int Last)> Saved { get; set; }
+    [Parameter] public EventCallback Closed { get; set; }
+
+    ElementReference _from;
+
+    (int First, int Last)? Range => ReaderPageNumbers.Range(Draft.From, Draft.To, Book.Labels, Book.PageCount);
+
+    protected override Task OnInitializedAsync() => LoadSectionsAsync();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _from.FocusAsync();
+    }
+
+    async Task BinderChosenAsync(ChangeEventArgs e)
+    {
+        if (!long.TryParse(e.Value?.ToString(), out var id)) return;
+        Draft.BinderId = id;
+        Draft.Sections = [];
+        Draft.Where = "";
+        await LoadSectionsAsync();
+    }
+
+    async Task LoadSectionsAsync()
+    {
+        var id = Draft.BinderId;
+        try
+        {
+            var sections = await Api.BinderSectionsAsync(id);
+            if (Draft.BinderId == id) Draft.Sections = sections;
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // Where offers the end only.
+        }
+    }
+
+    Task Close() => Closed.InvokeAsync();
+
+    Task SaveAsync() => Range is { } range ? Saved.InvokeAsync(range) : Task.CompletedTask;
+
+    async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Close();
+        else if (e.Key == "Enter") await SaveAsync();
+    }
+}

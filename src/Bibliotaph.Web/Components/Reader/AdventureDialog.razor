@@ -1,0 +1,58 @@
+@* .bt-dialog: Mark as adventure and Index as its own adventure…, a title and its pages. Enter makes its card; Esc,
+   Cancel or a click outside closes it. *@
+
+<div class="bt-backdrop fixed bt-dialogback" @onclick="Close"></div>
+<div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@Draft.Heading" @onkeydown="KeyAsync">
+    <div class="bt-drawer-head bt-dialoghead">
+        <div>
+            <span class="bt-eyebrow bt-eyebrow-block">ADVENTURE IN THIS FILE</span>
+            <h2 class="bt-dialogtitle">@Draft.Heading</h2>
+        </div>
+        <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="Close"><Icon Name="X" /></button>
+    </div>
+    <label class="bt-field">Title<input aria-label="Adventure title" @bind="Draft.Title" @bind:event="oninput" @ref="_title" /></label>
+    <div class="bt-inline bt-notepagefields">
+        <label class="bt-field">First page<input aria-label="First page" @bind="Draft.From" @bind:event="oninput" /></label>
+        <label class="bt-field">Last page<input aria-label="Last page" @bind="Draft.To" @bind:event="oninput" /></label>
+    </div>
+    @if (Range is null)
+    {
+        <div class="bt-small bt-notepageproblem">Type pages as the book numbers them, or PDF page numbers.</div>
+    }
+    @if (Draft.Problem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
+    <div class="bt-small bt-dialogintro">The file isn't changed: the adventure gets a card of its own that opens these pages.</div>
+    <div class="bt-boxactions end bt-dialogactions">
+        <button class="bt-button" @onclick="Close">Cancel</button>
+        <button class="bt-button primary" disabled="@(!CanSave)" @onclick="SaveAsync">Make its card</button>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public AdventureDraft Draft { get; set; } = default!;
+    [Parameter, EditorRequired] public ReaderBook Book { get; set; } = default!;
+
+    /// <summary>The title and pages are good; the draft's Saving and Problem say how making the card goes.</summary>
+    [Parameter] public EventCallback Saved { get; set; }
+    [Parameter] public EventCallback Closed { get; set; }
+
+    ElementReference _title;
+
+    (int First, int Last)? Range => ReaderPageNumbers.Range(Draft.From, Draft.To, Book.Labels, Book.PageCount);
+
+    bool CanSave => !Draft.Saving && Draft.Title.Trim().Length > 0 && Range is not null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _title.FocusAsync();
+    }
+
+    Task Close() => Closed.InvokeAsync();
+
+    Task SaveAsync() => CanSave ? Saved.InvokeAsync() : Task.CompletedTask;
+
+    async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Close();
+        else if (e.Key == "Enter") await SaveAsync();
+    }
+}

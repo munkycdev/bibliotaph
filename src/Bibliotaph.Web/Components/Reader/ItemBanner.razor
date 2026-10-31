@@ -1,0 +1,17 @@
+@* .bt-itembanner: over a binder item's pages that changed since it was added, why, with Use this page when it can. *@
+
+<div class="bt-itembanner" role="status">
+    <span class="bt-itembannertext">@Text</span>
+    @if (CanUsePage)
+    {
+        <button class="bt-link" @onclick="UsePage">Use this page</button>
+    }
+    <button class="bt-icon" title="Hide" aria-label="Hide" @onclick="Dismissed"><Icon Name="X" Size="13" /></button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+    [Parameter] public bool CanUsePage { get; set; }
+    [Parameter] public EventCallback UsePage { get; set; }
+    [Parameter] public EventCallback Dismissed { get; set; }
+}
