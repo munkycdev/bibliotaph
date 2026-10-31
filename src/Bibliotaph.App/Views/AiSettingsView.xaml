@@ -97,7 +97,7 @@
       </StackPanel>
     </Border>
 
-    <!-- Built in or a model server (Built-in AI plan, choice 7) -->
+    <!-- Built in or a model server -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
       <DockPanel>
         <Border DockPanel.Dock="Right" Style="{StaticResource Bt.SegmentGroup}" VerticalAlignment="Center">
@@ -174,7 +174,7 @@
       <TextBlock Text="{Binding Note}" Style="{StaticResource Note}" Visibility="{Binding Note, Converter={StaticResource Bt.VisibleWhenSet}}" />
       <TextBlock Text="{Binding Problem}" Style="{StaticResource Problem}" Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
 
-      <!-- Ask this book's embedding model, run by a second engine (Ask plan, choice 3) -->
+      <!-- Ask this book's embedding model, run by a second engine -->
       <TextBlock Text="Ask this book" Style="{StaticResource Text.Row}" Margin="0,18,0,4" />
       <TextBlock x:Name="BuiltInEmbeddingText" Text="{Binding EmbeddingText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
       <StackPanel Visibility="{Binding CanOfferEmbedding, Converter={StaticResource Bt.VisibleWhenTrue}}">
@@ -222,7 +222,7 @@
     <TextBlock Style="{StaticResource Note}"
                Text="On a graphics card with 8 GB, a model of 7 to 9 billion parameters fits. Bigger ones run, but slowly." />
 
-    <!-- Ask this book's embedding model (Ask plan, choice 3) -->
+    <!-- Ask this book's embedding model -->
     <TextBlock Text="Embedding model, for Ask this book" Style="{StaticResource FieldLabel}" Margin="0,16,0,5" />
     <ComboBox x:Name="EmbeddingModelChoice" Style="{StaticResource Bt.Select}" ItemsSource="{Binding EmbeddingChoices}" SelectedValuePath="Value"
               SelectedValue="{Binding EmbeddingModel}" HorizontalAlignment="Stretch" AutomationProperties.Name="Embedding model"
@@ -311,13 +311,13 @@
       </StackPanel>
     </Border>
 
-    <!-- The model pilot, only when the app starts with the pilot switch (slice 2d) -->
+    <!-- The model pilot, only when the app starts with the pilot switch -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="0,18" Margin="0,12,0,0"
             Visibility="{Binding ShowPilot, Converter={StaticResource Bt.VisibleWhenTrue}}">
       <StackPanel DataContext="{Binding Pilot}" d:DataContext="{d:DesignInstance vm:PilotPanelViewModel}">
         <TextBlock Text="Model pilot" Style="{StaticResource Text.Row}" />
         <TextBlock Style="{StaticResource Note}" Margin="0,5,0,0"
-                   Text="Each model reads the same books into the pilot's own database, never the catalog. Then you answer what each book really is, without seeing which model said what, and the report scores them." />
+                   Text="Each model reads the same books, and what they find is kept apart from your catalog. Then you answer what each book really is, without seeing which model said what, and the report scores them." />
         <TextBlock Text="{Binding BooksText}" Style="{StaticResource Note}" />
         <WrapPanel Margin="0,10,0,0">
           <Button Content="Pick books" Command="{Binding PickBooksCommand}" Margin="0,0,8,0" />
@@ -326,7 +326,7 @@
 
         <TextBlock Text="Models, in the order they run" Style="{StaticResource FieldLabel}" Margin="0,16,0,5" />
         <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding Session.Models, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="Pilot models" />
-        <TextBlock Style="{StaticResource Note}" Text="Download each in Ollama first. The run uses the model server above, and the AI lane waits until it ends." />
+        <TextBlock Style="{StaticResource Note}" Text="Download each in Ollama first. The run uses the model server above, and cataloguing with AI waits until it ends." />
         <WrapPanel Margin="0,10,0,0">
           <Button Style="{StaticResource Bt.Button.Primary}" Content="Start" c:Ui.Icon="{StaticResource Icon.Play}" Command="{Binding StartCommand}" Margin="0,0,8,0" />
           <Button Content="Pause" c:Ui.Icon="{StaticResource Icon.Pause}" Command="{Binding PauseCommand}" />

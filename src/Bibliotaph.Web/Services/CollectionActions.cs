@@ -3,11 +3,11 @@ using Bibliotaph.Api.Contracts;
 namespace Bibliotaph.Web.Services;
 
 /// <summary>
-/// What pages do with collections, as the Windows app's collection actions: adding books to one, new or picked, taking
+/// What pages do with collections: adding books to one, new or picked, taking
 /// them out, and making, renaming, moving and deleting collections. Each answers with the note to show and its Undo,
 /// or null when the dialog was cancelled.
 /// </summary>
-public sealed class CollectionActions(ApiClient api, CollectionDialogs dialogs)
+public sealed class CollectionActions(CollectionsClient collectionsApi, CollectionDialogs dialogs)
 {
     /// <summary>A note for the page shown next, as after a collection was deleted from its own page.</summary>
     public ActionResult? Pending { get; set; }
@@ -21,14 +21,14 @@ public sealed class CollectionActions(ApiClient api, CollectionDialogs dialogs)
             switch (item.Kind)
             {
                 case "collection" when item.Id is { } id:
-                    return await api.AddToCollectionAsync(id, new CollectionBooks(books, what));
+                    return await collectionsApi.AddToCollectionAsync(id, new CollectionBooks(books, what));
                 case "new":
                     if (await dialogs.NameAsync("Add to a new collection", "Create and add") is not { } named) return null;
-                    var created = await api.CreateCollectionAsync(new CollectionName(named.Name, named.Description));
-                    return await api.AddToCollectionAsync(created.Collection.Id, new CollectionBooks(books, what));
+                    var created = await collectionsApi.CreateCollectionAsync(new CollectionName(named.Name, named.Description));
+                    return await collectionsApi.AddToCollectionAsync(created.Collection.Id, new CollectionBooks(books, what));
                 case "choose":
                     if (await dialogs.PickAsync($"Add {what} to a collection", await TreeAsync()) is not { Id: { } picked }) return null;
-                    return await api.AddToCollectionAsync(picked, new CollectionBooks(books, what));
+                    return await collectionsApi.AddToCollectionAsync(picked, new CollectionBooks(books, what));
                 default:
                     return null;
             }
@@ -36,7 +36,7 @@ public sealed class CollectionActions(ApiClient api, CollectionDialogs dialogs)
     }
 
     public Task<ActionResult?> RemoveAsync(IReadOnlyList<long> books, string what, long collectionId) =>
-        TryAsync(async () => await api.RemoveFromCollectionAsync(collectionId, new CollectionBooks(books, what)));
+        TryAsync(async () => await collectionsApi.RemoveFromCollectionAsync(collectionId, new CollectionBooks(books, what)));
 
     /// <summary>New collection: at the top, or inside another. Returns the one made, for the page to open.</summary>
     public async Task<CollectionNode?> CreateAsync(CollectionNode? parent)
@@ -44,7 +44,7 @@ public sealed class CollectionActions(ApiClient api, CollectionDialogs dialogs)
         if (await dialogs.NameAsync(parent is null ? "New collection" : $"New collection in {parent.Name}", "Create") is not { } named) return null;
         try
         {
-            return (await api.CreateCollectionAsync(new CollectionName(named.Name, named.Description, parent?.Id))).Collection;
+            return (await collectionsApi.CreateCollectionAsync(new CollectionName(named.Name, named.Description, parent?.Id))).Collection;
         }
         catch (ApiProblemException e)
         {
@@ -56,7 +56,7 @@ public sealed class CollectionActions(ApiClient api, CollectionDialogs dialogs)
     public async Task<ActionResult?> RenameAsync(CollectionNode collection)
     {
         if (await dialogs.NameAsync("Rename collection", "Save", collection.Name, collection.Description) is not { } named) return null;
-        return await TryAsync(async () => await api.RenameCollectionAsync(collection.Id, new CollectionName(named.Name, named.Description)));
+        return await TryAsync(async () => await collectionsApi.RenameCollectionAsync(collection.Id, new CollectionName(named.Name, named.Description)));
     }
 
     /// <summary>Move to…: into another collection, or to the top, but never into itself or one inside it.</summary>
@@ -70,15 +70,15 @@ public sealed class CollectionActions(ApiClient api, CollectionDialogs dialogs)
         List<CollectionChoice> choices = [.. tree.Where(c => !below.Contains(c.Id) && c.Id != collection.ParentId)];
         if (collection.ParentId is not null) choices.Insert(0, new CollectionChoice(null, "Collections (the top level)", "Collections", 0));
         if (await dialogs.PickAsync($"Move {collection.Name} to", choices) is not { } choice) return null;
-        return await TryAsync(async () => await api.MoveCollectionAsync(collection.Id, new CollectionMove(choice.Id)));
+        return await TryAsync(async () => await collectionsApi.MoveCollectionAsync(collection.Id, new CollectionMove(choice.Id)));
     }
 
     /// <summary>Deletes a collection, never its books.</summary>
-    public Task<ActionResult?> DeleteAsync(long collectionId) => TryAsync(async () => await api.DeleteCollectionAsync(collectionId));
+    public Task<ActionResult?> DeleteAsync(long collectionId) => TryAsync(async () => await collectionsApi.DeleteCollectionAsync(collectionId));
 
     async Task<IReadOnlyList<CollectionChoice>> TreeAsync()
     {
-        var list = await api.CollectionsAsync();
+        var list = await collectionsApi.CollectionsAsync();
         return [.. list.Tree.Select((c, i) => new CollectionChoice(c.Id, c.Name, c.Path, list.Depths[i]))];
     }
 

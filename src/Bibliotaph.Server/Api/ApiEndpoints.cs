@@ -50,7 +50,7 @@ public static class ApiEndpoints
             return new LibraryOverview(await db.Entries.CountAsync(ct), await db.SourceRoots.CountAsync(ct), cards > 0 ? SummaryText.Totals(cards, bytes) : null);
         });
 
-        // The Summary page's figures, counted as the Windows app counts them. A folder's path is where it is in the user's
+        // The Summary page's figures. A folder's path is where it is in the user's
         // storage, as the web names it ("OneDrive · Dana › RPG"), never the server's own form of it.
         api.MapGet("/library/numbers", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {

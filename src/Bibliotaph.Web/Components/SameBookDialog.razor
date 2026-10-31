@@ -1,6 +1,6 @@
-@* .bt-dialog: Same book, as the Windows app's dialog: which of the ticked cards' files opens, then they join as one
+@* .bt-dialog: Same book: which of the ticked cards' files opens, then they join as one
    book. Esc, Cancel or a click outside closes it. *@
-@inject ApiClient Api
+@inject SelectionClient SelectionApi
 
 <div class="bt-backdrop fixed bt-dialogback" @onclick="Cancel"></div>
 <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@Preview.Heading" @onkeydown="KeyDown">
@@ -66,7 +66,7 @@
         _problem = null;
         try
         {
-            await Closed.InvokeAsync(await Api.JoinAsync(new SameBookJoin(Books, _opens)));
+            await Closed.InvokeAsync(await SelectionApi.JoinAsync(new SameBookJoin(Books, _opens)));
         }
         catch (ApiProblemException e)
         {

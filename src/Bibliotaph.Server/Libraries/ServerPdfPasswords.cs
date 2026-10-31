@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.DataProtection;
 namespace Bibliotaph.Server.Libraries;
 
 /// <summary>
-/// PDF passwords on the web, by content hash, as the Windows app keeps them: the ones the reader chose to remember,
+/// PDF passwords on the web, by content hash: the ones the reader chose to remember,
 /// sealed in the catalog where the Windows app has Credential Manager, and the ones entered with "Make its text
 /// searchable" ticked, which only indexing uses and which live in memory while the library is open. Indexing reads both,
 /// so a locked book is read once its password is given.

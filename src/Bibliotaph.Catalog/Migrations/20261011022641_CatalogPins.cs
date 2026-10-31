@@ -84,7 +84,7 @@ public partial class CatalogPins : Migration
             column: "smart_view_id",
             unique: true);
 
-        // Pinned Views plan, choice 5: the sidebar starts as it was, Favorites then the saved views by name, followed by
+        // The sidebar starts as it was, Favorites then the saved views by name, followed by
         // the collections that were pinned, by name.
         migrationBuilder.Sql("""
             INSERT INTO pin (kind, position) VALUES ('Favorites', 0);

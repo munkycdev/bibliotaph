@@ -63,7 +63,7 @@
 
   <Grid>
     <StackPanel>
-      <!-- First run: no folders yet. Explain what Bibliotaph does and that files stay put (spec §4.1). -->
+      <!-- First run: no folders yet. Explain what Bibliotaph does and that files stay put. -->
       <StackPanel Visibility="{Binding HasFolders, Converter={StaticResource Bt.CollapsedWhenTrue}}" MaxWidth="620" HorizontalAlignment="Left">
         <TextBlock Text="WELCOME TO BIBLIOTAPH" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,10" />
         <TextBlock Text="Good stories begin with something you already own." Style="{StaticResource Text.H1}" />
@@ -77,7 +77,7 @@
         </StackPanel>
       </StackPanel>
 
-      <!-- Folders added: indexing progress until the library and search arrive (slice 1b). -->
+      <!-- Folders added: indexing progress until the library and search arrive. -->
       <StackPanel Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}">
         <TextBlock Text="YOUR NEXT GOOD STORY" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,10" />
         <TextBlock Text="Welcome back." Style="{StaticResource Text.H1}" />
@@ -88,7 +88,7 @@
           <Button Style="{StaticResource Bt.Link}" Content="{x:Static core:SummaryText.SeeIt}" c:Ui.Icon="{StaticResource Icon.ChartNoAxesColumn}"
                   Command="{Binding OpenSummaryCommand}" />
         </StackPanel>
-        <!-- First run, once folders are in: AI now or later (choice 10). Everything works without it. -->
+        <!-- First run, once folders are in: AI now or later. Everything works without it. -->
         <Border Visibility="{Binding ShowAiStep, Converter={StaticResource Bt.VisibleWhenTrue}}" Background="{DynamicResource Bt.Side}"
                 CornerRadius="6" Padding="18" Margin="0,22,0,0" MaxWidth="620" HorizontalAlignment="Left">
           <StackPanel>
@@ -107,18 +107,18 @@
                       ActionText="Manage folders" ActionIcon="{StaticResource Icon.Folder}" Command="{Binding ManageFoldersCommand}" />
 
         <StackPanel Visibility="{Binding HasBooks, Converter={StaticResource Bt.VisibleWhenTrue}}">
-          <!-- .bt-sectionline: Continue preparing (3c), the session pack worked on last. -->
+          <!-- .bt-sectionline: Current binder, the one worked on last. -->
           <StackPanel Visibility="{Binding ContinuePreparing, Converter={StaticResource Bt.VisibleWhenSet}}">
             <DockPanel Style="{StaticResource SectionLine}">
               <Button x:Name="BrowseSessions" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="All binders"
                       c:Ui.Icon="{StaticResource Icon.ArrowRight}" Command="{Binding BrowseSessionsCommand}" />
-              <TextBlock Text="Continue preparing" Style="{StaticResource Text.Row}" />
+              <TextBlock Text="Current binder" Style="{StaticResource Text.Row}" />
             </DockPanel>
             <ContentControl x:Name="ContinuePreparing" Content="{Binding ContinuePreparing}" ContentTemplate="{StaticResource SessionCard}" Focusable="False"
                             HorizontalAlignment="Left" />
           </StackPanel>
 
-          <!-- .bt-sectionline: the books opened last (slice 3 plan, choice 7). -->
+          <!-- .bt-sectionline: the books opened last. -->
           <StackPanel Visibility="{Binding HasRecentlyOpened, Converter={StaticResource Bt.VisibleWhenTrue}}">
             <DockPanel Style="{StaticResource SectionLine}">
               <Button x:Name="BrowseLibrary" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Browse your library"
@@ -172,7 +172,7 @@
             </DockPanel>
           </Border>
 
-          <!-- .bt-sectionline: the sidebar's pins, in its order (Pinned Views plan, choice 12). -->
+          <!-- .bt-sectionline: the sidebar's pins, in its order. -->
           <StackPanel>
             <StackPanel.Style>
               <Style TargetType="StackPanel">

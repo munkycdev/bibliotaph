@@ -14,7 +14,7 @@ using Bibliotaph.Storage;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// /api/library/selection: Select mode's actions on the ticked books, as the Windows Library's Select bar does them:
+/// /api/library/selection: Select mode's actions on the ticked books:
 /// which fit, Same book, Pack together, Remove adventures and Export these. A ticked book no longer in the library is
 /// left out.
 /// </summary>
@@ -195,7 +195,7 @@ public static class SelectionApi
         new(BulkChipsField.CountText(chip, change, books), BulkChipsField.Description(chip, change, books), BulkChipsField.RemoveName(chip, change));
 
     /// <summary>
-    /// The browser's changes on the editor's fields, as the Windows dialog holds them: the last set or reset of a
+    /// The browser's changes on the editor's fields: the last set or reset of a
     /// single-value field, and each value added or removed, in the order the chips show.
     /// </summary>
     static (IReadOnlyList<BulkChange> Changes, IReadOnlyList<BulkSummaryLine> Summary) Edit(BulkEditPlan plan, IReadOnlyList<BulkFieldChange> requested)

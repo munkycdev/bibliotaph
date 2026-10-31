@@ -1,9 +1,9 @@
 @page "/binders"
-@inject ApiClient Api
+@inject BindersClient BindersApi
 @inject BinderActions Actions
 @inject NavigationManager Navigation
 
-@* The Windows app's Binders page: every binder as a card, in groups, each by title: upcoming, at hand, without a date,
+@* The Binders page: every binder as a card, in groups, each by title: upcoming, at hand, without a date,
    and earlier ones behind a link. A card opens the binder; New binder makes one and opens it. *@
 <PageHeading Title="Binders" Subtitle="@Subtitle">
     <Actions>
@@ -48,10 +48,10 @@ else
 
 @code {
     // The Windows page's words, as its BinderText has them; the web doesn't reference it.
-    const string Subtitle = "Your next session, gathered in one place.";
+    const string Subtitle = "Books and pages gathered in one place, in your order.";
     const string EmptyTitle = "An empty notebook.";
     const string EmptyMessage =
-        "A binder gathers the books and pages you'll want at the table, in your order, with your notes. Make one here, or add a book or page from your library to a new one.";
+        "A binder gathers books and pages in your order, with your notes: a focused set of references, an adventure's maps and encounters, or any other pages you want together. Make one here, or add a book or page from your library to a new one.";
 
     BinderList? _list;
     ActionResult? _note;
@@ -69,7 +69,7 @@ else
     {
         try
         {
-            _list = await Api.BindersAsync(DateOnly.FromDateTime(DateTime.Now));
+            _list = await BindersApi.BindersAsync(DateOnly.FromDateTime(DateTime.Now));
         }
         catch (ApiProblemException e)
         {

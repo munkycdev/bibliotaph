@@ -1,8 +1,8 @@
 @page "/ai-reading"
-@inject ApiClient Api
+@inject AiClient AiApi
 @implements IDisposable
 
-@* The Windows app's AI reading: the book the AI is reading now, its step, how much of the excerpt it has read when the
+@* AI reading: the book the AI is reading now, its step, how much of the excerpt it has read when the
    model service says, its answer's fields as it writes them, and the last books read with what the evidence check kept
    and dropped. Asked for once a second while it shows. *@
 <PageHeading Title="AI reading." TabTitle="AI reading" Subtitle="What the AI is reading now, its answer as it writes it, and what the evidence check kept from the last books. Only values that quote their page are kept." />
@@ -109,7 +109,7 @@
     {
         try
         {
-            _page = await Api.AiReadingAsync(_stop.Token);
+            _page = await AiApi.AiReadingAsync(_stop.Token);
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {

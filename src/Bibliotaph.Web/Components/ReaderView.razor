@@ -1,9 +1,12 @@
-@* The reader, as the Windows app's ViewerView: the book's title over a toolbar, its pages in a scrolling column with the
+@* The reader: the book's title over a toolbar, its pages in a scrolling column with the
    contents beside them and the thumbnails under them, and where the page in view is in the book underneath. The pages
    are read straight from the user's storage; the server never passes a book's bytes on. *@
 @using Bibliotaph.Core.Reading
 @implements IAsyncDisposable
-@inject ApiClient Api
+@inject AskClient AskApi
+@inject BindersClient BindersApi
+@inject BooksClient BooksApi
+@inject ReaderClient ReaderApi
 @inject IJSRuntime JS
 @inject NavigationManager Navigation
 @inject Pins Pins
@@ -52,21 +55,7 @@ else
                                 @onclick="MarkAdventure"><Icon Name="BookOpen" />Mark as adventure</button>
                         <button class="bt-button" title="Add a note on the page in view" aria-label="Add a note on this page" @onclick="AddNoteAsync"><Icon Name="Pencil" />Note</button>
                     }
-                    <div class="bt-menuanchor">
-                        <button class="bt-button primary" title="@AddToBinderMenu.Tooltip" aria-haspopup="menu" aria-expanded="@(_addMenu is not null)"
-                                @onclick="ToggleAddMenuAsync"><Icon Name="Plus" />@AddToBinderMenu.Label<Icon Name="ChevronDown" Size="14" /></button>
-                        @if (_addMenu is { } menu)
-                        {
-                            <div class="bt-backdrop fixed bt-menuback" @onclick="() => _addMenu = null"></div>
-                            <div class="bt-menu" role="menu" aria-label="Add the page in view to">
-                                @foreach (var item in AddToBinderMenu.For([.. menu.All.Select(b => (b.Id, b.Title))]))
-                                {
-                                    <button class="bt-menuitem" role="menuitem" title="@item.Label" @onclick="() => AddPageAsync(menu, Choice(item))">@item.Label</button>
-                                }
-                                <button class="bt-menuitem" role="menuitem" @onclick="AddPagesAsync">@AddToBinderMenu.Pages</button>
-                            </div>
-                        }
-                    </div>
+                    <AddToBinderButton @key="book.DocumentId" Picked="p => AddPageAsync(p.Menu, p.Choice)" AddPages="AddPagesAsync" Failed="r => _binderDone = r" />
                 </div>
             }
         </div>
@@ -192,8 +181,8 @@ else
                 @if (HasPages)
                 {
                 <div class="bt-toolgroup">
-                    <input class="bt-findbox" type="search" placeholder="Find in this book (Ctrl+F)" aria-label="Find in this book" value="@_findText"
-                           @oninput="e => _findText = e.Value?.ToString() ?? string.Empty" @onkeydown="FindKeyAsync" />
+                    <input class="bt-findbox" type="search" placeholder="Find in this book (Ctrl+F)" aria-label="Find in this book" value="@_find.Text"
+                           @oninput="e => _find.Text = e.Value?.ToString() ?? string.Empty" @onkeydown="FindKeyAsync" />
                     <button class="bt-icon" title="Previous match (Shift+F3)" aria-label="Previous match" @onclick="() => StepAsync(false)"><Icon Name="ChevronLeft" Size="15" /></button>
                     <button class="bt-icon" title="Next match (F3)" aria-label="Next match" @onclick="() => StepAsync(true)"><Icon Name="ChevronRight" Size="15" /></button>
                     @if (book.Part is not null)
@@ -202,7 +191,7 @@ else
                             <input type="checkbox" checked="@_wholeFile" @onchange="WholeFileChangedAsync" />Whole file
                         </label>
                     }
-                    @if (_findStatus.Length > 0) { <span class="bt-small bt-findstatus" role="status">@_findStatus</span> }
+                    @if (_find.Status.Length > 0) { <span class="bt-small bt-findstatus" role="status">@_find.Status</span> }
                 </div>
                 }
             </div>
@@ -238,18 +227,11 @@ else
                         else { <div class="bt-picture"></div> }
                     </div>
                     @if (!_opened) { <div class="bt-small bt-opening">Opening…</div> }
-                    @* What Add page and the last note change did, with Undo, over the pages as in the Windows reader. *@
+                    @* What Add page and the last note change did, with Undo, over the pages. *@
                     <div class="bt-readerbars">
                         @if (book.Item is { Banner: { } banner })
                         {
-                            <div class="bt-itembanner" role="status">
-                                <span class="bt-itembannertext">@banner</span>
-                                @if (book.Item.CanUsePage)
-                                {
-                                    <button class="bt-link" @onclick="UseThisPageAsync">Use this page</button>
-                                }
-                                <button class="bt-icon" title="Hide" aria-label="Hide" @onclick="DismissBanner"><Icon Name="X" Size="13" /></button>
-                            </div>
+                            <ItemBanner Text="@banner" CanUsePage="book.Item.CanUsePage" UsePage="UseThisPageAsync" Dismissed="DismissBanner" />
                         }
                         <DoneNote Result="_binderDone" UndoName="Undo" Dismissed="() => _binderDone = null" />
                         <DoneNote Result="_noteDone" UndoName="Undo the note change" Dismissed="() => _noteDone = null" Undone="ReloadNotesAsync" />
@@ -263,33 +245,7 @@ else
                 }
                 @if (_showNotes && HasPages)
                 {
-                    <aside class="bt-notespanel" aria-label="Notes">
-                        <span class="bt-eyebrow">NOTES</span>
-                        @if (_notes is { Notes.Count: > 0 } notes)
-                        {
-                            <div aria-label="Notes on its pages">
-                                @foreach (var note in notes.Notes)
-                                {
-                                    <div class="bt-readernote" aria-label="@($"{note.Pages}: {note.Text}{(note.Reason is { } why ? ". " + why : "")}")">
-                                        <div class="bt-readernotehead">
-                                            <button class="bt-link" title="Go to these pages" aria-label="@($"Go to {note.Pages}")" @onclick="() => GoToNoteAsync(note)">@note.Pages</button>
-                                            <button class="bt-icon" title="Change this note" aria-label="Change this note" @onclick="() => EditNote(note)"><Icon Name="Pencil" Size="13" /></button>
-                                            <button class="bt-icon" title="Delete this note" aria-label="Delete this note" @onclick="() => DeleteNoteAsync(note)"><Icon Name="Trash2" Size="13" /></button>
-                                        </div>
-                                        <div class="bt-notetext">@note.Text</div>
-                                        @if (note.Reason is { } reason)
-                                        {
-                                            <div class="bt-notereason @(note.Changed ? "changed" : "")"><Icon Name="TriangleAlert" Size="12" /><span>@reason</span></div>
-                                        }
-                                    </div>
-                                }
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="bt-small">No notes yet. Note adds one on the page in view.</div>
-                        }
-                    </aside>
+                    <NotesPanel Notes="_notes" GoTo="GoToNoteAsync" Edit="EditNote" Delete="DeleteNoteAsync" />
                 }
             </div>
             @if (IsPdf)
@@ -303,141 +259,28 @@ else
     </div>
 }
 
-@if (_noteDialog is { } dialog)
+@if (_book is { } open)
 {
-    <div class="bt-backdrop fixed bt-dialogback" @onclick="() => _noteDialog = null"></div>
-    <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@dialog.Heading" @onkeydown="NoteDialogKeyAsync">
-        <div class="bt-drawer-head bt-dialoghead">
-            <div>
-                <span class="bt-eyebrow bt-eyebrow-block">PAGE NOTE</span>
-                <h2 class="bt-dialogtitle">@dialog.Heading</h2>
-            </div>
-            <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="() => _noteDialog = null"><Icon Name="X" /></button>
-        </div>
-        <div class="bt-inline bt-notepagefields">
-            <label class="bt-field">From page<input aria-label="From page" @bind="dialog.From" @bind:event="oninput" /></label>
-            <label class="bt-field">To page (optional)<input aria-label="To page" @bind="dialog.To" @bind:event="oninput" /></label>
-        </div>
-        @if (NoteRange(dialog) is null)
-        {
-            <div class="bt-small bt-notepageproblem">Type pages as the book numbers them, or PDF page numbers.</div>
-        }
-        <label class="bt-field bt-notefield">Note<textarea aria-label="Note" title="Ctrl+Enter saves" rows="6" @bind="dialog.Text" @bind:event="oninput" @ref="_noteBox"></textarea></label>
-        <div class="bt-boxactions end bt-dialogactions">
-            <button class="bt-button" @onclick="() => _noteDialog = null">Cancel</button>
-            <button class="bt-button primary" disabled="@(!CanSaveNote(dialog))" @onclick="SaveNoteAsync">Save note</button>
-        </div>
-    </div>
-}
-
-@if (_pagesDialog is { } pages)
-{
-    <div class="bt-backdrop fixed bt-dialogback" @onclick="() => _pagesDialog = null"></div>
-    <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="Add pages" @onkeydown="PagesDialogKeyAsync">
-        <div class="bt-drawer-head bt-dialoghead">
-            <div>
-                <span class="bt-eyebrow bt-eyebrow-block">BINDER</span>
-                <h2 class="bt-dialogtitle">Add pages</h2>
-            </div>
-            <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="() => _pagesDialog = null"><Icon Name="X" /></button>
-        </div>
-        <div class="bt-inline bt-notepagefields">
-            <label class="bt-field">From page<input aria-label="From page" @bind="pages.From" @bind:event="oninput" @ref="_pagesFrom" /></label>
-            <label class="bt-field">To page<input aria-label="To page" @bind="pages.To" @bind:event="oninput" /></label>
-        </div>
-        @if (PageRange(pages.From, pages.To) is null)
-        {
-            <div class="bt-small bt-notepageproblem">Type pages as the book numbers them, or PDF page numbers.</div>
-        }
-        <label class="bt-field bt-notefield">Label<input aria-label="Label" title="What you'll call these pages at the table, such as Warehouse ambush" @bind="pages.Label" @bind:event="oninput" /></label>
-        <div class="bt-inline bt-notepagefields">
-            <label class="bt-field">Binder
-                <select class="bt-select" aria-label="Binder" value="@pages.BinderId" @onchange="BinderChosenAsync">
-                    @foreach (var binder in pages.Binders)
-                    {
-                        <option value="@binder.Id">@binder.Title</option>
-                    }
-                </select>
-            </label>
-            <label class="bt-field">Where
-                <select class="bt-select" aria-label="Where in the binder" value="@pages.Where" @onchange="e => pages.Where = e.Value?.ToString() ?? string.Empty">
-                    <option value="">At the end</option>
-                    @if (pages.Sections.Count > 0)
-                    {
-                        <option value="0">Before the first section</option>
-                        @foreach (var section in pages.Sections)
-                        {
-                            <option value="@section.Id">@section.Name</option>
-                        }
-                    }
-                </select>
-            </label>
-        </div>
-        <div class="bt-boxactions end bt-dialogactions">
-            <button class="bt-button" @onclick="() => _pagesDialog = null">Cancel</button>
-            <button class="bt-button primary" disabled="@(PageRange(pages.From, pages.To) is null)" @onclick="SavePagesAsync">Add</button>
-        </div>
-    </div>
-}
-
-@if (_partDialog is { } marking)
-{
-    <div class="bt-backdrop fixed bt-dialogback" @onclick="() => _partDialog = null"></div>
-    <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@marking.Heading" @onkeydown="PartDialogKeyAsync">
-        <div class="bt-drawer-head bt-dialoghead">
-            <div>
-                <span class="bt-eyebrow bt-eyebrow-block">ADVENTURE IN THIS FILE</span>
-                <h2 class="bt-dialogtitle">@marking.Heading</h2>
-            </div>
-            <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="() => _partDialog = null"><Icon Name="X" /></button>
-        </div>
-        <label class="bt-field">Title<input aria-label="Adventure title" @bind="marking.Title" @bind:event="oninput" @ref="_partTitle" /></label>
-        <div class="bt-inline bt-notepagefields">
-            <label class="bt-field">First page<input aria-label="First page" @bind="marking.From" @bind:event="oninput" /></label>
-            <label class="bt-field">Last page<input aria-label="Last page" @bind="marking.To" @bind:event="oninput" /></label>
-        </div>
-        @if (PageRange(marking.From, marking.To) is null)
-        {
-            <div class="bt-small bt-notepageproblem">Type pages as the book numbers them, or PDF page numbers.</div>
-        }
-        @if (marking.Problem is { } partProblem) { <div class="bt-problem" role="alert">@partProblem</div> }
-        <div class="bt-small bt-dialogintro">The file isn't changed: the adventure gets a card of its own that opens these pages.</div>
-        <div class="bt-boxactions end bt-dialogactions">
-            <button class="bt-button" @onclick="() => _partDialog = null">Cancel</button>
-            <button class="bt-button primary" disabled="@(marking.Saving || marking.Title.Trim().Length == 0 || PageRange(marking.From, marking.To) is null)" @onclick="SavePartAsync">Make its card</button>
-        </div>
-    </div>
+    @if (_noteDialog is { } note)
+    {
+        <NoteDialog @key="note" Draft="note" Book="open" Saved="SaveNoteAsync" Closed="() => _noteDialog = null" />
+    }
+    @if (_pagesDialog is { } pages)
+    {
+        <AddPagesDialog @key="pages" Draft="pages" Book="open" Saved="SavePagesAsync" Closed="() => _pagesDialog = null" />
+    }
+    @if (_partDialog is { } marking)
+    {
+        <AdventureDialog @key="marking" Draft="marking" Book="open" Saved="SavePartAsync" Closed="() => _partDialog = null" />
+    }
 }
 
 @if (_password is { } asking)
 {
-    <div class="bt-backdrop fixed bt-dialogback"></div>
-    <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="Password needed" @onkeydown="PasswordKeyAsync">
-        <div class="bt-drawer-head bt-dialoghead">
-            <h2 class="bt-dialogtitle">“@_book?.Title” needs a password</h2>
-        </div>
-        <div class="bt-small bt-dialogintro">
-            @(asking.Retry ? "That password didn't open it. Check it and try again." : "Enter its password to read it, and to make its text searchable.")
-        </div>
-        <label class="bt-field">Password<input type="password" aria-label="Password" @bind="_passwordText" @bind:event="oninput" @ref="_passwordBox" /></label>
-        @* As the Windows dialog: remembering it lets indexing use it too, so ticking Remember ticks and locks Searchable. *@
-        <label class="bt-check bt-passwordtick"><input type="checkbox" aria-label="Make its text searchable" checked="@(_searchable || _rememberPassword)"
-               disabled="@_rememberPassword" @onchange="e => _searchable = e.Value is true" />Make its text searchable</label>
-        <div class="bt-small bt-passwordnote">Bibliotaph reads the book for search now. Untick to only read it.</div>
-        <label class="bt-check bt-passwordtick"><input type="checkbox" aria-label="Remember it" checked="@_rememberPassword"
-               @onchange="e => _rememberPassword = e.Value is true" />Remember it in your web library</label>
-        <div class="bt-small bt-passwordnote">Kept encrypted with the server's own keys, never shown. Settings › Passwords forgets it.</div>
-        <div class="bt-boxactions end bt-dialogactions">
-            <button class="bt-button" @onclick="() => AnswerPassword(null)">Cancel</button>
-            <button class="bt-button primary" @onclick="() => AnswerPassword(_passwordText)">Open</button>
-        </div>
-    </div>
+    <PasswordDialog @key="asking.Answer" Title="@(_book?.Title ?? "")" Retry="asking.Retry" Ticks="_passwords.Ticks" Answered="AnswerPassword" />
 }
 
 @code {
-    /// <summary>Find stops counting here, as the server's and the Windows reader's do.</summary>
-    const int MaxMatches = 2000;
-
     static readonly double[] ZoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
     static readonly (string Value, string Label)[] Steps =
@@ -481,7 +324,7 @@ else
     [Parameter] public long? Item { get; set; }
 
     /// <summary>
-    /// The reader inside a binder's page, as on Windows: the binder has the breadcrumb and Pop out, and stepping
+    /// The reader inside a binder's page: the binder has the breadcrumb and Pop out, and stepping
     /// through a pack stays on the binder's page.
     /// </summary>
     [Parameter] public bool InBinder { get; set; }
@@ -501,7 +344,7 @@ else
     string? _problemAction;
     string? _opening;
 
-    ElementReference _stage, _strip, _pageBox, _passwordBox;
+    ElementReference _stage, _strip, _pageBox;
     IJSObjectReference? _module, _reader;
     DotNetObjectReference<ReaderView>? _self;
     bool _opened, _canCopy = true, _favorite, _showOutline, _showStrip;
@@ -517,10 +360,8 @@ else
     Timer? _placeTimer;
     int? _placeToKeep;
 
-    string _findText = "", _found = "", _findStatus = "";
+    readonly BookFind _find = new();
     bool _wholeFile;
-    List<(int Page, int Nth)> _hits = [];
-    int _hitIndex = -1;
 
     ReaderNotes? _notes;
     bool _showNotes;
@@ -528,67 +369,17 @@ else
     AskBook? _ask;
     bool _showAsk;
     ActionResult? _noteDone;
-    NoteDialog? _noteDialog;
-    ElementReference _noteBox;
-    bool _focusNote;
-
-    /// <summary>Adding or changing a page note: From and To as the reader names pages, To left blank for one page.</summary>
-    sealed class NoteDialog
-    {
-        public required string Heading { get; init; }
-        public string From { get; set; } = "";
-        public string To { get; set; } = "";
-        public string Text { get; set; } = "";
-        public ReaderNote? Editing { get; init; }
-    }
+    NoteDraft? _noteDialog;
 
     int _coverPage;
-    BinderMenu? _addMenu;
     ActionResult? _binderDone;
-    PagesDialog? _pagesDialog;
-    PartDialog? _partDialog;
+    PagesDraft? _pagesDialog;
+    AdventureDraft? _partDialog;
     ReaderOutline? _outlineMenu;
-    ElementReference _pagesFrom, _partTitle;
-    bool _focusPages, _focusPart;
-
-    /// <summary>Add pages…: From and To as the reader names pages, a label, and which binder and where in it.</summary>
-    sealed class PagesDialog
-    {
-        public string From { get; set; } = "";
-        public string To { get; set; } = "";
-        public string Label { get; set; } = "";
-        public required IReadOnlyList<BinderChoice> Binders { get; init; }
-        public long BinderId { get; set; }
-        public IReadOnlyList<BinderSection> Sections { get; set; } = [];
-
-        /// <summary>"" for the end, "0" for before the first section, or a section's id.</summary>
-        public string Where { get; set; } = "";
-    }
-
-    /// <summary>Mark as adventure, or a contents line's Index as its own adventure…: a title and its pages.</summary>
-    sealed class PartDialog
-    {
-        public required string Heading { get; init; }
-        public string Title { get; set; } = "";
-        public string From { get; set; } = "";
-        public string To { get; set; } = "";
-        public string? Problem { get; set; }
-        public bool Saving { get; set; }
-    }
 
     (bool Retry, TaskCompletionSource<string?> Answer)? _password;
-    string _passwordText = "";
-    bool _focusPassword;
-    bool _searchable = true, _rememberPassword;
-
-    /// <summary>Whether this open has tried the password known for the book, before asking.</summary>
-    bool _knownTried;
-
-    /// <summary>The known password being tried, and whether it was remembered: one that fails is forgotten, not reported.</summary>
-    (string Password, bool Remembered)? _tryingKnown;
-
-    /// <summary>What the reader typed, and ticked, kept until the book opens with it.</summary>
-    ReaderPasswordUse? _entered;
+    ReaderPasswords _passwords = default!;
+    PrintedPageLinks _links = default!;
 
     string PositionText
     {
@@ -601,6 +392,12 @@ else
                 ? $"Printed p. {label.Trim()} · {pdf}"
                 : pdf;
         }
+    }
+
+    protected override void OnInitialized()
+    {
+        _passwords = new ReaderPasswords(ReaderApi, Unlocked);
+        _links = new PrintedPageLinks(ReaderApi);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -621,7 +418,7 @@ else
         _problem = null;
         try
         {
-            _book = await Api.ReaderAsync(EntryId, doc, page, Q, Keep == true, item);
+            _book = await ReaderApi.ReaderAsync(EntryId, doc, page, Q, Keep == true, item);
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
         {
@@ -642,21 +439,18 @@ else
         _favorite = _book.Favorite;
         _page = _book.StartPage;
         _pageEntry = ReaderPageNumbers.Display(_page, _book.Labels);
-        // The next picture in a pack shows at the same zoom, as in the Windows reader.
+        // The next picture in a pack shows at the same zoom.
         if (!(_book.Kind == ReaderKinds.Image && wasImage)) _scale = _book.Kind == ReaderKinds.Image ? "page-fit" : "page-width";
         _linkBack = null;
         _opened = false;
         _canCopy = true;
-        _knownTried = false;
-        _tryingKnown = null;
-        _entered = null;
+        _passwords.Reset();
         _stored = _kept = false;
-        ClearFindState();
+        _find.Clear();
         _notes = null;
         _noteDone = null;
         _noteDialog = null;
         _coverPage = _book.CoverPage;
-        _addMenu = null;
         _binderDone = null;
         _pagesDialog = null;
         _partDialog = null;
@@ -674,7 +468,7 @@ else
     void ReportPlace()
     {
         if (!PlaceChanged.HasDelegate || _book is not { } book) return;
-        // A pack stepped to another file has left the item behind, as on Windows.
+        // A pack stepped to another file has left the item behind.
         var outside = book.Item is { WholeBook: false } item ? IsPdf && (_page < item.FirstPage || _page > item.LastPage) : Item is not null && book.Item is null;
         _ = PlaceChanged.InvokeAsync(new ReaderPlace(book.DocumentId, _page, book.Kind, outside, book.Item));
     }
@@ -699,7 +493,7 @@ else
         if (_book is not { Item: { } item } book) return;
         try
         {
-            var used = await Api.UseBinderPageAsync(item.Id, new ReaderUsePage(book.DocumentId, _page));
+            var used = await BindersApi.UseBinderPageAsync(item.Id, new ReaderUsePage(book.DocumentId, _page));
             if (_book != book) return;
             _book = book with { Item = item with { FirstPage = used.FirstPage, LastPage = used.LastPage, Banner = null, CanUsePage = false } };
             _binderDone = new ActionResult(used.Message);
@@ -718,7 +512,7 @@ else
         if (_book is { Item: { } item } book) _book = book with { Item = item with { Banner = null, CanUsePage = false } };
     }
 
-    /// <summary>The thumbnails mark the binder item's pages, as the Windows strip does; none for a whole book.</summary>
+    /// <summary>The thumbnails mark the binder item's pages; none for a whole book.</summary>
     Task MarkItemPagesAsync() =>
         !IsPdf ? Task.CompletedTask
         : _book?.Item is { WholeBook: false } item ? CallAsync("itemPages", item.FirstPage, item.LastPage)
@@ -727,26 +521,6 @@ else
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender) Pins.Changed += OnPinsChanged;
-        if (_focusPassword)
-        {
-            _focusPassword = false;
-            await _passwordBox.FocusAsync();
-        }
-        if (_focusNote && _noteDialog is not null)
-        {
-            _focusNote = false;
-            await _noteBox.FocusAsync();
-        }
-        if (_focusPages && _pagesDialog is not null)
-        {
-            _focusPages = false;
-            await _pagesFrom.FocusAsync();
-        }
-        if (_focusPart && _partDialog is not null)
-        {
-            _focusPart = false;
-            await _partTitle.FocusAsync();
-        }
         if (_starting) return;
         _starting = true;
         try
@@ -860,7 +634,7 @@ else
         if (_showAsk) _showNotes = false;
     }
 
-    // Ask this book, as the Windows reader's Ask panel.
+    // Ask this book.
 
     /// <summary>Whether the book can be asked and its conversation so far; opening it starts its pages being read for meaning.</summary>
     async Task LoadAskAsync(ReaderBook book)
@@ -868,7 +642,7 @@ else
         AskBook ask;
         try
         {
-            ask = await Api.AskBookAsync(book.DocumentId);
+            ask = await AskApi.AskBookAsync(book.DocumentId);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -900,33 +674,31 @@ else
         ReaderFind found;
         try
         {
-            found = await Api.FindInBookAsync(book.DocumentId, phrase, null, null);
+            found = await ReaderApi.FindInBookAsync(book.DocumentId, phrase, null, null);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
             await GoToAsync(page);
             return;
         }
-        var hits = found.Pages.SelectMany(p => Enumerable.Range(0, p.Count).Select(n => (p.Page, n))).ToList();
-        var next = hits.FindIndex(h => h.Page >= page);
-        if (next < 0)
+        var hits = BookFind.Hits(found);
+        if (!hits.Exists(h => h.Page >= page))
         {
             await GoToAsync(page);
             return;
         }
-        _findText = _found = phrase;
-        _hits = hits;
-        await ShowMatchAsync(next);
+        _find.Text = phrase;
+        await ShowMatchAsync(_find.Take(phrase, hits, page));
     }
 
-    // The Notes panel and Note, as the Windows reader's.
+    // The Notes panel and Note.
 
     async Task LoadNotesAsync(ReaderBook book)
     {
         ReaderNotes notes;
         try
         {
-            notes = await Api.ReaderNotesAsync(book.DocumentId);
+            notes = await ReaderApi.ReaderNotesAsync(book.DocumentId);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -957,15 +729,14 @@ else
     {
         if (_book is not { } book) return;
         var shown = ReaderPageNumbers.Display(await SelectedPageAsync(book), book.Labels);
-        _noteDialog = new NoteDialog { Heading = $"A note on page {shown}", From = shown };
-        _focusNote = true;
+        _noteDialog = new NoteDraft { Heading = $"A note on page {shown}", From = shown };
     }
 
     /// <summary>Changes a note's text or pages, shown as they are in the copy open here.</summary>
     void EditNote(ReaderNote note)
     {
         if (_book is not { } book) return;
-        _noteDialog = new NoteDialog
+        _noteDialog = new NoteDraft
         {
             Heading = $"The note on {note.Pages}",
             From = ReaderPageNumbers.Display(note.First, book.Labels),
@@ -973,7 +744,6 @@ else
             Text = note.Text,
             Editing = note,
         };
-        _focusNote = true;
     }
 
     /// <summary>The page with selected text on it, or else the page in view.</summary>
@@ -994,28 +764,15 @@ else
         return Math.Clamp(selected >= 0 ? selected : _page, 0, Math.Max(0, book.PageCount - 1));
     }
 
-    (int First, int Last)? NoteRange(NoteDialog dialog) => PageRange(dialog.From, dialog.To);
-
-    /// <summary>From and To as typed, To left blank for one page; null when either isn't a page of the book.</summary>
-    (int First, int Last)? PageRange(string from, string to)
+    async Task SaveNoteAsync(PageNoteEdit edit)
     {
-        if (_book is not { } book || ReaderPageNumbers.Find(from, book.Labels, book.PageCount) is not { } first) return null;
-        var last = to.Trim().Length == 0 ? first : ReaderPageNumbers.Find(to, book.Labels, book.PageCount);
-        return last is { } l ? (Math.Min(first, l), Math.Max(first, l)) : null;
-    }
-
-    bool CanSaveNote(NoteDialog dialog) => dialog.Text.Trim().Length > 0 && NoteRange(dialog) is not null;
-
-    async Task SaveNoteAsync()
-    {
-        if (_book is not { } book || _noteDialog is not { } dialog || !CanSaveNote(dialog) || NoteRange(dialog) is not { } range) return;
+        if (_book is not { } book || _noteDialog is not { } dialog) return;
         _noteDialog = null;
-        var edit = new PageNoteEdit(range.First, range.Last, dialog.Text.Trim());
         try
         {
             var changed = dialog.Editing is { } note
-                ? await Api.UpdatePageNoteAsync(book.DocumentId, note.Id, edit)
-                : await Api.AddPageNoteAsync(book.DocumentId, edit);
+                ? await ReaderApi.UpdatePageNoteAsync(book.DocumentId, note.Id, edit)
+                : await ReaderApi.AddPageNoteAsync(book.DocumentId, edit);
             if (_book != book) return;
             SetNotes(changed.Notes);
             if (changed.Done.Message.Length > 0) _noteDone = changed.Done;
@@ -1035,7 +792,7 @@ else
         if (_book is not { } book) return;
         try
         {
-            var changed = await Api.DeletePageNoteAsync(book.DocumentId, note.Id);
+            var changed = await ReaderApi.DeletePageNoteAsync(book.DocumentId, note.Id);
             if (_book != book) return;
             SetNotes(changed.Notes);
             _noteDone = changed.Done;
@@ -1059,13 +816,7 @@ else
         else if (note.OtherCopy) ShowNotice("This note was made in another copy of the book, so its page may be a little different here.");
     }
 
-    async Task NoteDialogKeyAsync(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") _noteDialog = null;
-        else if (e.Key == "Enter" && e.CtrlKey) await SaveNoteAsync();
-    }
-
-    // The reader's own actions, as the Windows reader's header: the cover, adventures and binders.
+    // The reader's own actions: the cover, adventures and binders.
 
     /// <summary>
     /// Use this page as the cover, for a file whose first page is blank or a plain title sheet. The first page does the
@@ -1076,7 +827,7 @@ else
         if (_book is not { } book) return;
         try
         {
-            var used = await Api.UseCoverPageAsync(book.DocumentId, _page);
+            var used = await ReaderApi.UseCoverPageAsync(book.DocumentId, _page);
             if (_book != book) return;
             _coverPage = used.CoverPage;
             ShowNotice(used.Message);
@@ -1092,7 +843,7 @@ else
         if (_book is not { } book || PackCoverMember is not { } member) return;
         try
         {
-            await Api.UsePackCoverAsync(book.EntryId, member);
+            await BooksApi.UsePackCoverAsync(book.EntryId, member);
             ShowNotice("This image is the pack's cover now.");
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
@@ -1109,8 +860,7 @@ else
     void MarkAdventure()
     {
         if (_book is not { } book) return;
-        _partDialog = new PartDialog { Heading = "Mark pages as an adventure", From = ReaderPageNumbers.Display(_page, book.Labels) };
-        _focusPart = true;
+        _partDialog = new AdventureDraft { Heading = "Mark pages as an adventure", From = ReaderPageNumbers.Display(_page, book.Labels) };
     }
 
     /// <summary>
@@ -1121,24 +871,23 @@ else
     {
         _outlineMenu = null;
         if (_book is not { } book) return;
-        _partDialog = new PartDialog
+        _partDialog = new AdventureDraft
         {
             Heading = "Index as its own adventure",
             Title = line.Title,
             From = line.PageText,
             To = line.LastPage > line.Page ? ReaderPageNumbers.Display(line.LastPage, book.Labels) : "",
         };
-        _focusPart = true;
     }
 
     async Task SavePartAsync()
     {
-        if (_book is not { } book || _partDialog is not { Saving: false } dialog || dialog.Title.Trim().Length == 0 || PageRange(dialog.From, dialog.To) is null) return;
+        if (_book is not { } book || _partDialog is not { Saving: false } dialog) return;
         dialog.Saving = true;
         dialog.Problem = null;
         try
         {
-            var added = await Api.MarkAdventureAsync(book.DocumentId, new PartEdit(dialog.Title, dialog.From, dialog.To));
+            var added = await ReaderApi.MarkAdventureAsync(book.DocumentId, new PartEdit(dialog.Title, dialog.From, dialog.To));
             if (added.Problem is { } problem)
             {
                 dialog.Problem = problem;
@@ -1157,43 +906,12 @@ else
         }
     }
 
-    async Task PartDialogKeyAsync(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") _partDialog = null;
-        else if (e.Key == "Enter") await SavePartAsync();
-    }
-
-    async Task ToggleAddMenuAsync()
-    {
-        if (_addMenu is not null)
-        {
-            _addMenu = null;
-            return;
-        }
-        try
-        {
-            _addMenu = await Api.BinderMenuAsync();
-        }
-        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
-        {
-            _binderDone = new ActionResult(e.Message);
-        }
-    }
-
-    static BinderMenuChoice Choice(AddToBinderMenu.Item item) => new(item.Kind switch
-    {
-        AddToBinderMenu.Kind.Binder => BinderMenuKind.Binder,
-        AddToBinderMenu.Kind.Another => BinderMenuKind.Choose,
-        _ => BinderMenuKind.New,
-    }, item.Id, item.Label);
-
     /// <summary>
     /// Add to binder: the page in view, or the whole picture, to the binder the menu names, or one picked or made from
     /// it; with no menu (a picture's Add pages…), to the binder worked on last, or a new one before there is any.
     /// </summary>
     async Task AddPageAsync(BinderMenu? menu, BinderMenuChoice? choice)
     {
-        _addMenu = null;
         if (_book is not { } book) return;
         var picture = book.Kind == ReaderKinds.Image;
         var name = picture && PackIndex is >= 0 and var at ? book.Pack[at].Name : book.Title;
@@ -1218,7 +936,6 @@ else
     /// </summary>
     async Task AddPagesAsync()
     {
-        _addMenu = null;
         if (_book is not { } book) return;
         if (book.Kind == ReaderKinds.Image)
         {
@@ -1227,21 +944,18 @@ else
         }
         try
         {
-            var menu = await Api.BinderMenuAsync();
+            var menu = await BindersApi.BinderMenuAsync();
             if (menu.All.Count == 0)
             {
                 if (await BinderActions.CreateAsync(menu.Systems, menu.NewHeading, "Create") is null) return;
-                menu = await Api.BinderMenuAsync();
+                menu = await BindersApi.BinderMenuAsync();
                 if (menu.All.Count == 0) return;
             }
             var page = await SelectedPageAsync(book);
             var shown = ReaderPageNumbers.Display(page, book.Labels);
-            var label = (await Api.BookmarkAsync(book.DocumentId, page)).Title ?? "";
+            var label = (await ReaderApi.BookmarkAsync(book.DocumentId, page)).Title ?? "";
             if (_book != book) return;
-            var dialog = new PagesDialog { From = shown, To = shown, Label = label, Binders = menu.All, BinderId = menu.All[0].Id };
-            _pagesDialog = dialog;
-            _focusPages = true;
-            await LoadSectionsAsync(dialog);
+            _pagesDialog = new PagesDraft { From = shown, To = shown, Label = label, Binders = menu.All, BinderId = menu.All[0].Id };
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -1249,49 +963,19 @@ else
         }
     }
 
-    async Task BinderChosenAsync(ChangeEventArgs e)
+    async Task SavePagesAsync((int First, int Last) range)
     {
-        if (_pagesDialog is not { } dialog || !long.TryParse(e.Value?.ToString(), out var id)) return;
-        dialog.BinderId = id;
-        dialog.Sections = [];
-        dialog.Where = "";
-        await LoadSectionsAsync(dialog);
-    }
-
-    async Task LoadSectionsAsync(PagesDialog dialog)
-    {
-        var id = dialog.BinderId;
-        try
-        {
-            var sections = await Api.BinderSectionsAsync(id);
-            if (dialog.BinderId == id) dialog.Sections = sections;
-        }
-        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
-        {
-            // Where offers the end only.
-        }
-    }
-
-    async Task SavePagesAsync()
-    {
-        if (_book is not { } book || _pagesDialog is not { } dialog || PageRange(dialog.From, dialog.To) is not { } range) return;
+        if (_book is not { } book || _pagesDialog is not { } dialog) return;
         _pagesDialog = null;
-        long? section = long.TryParse(dialog.Where, out var where) ? where : null;
-        var add = new BinderAdd([], DocumentId: book.DocumentId, Page: range.First, LastPage: range.Last, Label: dialog.Label, SectionId: section);
+        var add = new BinderAdd([], DocumentId: book.DocumentId, Page: range.First, LastPage: range.Last, Label: dialog.Label, SectionId: dialog.SectionId);
         try
         {
-            _binderDone = await Api.AddToBinderAsync(dialog.BinderId, add);
+            _binderDone = await BindersApi.AddToBinderAsync(dialog.BinderId, add);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
             _binderDone = new ActionResult(e.Message);
         }
-    }
-
-    async Task PagesDialogKeyAsync(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") _pagesDialog = null;
-        else if (e.Key == "Enter") await SavePagesAsync();
     }
 
     [JSInvokable]
@@ -1299,9 +983,7 @@ else
     {
         _opened = true;
         _canCopy = canCopy;
-        _tryingKnown = null;
-        if (_entered is { } entered && _book is { } book) _ = KeepPasswordAsync(book, entered);
-        _entered = null;
+        if (_book is { } book) _ = KeepPasswordAsync(book);
         StateHasChanged();
     }
 
@@ -1351,39 +1033,9 @@ else
     [JSInvokable]
     public Task FindKey(bool back) => StepAsync(!back);
 
-    (long DocumentId, Task<(Bibliotaph.Core.Reading.PrintedPages Printed, HashSet<int> Listed)?> Pages)? _printed;
-
-    /// <summary>
-    /// The printed page numbers on an index or contents page, by the Windows reader's rules, for the pages to make
-    /// links of: where each is in the page's text, its page, and what its tooltip says. None when nothing says how the
-    /// book numbers its pages.
-    /// </summary>
+    /// <summary>The printed page numbers on an index or contents page, for the pages to make links of.</summary>
     [JSInvokable]
-    public async Task<PrintedLink[]> PrintedLinks(int page, string text)
-    {
-        if (_book is not { } book) return [];
-        if (_printed is not { } known || known.DocumentId != book.DocumentId) _printed = known = (book.DocumentId, PrintedPagesAsync(book.DocumentId));
-        if (await known.Pages is not { } pages) return [];
-        return [.. Bibliotaph.Core.Reading.PageReferences.Find(text, pages.Printed, pages.Listed.Contains(page)).Select(r => new PrintedLink(r.Range.Start, r.Range.Length,
-            r.PageIndex, Bibliotaph.Core.Reading.PageReferences.Tip(r.Printed, r.PageIndex, r.PageIndex < book.Labels.Count ? book.Labels[r.PageIndex] : null)))];
-    }
-
-    async Task<(Bibliotaph.Core.Reading.PrintedPages, HashSet<int>)?> PrintedPagesAsync(long documentId)
-    {
-        try
-        {
-            var found = await Api.PrintedPagesAsync(documentId);
-            var source = found.FromLabels ? Bibliotaph.Core.Reading.PrintedPagesSource.Labels : Bibliotaph.Core.Reading.PrintedPagesSource.Folios;
-            return (Bibliotaph.Core.Reading.PrintedPages.FromTable(source, found.Pages), [.. found.Listed]);
-        }
-        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
-        {
-            // No links are guessed; the page's own still work.
-            return null;
-        }
-    }
-
-    public sealed record PrintedLink(int Start, int Length, int PageIndex, string Tip);
+    public Task<PrintedLink[]> PrintedLinks(int page, string text) => _book is { } book ? _links.FindAsync(book, page, text) : Task.FromResult<PrintedLink[]>([]);
 
     /// <summary>The link to the file now; asked for again when the last one has expired.</summary>
     [JSInvokable]
@@ -1392,7 +1044,7 @@ else
         if (_book is null) return null;
         try
         {
-            var link = await Api.ReaderLinkAsync(_book.DocumentId);
+            var link = await ReaderApi.ReaderLinkAsync(_book.DocumentId);
             if (link.Problem is { } problem) _linkProblem = problem;
             return link.Url;
         }
@@ -1430,101 +1082,33 @@ else
         StateHasChanged();
     }
 
-    /// <summary>
-    /// The password for pdf.js to try, as the Windows reader opens a locked book: one that opened it in this tab, or
-    /// else a remembered one, first; then the reader is asked, again while what they type doesn't open it.
-    /// </summary>
+    /// <summary>The password for pdf.js to try: a known one first, then what the reader types.</summary>
     [JSInvokable]
     public async Task<string?> AskPassword(bool retry)
     {
         if (_book is not { } book) return null;
-        if (_tryingKnown is { } failed)
-        {
-            // The book changed its password, or a different file now has this content.
-            _tryingKnown = null;
-            Unlocked.Forget(book.ContentHash);
-            if (failed.Remembered) _ = ForgetRememberedAsync(book.DocumentId);
-            retry = false;
-        }
-        else if (!_knownTried)
-        {
-            _knownTried = true;
-            var known = Unlocked.Find(book.ContentHash);
-            var remembered = known is null ? await RememberedAsync(book.DocumentId) : null;
-            if ((known ?? remembered) is { } password)
-            {
-                _tryingKnown = (password, known is null);
-                return password;
-            }
-        }
-        // A wrong password keeps the ticks; a new ask starts as the Windows dialog does.
-        if (!retry) (_searchable, _rememberPassword) = (true, false);
+        var (known, again) = await _passwords.BeforeAskingAsync(book, retry);
+        if (known is not null) return known;
         var answer = new TaskCompletionSource<string?>();
-        _password = (retry, answer);
-        _passwordText = "";
-        _focusPassword = true;
+        _password = (again, answer);
         StateHasChanged();
         var typed = await answer.Task;
-        _entered = typed is null ? null : new ReaderPasswordUse(typed, _rememberPassword, _searchable || _rememberPassword);
+        _passwords.Typed(typed);
         return typed;
     }
 
-    async Task<string?> RememberedAsync(long documentId)
+    async Task KeepPasswordAsync(ReaderBook book)
     {
-        try
-        {
-            return (await Api.RememberedPasswordAsync(documentId)).Password;
-        }
-        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
-        {
-            return null;
-        }
-    }
-
-    async Task ForgetRememberedAsync(long documentId)
-    {
-        try
-        {
-            await Api.ForgetPasswordAsync(documentId);
-        }
-        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
-        {
-            // Tried and forgotten again at the next open.
-        }
-    }
-
-    /// <summary>
-    /// Keeps the password that opened the book for this tab and, with its ticks, sends it for indexing to read the book
-    /// with and to remember.
-    /// </summary>
-    async Task KeepPasswordAsync(ReaderBook book, ReaderPasswordUse use)
-    {
-        Unlocked.Add(book.ContentHash, use.Password);
-        if (!use.Remember && !use.Searchable) return;
-        try
-        {
-            await Api.UsePasswordAsync(book.DocumentId, use);
-        }
-        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
-        {
-            ShowNotice(use.Remember ? "Bibliotaph couldn't remember the password, so it will ask for it next time."
-                : "Bibliotaph couldn't make the book searchable just now. Open it again later to try again.");
-            StateHasChanged();
-        }
+        if (await _passwords.OpenedAsync(book) is not { } notice) return;
+        ShowNotice(notice);
+        StateHasChanged();
     }
 
     void AnswerPassword(string? password)
     {
         if (_password is not { } asking) return;
         _password = null;
-        asking.Answer.TrySetResult(string.IsNullOrEmpty(password) ? null : password);
-    }
-
-    async Task PasswordKeyAsync(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") AnswerPassword(_passwordText);
-        else if (e.Key == "Escape") AnswerPassword(null);
-        await Task.CompletedTask;
+        asking.Answer.TrySetResult(password);
     }
 
     async Task RetryAsync()
@@ -1597,7 +1181,7 @@ else
         _favorite = !_favorite;
         try
         {
-            await Api.SetFavoriteAsync(_book.EntryId, _favorite);
+            await BooksApi.SetFavoriteAsync(_book.EntryId, _favorite);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -1685,7 +1269,7 @@ else
         await CallAsync("keepOffline", _kept);
     }
 
-    /// <summary>The book moves to a window of its own, at the page in view, as the Windows reader's Pop out.</summary>
+    /// <summary>The book moves to a window of its own, at the page in view.</summary>
     async Task PopOutAsync()
     {
         if (_book is null) return;
@@ -1701,7 +1285,7 @@ else
         if (!await ModuleAsync<bool>("returnToMain", Navigation.ToAbsoluteUri(url).ToString())) Navigation.NavigateTo(url, forceLoad: true);
     }
 
-    // Find, as the Windows reader's: Enter finds, Enter again (or F3) goes to the next match, round from the last to the
+    // Find: Enter finds, Enter again (or F3) goes to the next match, round from the last to the
     // first; Shift+Enter and Shift+F3 go back; Esc clears. Reading an adventure, it looks in the adventure's pages.
 
     async Task FindKeyAsync(KeyboardEventArgs e)
@@ -1712,85 +1296,69 @@ else
 
     async Task FindAsync(bool forward)
     {
-        var text = _findText.Trim();
+        var text = _find.Text.Trim();
         if (text.Length == 0 || _book is null)
         {
             await ClearFindAsync();
             return;
         }
-        if (text == _found && _hits.Count > 0)
+        if (_find.HasFound(text))
         {
             await StepAsync(forward);
             return;
         }
-        _findStatus = "Searching…";
+        _find.Status = "Searching…";
         StateHasChanged();
         var part = _wholeFile ? null : _book.Part;
         ReaderFind found;
         try
         {
-            found = await Api.FindInBookAsync(_book.DocumentId, text, part?.FirstPage, part?.LastPage);
+            found = await ReaderApi.FindInBookAsync(_book.DocumentId, text, part?.FirstPage, part?.LastPage);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
-            _findStatus = "Find didn't finish";
+            _find.Status = "Find didn't finish";
             return;
         }
-        _found = text;
-        _hits = [.. found.Pages.SelectMany(p => Enumerable.Range(0, p.Count).Select(n => (p.Page, n)))];
-        if (_hits.Count == 0)
+        var next = _find.Take(text, BookFind.Hits(found), _page);
+        if (next < 0)
         {
-            _hitIndex = -1;
-            _findStatus = part is null ? "No matches" : "No matches in this adventure";
+            _find.Status = part is null ? "No matches" : "No matches in this adventure";
             await CallAsync("clearFind");
             return;
         }
-        // The first match from the page in view onwards, wrapping round to the start.
-        var next = _hits.FindIndex(h => h.Page >= _page);
-        await ShowMatchAsync(next < 0 ? 0 : next);
+        await ShowMatchAsync(next);
     }
 
     async Task StepAsync(bool forward)
     {
-        if (_hits.Count == 0)
+        if (!_find.HasMatches)
         {
-            if (_findText.Trim().Length > 0) await FindAsync(forward);
+            if (_find.Text.Trim().Length > 0) await FindAsync(forward);
             return;
         }
-        await ShowMatchAsync(forward ? (_hitIndex + 1) % _hits.Count : (_hitIndex - 1 + _hits.Count) % _hits.Count);
+        await ShowMatchAsync(_find.Next(forward));
     }
 
     async Task ShowMatchAsync(int index)
     {
-        _hitIndex = index;
-        var culture = System.Globalization.CultureInfo.CurrentCulture;
-        _findStatus = $"{(index + 1).ToString("N0", culture)} of {_hits.Count.ToString("N0", culture)}{(_hits.Count >= MaxMatches ? "+" : "")}";
-        var (page, nth) = _hits[index];
-        await CallAsync("showMatch", _found, page, nth);
+        var (page, nth) = _find.Show(index);
+        await CallAsync("showMatch", _find.Found, page, nth);
         StateHasChanged();
     }
 
     async Task ClearFindAsync()
     {
-        _findText = "";
-        ClearFindState();
+        _find.Text = "";
+        _find.Clear();
         await CallAsync("clearFind");
-    }
-
-    void ClearFindState()
-    {
-        _found = "";
-        _findStatus = "";
-        _hits = [];
-        _hitIndex = -1;
     }
 
     async Task WholeFileChangedAsync(ChangeEventArgs e)
     {
         _wholeFile = e.Value is true;
-        _found = "";
-        _hits = [];
-        if (_findText.Trim().Length > 0) await FindAsync(true);
+        _find.Forget();
+        if (_find.Text.Trim().Length > 0) await FindAsync(true);
     }
 
     /// <summary>An ordinary read keeps the page it's left at, a moment after the reader stops on it.</summary>
@@ -1808,7 +1376,7 @@ else
         _placeToKeep = null;
         try
         {
-            await Api.SavePositionAsync(_book.DocumentId, page);
+            await ReaderApi.SavePositionAsync(_book.DocumentId, page);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {

@@ -8,7 +8,7 @@ using Bibliotaph.Server.Libraries;
 namespace Bibliotaph.Server.Api;
 
 /// <summary>
-/// /api/library/documents/{id}/notes: the reader's Notes panel, as the Windows reader's. The notes are the book's, from
+/// /api/library/documents/{id}/notes: the reader's Notes panel. The notes are the book's, from
 /// all its copies; pages come and go as the copy open in the reader numbers them.
 /// </summary>
 public static class PageNotesApi

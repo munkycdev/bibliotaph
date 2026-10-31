@@ -131,9 +131,9 @@ into your library. Bibliotaph never stores your passwords. [Online libraries](do
 them to the sidebar. Needs review offers to make your folders of books into collections, and suggests books for the
 collections you have. [Collections, favorites and pins](docs/guide/organizing.md)
 
-**Gets a session ready.** A binder holds the books and pages for your next session, in order, with your notes. A binder
-can hold pages of books you read online, too. At the table, step through it with **Next** and **Previous**, and keep
-a rules binder at hand.
+**Gathers the pages you need.** A binder holds books and pages in your order, with your notes: a focused set of
+references, an adventure's maps and encounters, or any other pages you want together. A binder can hold pages of books
+you read online, too. Step through it with **Next** and **Previous**, and keep a rules binder at hand.
 [Binders](docs/guide/binders.md)
 
 **Looks after your work.** Weekly backups, restore on a new PC, export to a spreadsheet, and the same work on every
@@ -150,7 +150,7 @@ The guide is on the web too, a page per chapter, at [bibliotaph.online/guide](ht
 4. [Cataloging](docs/guide/cataloging.md): details, corrections, Needs review, copies, packs, adventures and your
    tags.
 5. [Collections, favorites and pins](docs/guide/organizing.md)
-6. [Binders](docs/guide/binders.md): prepare a session and run it.
+6. [Binders](docs/guide/binders.md): gather books and pages and step through them.
 7. [Your library in numbers](docs/guide/summary.md): the Summary page, what you have and where it came from.
 8. [Online libraries](docs/guide/online-libraries.md): D&D Beyond, Demiplane, Humble Bundle and DriveThruRPG.
 9. [AI](docs/guide/ai.md): what it does, what it sends, how to set it up, and scanning whole books.

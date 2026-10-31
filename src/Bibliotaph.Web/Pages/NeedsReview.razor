@@ -1,11 +1,13 @@
 @page "/review"
 @implements IDisposable
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
+@inject ReaderClient ReaderApi
+@inject ReviewClient ReviewApi
 @inject LibraryActivity Activity
 @inject IJSRuntime Js
 @inject NavigationManager Navigation
 
-@* The Windows app's Needs review: Metadata suggestions and Files needing attention, on two tabs. The suggestions are
+@* Needs review: Metadata suggestions and Files needing attention, on two tabs. The suggestions are
    read when the page opens and stay put while they're worked through, so a decided card can still be undone; when
    the library's count moves away from what the page shows, a line offers the new list. *@
 <PageHeading Title="A little clarification." TabTitle="Needs review" Subtitle="@ReviewWords.Subtitle(Remaining, FileCount)" />
@@ -183,7 +185,7 @@ else
     </div>
 }
 
-<div class="bt-reassure"><Icon Name="ShieldCheck" Size="13" />Your corrections are preserved when books are reindexed.</div>
+<div class="bt-reassure"><Icon Name="ShieldCheck" Size="13" />Your corrections stay when books are read again.</div>
 
 @code {
     ReviewSuggestions? _list;
@@ -243,7 +245,7 @@ else
     {
         try
         {
-            var list = await Api.ReviewAsync();
+            var list = await ReviewApi.ReviewAsync();
             _list = list;
             _fields = [.. list.Fields];
             _states.Clear();
@@ -265,7 +267,7 @@ else
     {
         try
         {
-            _files = await Api.AttentionAsync();
+            _files = await ReviewApi.AttentionAsync();
             _lastAttention = Activity.Current?.Attention ?? -1;
         }
         catch (ApiProblemException)
@@ -322,7 +324,7 @@ else
         try
         {
             var shown = ShownFields.Where(f => f.GroupKey == card.GroupKey && !StateOf(f.Id).IsDone).Select(f => f.Id).ToList();
-            var result = await Api.AcceptAllSuggestionsAsync(new ReviewAcceptAll(card.Id, card.GroupKey, shown));
+            var result = await ReviewApi.AcceptAllSuggestionsAsync(new ReviewAcceptAll(card.Id, card.GroupKey, shown));
             foreach (var done in result.Cards) StateOf(done.Id).MarkDone(new ActionResult(done.Message, done.Undo));
             // Cards not shown yet are decided, so they won't be shown.
             var decided = result.Cards.Select(c => c.Id).ToHashSet();
@@ -348,7 +350,7 @@ else
         _bulk = _bulk with { Undo = null };
         try
         {
-            var result = await Api.RunHeldAsync(token);
+            var result = await LibraryApi.RunHeldAsync(token);
             await LoadAsync();
             if (result.Message.Length > 0) _bulk = result;
         }
@@ -365,7 +367,7 @@ else
         if (ids.Count == 0) return;
         try
         {
-            _files = await Api.RetryAsync(ids);
+            _files = await ReviewApi.RetryAsync(ids);
         }
         catch (ApiProblemException)
         {
@@ -390,7 +392,7 @@ else
 
     /// <summary>The web's Open in another app: the file itself, for an app that can open its protection.</summary>
     Task DownloadAsync(AttentionFile file) => file.DocumentId is { } document
-        ? FileDownload.OpenAsync(Api, Js, document, EventCallback.Factory.Create<ActionResult>(this, result => _filesNote = result.Message))
+        ? FileDownload.OpenAsync(ReaderApi, Js, document, EventCallback.Factory.Create<ActionResult>(this, result => _filesNote = result.Message))
         : Task.CompletedTask;
 
     async Task CopyAsync(string key, string details)

@@ -114,7 +114,7 @@
       </StackPanel>
     </StackPanel>
 
-    <!-- O5: where a store's own Download button saves, inside the library so the file is read like any other. -->
+    <!-- Where a store's own Download button saves, inside the library so the file is read like any other. -->
     <DockPanel Margin="0,32,0,0">
       <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="16,0,0,0">
         <Button x:Name="ChooseDownloadsFolder" Content="Choose folder…" Command="{Binding ChooseDownloadsFolderCommand}" />
@@ -147,7 +147,7 @@
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
       <StackPanel>
         <TextBlock Text="Books you own online" FontSize="14" FontWeight="SemiBold" />
-        <!-- Online libraries plan, choice 12: the badge on a book owned online shows its site's own icon, fetched once. -->
+        <!-- The badge on a book owned online shows its site's own icon, fetched once. -->
         <CheckBox x:Name="ShowSiteIcons" Margin="0,12,0,0" IsChecked="{Binding ShowSiteIcons}" VerticalContentAlignment="Top"
                   Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Show site icons">
           <StackPanel Margin="4,0,0,0">
@@ -157,7 +157,7 @@
           </StackPanel>
         </CheckBox>
 
-        <!-- Online libraries plan, choice 19: a book owned online opens in Bibliotaph's online reader, or the everyday browser. -->
+        <!-- A book owned online opens in Bibliotaph's online reader, or the everyday browser. -->
         <CheckBox x:Name="ReadOnlineInApp" Margin="0,16,0,0" IsChecked="{Binding ReadOnlineInApp}" VerticalContentAlignment="Top"
                   Foreground="{DynamicResource Bt.Text}" AutomationProperties.Name="Read books owned online in Bibliotaph">
           <StackPanel Margin="4,0,0,0">

@@ -1,9 +1,9 @@
 @page "/collections"
-@inject ApiClient Api
+@inject CollectionsClient CollectionsApi
 @inject CollectionActions Actions
 @inject NavigationManager Navigation
 
-@* The Windows app's Collections page: a card for each collection at the top level, pinned first, then by name. A
+@* The Collections page: a card for each collection at the top level, pinned first, then by name. A
    card opens the Library scoped to it, where its sub-collections and its actions are. *@
 <PageHeading Title="Collections" Subtitle="Books gathered around a campaign, a setting or an idea.">
     <Actions>
@@ -55,7 +55,7 @@ else
     {
         try
         {
-            _cards = await Api.CollectionCardsAsync();
+            _cards = await CollectionsApi.CollectionCardsAsync();
         }
         catch (ApiProblemException e)
         {

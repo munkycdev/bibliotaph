@@ -234,7 +234,7 @@ public static class ReviewApi
         EditApi.Hold(library, () => reviews.UndoAsync(undo, CancellationToken.None), ReviewText.UndoFailed);
 
     /// <summary>
-    /// Files needing attention, as the Windows app's second tab lists them: failed and blocked stages, files that
+    /// Files needing attention: failed and blocked stages, files that
     /// couldn't be read, and files in ZIPs that aren't read. A locked file opens in the reader to be unlocked, and one
     /// with DRM is downloaded to open in another app.
     /// </summary>
@@ -263,7 +263,7 @@ public static class ReviewApi
         return new ReviewFiles(cards, cards.Any(c => c.CanRetry));
     }
 
-    /// <summary>"1.3.600 (4578ab9)": the server's build, as the Windows app names its own in a bug report.</summary>
+    /// <summary>"1.3.600 (4578ab9)": the server's build.</summary>
     static string Version { get; } = VersionOf(typeof(ReviewApi).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0");
 
     static string VersionOf(string informational)

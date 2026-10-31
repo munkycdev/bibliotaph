@@ -2244,15 +2244,15 @@ static partial class SmokeTest
         navigation.GoBack();
         await Settle(window);
 
-        // Continue preparing on Home opens the binder's reader; Edit binder lists both items in order, with their labels.
+        // Current binder on Home opens the binder's reader; Edit binder lists both items in order, with their labels.
         shell.NavigateCommand.Execute(Route.Home);
         var home = shell.CurrentPage as HomeViewModel ?? throw new InvalidOperationException("Home didn't open.");
         await WaitUntilAsync(window, () => home.ContinuePreparing is { Title: "The midnight bell", CountLabel: "2 items" },
-            () => "Home doesn't show the session under Continue preparing.");
+            () => "Home doesn't show the binder under Current binder.");
         var card = Descendants<ContentControl>(window).FirstOrDefault(c => c.Name == "ContinuePreparing");
-        Click(card is null ? null : Descendants<Button>(card).FirstOrDefault(b => b.Name == "Card"), "Continue preparing's card");
+        Click(card is null ? null : Descendants<Button>(card).FirstOrDefault(b => b.Name == "Card"), "Current binder's card");
         await WaitUntilAsync(window, () => shell.CurrentPage is SessionReaderViewModel { IsLoaded: true, HasItems: true, Current: not null },
-            () => "Continue preparing didn't open the binder's reader.");
+            () => "Current binder didn't open the binder's reader.");
         var reader = (SessionReaderViewModel)shell.CurrentPage!;
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "EditBinder"), "Edit binder");
         await WaitUntilAsync(window, () => shell.CurrentPage is SessionPackViewModel { IsLoaded: true, HasItems: true }, () => "Edit binder didn't open the binder's list.");

@@ -1,6 +1,6 @@
-@* .bt-dialog: Pack together, as the Windows app's dialog: what the ticked cards make, and the pack's name ready to
+@* .bt-dialog: Pack together: what the ticked cards make, and the pack's name ready to
    edit. Esc, Cancel or a click outside closes it. *@
-@inject ApiClient Api
+@inject SelectionClient SelectionApi
 
 <div class="bt-backdrop fixed bt-dialogback" @onclick="Cancel"></div>
 <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="@Preview.Heading" @onkeydown="KeyDown">
@@ -50,7 +50,7 @@
         _problem = null;
         try
         {
-            await Closed.InvokeAsync(await Api.PackAsync(new PackTogetherRequest(Books, _name.Trim())));
+            await Closed.InvokeAsync(await SelectionApi.PackAsync(new PackTogetherRequest(Books, _name.Trim())));
         }
         catch (ApiProblemException e)
         {

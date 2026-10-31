@@ -11,9 +11,9 @@ namespace Bibliotaph.Web.Services;
 /// </summary>
 public static class FileDownload
 {
-    public static async Task OpenAsync(ApiClient api, IJSRuntime js, long documentId, EventCallback<ActionResult> done)
+    public static async Task OpenAsync(ReaderClient readerApi, IJSRuntime js, long documentId, EventCallback<ActionResult> done)
     {
-        var link = await api.ReaderLinkAsync(documentId);
+        var link = await readerApi.ReaderLinkAsync(documentId);
         if (link.Url is not { } url)
         {
             await done.InvokeAsync(new ActionResult(link.Problem?.Title ?? "The file couldn't be found."));

@@ -4,7 +4,7 @@ using Bibliotaph.Core.Search;
 namespace Bibliotaph.Web.Services;
 
 /// <summary>
-/// The books a question to the library is about, as the Windows app's: those the Library shows for its filters and the
+/// The books a question to the library is about: those the Library shows for its filters and the
 /// search box's fields, as the Library last showed them, with labels saying which filters those are. Kept apart from
 /// the Library page, which comes and goes, so Ask in the top bar can use them; before the Library has been shown, the
 /// whole library.
