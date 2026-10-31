@@ -12,6 +12,8 @@
   every catalogue asked. See [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
 - **Fixed: on the web, some headings in a book's details were shown far too large.** About the file, Where it is,
   Copies, Indexing, On its pages and In a file now match the other headings there.
+- **Fixed: text in a note box started halfway down.** Typing a page note, a book's note or a binder's notes now starts
+  at the top of the box.
 
 ## 1.4 ┬╖ 28 October 2026
 
