@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Processing counts files, and says so.** The rows in Settings › Processing now read "Done · 413 files", on Windows
+  and the web, so they aren't taken for the Summary page's count of books, which also counts books you own with no
+  file and counts a pack once. See [Your library in numbers](docs/guide/summary.md).
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1065 (30 October 2026):

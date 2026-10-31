@@ -105,12 +105,12 @@ public sealed partial class LibraryActivity : ObservableObject
     readonly TimeProvider _time;
     readonly UiTimer _timer;
     readonly PhaseProgress _finding = new("Finding files", "Listing your folders");
-    readonly PhaseProgress _reading = new("Reading files", "Checking each file; online-only files download");
-    readonly PhaseProgress _making = new("Making searchable", "Text and covers");
+    readonly PhaseProgress _reading = new("Reading files", "Checking each file; online-only files download", "files");
+    readonly PhaseProgress _making = new("Making searchable", "Text and covers", "files");
     readonly PhaseProgress _scans = new("Reading scans", "Text from scanned pages, by OCR", "pages");
-    readonly PhaseProgress _lookingUp = new("Looking up online", "Title, authors, publisher and year, by ISBN");
-    readonly PhaseProgress _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page");
-    readonly PhaseProgress _scanning = new("Scanning whole books", "Chapter by chapter, after cataloguing");
+    readonly PhaseProgress _lookingUp = new("Looking up online", "Title, authors, publisher and year, by ISBN", "files");
+    readonly PhaseProgress _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page", "files");
+    readonly PhaseProgress _scanning = new("Scanning whole books", "Chapter by chapter, after cataloguing", "files");
     readonly Dictionary<long, string> _titles = [];
     int _dirty = 1;
     bool _refreshing;

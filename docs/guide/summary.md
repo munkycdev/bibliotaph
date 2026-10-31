@@ -16,6 +16,10 @@ The headline is how many books, pages and gigabytes you have, and how long readi
 minute. The tiles under it count adventures (and those marked inside other books), e-books, packs, the duplicates
 Bibliotaph found, and the books you own with no file.
 
+The page counts books, as the Library does: a pack is one book, a book found twice is one, and a book you own with no
+file counts too. Settings › Processing counts files instead, since that's what Bibliotaph reads, so its totals can be
+lower (books with no file) or higher (a pack's files).
+
 A book is counted as the Library shows it: a pack counts once, a book found twice counts once (its second copy counts as
 a duplicate), and a book owned in print or online counts as a book. Its pages count once, whatever its copies.
 

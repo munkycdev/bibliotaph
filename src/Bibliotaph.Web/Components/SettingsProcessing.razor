@@ -146,12 +146,12 @@
     static readonly TimeSpan Poll = TimeSpan.FromSeconds(2);
 
     readonly ProcessingPhase _finding = new("Finding files", "Looking through your folders");
-    readonly ProcessingPhase _reading = new("Reading files", "Each file is downloaded once to be read");
-    readonly ProcessingPhase _making = new("Making searchable", "Text and covers");
+    readonly ProcessingPhase _reading = new("Reading files", "Each file is downloaded once to be read", "files");
+    readonly ProcessingPhase _making = new("Making searchable", "Text and covers", "files");
     readonly ProcessingPhase _scans = new("Reading scans", "Text from scanned pages, by OCR", "pages");
-    readonly ProcessingPhase _lookingUp = new("Looking up online", "Title, authors, publisher and year, by ISBN");
-    readonly ProcessingPhase _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page");
-    readonly ProcessingPhase _scanning = new("Scanning whole books", "Chapter by chapter, after cataloguing");
+    readonly ProcessingPhase _lookingUp = new("Looking up online", "Title, authors, publisher and year, by ISBN", "files");
+    readonly ProcessingPhase _classifying = new("Cataloguing with AI", "Suggested details, each with a quote from its page", "files");
+    readonly ProcessingPhase _scanning = new("Scanning whole books", "Chapter by chapter, after cataloguing", "files");
     readonly CancellationTokenSource _stop = new();
     ProcessingPhase[] _phases = [];
     ProcessingState? _state;
