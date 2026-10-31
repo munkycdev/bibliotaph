@@ -10,3 +10,12 @@ dbs:
     watch: true
     replica:
       url: ${REPLICA_URL}/users
+
+# A restore replays every change since the latest snapshot, one small file per half minute of writing, each fetched
+# from Blob storage on its own, so a day of a busy library's changes takes over twenty minutes to come back. Litestream
+# snapshots on the clock, and only the databases open at that moment: a user's databases open on first use, after the
+# server starts, so with the default of once a day at midnight a deploy around then skipped a whole day. Hourly keeps a
+# restore to under an hour of changes, and a database that hasn't changed isn't snapshotted again.
+snapshot:
+  interval: 1h
+  retention: 24h
