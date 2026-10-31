@@ -21,6 +21,9 @@
   at the top of the box.
 - **Fixed: on a short window, the Library's filters couldn't all be reached with the mouse wheel.** Once the filters
   are scrolled to their end, the wheel carries on scrolling the top of the page.
+- **Hardened: the web server's log only holds values it made itself.** A user ID is rebuilt from its parsed form
+  before it reaches a log line or a path, and a slow call is logged with its endpoint's methods rather than the
+  request's own text, so nothing a caller sends can forge a log entry.
 
 ## 1.4 ┬╖ 28 October 2026
 
