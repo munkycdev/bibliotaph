@@ -43,6 +43,9 @@ public sealed record LibraryQuery
 
     public bool Copies { get; init; }
 
+    /// <summary>The catalogue that found the books online, by name ("RPGGeek"), or "unknown" for those none found.</summary>
+    public string? Found { get; init; }
+
     public string? Adventures { get; init; }
 
     public string? Collections { get; init; }
@@ -106,7 +109,7 @@ public sealed record LibraryMenus(
     IReadOnlyList<FilterChoice> Systems, IReadOnlyList<FilterChoice> Types, IReadOnlyList<FilterChoice> Styles,
     IReadOnlyList<FilterChoice> Durations, IReadOnlyList<FilterChoice> Folders, IReadOnlyList<FilterChoice> Owns,
     IReadOnlyList<FilterChoice> Stores, bool ShowStyle, bool ShowDuration, bool ShowOwn, bool ShowStore, bool ShowAi, bool ShowCopies,
-    bool ShowAdventures, bool ShowCollections, IReadOnlyList<FilterBox> Boxes);
+    bool ShowAdventures, bool ShowCollections, IReadOnlyList<FilterBox> Boxes, IReadOnlyList<FilterChoice> Found, bool ShowFound);
 
 /// <summary>
 /// A type-ahead filter, for a field with too many values for a menu: its label and hint, whether the books shown have

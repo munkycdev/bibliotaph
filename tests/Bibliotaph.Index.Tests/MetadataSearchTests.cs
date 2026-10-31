@@ -178,6 +178,24 @@ public sealed class MetadataSearchTests : IndexFixture
     }
 
     [Fact]
+    public async Task Found_online_keeps_books_a_catalogue_found_counts_each_and_outlives_their_metadata()
+    {
+        await _store.SetFoundByAsync(null, [(EntryOf(Tomb), "RPGGeek"), (EntryOf(Tomb), "Open Library"), (EntryOf(Citadel), "Open Library")], Ct);
+
+        Assert.Equal([Tomb], (await _library.ListAsync(new LibraryFilter(Found: ["RPGGeek"]), ct: Ct)).Select(e => e.DocumentId));
+        Assert.Equal([Bestiary, Map, Unknown], (await _library.ListAsync(new LibraryFilter(Found: [SearchQuery.Unknown]), ct: Ct)).Select(e => e.DocumentId).Order());
+        var found = await _library.GetFacetCountsAsync(FoundOnline.Field, new LibraryFilter(), unknown: FoundOnline.NotFound, ct: Ct);
+        Assert.Equal([("Open Library", 2L), ("RPGGeek", 1L), (SearchQuery.Unknown, 3L)], found.Select(c => (c.Value, c.Count)));
+        Assert.Equal(FoundOnline.NotFound, found[^1].Label);
+
+        // Only the entries named are replaced.
+        await _store.SetFoundByAsync([EntryOf(Citadel)], [], Ct);
+        Assert.Equal([Tomb], (await _library.ListAsync(new LibraryFilter(Found: ["Open Library"]), ct: Ct)).Select(e => e.DocumentId));
+        // Nor do they show as a book's values anywhere else.
+        Assert.DoesNotContain(await _library.GetFacetCountsAsync("system", new LibraryFilter(), ct: Ct), c => c.Value == "RPGGeek");
+    }
+
+    [Fact]
     public async Task Filters_choose_players_styles_and_durations()
     {
         Assert.Equal([Tomb], (await _library.ListAsync(new LibraryFilter(Players: 6), ct: Ct)).Select(e => e.DocumentId));
@@ -265,7 +283,7 @@ public sealed class MetadataSearchTests : IndexFixture
         var adventureSystems = await _library.GetFacetCountsAsync("system", new LibraryFilter(Types: ["adventure"]), ct: Ct);
         Assert.Equal([("dnd", 2L)], adventureSystems.Select(c => (c.Value, c.Count)));
 
-        var horror = await _library.GetFacetCountsAsync("type", new LibraryFilter(), Plan("horrors"), Ct);
+        var horror = await _library.GetFacetCountsAsync("type", new LibraryFilter(), Plan("horrors"), ct: Ct);
         Assert.Equal([("adventure", 1L)], horror.Select(c => (c.Value, c.Count)));
     }
 

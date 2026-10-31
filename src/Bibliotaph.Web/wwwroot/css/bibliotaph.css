@@ -1047,8 +1047,8 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-settingsgroup{display:block;padding:0 10px;margin:14px 0 6px}
 .bt-settingsgroup:first-child{margin-top:0}
 /* A page of several parts (Library, Devices, Members): its heading, then each part under a subheading. */
-.bt-sectionhead{font:30px 'Libre Caslon Display',Georgia,serif;font-weight:400;margin:0 0 6px}
-.bt-sectionhead+.bt-subsection{margin-top:14px}
+.bt-settingshead{font:30px 'Libre Caslon Display',Georgia,serif;font-weight:400;margin:0 0 6px}
+.bt-settingshead+.bt-subsection{margin-top:14px}
 .bt-subsection{margin-top:26px}
 .bt-subsection>.bt-subheading{margin:0}
 .bt-subsection>.bt-copy{margin-top:6px}

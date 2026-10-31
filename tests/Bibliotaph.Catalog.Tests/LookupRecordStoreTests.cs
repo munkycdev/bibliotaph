@@ -103,6 +103,25 @@ public sealed class LookupRecordStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_book_is_found_by_the_catalogues_whose_records_it_uses()
+    {
+        var used = await TestEntries.AddAsync(_first, 'a');
+        var waiting = await TestEntries.AddAsync(_first, 'b');
+        var refused = await TestEntries.AddAsync(_first, 'c');
+        var store = Store(_first);
+        await store.SaveAsync(Hash('a'), [Mill, Other], _ => true, Ct);
+        await store.SaveAsync(Hash('b'), [Mill], _ => false, Ct);
+        await store.SaveAsync(Hash('c'), [Mill], _ => false, Ct);
+        await store.AnswerAsync(Assert.Single(await store.GetPendingAsync(Ct), p => p.EntryId == refused), LookupAnswer.NotThisBook, Ct);
+
+        Assert.Equal([(used, "Open Library"), (used, "RPGGeek")], (await store.GetFoundByAsync(ct: Ct)).OrderBy(f => f.Source));
+        Assert.Empty(await store.GetFoundByAsync([waiting, refused], Ct));
+
+        await store.AnswerAsync(Assert.Single(await store.GetPendingAsync(Ct)), LookupAnswer.SameBook, Ct);
+        Assert.Equal([(waiting, "RPGGeek")], await store.GetFoundByAsync([waiting], Ct));
+    }
+
+    [Fact]
     public async Task A_record_no_lookup_gives_any_more_stops_asking()
     {
         await TestEntries.AddAsync(_first, 'a');

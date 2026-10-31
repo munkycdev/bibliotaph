@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Filter books by the catalogue that found them.** **Found online**, under Housekeeping in **More filters**, shows the
+  books RPGGeek, AdventureLookup, Open Library or Google Books found, each with how many, or **Not found online** for
+  those none found, on Windows and the web, and a saved search keeps it. See
+  [Searching](docs/guide/searching.md#filters).
+- **Summary moved below Needs review in the sidebar**, in the Windows app and on the web, so the pages you work in come
+  first. See [Summary](docs/guide/summary.md).
+- **A book no catalogue knows now says "Unable to find in any online listing."** in its details, in place of a list of
+  every catalogue asked. See [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from).
+- **Fixed: on the web, some headings in a book's details were shown far too large.** About the file, Where it is,
+  Copies, Indexing, On its pages and In a file now match the other headings there.
+- **Fixed: text in a note box started halfway down.** Typing a page note, a book's note or a binder's notes now starts
+  at the top of the box.
+- **Fixed: on a short window, the Library's filters couldn't all be reached with the mouse wheel.** Once the filters
+  are scrolled to their end, the wheel carries on scrolling the top of the page.
 - **A book's details put what it holds first.** Its adventures, a pack's files and what the AI found inside come first,
   then collections and the catalogue fields, with About the file, Where it is, Copies and Indexing at the end. Every
   section folds away under its heading, and the last four start folded. Drag the details' left edge to make them

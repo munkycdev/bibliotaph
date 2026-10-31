@@ -294,7 +294,7 @@ collection…**, which lists them all and narrows as you type. Each change says 
 
 ### Your library in numbers
 
-**Summary** in the sidebar, under **Binders**, is the Windows app's Summary page: how much you have, where it came
+**Summary** in the sidebar, under **Needs review**, is the Windows app's Summary page: how much you have, where it came
 from, what it is and what you've done with it, and every figure opens the Library at the books it counts. Home shows
 your library's size under the welcome, with a link to it. Point at a bar, a column or a month for its full count. See
 [Your library in numbers](summary.md).
