@@ -82,14 +82,17 @@ lighthouse"` finds pages about dread and haunted lights even when they never say
 quotes after it, in your own words.
 
 - **It ranks rather than filters.** Inside documents shows the pages that come closest first, at most three from a
-  book, and Documents shows their books in the same order when the order is **Best match**.
+  book. Documents shows the books whose pages come closest, and those whose title, details, tags, notes and what the
+  AI found in their chapters come closest, best first when the order is **Best match**. That finds books with no
+  pages to read too, such as a book you own elsewhere.
 - **Fields and words still narrow it.** `about:"a heist gone wrong" system:5e level:3` ranks only the 5th-edition
   books for level 3. A plain word must still be on the page: `harbour about:smugglers` ranks the pages that say
   "harbour" by how much they are about smugglers.
 - **It can't be left out.** `-about:` isn't a search; leave out a word or a field instead, like `-theme:horror`.
 - **It needs an embedding model for meaning.** With one chosen in [Settings > AI](ai.md#reading-your-library-for-meaning),
-  your words are turned into a vector by that model (only your words: nothing of your books is sent), and pages are
-  found by meaning once they've been read for it. Pages not read yet, and every page without an embedding model,
+  your words are turned into a vector by that model, and pages are found by meaning once they've been read for it.
+  Each book's title, details, tags and notes are read for meaning too, within minutes of choosing the model, even
+  with reading the whole library switched off; books in a folder kept from AI are left out. Pages not read yet, and every page without an embedding model,
   are found by any of your words instead, and a line over the results says so.
 
 ## Ask in plain English

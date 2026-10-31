@@ -41,6 +41,8 @@ static partial class Composition
         services.AddSingleton(sp => new AiUse(sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<AskService>();
         services.AddSingleton<LibraryAskQueries>();
+        services.AddSingleton<BookVectorQueries>();
+        services.AddSingleton<BookVectors>();
         services.AddSingleton<LibraryAskService>();
         services.AddSingleton<MeaningSearchService>();
         services.AddSingleton<ExampleFinder>();

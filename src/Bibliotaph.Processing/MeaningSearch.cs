@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using Bibliotaph.Classification;
+using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Microsoft.Extensions.Logging;
@@ -23,12 +24,13 @@ public sealed record MeaningResults(PageResults Pages, IReadOnlyList<LibraryEntr
 /// <summary>
 /// The search box's <c>about:</c>: Answer from my books' ranking without the answer. The other fields and the Library's
 /// filters choose the pages; within them, pages are ranked by the about words through the search index and by the
-/// closeness of their vectors to the about text, fused by reciprocal rank with lists pushed down, and a book stands
-/// where its best page does. Plain words still have to be on a page; about: then orders those pages by meaning. Books
+/// closeness of their vectors to the about text, fused by reciprocal rank with lists pushed down. Books are ranked by
+/// their best pages and their own vectors (<see cref="BookVectors"/>) together. Plain words still have to be on a page; about: then orders those pages by meaning. Books
 /// without vectors yet take part by their words, and with no embedding model it is a search for any of its words.
 /// Nothing of a book is sent anywhere: only the about text goes to the embedding model.
 /// </summary>
-public sealed class MeaningSearchService(AiSettings ai, LibraryAskQueries ask, LibraryQueries library, AiUse use, ILogger<MeaningSearchService>? log = null)
+public sealed class MeaningSearchService(AiSettings ai, LibraryAskQueries ask, LibraryQueries library, BookVectorQueries books, AiUse use,
+    ILogger<MeaningSearchService>? log = null)
 {
     /// <summary>How deep each signal ranks: deeper than a question's, since a search shows up to 100 books.</summary>
     public static AskRetrievalOptions Options { get; } = new() { RankDepth = 300 };
@@ -65,17 +67,13 @@ public sealed class MeaningSearchService(AiSettings ai, LibraryAskQueries ask, L
 
         IReadOnlyList<(long PageId, double Cosine)> byMeaning = [];
         string? problem = null;
-        if (embedder is not null && model is not null && coverage.PagesWithVectors > 0 && (required is null || wordHits.Count > 0))
+        float[]? vector = null;
+        var bookVectors = model is null ? 0 : await books.CountAsync(model, EmbeddingText.Version, ct);
+        if (embedder is not null && model is not null && (coverage.PagesWithVectors > 0 || bookVectors > 0))
         {
             try
             {
-                var vector = await VectorAsync(embedder, model, about, ct);
-                var ranking = new MeaningRanking(vector, Options.RankDepth);
-                if (required is null)
-                    await foreach (var page in ask.ReadVectorsAsync(model, EmbeddingText.Version, scope, ct)) ranking.Add(page.PageId, page.Vector);
-                else
-                    foreach (var page in await ask.GetVectorsAsync(model, EmbeddingText.Version, [.. wordHits.Select(h => h.PageId)], ct)) ranking.Add(page.PageId, page.Vector);
-                byMeaning = ranking.Best();
+                vector = await VectorAsync(embedder, model, about, ct);
             }
             catch (ModelEndpointException ex)
             {
@@ -83,6 +81,15 @@ public sealed class MeaningSearchService(AiSettings ai, LibraryAskQueries ask, L
                 problem = ex.Message;
                 _log.LogWarning("Searching by meaning couldn't turn the about text into a vector with {Model}: {Reason}", model, ex.Message);
             }
+        }
+        if (vector is not null && model is not null && coverage.PagesWithVectors > 0 && (required is null || wordHits.Count > 0))
+        {
+            var ranking = new MeaningRanking(vector, Options.RankDepth);
+            if (required is null)
+                await foreach (var page in ask.ReadVectorsAsync(model, EmbeddingText.Version, scope, ct)) ranking.Add(page.PageId, page.Vector);
+            else
+                foreach (var page in await ask.GetVectorsAsync(model, EmbeddingText.Version, [.. wordHits.Select(h => h.PageId)], ct)) ranking.Add(page.PageId, page.Vector);
+            byMeaning = ranking.Best();
         }
 
         var candidates = wordHits.Take(Options.RankDepth).Select(h => h.PageId).Concat(byMeaning.Select(m => m.PageId)).ToHashSet();
@@ -93,7 +100,7 @@ public sealed class MeaningSearchService(AiSettings ai, LibraryAskQueries ask, L
         var marks = AskRetrieval.Words(string.Join(' ', [.. query.HighlightTerms(), about]));
         var hits = ranked.Where(r => rows.ContainsKey(r.PageId)).Select(r => new RankedPageHit(r.PageId, Snippet(rows[r.PageId].Text, marks))).ToList();
         var pages = await library.RankedPagesAsync(hits, plan, filter, ct: ct);
-        var documents = await DocumentsAsync(pages, plan, filter, ct);
+        var documents = await DocumentsAsync(pages, plan, filter, model, bookVectors > 0 ? vector : null, ct);
 
         var meaning = model is null || embedder is null ? AskMeaning.Off
             : coverage.PagesWithVectors > 0 && coverage.PagesWithVectors >= coverage.PagesWithText ? AskMeaning.On
@@ -117,17 +124,47 @@ public sealed class MeaningSearchService(AiSettings ai, LibraryAskQueries ask, L
     }
 
     /// <summary>
-    /// The Documents tab: the books the pages found, in their order, then those found by their title and fields' words
-    /// alone; in the Library's order when it isn't Best match.
+    /// The Documents tab: the books the fields and filters leave (and the words, when there are some), ranked by fusing
+    /// three orders by reciprocal rank: their best pages', how close each card's own vector is to the about text, and
+    /// their titles' and fields' words. A book only one of them found takes part too. In the Library's order when it
+    /// isn't Best match.
     /// </summary>
-    async Task<IReadOnlyList<LibraryEntry>> DocumentsAsync(PageResults pages, SearchPlan plan, LibraryFilter filter, CancellationToken ct)
+    async Task<IReadOnlyList<LibraryEntry>> DocumentsAsync(PageResults pages, SearchPlan plan, LibraryFilter filter, string? model, float[]? vector,
+        CancellationToken ct)
     {
-        var found = pages.Entries.Select(e => e.Entry).ToList();
-        if (plan.DocumentMatch is not null)
+        var byPages = pages.Entries.Select(e => e.Entry).ToList();
+        IReadOnlyList<LibraryEntry> byWords = plan.DocumentMatch is null ? [] : await library.SearchDocumentsAsync(plan, filter, ct: ct);
+        List<LibraryEntry> byCard = [];
+        if (vector is not null && model is not null)
         {
-            var seen = found.Select(e => e.CardId).ToHashSet();
-            found.AddRange((await library.SearchDocumentsAsync(plan, filter, ct: ct)).Where(e => seen.Add(e.CardId)));
+            // The cards a card's vector may bring in: those the words found, or the whole library the fields and filters leave.
+            var allowed = plan.DocumentMatch is null ? await library.ListAsync(filter, plan, ct: ct) : byWords;
+            var vectors = (await books.GetVectorsAsync(model, EmbeddingText.Version, [.. allowed.Select(e => e.EntryId.Value).Distinct()], ct))
+                .ToDictionary(v => v.EntryId, v => v.Vector);
+            var close = allowed.Where(e => vectors.ContainsKey(e.EntryId.Value))
+                .Select(e => (Entry: e, Cosine: AskRetrieval.Cosine(vector, vectors[e.EntryId.Value])))
+                .OrderByDescending(e => e.Cosine).ThenBy(e => e.Entry.CardId.Value).ToList();
+            // Every card has some closeness to anything, so only those standing out from the rest count: closer than
+            // halfway from the middle card to the best.
+            if (close.Count > 0)
+            {
+                var (best, middle) = (close[0].Cosine, close[close.Count / 2].Cosine);
+                var cut = middle + (best - middle) / 2;
+                byCard = [.. close.TakeWhile(e => e.Cosine > 0 && e.Cosine >= cut).Take(Options.RankDepth).Select(e => e.Entry)];
+            }
         }
+
+        var cards = new Dictionary<EntryId, LibraryEntry>();
+        var scores = new Dictionary<EntryId, double>();
+        foreach (var ranking in new[] { byPages, byCard, byWords.Take(Options.RankDepth).ToList() })
+            for (var i = 0; i < ranking.Count; i++)
+            {
+                var card = ranking[i].CardId;
+                // The page tab's card carries how its pages were found; the others are the same card.
+                cards.TryAdd(card, ranking[i]);
+                scores[card] = scores.GetValueOrDefault(card) + 1.0 / (Options.K + i + 1);
+            }
+        var found = cards.Values.OrderByDescending(e => scores[e.CardId]).ThenBy(e => e.CardId.Value).ToList();
         return filter.Sort switch
         {
             LibrarySort.Title => [.. found.OrderBy(e => e.Title, StringComparer.CurrentCultureIgnoreCase)],

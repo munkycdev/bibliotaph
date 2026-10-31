@@ -173,6 +173,8 @@ public sealed class IndexDatabaseTests : IDisposable
         // Version 16: Ask this book's page vectors, which go when their page or its text does.
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM page_vec"));
         Assert.Equal(2, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND name IN ('page_vec_ad', 'page_vec_au')"));
+        Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM entry_vec"));
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM sqlite_schema WHERE type = 'trigger' AND name = 'entry_vec_ad'"));
         // Version 17: a vocabulary value's web link, such as a book's page on an online service.
         Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('entry_facet') WHERE name = 'link'"));
         // Version 22: the ISBNs and product codes books print, and an e-book package's ISBN.

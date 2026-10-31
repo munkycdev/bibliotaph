@@ -279,6 +279,19 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 vectors.Select(v => new { v.PageId, model, version, Vector = VectorBlob.ToBytes(v.Vector) }), t), ct);
 
     /// <summary>
+    /// Keeps cards' vectors of what each is about from the embedding model <paramref name="model"/>, with the hash of the
+    /// text each was made from, replacing any a card had. A card that has gone since its text was read is passed over.
+    /// </summary>
+    public Task SaveBookVectorsAsync(string model, int version, IReadOnlyList<(long EntryId, string Hash, float[] Vector)> vectors, CancellationToken ct = default) =>
+        vectors.Count == 0 ? Task.CompletedTask : writer.WriteAsync((c, t) =>
+            c.Execute(
+                """
+                INSERT OR REPLACE INTO entry_vec (entry_id, model, version, profile_hash, vector)
+                SELECT @EntryId, @model, @version, @Hash, @Vector WHERE EXISTS (SELECT 1 FROM entry_doc WHERE entry_id = @EntryId)
+                """,
+                vectors.Select(v => new { v.EntryId, model, version, v.Hash, Vector = VectorBlob.ToBytes(v.Vector) }), t), ct);
+
+    /// <summary>
     /// Drops a book's vectors that another embedding model, or another version of the text sent, made: changing the
     /// model in Settings makes them stale, and they are made again as the book is filled.
     /// </summary>
