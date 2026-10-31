@@ -314,10 +314,10 @@
         <!--
           The filters: the four most books are found by first, then the rest folded under More filters in groups. Two
           rows at most before they scroll, so a short window (or 200% scaling) still has room for the books; more while
-          the groups are open.
+          the groups are open. At either end the wheel scrolls the page head around them.
         -->
         <ScrollViewer Grid.Row="2" Margin="0,15,42,-12" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                      Focusable="False" Visibility="{Binding Filters.ShowFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                      Focusable="False" c:Ui.WheelToParent="True" Visibility="{Binding Filters.ShowFilters, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <ScrollViewer.Style>
             <Style TargetType="ScrollViewer">
               <Setter Property="MaxHeight" Value="140" />
@@ -479,6 +479,11 @@
                   <TextBlock Text="Copies" Style="{StaticResource FieldLabel}" />
                   <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.CopiesChoices}" SelectedItem="{Binding Filters.CopiesChoice}"
                             AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
+                </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding Filters.ShowFoundChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Found online" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.FoundChoices}" SelectedItem="{Binding Filters.FoundChoice}"
+                            AutomationProperties.Name="Found online" MinWidth="150" ToolTip="Books an online catalogue found, such as RPGGeek or Open Library, or those none found" />
                 </StackPanel>
                 <StackPanel Margin="0,0,12,12" Visibility="{Binding Filters.ShowPartsChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
                   <TextBlock Text="Adventures inside files" Style="{StaticResource FieldLabel}" />

@@ -175,7 +175,8 @@ public enum CollectionFilter
 /// adventures inside files in their books instead of hiding them: the library without a search leaves them out, as
 /// their files' cards and details list them, while a search shows those it finds, each on its file's cover and in
 /// place of its file's card when both are found. <see cref="PackFiles"/> shows each file in a pack on a card of its own
-/// instead of the pack's card; a file is filtered and found as its pack is, and by its own name.
+/// instead of the pack's card; a file is filtered and found as its pack is, and by its own name. <see cref="Found"/>
+/// keeps books found by any of those catalogues (<see cref="FoundOnline"/>; unknown is found by none).
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -198,7 +199,8 @@ public sealed record LibraryFilter(
     CollectionFilter Collections = CollectionFilter.All,
     PickedValues? Picked = null,
     bool PartsInBooks = false,
-    bool PackFiles = false);
+    bool PackFiles = false,
+    IReadOnlyCollection<string>? Found = null);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);
@@ -403,9 +405,11 @@ public sealed class LibraryQueries(IndexDatabase database)
     /// <summary>
     /// How many entries have each value of a vocabulary field (<c>system</c>, <c>type</c>), among those the library
     /// shows for <paramref name="filter"/> and <paramref name="plan"/>, in name order, then those with none (<see cref="SearchQuery.Unknown"/>).
-    /// To count the choices within a dimension, pass a filter without that dimension's own choices.
+    /// To count the choices within a dimension, pass a filter without that dimension's own choices. <paramref
+    /// name="unknown"/> names those with none.
     /// </summary>
-    public async Task<IReadOnlyList<FacetCount>> GetFacetCountsAsync(string field, LibraryFilter filter, SearchPlan? plan = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<FacetCount>> GetFacetCountsAsync(string field, LibraryFilter filter, SearchPlan? plan = null, string unknown = "Unknown",
+        CancellationToken ct = default)
     {
         var where = CountWhere(filter, plan);
         where.Parameters.Add("countField", field);
@@ -418,12 +422,12 @@ public sealed class LibraryQueries(IndexDatabase database)
             GROUP BY f.value
             ORDER BY min(f.label) COLLATE NOCASE
             """, where.Parameters, cancellationToken: ct))).Select(c => new FacetCount(c.Value, c.Label, c.Count)).ToList();
-        var unknown = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+        var none = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             $"""
             SELECT count(*) FROM {Entries(filter.PackFiles)}
             WHERE {where.Sql} AND e.entry_id NOT IN (SELECT entry_id FROM entry_facet WHERE field = @countField)
             """, where.Parameters, cancellationToken: ct));
-        if (unknown > 0) counts.Add(new FacetCount(SearchQuery.Unknown, "Unknown", unknown));
+        if (none > 0) counts.Add(new FacetCount(SearchQuery.Unknown, unknown, none));
         return counts;
     }
 
@@ -1048,6 +1052,7 @@ public sealed class LibraryQueries(IndexDatabase database)
             if (filter.Styles is { Count: > 0 } styles) AddChoice("style", styles, "styles");
             if (filter.Durations is { Count: > 0 } durations) AddChoice("duration", durations, "durations");
             if (filter.Stores is { Count: > 0 } stores) AddChoice("store", stores, "stores");
+            if (filter.Found is { Count: > 0 } foundBy) AddChoice(FoundOnline.Field, foundBy, "found");
             if (filter.Picked is { } picked)
             {
                 var i = 0;

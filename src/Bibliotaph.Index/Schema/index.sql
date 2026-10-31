@@ -186,7 +186,7 @@ CREATE TABLE entry_meta (
 
 -- One row per value of a vocabulary field (system, edition, type, duration, setting, style, theme, environment, own, store), for filters, facet
 -- counts and field search. value is the term key; link is the value's web link (own and store), the first when it
--- has several.
+-- has several. Field "found" holds the catalogues whose records a book uses, by name, from catalog.db's lookup records.
 CREATE TABLE entry_facet (
     entry_id     INTEGER NOT NULL,
     field        TEXT    NOT NULL,

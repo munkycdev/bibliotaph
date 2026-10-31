@@ -72,8 +72,8 @@ public sealed partial class ShellViewModel : ObservableObject
             new(Route.Library, "Library", Icon("Icon.LibraryBig")),
             new(Route.Collections, "Collections", Icon("Icon.Folders")),
             new(Route.Sessions, "Binders", Icon("Icon.NotebookTabs")),
-            new(Route.Summary, "Summary", Icon("Icon.ChartNoAxesColumn")),
             new(Route.NeedsReview, "Needs review", Icon("Icon.Inbox")),
+            new(Route.Summary, "Summary", Icon("Icon.ChartNoAxesColumn")),
         ];
         _pins.Changed += (_, _) =>
         {

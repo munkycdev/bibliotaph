@@ -103,7 +103,7 @@ public static class LibraryApi
             Q = Text("q"), Tab = Text("tab"), Sort = Text("sort"), EachFile = On("eachFile"), System = Text("system"), Type = Text("type"),
             Level = Number("level"), UnknownLevels = On("unknownLevels"), Players = Number("players"), Style = Text("style"), Duration = Text("duration"),
             Folder = long.TryParse(Text("folder"), NumberStyles.None, CultureInfo.InvariantCulture, out var folder) ? folder : null,
-            Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), Adventures = Text("adventures"),
+            Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), Found = Text("found"), Adventures = Text("adventures"),
             Collections = Text("collections"), Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = On("addedHere"), Favorites = On("favorites"),
@@ -207,7 +207,7 @@ public static class LibraryApi
             query.UnknownLevels, Parse<AiFilter>(query.Ai) ?? AiFilter.All, query.Copies, One(query.Own), Styles: One(query.Style),
             Durations: One(query.Duration), Players: query.Players, Stores: One(query.Store), HideParts: adventures == "Hidden",
             Collections: Parse<CollectionFilter>(query.Collections) ?? CollectionFilter.All, PartsInBooks: adventures.Length == 0,
-            PackFiles: query.EachFile, Picked: Picked(query.Picked),
+            PackFiles: query.EachFile, Picked: Picked(query.Picked), Found: One(query.Found),
             Group: query.Collection is { } collection ? query.AddedHere ? ScopeKeys.CollectionOwn(collection) : ScopeKeys.Collection(collection)
                 : query.Binder is { } binder ? ScopeKeys.Session(binder)
                 : query.Favorites ? ScopeKeys.Favorites : null);
@@ -217,6 +217,7 @@ public static class LibraryApi
         !string.IsNullOrEmpty(q.Kind) || q.Folder is not null || !string.IsNullOrEmpty(q.System) || !string.IsNullOrEmpty(q.Type) || q.Level is not null
         || !string.IsNullOrEmpty(q.Ai) || q.Copies || !string.IsNullOrEmpty(q.Own) || !string.IsNullOrEmpty(q.Style) || !string.IsNullOrEmpty(q.Duration)
         || q.Players is not null || !string.IsNullOrEmpty(q.Store) || !string.IsNullOrEmpty(q.Adventures) || !string.IsNullOrEmpty(q.Collections)
+        || !string.IsNullOrEmpty(q.Found)
         || Picked(q.Picked) is not null;
 
     /// <summary>The type-ahead filters' picks in a query, or null with none or with JSON that can't be read.</summary>
@@ -236,9 +237,9 @@ public static class LibraryApi
     static async Task<LibraryMenus> MenusAsync(UserLibrary library, LibraryFilter filter, SearchPlan? plan, LibraryQuery query, CancellationToken ct)
     {
         var queries = library.Get<LibraryQueries>();
-        async Task<IReadOnlyList<FilterChoice>> Counted(string field, LibraryFilter without, string all, string? selected)
+        async Task<IReadOnlyList<FilterChoice>> Counted(string field, LibraryFilter without, string all, string? selected, string unknown = "Unknown")
         {
-            var counts = await queries.GetFacetCountsAsync(field, without, plan, ct);
+            var counts = await queries.GetFacetCountsAsync(field, without, plan, unknown, ct);
             List<FilterChoice> choices = [new("", all), .. counts.Select(c => new FilterChoice(c.Value, $"{c.Label} ({c.Count.ToString("N0", CultureInfo.CurrentCulture)})"))];
             // The menu never changes what was picked: a value no book has any more stays, counted as none.
             if (!string.IsNullOrEmpty(selected) && choices.All(c => c.Value != selected)) choices.Add(new(selected, $"{selected} (0)"));
@@ -252,6 +253,7 @@ public static class LibraryApi
         var durations = await Counted("duration", filter with { Durations = null }, "Any length", query.Duration);
         var owns = await Counted("own", filter with { Owns = null }, "Also own: any", query.Own);
         var stores = await Counted("store", filter with { Stores = null }, "Any store", query.Store);
+        var found = await Counted(FoundOnline.Field, filter with { Found = null }, "All books", query.Found, FoundOnline.NotFound);
         // A menu shows once some book has a value for it, or while one is chosen.
         static bool Offered(IReadOnlyList<FilterChoice> menu, string? selected) =>
             menu.Any(c => c.Value.Length > 0 && c.Value != SearchQuery.Unknown) || !string.IsNullOrEmpty(selected);
@@ -265,7 +267,7 @@ public static class LibraryApi
             await queries.CountWithCopiesAsync(ct) > 0 || query.Copies,
             await queries.CountPartsAsync(ct) > 0 || !string.IsNullOrEmpty(query.Adventures),
             hasCollections || !string.IsNullOrEmpty(query.Collections),
-            await BoxesAsync(queries, filter, plan, ct));
+            await BoxesAsync(queries, filter, plan, ct), found, Offered(found, query.Found));
     }
 
     /// <summary>

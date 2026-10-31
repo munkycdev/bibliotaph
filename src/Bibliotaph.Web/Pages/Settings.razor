@@ -30,13 +30,13 @@
             @switch (_selected)
             {
                 case "library":
-                    <h2 class="bt-sectionhead" id="library-heading">Library</h2>
+                    <h2 class="bt-settingshead" id="library-heading">Library</h2>
                     <SettingsStorage Problem="@Problem" ProblemProvider="@ProblemProvider" Changed="() => _storageChanges++" />
                     <SettingsLibrary @key="_storageChanges" />
                     break;
                 case "online": <SettingsOnline /> break;
                 case "devices":
-                    <h2 class="bt-sectionhead" id="devices-heading">Devices</h2>
+                    <h2 class="bt-settingshead" id="devices-heading">Devices</h2>
                     <SettingsDevices />
                     <BrowserBooks />
                     break;
@@ -48,7 +48,7 @@
                 case "backup": <SettingsBackup /> break;
                 case "account": <SettingsAccount Me="_me" Problem="@Problem" /> break;
                 case "members":
-                    <h2 class="bt-sectionhead" id="members-heading">Members</h2>
+                    <h2 class="bt-settingshead" id="members-heading">Members</h2>
                     <SettingsInvitations />
                     <SettingsAccounts />
                     break;

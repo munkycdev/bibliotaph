@@ -280,6 +280,19 @@ public sealed class ApiTests : IDisposable, IClassFixture<SyntheticPdfs>
     }
 
     [Fact]
+    public async Task Found_online_keeps_its_choice_in_the_menu_while_no_book_has_it()
+    {
+        var user = await AddUserAsync(admin: false);
+
+        var none = await Client(user).GetFromJsonAsync<LibraryResults>("/api/library", TestContext.Current.CancellationToken);
+        var chosen = await Client(user).GetFromJsonAsync<LibraryResults>("/api/library?found=RPGGeek", TestContext.Current.CancellationToken);
+
+        Assert.False(none!.Menus.ShowFound);
+        Assert.True(chosen!.Menus.ShowFound);
+        Assert.Equal([new FilterChoice("", "All books"), new FilterChoice("RPGGeek", "RPGGeek (0)")], chosen.Menus.Found);
+    }
+
+    [Fact]
     public async Task A_book_that_isnt_in_the_library_has_no_details()
     {
         var user = await AddUserAsync(admin: false);

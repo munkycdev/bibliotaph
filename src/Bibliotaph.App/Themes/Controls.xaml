@@ -318,7 +318,7 @@
         <ControlTemplate TargetType="TextBox">
           <Border x:Name="Chrome" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
                   BorderThickness="1" CornerRadius="6" Padding="9,6" SnapsToDevicePixels="True">
-            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="Center" />
+            <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsKeyboardFocused" Value="True">
@@ -331,6 +331,12 @@
         </ControlTemplate>
       </Setter.Value>
     </Setter>
+    <Style.Triggers>
+      <!-- Text that runs to several lines starts at the top of the box. -->
+      <Trigger Property="AcceptsReturn" Value="True">
+        <Setter Property="VerticalContentAlignment" Value="Top" />
+      </Trigger>
+    </Style.Triggers>
   </Style>
 
   <!--

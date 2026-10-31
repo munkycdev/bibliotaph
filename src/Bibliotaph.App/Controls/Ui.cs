@@ -41,6 +41,13 @@ public static class Ui
     public static readonly DependencyProperty FocusWhenVisibleProperty = DependencyProperty.RegisterAttached(
         "FocusWhenVisible", typeof(bool), typeof(Ui), new FrameworkPropertyMetadata(false, OnFocusWhenVisibleChanged));
 
+    /// <summary>
+    /// A scroller inside another: once it can't scroll further the way the wheel turns, the wheel scrolls the one
+    /// around it, so everything in the outer one can still be reached with the wheel.
+    /// </summary>
+    public static readonly DependencyProperty WheelToParentProperty = DependencyProperty.RegisterAttached(
+        "WheelToParent", typeof(bool), typeof(Ui), new FrameworkPropertyMetadata(false, OnWheelToParentChanged));
+
     public static Geometry? GetIcon(DependencyObject element) => (Geometry?)element.GetValue(IconProperty);
     public static void SetIcon(DependencyObject element, Geometry? value) => element.SetValue(IconProperty, value);
 
@@ -55,6 +62,25 @@ public static class Ui
 
     public static ICommand? GetClearCommand(DependencyObject element) => (ICommand?)element.GetValue(ClearCommandProperty);
     public static void SetClearCommand(DependencyObject element, ICommand? value) => element.SetValue(ClearCommandProperty, value);
+
+    public static bool GetWheelToParent(DependencyObject element) => (bool)element.GetValue(WheelToParentProperty);
+    public static void SetWheelToParent(DependencyObject element, bool value) => element.SetValue(WheelToParentProperty, value);
+
+    static void OnWheelToParentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not ScrollViewer scroller) return;
+        scroller.PreviewMouseWheel -= PassWheelAtEnd;
+        if (e.NewValue is true) scroller.PreviewMouseWheel += PassWheelAtEnd;
+    }
+
+    static void PassWheelAtEnd(object sender, MouseWheelEventArgs e)
+    {
+        var scroller = (ScrollViewer)sender;
+        var atEnd = e.Delta > 0 ? scroller.VerticalOffset <= 0 : scroller.VerticalOffset >= scroller.ScrollableHeight;
+        if (!atEnd || VisualTreeHelper.GetParent(scroller) is not UIElement parent) return;
+        e.Handled = true;
+        parent.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta) { RoutedEvent = UIElement.MouseWheelEvent, Source = scroller });
+    }
 
     public static TourAnchor GetTourAnchor(DependencyObject element) => (TourAnchor)element.GetValue(TourAnchorProperty);
     public static void SetTourAnchor(DependencyObject element, TourAnchor value) => element.SetValue(TourAnchorProperty, value);

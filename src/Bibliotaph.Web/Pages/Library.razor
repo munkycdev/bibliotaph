@@ -1,4 +1,5 @@
 @page "/library"
+@using Bibliotaph.Core.Search
 @implements IAsyncDisposable
 @inject ApiClient Api
 @inject TourGuide Tour
@@ -227,6 +228,11 @@
                     {
                         <Menu Label="Copies" Choices="LibraryChoices.Copies" Value='@(_query.Copies ? "true" : "")' Changed='v => Filter(_query with { Copies = v == "true" })'
                               Hint="Books that are in more than one file" />
+                    }
+                    @if (menus.ShowFound)
+                    {
+                        <Menu Label="Found online" Choices="menus.Found" Value="@_query.Found" Changed='v => Filter(_query with { Found = v })'
+                              Hint="Books an online catalogue found, such as RPGGeek or Open Library, or those none found" />
                     }
                     @if (menus.ShowAdventures)
                     {
@@ -1326,6 +1332,8 @@ else
             Add(_query.Kind is not null, Label(LibraryChoices.Kinds, _query.Kind), "kind", q => q with { Kind = null }, true);
             Add(_query.Ai is not null, Label(LibraryChoices.Ai, _query.Ai), "AI", q => q with { Ai = null }, true);
             Add(_query.Copies, Label(LibraryChoices.Copies, "true"), "copies", q => q with { Copies = false }, true);
+            Add(_query.Found is not null, _query.Found == SearchQuery.Unknown ? FoundOnline.NotFound : $"Found in {Label(m.Found, _query.Found)}", "found online",
+                q => q with { Found = null }, true);
             Add(_query.Adventures is not null, _query.Adventures == "Hidden" ? "Adventures inside files hidden" : "Adventures as cards", "adventures inside files",
                 q => q with { Adventures = null }, true);
             Add(_query.Collections is not null, Label(LibraryChoices.Collections, _query.Collections), "collection", q => q with { Collections = null }, true);

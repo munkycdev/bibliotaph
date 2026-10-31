@@ -42,6 +42,19 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     /// </summary>
     public static bool HadNoIsbn(string? reason) => reason == "It prints no ISBN to look up.";
 
+    /// <summary>What a book's details say for a lookup no catalogue had a record for.</summary>
+    public const string NotFoundOnline = "Unable to find in any online listing.";
+
+    /// <summary>
+    /// The words a lookup's reason is shown in. A miss is stored naming the catalogues asked, which <see cref="AskedOfFewer"/>
+    /// needs, but the reader only needs to know nothing was found.
+    /// </summary>
+    public static string Shown(string reason) =>
+        reason.StartsWith(NoRecordBefore, StringComparison.Ordinal) || reason.StartsWith(NoCodeRecordBefore, StringComparison.Ordinal)
+        || reason.StartsWith(NoTitleRecordBefore, StringComparison.Ordinal)
+            ? NotFoundOnline
+            : reason;
+
     /// <summary>Where a book was looked up, at the end of how its lookup ended, so it is asked again where more can be asked.</summary>
     public static string AskedOf(string catalogues) => $"{AskedBefore}{catalogues}.";
 
@@ -146,6 +159,8 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         {
             // A record no catalogue gives any more isn't worth asking about.
             await records.SaveAsync(job.ContentHash, [], _ => false, ct);
+            // Found online follows the records the book uses, which may have just gone.
+            if (await entries.GetEntryAsync(job.DocumentId, ct) is { } none) await projector.ProjectAsync([none.EntryId], ct);
             return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NoRecordIn(answer.AskedOf, byCode: isbns.Count == 0, byTitle: byTitle));
         }
 
@@ -161,12 +176,10 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         {
             var (changed, grew) = await records.ApplyAsync(entry.EntryId, job.ContentHash, ct);
             if (grew) await projector.ProjectVocabularyAsync(ct);
-            if (changed)
-            {
-                await projector.ProjectAsync([entry.EntryId], ct);
-                // Match looked for a book of the same title and publisher before the record named this one properly.
-                if (saved.Used.Count > 0) await versions.ProposeByTitleAndPublisherAsync(job.DocumentId, ct);
-            }
+            // Projected even when no value changed: Found online follows which catalogues' records the book uses.
+            await projector.ProjectAsync([entry.EntryId], ct);
+            // Match looked for a book of the same title and publisher before the record named this one properly.
+            if (changed && saved.Used.Count > 0) await versions.ProposeByTitleAndPublisherAsync(job.DocumentId, ct);
         }
         if (saved.Used.Count > 0) return new StageOutcome.Done(StageStatus.Complete, [], asked);
         if (saved.Waiting.Count == 0 && saved.Refused.Count == 0)

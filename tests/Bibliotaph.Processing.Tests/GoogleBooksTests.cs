@@ -117,6 +117,14 @@ public sealed class GoogleBooksTests
         Assert.Equal("No record of its title in AdventureLookup.", BookLookups.NoRecordIn("AdventureLookup", byCode: true, byTitle: true));
     }
 
+    [Theory]
+    [InlineData("No record of its ISBN in RPGGeek or AdventureLookup or Open Library or Google Books.", BookLookups.NotFoundOnline)]
+    [InlineData("No record of its product code in RPGGeek.", BookLookups.NotFoundOnline)]
+    [InlineData("No record of its title in AdventureLookup.", BookLookups.NotFoundOnline)]
+    [InlineData(BookLookups.NothingToLookUp, BookLookups.NothingToLookUp)]
+    public void A_miss_is_shown_without_the_catalogues_asked(string reason, string shown) =>
+        Assert.Equal(shown, BookLookups.Shown(reason));
+
     [Fact]
     public void A_book_passed_over_for_printing_no_isbn_is_looked_at_again_once_for_its_product_codes()
     {
