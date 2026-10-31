@@ -1,5 +1,5 @@
 @page "/collections"
-@inject ApiClient Api
+@inject CollectionsClient CollectionsApi
 @inject CollectionActions Actions
 @inject NavigationManager Navigation
 
@@ -55,7 +55,7 @@ else
     {
         try
         {
-            _cards = await Api.CollectionCardsAsync();
+            _cards = await CollectionsApi.CollectionCardsAsync();
         }
         catch (ApiProblemException e)
         {

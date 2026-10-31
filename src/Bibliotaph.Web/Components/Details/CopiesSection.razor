@@ -1,6 +1,6 @@
 @* A book's other files: copies and versions of it, each able to be the one that opens, or a book of its own again. *@
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject BooksClient BooksApi
 
 <DetailSection Section="@DetailSections.Copies" Heading="@Book.CopiesHeading">
     <div aria-label="Copies">
@@ -33,7 +33,7 @@
     async Task CopyAsync(long documentId, bool notSame)
     {
         var entryId = Host.EntryId;
-        if (await Host.TryAsync(() => notSame ? Api.NotSameBookAsync(entryId, documentId) : Api.MakeCurrentAsync(entryId, documentId)) is not { } result) return;
+        if (await Host.TryAsync(() => notSame ? BooksApi.NotSameBookAsync(entryId, documentId) : BooksApi.MakeCurrentAsync(entryId, documentId)) is not { } result) return;
         await Host.ChangedAsync();
         if (result.Show is { } show && show != entryId) await Host.ShowAsync(show);
         else await Host.RefreshAsync();

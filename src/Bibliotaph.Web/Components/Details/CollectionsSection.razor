@@ -1,7 +1,7 @@
 @* The collections a book is in: a chip opens one, its × takes the book out, and Add to collection puts it in another. The
    library shows each change's note with its Undo. *@
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject CollectionsClient CollectionsApi
 @inject CollectionActions Collections
 @inject NavigationManager Navigation
 
@@ -54,7 +54,7 @@
             _menu = null;
             return;
         }
-        if (await Host.TryAsync(() => Api.CollectionsAsync()) is { } list) _menu = list.Menu;
+        if (await Host.TryAsync(() => CollectionsApi.CollectionsAsync()) is { } list) _menu = list.Menu;
     }
 
     async Task AddAsync(CollectionMenuItem item)

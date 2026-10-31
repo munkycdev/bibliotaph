@@ -6,7 +6,7 @@ namespace Bibliotaph.Web.Services;
 /// The sidebar's status line: asked of the server every few seconds while the library is busy,
 /// and only now and then while it's up to date. A page that just started work (a folder added) asks for it sooner.
 /// </summary>
-public sealed class LibraryActivity(ApiClient api) : IAsyncDisposable
+public sealed class LibraryActivity(LibraryClient libraryApi) : IAsyncDisposable
 {
     static readonly TimeSpan WhileBusy = TimeSpan.FromSeconds(3);
     static readonly TimeSpan WhileQuiet = TimeSpan.FromMinutes(1);
@@ -30,7 +30,7 @@ public sealed class LibraryActivity(ApiClient api) : IAsyncDisposable
         {
             try
             {
-                Current = await api.LibraryStatusAsync(_stopped.Token);
+                Current = await libraryApi.LibraryStatusAsync(_stopped.Token);
                 Changed?.Invoke();
             }
             catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)

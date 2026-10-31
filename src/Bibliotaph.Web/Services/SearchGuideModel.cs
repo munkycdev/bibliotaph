@@ -32,7 +32,7 @@ public sealed record GuideValueRow(SearchFieldInfo Field, GuideValue Value) : Gu
 /// the cursor, and opens anywhere with Ctrl+Space or Down. What to offer is <see cref="SearchGuide"/>'s;
 /// this keeps the state and loads the values.
 /// </summary>
-public sealed class SearchGuideModel(ApiClient api)
+public sealed class SearchGuideModel(LibraryClient libraryApi)
 {
     /// <summary>Each field's values, loaded once each time the guide opens, so counts are fresh but typing is cheap.</summary>
     readonly Dictionary<SearchField, IReadOnlyList<GuideValue>> _values = [];
@@ -158,7 +158,7 @@ public sealed class SearchGuideModel(ApiClient api)
     {
         try
         {
-            var values = await api.GuideValuesAsync(field.Name);
+            var values = await libraryApi.GuideValuesAsync(field.Name);
             _values[field.Field] = values;
             // Typing may have moved on while the values loaded.
             if (IsOpen && _at is { Mode: GuideMode.Values } at && at.Field == field)

@@ -1,6 +1,6 @@
 @* .bt-dialog: Add pages…, a range of pages with a label, for a binder and where in it. Enter adds; Esc, Cancel or a
    click outside closes it. *@
-@inject ApiClient Api
+@inject BindersClient BindersApi
 
 <div class="bt-backdrop fixed bt-dialogback" @onclick="Close"></div>
 <div class="bt-dialog" role="dialog" aria-modal="true" aria-label="Add pages" @onkeydown="KeyAsync">
@@ -82,7 +82,7 @@
         var id = Draft.BinderId;
         try
         {
-            var sections = await Api.BinderSectionsAsync(id);
+            var sections = await BindersApi.BinderSectionsAsync(id);
             if (Draft.BinderId == id) Draft.Sections = sections;
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)

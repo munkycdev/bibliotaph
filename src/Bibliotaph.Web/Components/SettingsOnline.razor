@@ -5,7 +5,8 @@
    extension (Pages/OnlineReceive.razor opens its preview here, as ?page=). The bookmark is always offered, extension or
    not, since it is the one way in that works in every browser. *@
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject BooksClient BooksApi
+@inject OnlineClient OnlineApi
 @inject LibraryActivity Activity
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
@@ -128,7 +129,7 @@
     protected override async Task OnInitializedAsync()
     {
         _bookmarklet = SendToBibliotaph.Bookmarklet(new Uri(Navigation.BaseUri).GetLeftPart(UriPartial.Authority));
-        _services = await Api.OnlineServicesAsync();
+        _services = await OnlineApi.OnlineServicesAsync();
         try
         {
             _extension = await JS.InvokeAsync<string?>("bibliotaphExtension");
@@ -140,7 +141,7 @@
         // A page Send to Bibliotaph brought: its preview, as if it had just been imported here.
         var query = System.Web.HttpUtility.ParseQueryString(new Uri(Navigation.Uri).Query);
         if (query["page"] is { Length: > 0 } token)
-            await RunAsync(async () => Show(await Api.OnlinePreviewAsync(token)));
+            await RunAsync(async () => Show(await OnlineApi.OnlinePreviewAsync(token)));
     }
 
     void Choose(int row, bool chosen)
@@ -154,7 +155,7 @@
         if (_preview is not { } preview) return;
         await RunAsync(async () =>
         {
-            var imported = await Api.ImportOnlineAsync(preview.Token, new OnlineImportChoice([.. _chosen]));
+            var imported = await OnlineApi.ImportOnlineAsync(preview.Token, new OnlineImportChoice([.. _chosen]));
             _done = imported.Result;
             Show(imported.Preview);
             Activity.Refresh();
@@ -165,7 +166,7 @@
     {
         await RunAsync(async () =>
         {
-            _done = await Api.RemoveElsewhereAsync(book.EntryId);
+            _done = await BooksApi.RemoveElsewhereAsync(book.EntryId);
             await RefreshAsync();
         });
     }
@@ -176,7 +177,7 @@
         if (_preview is not { } preview) return;
         try
         {
-            Show(await Api.OnlinePreviewAsync(preview.Token), keepChoice: true);
+            Show(await OnlineApi.OnlinePreviewAsync(preview.Token), keepChoice: true);
         }
         catch (ApiProblemException ex)
         {

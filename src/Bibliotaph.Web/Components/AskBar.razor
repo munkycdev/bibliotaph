@@ -5,7 +5,7 @@
    opening its book at its page. Without AI it says Ask needs it, with a link to Settings > AI. *@
 @using Bibliotaph.Core.Search
 @implements IDisposable
-@inject ApiClient Api
+@inject AskClient AskApi
 @inject AskScope Scope
 @inject NavigationManager Navigation
 
@@ -161,7 +161,7 @@
         Scope.Changed += OnScopeChanged;
         try
         {
-            if (!(await Api.AskStatusAsync()).Ready) _state = AskState.NeedsAi;
+            if (!(await AskApi.AskStatusAsync()).Ready) _state = AskState.NeedsAi;
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -197,7 +197,7 @@
         StateHasChanged();
         try
         {
-            var reading = await Api.ReadRequestAsync(request, work.Token);
+            var reading = await AskApi.ReadRequestAsync(request, work.Token);
             if (work.IsCancellationRequested) return;
             if (reading.Problem is { } problem)
             {
@@ -239,7 +239,7 @@
         StateHasChanged();
         try
         {
-            await foreach (var update in Api.AskLibraryAsync(question, Scope.Query, work.Token))
+            await foreach (var update in AskApi.AskLibraryAsync(question, Scope.Query, work.Token))
             {
                 Apply(update);
                 StateHasChanged();

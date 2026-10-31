@@ -1,6 +1,6 @@
 @* A pack's files as thumbnails, each able to be its cover, with the mosaic and Split. *@
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject BooksClient BooksApi
 
 <DetailSection Section="@DetailSections.Pack" Heading="@Book.PackFilesHeading">
     <Actions>
@@ -52,7 +52,7 @@
     async Task UseCoverAsync(long? member)
     {
         _menu = null;
-        if (await Host.TryAsync(() => Api.UsePackCoverAsync(Host.EntryId, member)) is not { } details) return;
+        if (await Host.TryAsync(() => BooksApi.UsePackCoverAsync(Host.EntryId, member)) is not { } details) return;
         Host.Replace(details);
         await Host.ChangedAsync();
     }
@@ -60,7 +60,7 @@
     /// <summary>The pack goes and its files are cards again; the library says so, with Undo.</summary>
     async Task SplitAsync()
     {
-        if (await Host.TryAsync(() => Api.SplitPackAsync(Host.EntryId)) is not { } result) return;
+        if (await Host.TryAsync(() => BooksApi.SplitPackAsync(Host.EntryId)) is not { } result) return;
         await Host.DoneAsync(result);
         await Host.CloseAsync();
     }

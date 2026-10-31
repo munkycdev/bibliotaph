@@ -2,7 +2,8 @@
    to check, cataloged wrong, folder rule and collection cards: what it is about, the evidence, and its answers.
    Answered, it folds to one line with Undo. A new version's places are checked one by one, and the card is done once
    none needs a look. *@
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
+@inject ReviewClient ReviewApi
 @inject NavigationManager Navigation
 
 <article class="bt-reviewitem" aria-label="@($"{Card.Chip}: {Card.Title}")">
@@ -171,7 +172,7 @@
             Navigation.NavigateTo($"library?book={entryId}&correct=true");
             return Task.CompletedTask;
         }
-        return State.DecideAsync(() => Api.AnswerOfferAsync(new ReviewOfferAnswer(Card.Id, Card.Stamp, choice)), Decided.InvokeAsync);
+        return State.DecideAsync(() => ReviewApi.AnswerOfferAsync(new ReviewOfferAnswer(Card.Id, Card.Stamp, choice)), Decided.InvokeAsync);
     }
 
     async Task UseAsync(ReviewPlace place)
@@ -180,7 +181,7 @@
         State.Busy = true;
         try
         {
-            var result = await Api.UsePlaceAsync(new ReviewPlaceUse(Card.Id, Card.Stamp, place.Key));
+            var result = await ReviewApi.UsePlaceAsync(new ReviewPlaceUse(Card.Id, Card.Stamp, place.Key));
             State.Places[place.Key] = result.Undo;
             State.Problem = null;
         }
@@ -205,7 +206,7 @@
         State.Busy = true;
         try
         {
-            var result = await Api.RunHeldAsync(undo);
+            var result = await LibraryApi.RunHeldAsync(undo);
             State.Places.Remove(place.Key);
             State.Problem = result.Message.Length > 0 ? result.Message : null;
         }
@@ -219,5 +220,5 @@
         }
     }
 
-    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+    Task UndoAsync() => State.UndoAsync(LibraryApi, Decided.InvokeAsync);
 }

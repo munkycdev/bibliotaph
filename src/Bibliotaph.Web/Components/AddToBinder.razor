@@ -1,6 +1,6 @@
 @* Add to binder: the binder worked on last, another binder, or a new one. The
    menu is read as it opens, so it always leads with the binder worked on last. *@
-@inject ApiClient Api
+@inject BindersClient BindersApi
 @inject BinderActions Actions
 
 <div class="bt-menuanchor">
@@ -52,7 +52,7 @@
         }
         try
         {
-            _menu = await Api.BinderMenuAsync();
+            _menu = await BindersApi.BinderMenuAsync();
         }
         catch (ApiProblemException e)
         {

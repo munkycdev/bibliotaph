@@ -1,6 +1,6 @@
 @* Settings › Members, for admins: everyone who has joined, and deleting an account, which is the same as its owner
    closing it. *@
-@inject ApiClient Api
+@inject AccountClient AccountApi
 
 <section class="bt-section bt-subsection" aria-labelledby="accounts-heading">
     <h3 class="bt-subheading" id="accounts-heading">Accounts</h3>
@@ -57,7 +57,7 @@
     bool _deletingNow;
     string? _note;
 
-    protected override async Task OnInitializedAsync() => _accounts = await Api.AccountsAsync();
+    protected override async Task OnInitializedAsync() => _accounts = await AccountApi.AccountsAsync();
 
     async Task DeleteAccount()
     {
@@ -65,7 +65,7 @@
         _deletingNow = true;
         try
         {
-            _note = (await Api.DeleteAccountAsync(account.Id)).Message;
+            _note = (await AccountApi.DeleteAccountAsync(account.Id)).Message;
         }
         catch (Exception ex) when (ex is HttpRequestException or ApiProblemException)
         {
@@ -73,6 +73,6 @@
         }
         _deleting = null;
         _deletingNow = false;
-        _accounts = await Api.AccountsAsync();
+        _accounts = await AccountApi.AccountsAsync();
     }
 }

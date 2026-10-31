@@ -11,7 +11,7 @@ builder.Services.AddScoped(_ => new HttpClient(new ClientHeaderHandler { InnerHa
 {
     BaseAddress = new Uri(builder.HostEnvironment.BaseAddress),
 });
-builder.Services.AddScoped<ApiClient>();
+builder.Services.AddBibliotaphApi();
 builder.Services.AddScoped<Session>();
 builder.Services.AddScoped<Theme>();
 builder.Services.AddScoped<LibraryActivity>();

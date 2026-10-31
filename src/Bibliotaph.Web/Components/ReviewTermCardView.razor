@@ -1,6 +1,7 @@
 @* A new term, once for every book that waits on it: add it, reject it, or file it under a
    term the vocabulary has. Decided, it folds to one line with Undo. *@
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
+@inject ReviewClient ReviewApi
 
 <article class="bt-reviewitem" aria-label="@($"{Card.Chip}: {Card.Label}")">
     @if (State.IsDone)
@@ -30,9 +31,9 @@
             <div class="bt-problem" role="alert">@problem</div>
         }
         <div class="bt-inline bt-reviewterm">
-            <button class="bt-button primary" disabled="@State.Busy" @onclick="() => DecideAsync(() => Api.AddTermAsync(Card.Id))"><Icon Name="Plus" />@Card.AddLabel</button>
+            <button class="bt-button primary" disabled="@State.Busy" @onclick="() => DecideAsync(() => ReviewApi.AddTermAsync(Card.Id))"><Icon Name="Plus" />@Card.AddLabel</button>
             <button class="bt-button" disabled="@State.Busy" title="Not a useful name; it won't be suggested again"
-                    @onclick="() => DecideAsync(() => Api.RejectTermAsync(Card.Id))">Reject</button>
+                    @onclick="() => DecideAsync(() => ReviewApi.RejectTermAsync(Card.Id))">Reject</button>
             <span class="bt-termfile">
                 <select class="bt-select" aria-label="@($"File {Card.Label} under")" title="Another name for an existing term" @bind="_target">
                     <option value=""></option>
@@ -59,7 +60,7 @@
 
     Task DecideAsync(Func<Task<ActionResult>> decide) => State.DecideAsync(decide, Decided.InvokeAsync);
 
-    Task FileAsync() => _target.Length == 0 ? Task.CompletedTask : DecideAsync(() => Api.FileTermAsync(Card.Id, _target));
+    Task FileAsync() => _target.Length == 0 ? Task.CompletedTask : DecideAsync(() => ReviewApi.FileTermAsync(Card.Id, _target));
 
-    Task UndoAsync() => State.UndoAsync(Api, Decided.InvokeAsync);
+    Task UndoAsync() => State.UndoAsync(LibraryApi, Decided.InvokeAsync);
 }

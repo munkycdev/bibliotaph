@@ -1,6 +1,6 @@
 @* What a chapter-by-chapter scan found inside the book, which never changes the book's own details, and Scan again. *@
 @using Bibliotaph.Core
-@inject ApiClient Api
+@inject BooksClient BooksApi
 
 @if (Book.Chapters.Count > 0)
 {
@@ -36,7 +36,7 @@
 
     async Task ScanAgainAsync()
     {
-        if (await Host.TryAsync(() => Api.ScanAgainAsync(Host.EntryId)) is not { } result) return;
+        if (await Host.TryAsync(() => BooksApi.ScanAgainAsync(Host.EntryId)) is not { } result) return;
         if (result.Details is { } details) Host.Replace(details);
         _message = result.Message;
     }

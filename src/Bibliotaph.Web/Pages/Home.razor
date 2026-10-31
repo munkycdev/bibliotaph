@@ -1,6 +1,6 @@
 @page "/home"
 @implements IDisposable
-@inject ApiClient Api
+@inject LibraryClient LibraryApi
 @inject NavigationManager Navigation
 @inject LibraryActivity Activity
 @inject Pins Pins
@@ -127,7 +127,7 @@ else
         _aiLater = true;
         try
         {
-            await Api.AiLaterAsync();
+            await LibraryApi.AiLaterAsync();
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -139,7 +139,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _summary = await Api.LibraryOverviewAsync();
+        _summary = await LibraryApi.LibraryOverviewAsync();
         if (HasLibrary) await LoadAsync();
         // The tour's first chapter, before any folder; its second once books show, here or in the Library.
         else await Tour.OfferFoldersAsync();
@@ -152,7 +152,7 @@ else
 
     async Task LoadAsync()
     {
-        _shelves = await Api.HomeAsync();
+        _shelves = await LibraryApi.HomeAsync();
         _loaded = DateTime.UtcNow;
         if (_shelves.Added.Count > 0) await Tour.OfferBooksAsync();
     }
