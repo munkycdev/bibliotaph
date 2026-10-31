@@ -151,6 +151,19 @@ public partial class LibraryView
         _model?.CloseDetailsCommand.Execute(null);
     }
 
+    /// <summary>Dragging the details' left edge: leftwards widens them, up to most of the page.</summary>
+    void DrawerEdge_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (Drawer.DataContext is not InspectorViewModel { Pane: { } pane }) return;
+        var widest = Math.Max(DetailsPaneViewModel.NarrowestWidth, Math.Min(DetailsPaneViewModel.WidestWidth, ActualWidth - 160));
+        pane.Width = Math.Clamp(pane.Width - e.HorizontalChange, DetailsPaneViewModel.NarrowestWidth, widest);
+    }
+
+    void DrawerEdge_DragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        if (Drawer.DataContext is InspectorViewModel { Pane: { } pane }) _ = pane.SaveWidthAsync();
+    }
+
     /// <summary>Keyboard focus goes into the inspector when it opens and back to where it was when it closes.</summary>
     void Drawer_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {

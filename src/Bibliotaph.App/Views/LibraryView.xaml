@@ -850,540 +850,507 @@
     <Grid Grid.RowSpan="3" Visibility="{Binding Inspector, Converter={StaticResource Bt.VisibleWhenSet}}">
       <Border x:Name="DrawerShade" Margin="-42,-36,0,0" Background="{DynamicResource Bt.Shadow}" MouseLeftButtonDown="DrawerShade_MouseLeftButtonDown"
               MouseLeftButtonUp="DrawerShade_MouseLeftButtonUp" />
-      <Border x:Name="Drawer" HorizontalAlignment="Right" Width="440" Margin="0,-36,0,0" DataContext="{Binding Inspector}"
+      <Border x:Name="Drawer" HorizontalAlignment="Right" Width="{Binding Pane.Width, FallbackValue=440}" Margin="0,-36,0,0" DataContext="{Binding Inspector}"
               Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1,0,0,0"
               IsVisibleChanged="Drawer_IsVisibleChanged" d:DataContext="{d:DesignInstance vm:InspectorViewModel}">
         <Border.Effect>
           <DropShadowEffect BlurRadius="60" ShadowDepth="0" Opacity="0.1" />
         </Border.Effect>
-        <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
-          <StackPanel Margin="28">
-            <DockPanel Margin="0,0,0,24">
-              <Button x:Name="CloseDrawer" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}"
-                      ToolTip="Close (Esc)" AutomationProperties.Name="Close details"
-                      Command="{Binding DataContext.CloseDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-              <Button x:Name="FavoriteBook" DockPanel.Dock="Right" Style="{StaticResource Bt.HeartButton}" Margin="0,0,4,0"
-                      c:Ui.IsActive="{Binding Item.IsFavorite}" ToolTip="{Binding Item.FavoriteAction}" AutomationProperties.Name="{Binding Item.FavoriteAction}"
-                      Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                      CommandParameter="{Binding Item}" />
-              <TextBlock Text="{Binding Eyebrow}" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
-            </DockPanel>
-
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="110" />
-                <ColumnDefinition Width="*" />
-              </Grid.ColumnDefinitions>
-              <ContentControl Height="153" VerticalAlignment="Top" Content="{Binding Item}" ContentTemplate="{StaticResource Cover}" Focusable="False" />
-              <StackPanel Grid.Column="1" Margin="18,0,0,0">
-                <TextBlock Text="{Binding Item.KindLabel}" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6"
-                           Visibility="{Binding Item.KindLabel, Converter={StaticResource Bt.VisibleWhenSet}}" />
-                <TextBlock Text="{Binding Item.Title}" FontFamily="{StaticResource Font.Display}" FontSize="27" TextWrapping="Wrap"
-                           Foreground="{DynamicResource Bt.Text}" />
-                <TextBlock Text="{Binding Item.PublisherLabel}" Style="{StaticResource Text.Small}" Margin="0,6,0,0"
-                           Visibility="{Binding Item.PublisherLabel, Converter={StaticResource Bt.VisibleWhenSet}}" />
-                <WrapPanel Margin="0,12,0,0">
-                  <Border Style="{StaticResource Bt.Chip}" Visibility="{Binding Item.SystemLabel, Converter={StaticResource Bt.VisibleWhenSet}}">
-                    <TextBlock Text="{Binding Item.SystemLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
-                  </Border>
-                  <Border Style="{StaticResource Bt.Chip}" Visibility="{Binding Item.LevelsLabel, Converter={StaticResource Bt.VisibleWhenSet}}">
-                    <TextBlock Text="{Binding Item.LevelsLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
-                  </Border>
-                  <Border Style="{StaticResource Bt.Chip}" Visibility="{Binding Item.PlayersLabel, Converter={StaticResource Bt.VisibleWhenSet}}">
-                    <TextBlock Text="{Binding Item.PlayersLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
-                  </Border>
-                  <Border Style="{StaticResource Bt.Chip}">
-                    <TextBlock Text="{Binding Item.FormatLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
-                  </Border>
-                  <Border Style="{StaticResource Bt.Chip}" Visibility="{Binding Item.PagesLabel, Converter={StaticResource Bt.VisibleWhenSet}}">
-                    <TextBlock Text="{Binding Item.PagesLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
-                  </Border>
-                </WrapPanel>
-              </StackPanel>
-            </Grid>
-
-            <!--
-              The book's actions, in one row under the cover: what it opens with on the left, labelled (they wrap when there
-              are many); pin, binder and Cataloged wrong… on the right, as icons.
-            -->
-            <DockPanel Margin="0,20,0,-8">
-              <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,0,0,8">
-                <Button x:Name="PinBook" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pin}" c:Ui.IsActive="{Binding IsPinned}"
-                        ToolTip="{Binding PinAction}" AutomationProperties.Name="{Binding PinAction}" CommandParameter="{Binding Item}"
-                        Command="{Binding DataContext.TogglePinBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
-                <!-- Add to binder (slice 3c): the current session, another or a new one. -->
-                <Button x:Name="AddToSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.NotebookPen}" Margin="2,0,0,0"
-                        Click="DropDown_Click" ToolTip="Add to binder" AutomationProperties.Name="Add to binder">
-                  <Button.ContextMenu>
-                    <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" />
-                  </Button.ContextMenu>
-                </Button>
-                <!-- Cataloged wrong… (scenario review, row 8): the details below, open to correct, with the guesses marked. -->
-                <Button x:Name="CatalogedWrong" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="2,0,0,0"
-                        ToolTip="Cataloged wrong? Correct its details: the values Bibliotaph guessed are marked" AutomationProperties.Name="Cataloged wrong…"
-                        Command="{Binding StartCorrectingCommand}" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
-              </StackPanel>
-              <WrapPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,8,8" Visibility="{Binding CanOpen, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                  <Button x:Name="OpenBook" Style="{StaticResource Bt.Button.Primary}" Content="Open" c:Ui.Icon="{StaticResource Icon.BookOpen}"
-                          AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0}'}"
-                          Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                          c:NewWindowGesture.Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                          CommandParameter="{Binding Item}" />
-                  <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="4,0,0,0"
-                          ToolTip="Open in new window (Shift+Enter)" AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0} in new window'}"
-                          Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                          CommandParameter="{Binding Item}" />
-                </StackPanel>
-                <!-- Online libraries (O1, O2b): the book's page where it is owned online, in the online reader. -->
-                <Button x:Name="OpenOnline" Content="{Binding Item.OnlineAction}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
-                        ToolTip="{Binding Item.OnlineLink}" AutomationProperties.Name="{Binding Item.OnlineAction}"
-                        Command="{Binding DataContext.OpenOnlineCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="{Binding Item}" Visibility="{Binding Item.HasOnlineLink, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <!-- Ask this book (Ask plan, choice 11): shown only for a PDF with text while AI is on, when it can run. -->
-                <Button x:Name="AskBook" Content="Ask this book" c:Ui.Icon="{StaticResource Icon.Sparkles}" Margin="0,0,8,8"
-                        ToolTip="Open this book with its Ask panel, to ask it a question" AutomationProperties.Name="Ask this book"
-                        Command="{Binding DataContext.AskBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}"
-                        Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <!-- A PDF whose protection Bibliotaph can't open (4i): the user's default PDF app may. -->
-                <Button x:Name="OpenElsewhere" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
-                        ToolTip="Opens the file in your default PDF app" AutomationProperties.Name="Open in another app"
-                        Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                        CommandParameter="{Binding Item}" Visibility="{Binding Item.CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it (F5 plan, choice 5). -->
-                <!-- A book with no file has no page to draw a cover from: the user can pick a picture of their own. -->
-                <Button x:Name="ChooseCover" Content="Choose a cover image…" c:Ui.Icon="{StaticResource Icon.Image}" Margin="0,0,8,8"
-                        ToolTip="Use a picture of your own as this book's cover" Command="{Binding ChooseCoverCommand}"
-                        Visibility="{Binding CanChooseCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <Button x:Name="RemoveCover" Content="Remove the cover" c:Ui.Icon="{StaticResource Icon.X}" Margin="0,0,8,8"
-                        ToolTip="Stop using the picture you chose as this book's cover" Command="{Binding RemoveCoverCommand}"
-                        Visibility="{Binding HasChosenCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                <Button x:Name="RemoveFromLibrary" Content="Remove from library" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
-                        ToolTip="Take this book out of your library. Undo brings it back." Command="{Binding RemoveFromLibraryCommand}"
-                        Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              </WrapPanel>
-            </DockPanel>
-            <TextBlock Text="{Binding CoverProblem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,4,0,0"
-                       Visibility="{Binding CoverProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
-            <!-- Details and Notes (slice 3f): the book's own note, saved as you type, and the notes on its pages. -->
-            <StackPanel Orientation="Horizontal" Margin="0,24,0,0" AutomationProperties.Name="Details or notes">
-              <RadioButton x:Name="DetailsTab" Style="{StaticResource Bt.Tab}" Content="Details" IsChecked="{Binding IsDetailsTab}" />
-              <RadioButton x:Name="NotesTab" Style="{StaticResource Bt.Tab}" Content="{Binding Notes.TabLabel, FallbackValue=Notes}" IsChecked="{Binding IsNotesTab}" />
-            </StackPanel>
-            <StackPanel DataContext="{Binding Notes}" Margin="0,18,0,0"
-                        Visibility="{Binding DataContext.IsNotesTab, ElementName=Drawer, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <TextBox x:Name="EntryNote" Style="{StaticResource Bt.TextBox}" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
-                       TextWrapping="Wrap" MinHeight="140" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"
-                       AutomationProperties.Name="Note on this book" ToolTip="Saved as you type. A search finds the book by its note." />
-              <TextBlock Text="Saved as you type. A search finds this book by its note." Style="{StaticResource Text.Small}" Margin="0,6,0,0" />
-              <TextBlock Text="ON ITS PAGES" Style="{StaticResource SectionHead}" />
-              <TextBlock Text="No page notes yet. Add one in the reader with Note." Style="{StaticResource Text.Small}"
-                         Visibility="{Binding HasPageNotes, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
-              <ItemsControl x:Name="BookPageNotes" ItemsSource="{Binding PageNotes}" Focusable="False" AutomationProperties.Name="Notes on its pages"
-                            KeyboardNavigation.TabNavigation="Continue">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate DataType="{x:Type vm:PageNoteRow}">
-                    <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8" AutomationProperties.Name="{Binding AccessibleName}">
-                      <DockPanel>
-                        <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Open" VerticalAlignment="Top" Margin="10,0,0,0"
-                                AutomationProperties.Name="{Binding Pages, StringFormat='Open at {0}'}" ToolTip="Open the book at these pages"
-                                Command="{Binding DataContext.OpenPageNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
-                        <StackPanel>
-                          <TextBlock Text="{Binding Pages}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
-                          <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                          <DockPanel Margin="0,6,0,0" Visibility="{Binding HasReason, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                            <c:LucideIcon x:Name="NoteReasonIcon" Data="{StaticResource Icon.TriangleAlert}" Size="12" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,6,0" VerticalAlignment="Center" />
-                            <TextBlock Text="{Binding Reason}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                          </DockPanel>
-                        </StackPanel>
-                      </DockPanel>
-                    </Border>
-                    <DataTemplate.Triggers>
-                      <DataTrigger Binding="{Binding IsChanged}" Value="True">
-                        <Setter TargetName="NoteReasonIcon" Property="Foreground" Value="{DynamicResource Bt.Accent}" />
-                      </DataTrigger>
-                    </DataTemplate.Triggers>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-
-            <StackPanel Visibility="{Binding IsDetailsTab, Converter={StaticResource Bt.VisibleWhenTrue}}">
-            <!--
-              What the book holds: the adventures marked in a compilation, each a card of its own (pages typed as the file numbers
-              them), or the file an adventure is in; a pack's files; and what the AI found reading it chapter by chapter.
-            -->
-            <c:DetailSection x:Name="FileParts" Header="{Binding PartsHeading}" IsOpen="{Binding Sections.Adventures}" Visibility="{Binding CanMarkParts, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <c:DetailSection.Actions>
-                <Button x:Name="AddPart" Style="{StaticResource Bt.Link}" Content="Add" c:Ui.Icon="{StaticResource Icon.Plus}"
-                        Command="{Binding AddPartCommand}"
-                        ToolTip="Give pages of this file a card of their own, as an adventure" AutomationProperties.Name="Add an adventure in this file" />
-              </c:DetailSection.Actions>
-              <StackPanel>
-                <TextBlock Text="A compilation's adventures can each have a card of their own that opens at their pages. The file isn't changed."
-                           Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8"
-                           Visibility="{Binding HasParts, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
-                <ItemsControl ItemsSource="{Binding Parts}" Focusable="False" AutomationProperties.Name="Adventures in this file">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:InspectorPart}">
-                      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8" AutomationProperties.Name="{Binding Title}">
-                        <StackPanel>
-                          <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" HorizontalAlignment="Left"
-                                  AutomationProperties.Name="{Binding Title, StringFormat='Details for {0}'}"
-                                  Command="{Binding DataContext.ShowPartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
-                          <TextBlock Text="{Binding PagesText}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
-                          <WrapPanel Margin="0,10,0,0">
-                            <Button Content="Edit range" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0"
-                                    AutomationProperties.Name="{Binding Title, StringFormat='Edit the pages of {0}'}"
-                                    Command="{Binding DataContext.EditPartRangeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
-                            <Button Content="Remove" c:Ui.Icon="{StaticResource Icon.Trash2}" ToolTip="Its card goes; its pages are only the file's again"
-                                    AutomationProperties.Name="{Binding Title, StringFormat='Remove the adventure {0}'}"
-                                    Command="{Binding DataContext.RemovePartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
-                          </WrapPanel>
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </c:DetailSection>
-
-            <c:DetailSection x:Name="PartOfFile" Header="IN A FILE" IsOpen="{Binding Sections.InFile}" Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <StackPanel>
-                <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8">
-                  <StackPanel>
-                    <TextBlock x:Name="PartOfText" Text="{Binding PartOf}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
-                    <TextBlock Text="Values set on the file, such as its system and publisher, are this adventure's too unless it has its own."
-                               Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                    <WrapPanel Margin="0,10,0,0">
-                      <Button x:Name="ShowPartFile" Content="Show the file" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,8"
-                              Command="{Binding ShowPartFileCommand}" AutomationProperties.Name="Show the file this adventure is in" />
-                      <Button x:Name="EditOwnRange" Content="Edit range" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,8"
-                              Command="{Binding EditPartRangeCommand}" AutomationProperties.Name="Edit this adventure's pages" />
-                      <Button x:Name="RemoveThisPart" Content="Remove adventure" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
-                              ToolTip="This card goes; its pages are only the file's again" Command="{Binding RemoveThisPartCommand}" />
-                    </WrapPanel>
-                  </StackPanel>
-                </Border>
-              </StackPanel>
-            </c:DetailSection>
-
-            <Border Margin="0,0,0,8" Visibility="{Binding PartEditor, Converter={StaticResource Bt.VisibleWhenSet}}">
-              <v:PartEditorView x:Name="InspectorPartEditor" DataContext="{Binding PartEditor}" />
-            </Border>
-            <DockPanel Margin="0,0,0,8" Visibility="{Binding PartUndo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
-              <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
-                      ToolTip="Dismiss" AutomationProperties.Name="Dismiss" Command="{Binding DismissPartMessageCommand}" />
-              <Button x:Name="UndoPart" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
-                      Command="{Binding PartUndo.UndoCommand}" AutomationProperties.Name="Undo the change to the adventures"
-                      Visibility="{Binding PartUndo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              <TextBlock x:Name="PartMessage" Text="{Binding PartUndo.Message}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" VerticalAlignment="Center"
-                         AutomationProperties.LiveSetting="Polite" />
-            </DockPanel>
-
-            <c:DetailSection Header="{Binding PackImagesHeading}" IsOpen="{Binding Sections.Pack}" Visibility="{Binding IsPack, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <c:DetailSection.Actions>
-                <StackPanel Orientation="Horizontal">
-                  <Button x:Name="UseMosaic" Style="{StaticResource Bt.Link}" Content="Use the mosaic" Margin="0,0,16,0"
-                          ToolTip="Show the pack's first four files on its card again" Command="{Binding UseMosaicCommand}"
-                          Visibility="{Binding HasPackCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                  <Button x:Name="SplitPack" Style="{StaticResource Bt.Link}" Content="{Binding SplitPackLabel}"
-                          ToolTip="{Binding SplitPackTip}"
-                          Command="{Binding SplitPackCommand}" />
-                </StackPanel>
-              </c:DetailSection.Actions>
-              <StackPanel>
-                <ItemsControl x:Name="PackImages" ItemsSource="{Binding PackImages}" Focusable="False" AutomationProperties.Name="{Binding PackImagesName}"
-                              KeyboardNavigation.TabNavigation="Continue">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <WrapPanel />
-                    </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:PackImageViewModel}">
-                      <Button Width="88" Margin="0,0,8,10" Padding="0" Cursor="Hand" ToolTip="{Binding Name}"
-                              AutomationProperties.Name="{Binding Name, StringFormat='Open {0}'}"
-                              Command="{Binding DataContext.OpenPackImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                              CommandParameter="{Binding}" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
-                        <!-- Any file can be the pack's cover in place of the mosaic; the menu key opens this too. -->
-                        <Button.ContextMenu>
-                          <ContextMenu Style="{StaticResource Bt.Menu}">
-                            <MenuItem Header="Use as the pack's cover" CommandParameter="{Binding}"
-                                      Visibility="{Binding IsCover, Converter={StaticResource Bt.CollapsedWhenTrue}}"
-                                      Command="{Binding PlacementTarget.Tag.UsePackCoverCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                            <MenuItem Header="Use the mosaic"
-                                      Visibility="{Binding IsCover, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                                      Command="{Binding PlacementTarget.Tag.UseMosaicCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                          </ContextMenu>
-                        </Button.ContextMenu>
-                        <Button.Template>
-                          <ControlTemplate TargetType="Button">
-                            <StackPanel Background="Transparent">
-                              <Border x:Name="Thumb" Height="88" CornerRadius="4" Background="{DynamicResource Bt.Warm}" BorderBrush="{DynamicResource Bt.Line}"
-                                      BorderThickness="1" ClipToBounds="True">
-                                <Grid>
-                                  <Image Source="{Binding Tile.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
-                                  <!-- A PDF in the pack shows its first page, marked as a PDF; it opens in the reader. -->
-                                  <Border Padding="4,1" Margin="4" CornerRadius="3" HorizontalAlignment="Left" VerticalAlignment="Bottom"
-                                          Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
-                                          Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                                    <TextBlock Text="PDF" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
-                                  </Border>
-                                  <!-- The file the pack's card shows in place of its mosaic. -->
-                                  <Border Padding="4,1" Margin="4" CornerRadius="3" HorizontalAlignment="Left" VerticalAlignment="Top"
-                                          Background="{DynamicResource Bt.Accent}" AutomationProperties.Name="The pack's cover"
-                                          Visibility="{Binding IsCover, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                                    <TextBlock Text="Cover" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Bt.AccentText}" />
-                                  </Border>
-                                </Grid>
-                              </Border>
-                              <TextBlock Text="{Binding Name}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
-                            </StackPanel>
-                            <ControlTemplate.Triggers>
-                              <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Thumb" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
-                              </Trigger>
-                              <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Thumb" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
-                              </Trigger>
-                            </ControlTemplate.Triggers>
-                          </ControlTemplate>
-                        </Button.Template>
-                      </Button>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </c:DetailSection>
-
-            <!-- Kept apart from the book's own details, which a chapter scan never changes. -->
-            <c:DetailSection x:Name="FoundInside" Header="FOUND INSIDE THE BOOK" IsOpen="{Binding Sections.Found}" Visibility="{Binding HasChapters, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <c:DetailSection.Actions>
-                <Button x:Name="ScanAgain" Style="{StaticResource Bt.Link}" Content="Scan again" c:Ui.Icon="{StaticResource Icon.RotateCcw}"
-                        Command="{Binding ScanAgainCommand}"
-                        ToolTip="Forget what the AI found in this book and read it again" AutomationProperties.Name="Scan this book again" />
-              </c:DetailSection.Actions>
-              <StackPanel>
-                <TextBlock Text="Found by the AI reading each chapter. These describe parts of the book, not the whole book, and don't change its details."
-                           Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8" />
-                <ItemsControl x:Name="ChapterList" ItemsSource="{Binding Chapters}" Focusable="False" AutomationProperties.Name="Found inside the book">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:InspectorChapter}">
-                      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8" AutomationProperties.Name="{Binding AccessibleName}">
-                        <StackPanel>
-                          <DockPanel>
-                            <TextBlock DockPanel.Dock="Right" Text="{Binding PagesText}" Style="{StaticResource Text.Small}" Margin="10,0,0,0" />
-                            <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
-                          </DockPanel>
-                          <ItemsControl ItemsSource="{Binding Lines}" Focusable="False" Margin="0,4,0,0">
-                            <ItemsControl.ItemTemplate>
-                              <DataTemplate>
-                                <TextBlock Text="{Binding}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,2,0,0" />
-                              </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                          </ItemsControl>
-                          <TextBlock Text="{Binding Note}" Style="{StaticResource Text.Small}" Margin="0,2,0,0"
-                                     Visibility="{Binding HasNote, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </c:DetailSection>
-
-            <TextBlock Text="{Binding ChaptersMessage}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8"
-                       Visibility="{Binding ChaptersMessage, Converter={StaticResource Bt.VisibleWhenSet}}" AutomationProperties.LiveSetting="Polite" />
-
-            <!-- A chip opens the collection; its × takes the book out. -->
-            <c:DetailSection Header="COLLECTIONS" IsOpen="{Binding Sections.Collections}">
-              <c:DetailSection.Actions>
-                <Button x:Name="AddToCollection" Style="{StaticResource Bt.Link}" Content="Add to collection"
-                        c:Ui.Icon="{StaticResource Icon.FolderPlus}" Click="DropDown_Click" ToolTip="Add this book to a collection">
-                  <Button.ContextMenu>
-                    <ContextMenu Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{x:Static c:BookCommands.AddToCollection}" />
-                  </Button.ContextMenu>
-                </Button>
-              </c:DetailSection.Actions>
-              <StackPanel>
-                <TextBlock Text="Not in any collection yet." Style="{StaticResource Text.Small}"
-                           Visibility="{Binding HasCollections, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
-                <ItemsControl x:Name="BookCollections" ItemsSource="{Binding Collections}" Focusable="False" AutomationProperties.Name="Collections this book is in"
-                              KeyboardNavigation.TabNavigation="Continue">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                      <WrapPanel />
-                    </ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:CollectionChip}">
-                      <Border Style="{StaticResource Bt.Chip}" Padding="10,2,2,2" Margin="0,0,6,6">
-                        <StackPanel Orientation="Horizontal">
-                          <Button Style="{StaticResource Bt.Link}" Content="{Binding Name}" Foreground="{DynamicResource Bt.Text}" ToolTip="{Binding Path}"
-                                  AutomationProperties.Name="{Binding Path, StringFormat='Open {0}'}"
-                                  Command="{Binding DataContext.OpenInspectorCollectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                  CommandParameter="{Binding}" />
-                          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22" Margin="4,0,0,0" Padding="2"
-                                  ToolTip="{Binding Name, StringFormat='Take this book out of {0}'}" AutomationProperties.Name="{Binding Name, StringFormat='Remove from {0}'}"
-                                  Command="{Binding DataContext.RemoveFromInspectorCollectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                  CommandParameter="{Binding}" />
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </c:DetailSection>
-
-            <!-- Cataloged wrong…: what to do, and Done. Closing the details without a change leaves a Needs review card. -->
-            <Border x:Name="CorrectingBanner" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,24,0,0"
-                    AutomationProperties.Name="Correcting this book" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <DockPanel>
-                <Button x:Name="CorrectionDone" DockPanel.Dock="Right" Content="Done" VerticalAlignment="Top" Margin="12,0,0,0"
-                        Command="{Binding FinishCorrectingCommand}" AutomationProperties.Name="Done correcting" />
-                <StackPanel>
-                  <TextBlock Text="What's wrong?" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
-                  <TextBlock FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0"
-                             Text="Values marked Guessed came from names, the file or the AI model, and nobody has confirmed them. Edit a field, or mark a value Not right. If you leave without changing anything, Needs review keeps a reminder." />
-                </StackPanel>
+        <Grid>
+          <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+            <StackPanel Margin="28">
+              <DockPanel Margin="0,0,0,24">
+                <Button x:Name="CloseDrawer" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}"
+                        ToolTip="Close (Esc)" AutomationProperties.Name="Close details"
+                        Command="{Binding DataContext.CloseDetailsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                <Button x:Name="FavoriteBook" DockPanel.Dock="Right" Style="{StaticResource Bt.HeartButton}" Margin="0,0,4,0"
+                        c:Ui.IsActive="{Binding Item.IsFavorite}" ToolTip="{Binding Item.FavoriteAction}" AutomationProperties.Name="{Binding Item.FavoriteAction}"
+                        Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding Item}" />
+                <TextBlock Text="{Binding Eyebrow}" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
               </DockPanel>
-            </Border>
 
-            <!-- A correction offered to the books from the same folder that showed the same values (look-alikes). -->
-            <Border x:Name="LookAlikeOffer" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,12,0,0"
-                    AutomationProperties.Name="{Binding LookAlikeQuestion}" Visibility="{Binding HasLookAlikeOffer, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <StackPanel>
-                <TextBlock Text="{Binding LookAlikeQuestion}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
-                <TextBlock Text="{Binding LookAlikeDetail}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
-                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                  <Button x:Name="ChangeLookAlikes" Style="{StaticResource Bt.Button.Primary}" Content="Change them" Margin="0,0,8,0"
-                          Command="{Binding AcceptLookAlikesCommand}" AutomationProperties.Name="Change the other books too" />
-                  <Button x:Name="KeepLookAlikes" Content="No thanks" Command="{Binding DeclineLookAlikesCommand}"
-                          AutomationProperties.Name="Leave the other books as they are" />
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="110" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ContentControl Height="153" VerticalAlignment="Top" Content="{Binding Item}" ContentTemplate="{StaticResource Cover}" Focusable="False" />
+                <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                  <TextBlock Text="{Binding Item.KindLabel}" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6"
+                             Visibility="{Binding Item.KindLabel, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                  <TextBlock Text="{Binding Item.Title}" FontFamily="{StaticResource Font.Display}" FontSize="27" TextWrapping="Wrap"
+                             Foreground="{DynamicResource Bt.Text}" />
+                  <TextBlock Text="{Binding Item.PublisherLabel}" Style="{StaticResource Text.Small}" Margin="0,6,0,0"
+                             Visibility="{Binding Item.PublisherLabel, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                  <WrapPanel Margin="0,12,0,0">
+                    <Border Style="{StaticResource Bt.Chip}" Visibility="{Binding Item.SystemLabel, Converter={StaticResource Bt.VisibleWhenSet}}">
+                      <TextBlock Text="{Binding Item.SystemLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
+                    </Border>
+                    <Border Style="{StaticResource Bt.Chip}" Visibility="{Binding Item.LevelsLabel, Converter={StaticResource Bt.VisibleWhenSet}}">
+                      <TextBlock Text="{Binding Item.LevelsLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
+                    </Border>
+                    <Border Style="{StaticResource Bt.Chip}" Visibility="{Binding Item.PlayersLabel, Converter={StaticResource Bt.VisibleWhenSet}}">
+                      <TextBlock Text="{Binding Item.PlayersLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
+                    </Border>
+                    <Border Style="{StaticResource Bt.Chip}">
+                      <TextBlock Text="{Binding Item.FormatLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+                    </Border>
+                    <Border Style="{StaticResource Bt.Chip}" Visibility="{Binding Item.PagesLabel, Converter={StaticResource Bt.VisibleWhenSet}}">
+                      <TextBlock Text="{Binding Item.PagesLabel}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+                    </Border>
+                  </WrapPanel>
                 </StackPanel>
+              </Grid>
+
+              <!--
+                The book's actions, in one row under the cover: what it opens with on the left, labelled (they wrap when there
+                are many); pin, binder and Cataloged wrong… on the right, as icons.
+              -->
+              <DockPanel Margin="0,20,0,-8">
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,0,0,8">
+                  <Button x:Name="PinBook" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pin}" c:Ui.IsActive="{Binding IsPinned}"
+                          ToolTip="{Binding PinAction}" AutomationProperties.Name="{Binding PinAction}" CommandParameter="{Binding Item}"
+                          Command="{Binding DataContext.TogglePinBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                  <!-- Add to binder (slice 3c): the current session, another or a new one. -->
+                  <Button x:Name="AddToSession" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.NotebookPen}" Margin="2,0,0,0"
+                          Click="DropDown_Click" ToolTip="Add to binder" AutomationProperties.Name="Add to binder">
+                    <Button.ContextMenu>
+                      <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" />
+                    </Button.ContextMenu>
+                  </Button>
+                  <!-- Cataloged wrong… (scenario review, row 8): the details below, open to correct, with the guesses marked. -->
+                  <Button x:Name="CatalogedWrong" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="2,0,0,0"
+                          ToolTip="Cataloged wrong? Correct its details: the values Bibliotaph guessed are marked" AutomationProperties.Name="Cataloged wrong…"
+                          Command="{Binding StartCorrectingCommand}" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                </StackPanel>
+                <WrapPanel>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,8,8" Visibility="{Binding CanOpen, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                    <Button x:Name="OpenBook" Style="{StaticResource Bt.Button.Primary}" Content="Open" c:Ui.Icon="{StaticResource Icon.BookOpen}"
+                            AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0}'}"
+                            Command="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            c:NewWindowGesture.Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding Item}" />
+                    <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="4,0,0,0"
+                            ToolTip="Open in new window (Shift+Enter)" AutomationProperties.Name="{Binding Item.Title, StringFormat='Open {0} in new window'}"
+                            Command="{Binding DataContext.OpenBookInNewWindowCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            CommandParameter="{Binding Item}" />
+                  </StackPanel>
+                  <!-- Online libraries (O1, O2b): the book's page where it is owned online, in the online reader. -->
+                  <Button x:Name="OpenOnline" Content="{Binding Item.OnlineAction}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
+                          ToolTip="{Binding Item.OnlineLink}" AutomationProperties.Name="{Binding Item.OnlineAction}"
+                          Command="{Binding DataContext.OpenOnlineCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding Item}" Visibility="{Binding Item.HasOnlineLink, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  <!-- Ask this book (Ask plan, choice 11): shown only for a PDF with text while AI is on, when it can run. -->
+                  <Button x:Name="AskBook" Content="Ask this book" c:Ui.Icon="{StaticResource Icon.Sparkles}" Margin="0,0,8,8"
+                          ToolTip="Open this book with its Ask panel, to ask it a question" AutomationProperties.Name="Ask this book"
+                          Command="{Binding DataContext.AskBookCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding Item}"
+                          Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  <!-- A PDF whose protection Bibliotaph can't open (4i): the user's default PDF app may. -->
+                  <Button x:Name="OpenElsewhere" Content="Open in another app" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,8"
+                          ToolTip="Opens the file in your default PDF app" AutomationProperties.Name="Open in another app"
+                          Command="{Binding DataContext.OpenElsewhereCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                          CommandParameter="{Binding Item}" Visibility="{Binding Item.CanOpenElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  <!-- A book owned elsewhere has nothing to open; the user made it, so they can remove it (F5 plan, choice 5). -->
+                  <!-- A book with no file has no page to draw a cover from: the user can pick a picture of their own. -->
+                  <Button x:Name="ChooseCover" Content="Choose a cover image…" c:Ui.Icon="{StaticResource Icon.Image}" Margin="0,0,8,8"
+                          ToolTip="Use a picture of your own as this book's cover" Command="{Binding ChooseCoverCommand}"
+                          Visibility="{Binding CanChooseCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  <Button x:Name="RemoveCover" Content="Remove the cover" c:Ui.Icon="{StaticResource Icon.X}" Margin="0,0,8,8"
+                          ToolTip="Stop using the picture you chose as this book's cover" Command="{Binding RemoveCoverCommand}"
+                          Visibility="{Binding HasChosenCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  <Button x:Name="RemoveFromLibrary" Content="Remove from library" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
+                          ToolTip="Take this book out of your library. Undo brings it back." Command="{Binding RemoveFromLibraryCommand}"
+                          Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                </WrapPanel>
+              </DockPanel>
+              <TextBlock Text="{Binding CoverProblem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,4,0,0"
+                         Visibility="{Binding CoverProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              <!-- Details and Notes (slice 3f): the book's own note, saved as you type, and the notes on its pages. -->
+              <StackPanel Orientation="Horizontal" Margin="0,24,0,0" AutomationProperties.Name="Details or notes">
+                <RadioButton x:Name="DetailsTab" Style="{StaticResource Bt.Tab}" Content="Details" IsChecked="{Binding IsDetailsTab}" />
+                <RadioButton x:Name="NotesTab" Style="{StaticResource Bt.Tab}" Content="{Binding Notes.TabLabel, FallbackValue=Notes}" IsChecked="{Binding IsNotesTab}" />
               </StackPanel>
-            </Border>
-
-            <!-- Each field's value, where it came from, and the user's corrections. -->
-            <c:DetailSection Header="DETAILS" IsOpen="{Binding Sections.Details}">
-              <c:DetailSection.Actions>
-                <Button Style="{StaticResource Bt.Link}" Content="{Binding MoreFieldsLabel}" Command="{Binding ToggleAllFieldsCommand}"
-                        Visibility="{Binding HasHiddenFields, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              </c:DetailSection.Actions>
-              <StackPanel>
-                <ItemsControl x:Name="DetailFields" ItemsSource="{Binding VisibleFields}" Focusable="False" KeyboardNavigation.TabNavigation="Continue">
+              <StackPanel DataContext="{Binding Notes}" Margin="0,18,0,0"
+                          Visibility="{Binding DataContext.IsNotesTab, ElementName=Drawer, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <TextBox x:Name="EntryNote" Style="{StaticResource Bt.TextBox}" Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                         TextWrapping="Wrap" MinHeight="140" VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto"
+                         AutomationProperties.Name="Note on this book" ToolTip="Saved as you type. A search finds the book by its note." />
+                <TextBlock Text="Saved as you type. A search finds this book by its note." Style="{StaticResource Text.Small}" Margin="0,6,0,0" />
+                <TextBlock Text="ON ITS PAGES" Style="{StaticResource SectionHead}" />
+                <TextBlock Text="No page notes yet. Add one in the reader with Note." Style="{StaticResource Text.Small}"
+                           Visibility="{Binding HasPageNotes, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                <ItemsControl x:Name="BookPageNotes" ItemsSource="{Binding PageNotes}" Focusable="False" AutomationProperties.Name="Notes on its pages"
+                              KeyboardNavigation.TabNavigation="Continue">
                   <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:MetadataFieldViewModel}">
-                      <Border x:Name="Row" Padding="0,10" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" AutomationProperties.Name="{Binding Label}">
-                        <StackPanel>
-                          <DockPanel>
-                            <Button x:Name="EditButton" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}"
-                                    ToolTip="Edit" AutomationProperties.Name="{Binding Label, StringFormat='Edit {0}'}" Command="{Binding EditCommand}" />
-                            <StackPanel VerticalAlignment="Center">
-                              <TextBlock Text="{Binding Label}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,0,3" />
-                              <WrapPanel>
-                                <TextBlock x:Name="Value" Text="{Binding Display}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
-                                           Margin="0,0,10,0" VerticalAlignment="Center" />
-                                <Border x:Name="GuessedMark" Style="{StaticResource Bt.Chip}" Background="{DynamicResource Bt.Soft}" Margin="0,0,10,0"
-                                        ToolTip="Nobody has confirmed this yet" Visibility="{Binding ShowsGuessed, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                                  <TextBlock Text="Guessed" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
-                                </Border>
-                                <Button x:Name="EvidenceLink" Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.Sparkles}"
-                                        Content="{Binding EvidenceLabel}" Command="{Binding ToggleEvidenceCommand}" Padding="0"
-                                        AutomationProperties.Name="{Binding Label, StringFormat='Where {0} came from'}"
-                                        Visibility="{Binding HasEvidence, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                              </WrapPanel>
-                              <!-- Get it from: each store's link, opened in the browser once the user says yes. -->
-                              <ItemsControl ItemsSource="{Binding Links}" Focusable="False" Margin="0,2,0,0"
-                                            Visibility="{Binding HasLinks, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                                <ItemsControl.ItemTemplate>
-                                  <DataTemplate DataType="{x:Type vm:MetadataValueViewModel}">
-                                    <Button Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Padding="0" Margin="0,3,0,0"
-                                            HorizontalAlignment="Left" Content="{Binding LinkText}" ToolTip="{Binding Url}"
-                                            AutomationProperties.Name="{Binding Text, StringFormat='Open the {0} link'}"
-                                            Command="{Binding DataContext.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                            CommandParameter="{Binding}" />
-                                  </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                              </ItemsControl>
-                            </StackPanel>
-                          </DockPanel>
-
-                          <StackPanel Margin="0,8,0,0" Visibility="{Binding IsEditing, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                            <TextBox x:Name="Editor" Style="{StaticResource Bt.TextBox}" Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}"
-                                     AutomationProperties.Name="{Binding Label}" c:Ui.FocusWhenVisible="True">
-                              <TextBox.InputBindings>
-                                <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
-                                <KeyBinding Key="Escape" Command="{Binding CancelEditCommand}" />
-                              </TextBox.InputBindings>
-                            </TextBox>
-                            <TextBlock Text="{Binding EditHint}" Style="{StaticResource Text.Small}" Margin="0,5,0,0"
-                                       Visibility="{Binding EditHint, Converter={StaticResource Bt.VisibleWhenSet}}" />
-                            <TextBlock Text="{Binding Resolution}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,5,0,0"
-                                       Visibility="{Binding Resolution, Converter={StaticResource Bt.VisibleWhenSet}}" />
-                            <StackPanel Margin="0,10,0,0" Visibility="{Binding UsesChoices, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                              <TextBlock Text="{Binding ChoicesLabel}" Style="{StaticResource FieldLabel}" />
-                              <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Choices}" SelectedItem="{Binding PickedChoice}"
-                                        AutomationProperties.Name="{Binding ChoicesLabel}" HorizontalAlignment="Stretch" MaxDropDownHeight="320" />
-                            </StackPanel>
-                            <TextBlock Text="{Binding Problem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,8,0,0"
-                                       Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
-                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                              <Button Style="{StaticResource Bt.Button.Primary}" Content="Save" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding SaveCommand}"
-                                      Margin="0,0,8,0" />
-                              <Button Content="Cancel" Command="{Binding CancelEditCommand}" />
-                            </StackPanel>
+                    <DataTemplate DataType="{x:Type vm:PageNoteRow}">
+                      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8" AutomationProperties.Name="{Binding AccessibleName}">
+                        <DockPanel>
+                          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Open" VerticalAlignment="Top" Margin="10,0,0,0"
+                                  AutomationProperties.Name="{Binding Pages, StringFormat='Open at {0}'}" ToolTip="Open the book at these pages"
+                                  Command="{Binding DataContext.OpenPageNoteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+                          <StackPanel>
+                            <TextBlock Text="{Binding Pages}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                            <TextBlock Text="{Binding Text}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                            <DockPanel Margin="0,6,0,0" Visibility="{Binding HasReason, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                              <c:LucideIcon x:Name="NoteReasonIcon" Data="{StaticResource Icon.TriangleAlert}" Size="12" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                              <TextBlock Text="{Binding Reason}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
                           </StackPanel>
+                        </DockPanel>
+                      </Border>
+                      <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsChanged}" Value="True">
+                          <Setter TargetName="NoteReasonIcon" Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+                        </DataTrigger>
+                      </DataTemplate.Triggers>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
 
-                          <!-- .bt-evidence -->
-                          <Border Margin="0,10,0,0" Padding="13" CornerRadius="6" Background="{DynamicResource Bt.Side}"
-                                  Visibility="{Binding ShowEvidence, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                            <StackPanel>
-                              <ItemsControl ItemsSource="{Binding Values}" Focusable="False">
-                                <ItemsControl.ItemTemplate>
-                                  <DataTemplate DataType="{x:Type vm:MetadataValueViewModel}">
-                                    <StackPanel Margin="0,0,0,10">
-                                      <DockPanel>
-                                        <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Not right" Padding="10,0,0,0"
-                                                AutomationProperties.Name="{Binding Text, StringFormat='{}{0} is not right'}"
-                                                Command="{Binding DataContext.RejectCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}" />
-                                        <TextBlock Text="{Binding Text}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
-                                      </DockPanel>
-                                      <ItemsControl ItemsSource="{Binding Sources}" Focusable="False">
-                                        <ItemsControl.ItemTemplate>
-                                          <DataTemplate>
-                                            <TextBlock Text="{Binding}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,3,0,0" />
-                                          </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                      </ItemsControl>
-                                    </StackPanel>
-                                  </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                              </ItemsControl>
-                              <Button Style="{StaticResource Bt.Link}" Content="Keep this" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding KeepCommand}"
-                                      AutomationProperties.Name="{Binding Label, StringFormat='Keep this {0}'}"
-                                      Visibility="{Binding IsSuggested, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              <StackPanel Visibility="{Binding IsDetailsTab, Converter={StaticResource Bt.VisibleWhenTrue}}">
+              <!--
+                What the book holds: the adventures marked in a compilation, each a card of its own (pages typed as the file numbers
+                them), or the file an adventure is in; a pack's files; and what the AI found reading it chapter by chapter.
+              -->
+              <c:DetailSection x:Name="FileParts" Header="{Binding PartsHeading}" IsOpen="{Binding Pane.Adventures}" Visibility="{Binding CanMarkParts, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <c:DetailSection.Actions>
+                  <Button x:Name="AddPart" Style="{StaticResource Bt.Link}" Content="Add" c:Ui.Icon="{StaticResource Icon.Plus}"
+                          Command="{Binding AddPartCommand}"
+                          ToolTip="Give pages of this file a card of their own, as an adventure" AutomationProperties.Name="Add an adventure in this file" />
+                </c:DetailSection.Actions>
+                <StackPanel>
+                  <TextBlock Text="A compilation's adventures can each have a card of their own that opens at their pages. The file isn't changed."
+                             Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8"
+                             Visibility="{Binding HasParts, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                  <ItemsControl ItemsSource="{Binding Parts}" Focusable="False" AutomationProperties.Name="Adventures in this file">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:InspectorPart}">
+                        <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8" AutomationProperties.Name="{Binding Title}">
+                          <StackPanel>
+                            <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" HorizontalAlignment="Left"
+                                    AutomationProperties.Name="{Binding Title, StringFormat='Details for {0}'}"
+                                    Command="{Binding DataContext.ShowPartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                            <TextBlock Text="{Binding PagesText}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+                            <WrapPanel Margin="0,10,0,0">
+                              <Button Content="Edit range" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0"
+                                      AutomationProperties.Name="{Binding Title, StringFormat='Edit the pages of {0}'}"
+                                      Command="{Binding DataContext.EditPartRangeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                              <Button Content="Remove" c:Ui.Icon="{StaticResource Icon.Trash2}" ToolTip="Its card goes; its pages are only the file's again"
+                                      AutomationProperties.Name="{Binding Title, StringFormat='Remove the adventure {0}'}"
+                                      Command="{Binding DataContext.RemovePartCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                            </WrapPanel>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </c:DetailSection>
 
-                              <StackPanel Visibility="{Binding HasAlternatives, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                                <TextBlock Text="OTHER SUGGESTIONS" Style="{StaticResource Text.Eyebrow}" FontSize="9" Margin="0,10,0,8" />
-                                <ItemsControl ItemsSource="{Binding Alternatives}" Focusable="False">
+              <c:DetailSection x:Name="PartOfFile" Header="IN A FILE" IsOpen="{Binding Pane.InFile}" Visibility="{Binding IsPart, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <StackPanel>
+                  <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                    <StackPanel>
+                      <TextBlock x:Name="PartOfText" Text="{Binding PartOf}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
+                      <TextBlock Text="Values set on the file, such as its system and publisher, are this adventure's too unless it has its own."
+                                 Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      <WrapPanel Margin="0,10,0,0">
+                        <Button x:Name="ShowPartFile" Content="Show the file" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,8"
+                                Command="{Binding ShowPartFileCommand}" AutomationProperties.Name="Show the file this adventure is in" />
+                        <Button x:Name="EditOwnRange" Content="Edit range" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,8"
+                                Command="{Binding EditPartRangeCommand}" AutomationProperties.Name="Edit this adventure's pages" />
+                        <Button x:Name="RemoveThisPart" Content="Remove adventure" c:Ui.Icon="{StaticResource Icon.Trash2}" Margin="0,0,8,8"
+                                ToolTip="This card goes; its pages are only the file's again" Command="{Binding RemoveThisPartCommand}" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </c:DetailSection>
+
+              <Border Margin="0,0,0,8" Visibility="{Binding PartEditor, Converter={StaticResource Bt.VisibleWhenSet}}">
+                <v:PartEditorView x:Name="InspectorPartEditor" DataContext="{Binding PartEditor}" />
+              </Border>
+              <DockPanel Margin="0,0,0,8" Visibility="{Binding PartUndo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                        ToolTip="Dismiss" AutomationProperties.Name="Dismiss" Command="{Binding DismissPartMessageCommand}" />
+                <Button x:Name="UndoPart" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                        Command="{Binding PartUndo.UndoCommand}" AutomationProperties.Name="Undo the change to the adventures"
+                        Visibility="{Binding PartUndo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="PartMessage" Text="{Binding PartUndo.Message}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" VerticalAlignment="Center"
+                           AutomationProperties.LiveSetting="Polite" />
+              </DockPanel>
+
+              <c:DetailSection Header="{Binding PackImagesHeading}" IsOpen="{Binding Pane.Pack}" Visibility="{Binding IsPack, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <c:DetailSection.Actions>
+                  <StackPanel Orientation="Horizontal">
+                    <Button x:Name="UseMosaic" Style="{StaticResource Bt.Link}" Content="Use the mosaic" Margin="0,0,16,0"
+                            ToolTip="Show the pack's first four files on its card again" Command="{Binding UseMosaicCommand}"
+                            Visibility="{Binding HasPackCover, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                    <Button x:Name="SplitPack" Style="{StaticResource Bt.Link}" Content="{Binding SplitPackLabel}"
+                            ToolTip="{Binding SplitPackTip}"
+                            Command="{Binding SplitPackCommand}" />
+                  </StackPanel>
+                </c:DetailSection.Actions>
+                <StackPanel>
+                  <ItemsControl x:Name="PackImages" ItemsSource="{Binding PackImages}" Focusable="False" AutomationProperties.Name="{Binding PackImagesName}"
+                                KeyboardNavigation.TabNavigation="Continue">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:PackImageViewModel}">
+                        <Button Width="88" Margin="0,0,8,10" Padding="0" Cursor="Hand" ToolTip="{Binding Name}"
+                                AutomationProperties.Name="{Binding Name, StringFormat='Open {0}'}"
+                                Command="{Binding DataContext.OpenPackImageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                CommandParameter="{Binding}" Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                          <!-- Any file can be the pack's cover in place of the mosaic; the menu key opens this too. -->
+                          <Button.ContextMenu>
+                            <ContextMenu Style="{StaticResource Bt.Menu}">
+                              <MenuItem Header="Use as the pack's cover" CommandParameter="{Binding}"
+                                        Visibility="{Binding IsCover, Converter={StaticResource Bt.CollapsedWhenTrue}}"
+                                        Command="{Binding PlacementTarget.Tag.UsePackCoverCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                              <MenuItem Header="Use the mosaic"
+                                        Visibility="{Binding IsCover, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                        Command="{Binding PlacementTarget.Tag.UseMosaicCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                            </ContextMenu>
+                          </Button.ContextMenu>
+                          <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                              <StackPanel Background="Transparent">
+                                <Border x:Name="Thumb" Height="88" CornerRadius="4" Background="{DynamicResource Bt.Warm}" BorderBrush="{DynamicResource Bt.Line}"
+                                        BorderThickness="1" ClipToBounds="True">
+                                  <Grid>
+                                    <Image Source="{Binding Tile.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <!-- A PDF in the pack shows its first page, marked as a PDF; it opens in the reader. -->
+                                    <Border Padding="4,1" Margin="4" CornerRadius="3" HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                                            Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
+                                            Visibility="{Binding IsPdf, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                      <TextBlock Text="PDF" FontSize="10" Foreground="{DynamicResource Bt.Text}" />
+                                    </Border>
+                                    <!-- The file the pack's card shows in place of its mosaic. -->
+                                    <Border Padding="4,1" Margin="4" CornerRadius="3" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                            Background="{DynamicResource Bt.Accent}" AutomationProperties.Name="The pack's cover"
+                                            Visibility="{Binding IsCover, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                      <TextBlock Text="Cover" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Bt.AccentText}" />
+                                    </Border>
+                                  </Grid>
+                                </Border>
+                                <TextBlock Text="{Binding Name}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                              </StackPanel>
+                              <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                  <Setter TargetName="Thumb" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                  <Setter TargetName="Thumb" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+                                </Trigger>
+                              </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                          </Button.Template>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </c:DetailSection>
+
+              <!-- Kept apart from the book's own details, which a chapter scan never changes. -->
+              <c:DetailSection x:Name="FoundInside" Header="FOUND INSIDE THE BOOK" IsOpen="{Binding Pane.Found}" Visibility="{Binding HasChapters, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <c:DetailSection.Actions>
+                  <Button x:Name="ScanAgain" Style="{StaticResource Bt.Link}" Content="Scan again" c:Ui.Icon="{StaticResource Icon.RotateCcw}"
+                          Command="{Binding ScanAgainCommand}"
+                          ToolTip="Forget what the AI found in this book and read it again" AutomationProperties.Name="Scan this book again" />
+                </c:DetailSection.Actions>
+                <StackPanel>
+                  <TextBlock Text="Found by the AI reading each chapter. These describe parts of the book, not the whole book, and don't change its details."
+                             Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8" />
+                  <ItemsControl x:Name="ChapterList" ItemsSource="{Binding Chapters}" Focusable="False" AutomationProperties.Name="Found inside the book">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:InspectorChapter}">
+                        <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12,10" Margin="0,0,0,8" AutomationProperties.Name="{Binding AccessibleName}">
+                          <StackPanel>
+                            <DockPanel>
+                              <TextBlock DockPanel.Dock="Right" Text="{Binding PagesText}" Style="{StaticResource Text.Small}" Margin="10,0,0,0" />
+                              <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                            </DockPanel>
+                            <ItemsControl ItemsSource="{Binding Lines}" Focusable="False" Margin="0,4,0,0">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                  <TextBlock Text="{Binding}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,2,0,0" />
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="{Binding Note}" Style="{StaticResource Text.Small}" Margin="0,2,0,0"
+                                       Visibility="{Binding HasNote, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </c:DetailSection>
+
+              <TextBlock Text="{Binding ChaptersMessage}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8"
+                         Visibility="{Binding ChaptersMessage, Converter={StaticResource Bt.VisibleWhenSet}}" AutomationProperties.LiveSetting="Polite" />
+
+              <!-- A chip opens the collection; its × takes the book out. -->
+              <c:DetailSection Header="COLLECTIONS" IsOpen="{Binding Pane.Collections}">
+                <c:DetailSection.Actions>
+                  <Button x:Name="AddToCollection" Style="{StaticResource Bt.Link}" Content="Add to collection"
+                          c:Ui.Icon="{StaticResource Icon.FolderPlus}" Click="DropDown_Click" ToolTip="Add this book to a collection">
+                    <Button.ContextMenu>
+                      <ContextMenu Style="{StaticResource Bt.Menu}" c:CollectionMenu.Command="{x:Static c:BookCommands.AddToCollection}" />
+                    </Button.ContextMenu>
+                  </Button>
+                </c:DetailSection.Actions>
+                <StackPanel>
+                  <TextBlock Text="Not in any collection yet." Style="{StaticResource Text.Small}"
+                             Visibility="{Binding HasCollections, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                  <ItemsControl x:Name="BookCollections" ItemsSource="{Binding Collections}" Focusable="False" AutomationProperties.Name="Collections this book is in"
+                                KeyboardNavigation.TabNavigation="Continue">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:CollectionChip}">
+                        <Border Style="{StaticResource Bt.Chip}" Padding="10,2,2,2" Margin="0,0,6,6">
+                          <StackPanel Orientation="Horizontal">
+                            <Button Style="{StaticResource Bt.Link}" Content="{Binding Name}" Foreground="{DynamicResource Bt.Text}" ToolTip="{Binding Path}"
+                                    AutomationProperties.Name="{Binding Path, StringFormat='Open {0}'}"
+                                    Command="{Binding DataContext.OpenInspectorCollectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" />
+                            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" MinWidth="22" MinHeight="22" Margin="4,0,0,0" Padding="2"
+                                    ToolTip="{Binding Name, StringFormat='Take this book out of {0}'}" AutomationProperties.Name="{Binding Name, StringFormat='Remove from {0}'}"
+                                    Command="{Binding DataContext.RemoveFromInspectorCollectionCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{Binding}" />
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </c:DetailSection>
+
+              <!-- Cataloged wrong…: what to do, and Done. Closing the details without a change leaves a Needs review card. -->
+              <Border x:Name="CorrectingBanner" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,24,0,0"
+                      AutomationProperties.Name="Correcting this book" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <DockPanel>
+                  <Button x:Name="CorrectionDone" DockPanel.Dock="Right" Content="Done" VerticalAlignment="Top" Margin="12,0,0,0"
+                          Command="{Binding FinishCorrectingCommand}" AutomationProperties.Name="Done correcting" />
+                  <StackPanel>
+                    <TextBlock Text="What's wrong?" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                    <TextBlock FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="Values marked Guessed came from names, the file or the AI model, and nobody has confirmed them. Edit a field, or mark a value Not right. If you leave without changing anything, Needs review keeps a reminder." />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+
+              <!-- A correction offered to the books from the same folder that showed the same values (look-alikes). -->
+              <Border x:Name="LookAlikeOffer" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,12,0,0"
+                      AutomationProperties.Name="{Binding LookAlikeQuestion}" Visibility="{Binding HasLookAlikeOffer, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <StackPanel>
+                  <TextBlock Text="{Binding LookAlikeQuestion}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding LookAlikeDetail}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                  <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                    <Button x:Name="ChangeLookAlikes" Style="{StaticResource Bt.Button.Primary}" Content="Change them" Margin="0,0,8,0"
+                            Command="{Binding AcceptLookAlikesCommand}" AutomationProperties.Name="Change the other books too" />
+                    <Button x:Name="KeepLookAlikes" Content="No thanks" Command="{Binding DeclineLookAlikesCommand}"
+                            AutomationProperties.Name="Leave the other books as they are" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Each field's value, where it came from, and the user's corrections. -->
+              <c:DetailSection Header="DETAILS" IsOpen="{Binding Pane.Details}">
+                <c:DetailSection.Actions>
+                  <Button Style="{StaticResource Bt.Link}" Content="{Binding MoreFieldsLabel}" Command="{Binding ToggleAllFieldsCommand}"
+                          Visibility="{Binding HasHiddenFields, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                </c:DetailSection.Actions>
+                <StackPanel>
+                  <ItemsControl x:Name="DetailFields" ItemsSource="{Binding VisibleFields}" Focusable="False" KeyboardNavigation.TabNavigation="Continue">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:MetadataFieldViewModel}">
+                        <Border x:Name="Row" Padding="0,10" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" AutomationProperties.Name="{Binding Label}">
+                          <StackPanel>
+                            <DockPanel>
+                              <Button x:Name="EditButton" DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}"
+                                      ToolTip="Edit" AutomationProperties.Name="{Binding Label, StringFormat='Edit {0}'}" Command="{Binding EditCommand}" />
+                              <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Label}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,0,3" />
+                                <WrapPanel>
+                                  <TextBlock x:Name="Value" Text="{Binding Display}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap"
+                                             Margin="0,0,10,0" VerticalAlignment="Center" />
+                                  <Border x:Name="GuessedMark" Style="{StaticResource Bt.Chip}" Background="{DynamicResource Bt.Soft}" Margin="0,0,10,0"
+                                          ToolTip="Nobody has confirmed this yet" Visibility="{Binding ShowsGuessed, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                    <TextBlock Text="Guessed" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" />
+                                  </Border>
+                                  <Button x:Name="EvidenceLink" Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.Sparkles}"
+                                          Content="{Binding EvidenceLabel}" Command="{Binding ToggleEvidenceCommand}" Padding="0"
+                                          AutomationProperties.Name="{Binding Label, StringFormat='Where {0} came from'}"
+                                          Visibility="{Binding HasEvidence, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                                </WrapPanel>
+                                <!-- Get it from: each store's link, opened in the browser once the user says yes. -->
+                                <ItemsControl ItemsSource="{Binding Links}" Focusable="False" Margin="0,2,0,0"
+                                              Visibility="{Binding HasLinks, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                  <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type vm:MetadataValueViewModel}">
+                                      <Button Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Padding="0" Margin="0,3,0,0"
+                                              HorizontalAlignment="Left" Content="{Binding LinkText}" ToolTip="{Binding Url}"
+                                              AutomationProperties.Name="{Binding Text, StringFormat='Open the {0} link'}"
+                                              Command="{Binding DataContext.OpenLinkCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                              CommandParameter="{Binding}" />
+                                    </DataTemplate>
+                                  </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                              </StackPanel>
+                            </DockPanel>
+
+                            <StackPanel Margin="0,8,0,0" Visibility="{Binding IsEditing, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                              <TextBox x:Name="Editor" Style="{StaticResource Bt.TextBox}" Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}"
+                                       AutomationProperties.Name="{Binding Label}" c:Ui.FocusWhenVisible="True">
+                                <TextBox.InputBindings>
+                                  <KeyBinding Key="Enter" Command="{Binding SaveCommand}" />
+                                  <KeyBinding Key="Escape" Command="{Binding CancelEditCommand}" />
+                                </TextBox.InputBindings>
+                              </TextBox>
+                              <TextBlock Text="{Binding EditHint}" Style="{StaticResource Text.Small}" Margin="0,5,0,0"
+                                         Visibility="{Binding EditHint, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                              <TextBlock Text="{Binding Resolution}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" Margin="0,5,0,0"
+                                         Visibility="{Binding Resolution, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                              <StackPanel Margin="0,10,0,0" Visibility="{Binding UsesChoices, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                <TextBlock Text="{Binding ChoicesLabel}" Style="{StaticResource FieldLabel}" />
+                                <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Choices}" SelectedItem="{Binding PickedChoice}"
+                                          AutomationProperties.Name="{Binding ChoicesLabel}" HorizontalAlignment="Stretch" MaxDropDownHeight="320" />
+                              </StackPanel>
+                              <TextBlock Text="{Binding Problem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                         Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                              <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Style="{StaticResource Bt.Button.Primary}" Content="Save" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding SaveCommand}"
+                                        Margin="0,0,8,0" />
+                                <Button Content="Cancel" Command="{Binding CancelEditCommand}" />
+                              </StackPanel>
+                            </StackPanel>
+
+                            <!-- .bt-evidence -->
+                            <Border Margin="0,10,0,0" Padding="13" CornerRadius="6" Background="{DynamicResource Bt.Side}"
+                                    Visibility="{Binding ShowEvidence, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                              <StackPanel>
+                                <ItemsControl ItemsSource="{Binding Values}" Focusable="False">
                                   <ItemsControl.ItemTemplate>
                                     <DataTemplate DataType="{x:Type vm:MetadataValueViewModel}">
                                       <StackPanel Margin="0,0,0,10">
                                         <DockPanel>
-                                          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                            <Button Style="{StaticResource Bt.Link}" Content="Use this" Padding="10,0,0,0"
-                                                    AutomationProperties.Name="{Binding Text, StringFormat='Use {0}'}"
-                                                    Command="{Binding DataContext.UseCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                    CommandParameter="{Binding}" />
-                                            <Button Style="{StaticResource Bt.Link}" Content="Not right" Padding="10,0,0,0"
-                                                    AutomationProperties.Name="{Binding Text, StringFormat='{}{0} is not right'}"
-                                                    Command="{Binding DataContext.RejectCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                    CommandParameter="{Binding}" />
-                                          </StackPanel>
-                                          <TextBlock Text="{Binding Text}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                                          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Not right" Padding="10,0,0,0"
+                                                  AutomationProperties.Name="{Binding Text, StringFormat='{}{0} is not right'}"
+                                                  Command="{Binding DataContext.RejectCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                  CommandParameter="{Binding}" />
+                                          <TextBlock Text="{Binding Text}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
                                         </DockPanel>
                                         <ItemsControl ItemsSource="{Binding Sources}" Focusable="False">
                                           <ItemsControl.ItemTemplate>
@@ -1396,169 +1363,221 @@
                                     </DataTemplate>
                                   </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                              </StackPanel>
+                                <Button Style="{StaticResource Bt.Link}" Content="Keep this" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding KeepCommand}"
+                                        AutomationProperties.Name="{Binding Label, StringFormat='Keep this {0}'}"
+                                        Visibility="{Binding IsSuggested, Converter={StaticResource Bt.VisibleWhenTrue}}" />
 
-                              <Button Style="{StaticResource Bt.Link}" Content="Reset to suggestion" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding ResetCommand}"
-                                      ToolTip="Forget what you set here and go back to what the sources suggest"
-                                      Visibility="{Binding CanReset, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                            </StackPanel>
-                          </Border>
-                        </StackPanel>
-                      </Border>
-                      <DataTemplate.Triggers>
-                        <DataTrigger Binding="{Binding IsKnown}" Value="False">
-                          <Setter TargetName="Value" Property="Foreground" Value="{DynamicResource Bt.Muted}" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsSuggested}" Value="False">
-                          <Setter TargetName="EvidenceLink" Property="c:Ui.Icon" Value="{StaticResource Icon.TextSearch}" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding NeedsReview}" Value="True">
-                          <Setter TargetName="EvidenceLink" Property="c:Ui.Icon" Value="{StaticResource Icon.TriangleAlert}" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
-                          <Setter TargetName="EditButton" Property="Visibility" Value="Collapsed" />
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                          <Setter TargetName="Row" Property="IsEnabled" Value="False" />
-                        </DataTrigger>
-                      </DataTemplate.Triggers>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <!-- RPGGeek's data is credited to BoardGameGeek wherever it shows, as their terms ask. -->
-                <Button Style="{StaticResource Bt.PoweredByBgg}" Margin="0,14,0,0"
-                        Visibility="{Binding FromRpgGeek, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-              </StackPanel>
-            </c:DetailSection>
+                                <StackPanel Visibility="{Binding HasAlternatives, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                  <TextBlock Text="OTHER SUGGESTIONS" Style="{StaticResource Text.Eyebrow}" FontSize="9" Margin="0,10,0,8" />
+                                  <ItemsControl ItemsSource="{Binding Alternatives}" Focusable="False">
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate DataType="{x:Type vm:MetadataValueViewModel}">
+                                        <StackPanel Margin="0,0,0,10">
+                                          <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                              <Button Style="{StaticResource Bt.Link}" Content="Use this" Padding="10,0,0,0"
+                                                      AutomationProperties.Name="{Binding Text, StringFormat='Use {0}'}"
+                                                      Command="{Binding DataContext.UseCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                      CommandParameter="{Binding}" />
+                                              <Button Style="{StaticResource Bt.Link}" Content="Not right" Padding="10,0,0,0"
+                                                      AutomationProperties.Name="{Binding Text, StringFormat='{}{0} is not right'}"
+                                                      Command="{Binding DataContext.RejectCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                      CommandParameter="{Binding}" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Text}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                                          </DockPanel>
+                                          <ItemsControl ItemsSource="{Binding Sources}" Focusable="False">
+                                            <ItemsControl.ItemTemplate>
+                                              <DataTemplate>
+                                                <TextBlock Text="{Binding}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,3,0,0" />
+                                              </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                          </ItemsControl>
+                                        </StackPanel>
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                </StackPanel>
 
-            <c:DetailSection Header="{Binding FactsHeading}" IsOpen="{Binding Sections.AboutFile}">
-              <StackPanel>
-                <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Grid.IsSharedSizeScope="True">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:InspectorFact}">
-                      <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
-                          <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Small}" Margin="0,0,15,0" TextWrapping="NoWrap" />
-                        <TextBlock Grid.Column="1" Text="{Binding Value}" Style="{StaticResource Text.Row}" />
-                      </Grid>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </c:DetailSection>
-
-            <c:DetailSection Header="WHERE IT IS" IsOpen="{Binding Sections.Where}" Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.CollapsedWhenTrue}}">
-              <StackPanel>
-                <ItemsControl ItemsSource="{Binding Locations}" Focusable="False">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:InspectorLocation}">
-                      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8">
-                        <StackPanel>
-                          <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" />
-                          <TextBlock Text="{Binding State}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
-                                     Visibility="{Binding HasState, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                          <WrapPanel Margin="0,10,0,0">
-                            <Button Content="{Binding ShowLabel}" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,0"
-                                    AutomationProperties.Name="{Binding ShowLabel}" Visibility="{Binding CanShowInExplorer, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                                    Command="{Binding DataContext.ShowInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}" />
-                            <!-- Reprocess, with a small menu for OCR on every page. Disabled, reading Reprocessing…, while a stage waits or runs. -->
-                            <Border Visibility="{Binding ShowsReprocess, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                              <StackPanel Orientation="Horizontal" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
-                                <Button x:Name="Reprocess" Content="{Binding ReprocessLabel}" c:Ui.Icon="{StaticResource Icon.RotateCcw}"
-                                        Command="{Binding ReprocessCommand}" AutomationProperties.Name="{Binding ReprocessLabel}"
-                                        ToolTip="Read the file again: pages, text, cover and hints from names. What you added stays." />
-                                <Button x:Name="ReprocessMenu" c:Ui.Icon="{StaticResource Icon.ChevronDown}" Padding="7,8" Margin="4,0,0,0"
-                                        IsEnabled="{Binding CanReprocess}" Click="DropDown_Click"
-                                        ToolTip="More ways to reprocess" AutomationProperties.Name="More ways to reprocess"
-                                        Visibility="{Binding CanOcrEveryPage, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                                  <Button.ContextMenu>
-                                    <ContextMenu Style="{StaticResource Bt.Menu}">
-                                      <MenuItem Header="Reprocess with OCR on every page…"
-                                                AutomationProperties.Name="Reprocess with OCR on every page" Command="{Binding ReprocessWithOcrCommand}" />
-                                    </ContextMenu>
-                                  </Button.ContextMenu>
-                                </Button>
+                                <Button Style="{StaticResource Bt.Link}" Content="Reset to suggestion" c:Ui.Icon="{StaticResource Icon.Undo2}" Command="{Binding ResetCommand}"
+                                        ToolTip="Forget what you set here and go back to what the sources suggest"
+                                        Visibility="{Binding CanReset, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                               </StackPanel>
                             </Border>
-                          </WrapPanel>
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <!-- A book only the web library has: downloaded when it's opened, or kept here to read without a connection. -->
-                <StackPanel Margin="0,0,0,8" Visibility="{Binding CanKeepOffline, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                  <CheckBox x:Name="KeepOffline" Content="Keep offline on this PC" IsChecked="{Binding IsKeptOffline}" FontSize="11"
-                            Foreground="{DynamicResource Bt.Text}" IsEnabled="{Binding CanChangeKeptOffline}"
-                            ToolTip="Download the book now and keep it, so it opens without a connection" />
-                  <TextBlock Text="{Binding OfflineText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0"
-                             AutomationProperties.LiveSetting="Polite" />
+                          </StackPanel>
+                        </Border>
+                        <DataTemplate.Triggers>
+                          <DataTrigger Binding="{Binding IsKnown}" Value="False">
+                            <Setter TargetName="Value" Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding IsSuggested}" Value="False">
+                            <Setter TargetName="EvidenceLink" Property="c:Ui.Icon" Value="{StaticResource Icon.TextSearch}" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding NeedsReview}" Value="True">
+                            <Setter TargetName="EvidenceLink" Property="c:Ui.Icon" Value="{StaticResource Icon.TriangleAlert}" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                            <Setter TargetName="EditButton" Property="Visibility" Value="Collapsed" />
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter TargetName="Row" Property="IsEnabled" Value="False" />
+                          </DataTrigger>
+                        </DataTemplate.Triggers>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <!-- RPGGeek's data is credited to BoardGameGeek wherever it shows, as their terms ask. -->
+                  <Button Style="{StaticResource Bt.PoweredByBgg}" Margin="0,14,0,0"
+                          Visibility="{Binding FromRpgGeek, Converter={StaticResource Bt.VisibleWhenTrue}}" />
                 </StackPanel>
-              </StackPanel>
-            </c:DetailSection>
+              </c:DetailSection>
 
-            <!-- The book's files when it has more than one: which one opens, Make current, and Not the same book. -->
-            <c:DetailSection Header="{Binding CopiesHeading}" IsOpen="{Binding Sections.Copies}" Visibility="{Binding HasCopies, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <StackPanel>
-                <ItemsControl ItemsSource="{Binding Copies}" Focusable="False" AutomationProperties.Name="Copies">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:InspectorCopy}">
-                      <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8"
-                              AutomationProperties.Name="{Binding Heading}">
-                        <StackPanel>
-                          <TextBlock Text="{Binding Heading}" FontSize="12" FontWeight="SemiBold" />
-                          <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
-                          <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0"
-                                     Visibility="{Binding HasPath, Converter={StaticResource Bt.VisibleWhenTrue}}" />
-                          <WrapPanel Margin="0,10,0,0">
-                            <Button Content="Make current" c:Ui.Icon="{StaticResource Icon.Check}" Margin="0,0,8,8"
-                                    ToolTip="Open this copy: its cover, pages and page hits become the book's. No file changes."
-                                    Visibility="{Binding CanMakeCurrent, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                                    Command="{Binding DataContext.MakeCurrentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}" />
-                            <Button Content="Show in File Explorer" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,8"
-                                    Visibility="{Binding CanShowInExplorer, Converter={StaticResource Bt.VisibleWhenTrue}}"
-                                    Command="{Binding DataContext.ShowCopyInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}" />
-                            <Button Content="Not the same book" Margin="0,0,8,8"
-                                    ToolTip="Give this file a card of its own again. Bibliotaph won't join them again."
-                                    Command="{Binding DataContext.NotSameBookCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}" />
-                          </WrapPanel>
-                        </StackPanel>
-                      </Border>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-              </StackPanel>
-            </c:DetailSection>
+              <c:DetailSection Header="{Binding FactsHeading}" IsOpen="{Binding Pane.AboutFile}">
+                <StackPanel>
+                  <ItemsControl ItemsSource="{Binding Facts}" Focusable="False" Grid.IsSharedSizeScope="True">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:InspectorFact}">
+                        <Grid Margin="0,0,0,8">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Small}" Margin="0,0,15,0" TextWrapping="NoWrap" />
+                          <TextBlock Grid.Column="1" Text="{Binding Value}" Style="{StaticResource Text.Row}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </c:DetailSection>
 
-            <c:DetailSection Header="INDEXING" IsOpen="{Binding Sections.Indexing}" Visibility="{Binding HasStages, Converter={StaticResource Bt.VisibleWhenTrue}}">
-              <StackPanel>
-                <ItemsControl ItemsSource="{Binding Stages}" Focusable="False" Grid.IsSharedSizeScope="True">
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate DataType="{x:Type vm:InspectorStage}">
-                      <Grid Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                          <ColumnDefinition Width="Auto" SharedSizeGroup="Stage" />
-                          <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Small}" Margin="0,0,15,0" TextWrapping="NoWrap" />
-                        <TextBlock Grid.Column="1" Text="{Binding Status}" Style="{StaticResource Text.Row}" />
-                      </Grid>
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
+              <c:DetailSection Header="WHERE IT IS" IsOpen="{Binding Pane.Where}" Visibility="{Binding IsElsewhere, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+                <StackPanel>
+                  <ItemsControl ItemsSource="{Binding Locations}" Focusable="False">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:InspectorLocation}">
+                        <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" />
+                            <TextBlock Text="{Binding State}" Style="{StaticResource Text.Small}" Margin="0,4,0,0"
+                                       Visibility="{Binding HasState, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                            <WrapPanel Margin="0,10,0,0">
+                              <Button Content="{Binding ShowLabel}" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,0"
+                                      AutomationProperties.Name="{Binding ShowLabel}" Visibility="{Binding CanShowInExplorer, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                      Command="{Binding DataContext.ShowInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                      CommandParameter="{Binding}" />
+                              <!-- Reprocess, with a small menu for OCR on every page. Disabled, reading Reprocessing…, while a stage waits or runs. -->
+                              <Border Visibility="{Binding ShowsReprocess, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                <StackPanel Orientation="Horizontal" DataContext="{Binding DataContext, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                  <Button x:Name="Reprocess" Content="{Binding ReprocessLabel}" c:Ui.Icon="{StaticResource Icon.RotateCcw}"
+                                          Command="{Binding ReprocessCommand}" AutomationProperties.Name="{Binding ReprocessLabel}"
+                                          ToolTip="Read the file again: pages, text, cover and hints from names. What you added stays." />
+                                  <Button x:Name="ReprocessMenu" c:Ui.Icon="{StaticResource Icon.ChevronDown}" Padding="7,8" Margin="4,0,0,0"
+                                          IsEnabled="{Binding CanReprocess}" Click="DropDown_Click"
+                                          ToolTip="More ways to reprocess" AutomationProperties.Name="More ways to reprocess"
+                                          Visibility="{Binding CanOcrEveryPage, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                                    <Button.ContextMenu>
+                                      <ContextMenu Style="{StaticResource Bt.Menu}">
+                                        <MenuItem Header="Reprocess with OCR on every page…"
+                                                  AutomationProperties.Name="Reprocess with OCR on every page" Command="{Binding ReprocessWithOcrCommand}" />
+                                      </ContextMenu>
+                                    </Button.ContextMenu>
+                                  </Button>
+                                </StackPanel>
+                              </Border>
+                            </WrapPanel>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+
+                  <!-- A book only the web library has: downloaded when it's opened, or kept here to read without a connection. -->
+                  <StackPanel Margin="0,0,0,8" Visibility="{Binding CanKeepOffline, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                    <CheckBox x:Name="KeepOffline" Content="Keep offline on this PC" IsChecked="{Binding IsKeptOffline}" FontSize="11"
+                              Foreground="{DynamicResource Bt.Text}" IsEnabled="{Binding CanChangeKeptOffline}"
+                              ToolTip="Download the book now and keep it, so it opens without a connection" />
+                    <TextBlock Text="{Binding OfflineText}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               AutomationProperties.LiveSetting="Polite" />
+                  </StackPanel>
+                </StackPanel>
+              </c:DetailSection>
+
+              <!-- The book's files when it has more than one: which one opens, Make current, and Not the same book. -->
+              <c:DetailSection Header="{Binding CopiesHeading}" IsOpen="{Binding Pane.Copies}" Visibility="{Binding HasCopies, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <StackPanel>
+                  <ItemsControl ItemsSource="{Binding Copies}" Focusable="False" AutomationProperties.Name="Copies">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:InspectorCopy}">
+                        <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8"
+                                AutomationProperties.Name="{Binding Heading}">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Heading}" FontSize="12" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" FontSize="11" Margin="0,6,0,0"
+                                       Visibility="{Binding HasPath, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                            <WrapPanel Margin="0,10,0,0">
+                              <Button Content="Make current" c:Ui.Icon="{StaticResource Icon.Check}" Margin="0,0,8,8"
+                                      ToolTip="Open this copy: its cover, pages and page hits become the book's. No file changes."
+                                      Visibility="{Binding CanMakeCurrent, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                      Command="{Binding DataContext.MakeCurrentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                      CommandParameter="{Binding}" />
+                              <Button Content="Show in File Explorer" c:Ui.Icon="{StaticResource Icon.ArrowUpRight}" Margin="0,0,8,8"
+                                      Visibility="{Binding CanShowInExplorer, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                                      Command="{Binding DataContext.ShowCopyInExplorerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                      CommandParameter="{Binding}" />
+                              <Button Content="Not the same book" Margin="0,0,8,8"
+                                      ToolTip="Give this file a card of its own again. Bibliotaph won't join them again."
+                                      Command="{Binding DataContext.NotSameBookCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                      CommandParameter="{Binding}" />
+                            </WrapPanel>
+                          </StackPanel>
+                        </Border>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </c:DetailSection>
+
+              <c:DetailSection Header="INDEXING" IsOpen="{Binding Pane.Indexing}" Visibility="{Binding HasStages, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <StackPanel>
+                  <ItemsControl ItemsSource="{Binding Stages}" Focusable="False" Grid.IsSharedSizeScope="True">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:InspectorStage}">
+                        <Grid Margin="0,0,0,8">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" SharedSizeGroup="Stage" />
+                            <ColumnDefinition Width="*" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Small}" Margin="0,0,15,0" TextWrapping="NoWrap" />
+                          <TextBlock Grid.Column="1" Text="{Binding Status}" Style="{StaticResource Text.Row}" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </c:DetailSection>
               </StackPanel>
-            </c:DetailSection>
             </StackPanel>
-          </StackPanel>
-        </ScrollViewer>
+          </ScrollViewer>
+          <!-- The pane's left edge: dragged, it makes the details wider or narrower, and stays so. -->
+          <Thumb x:Name="DrawerEdge" HorizontalAlignment="Left" Width="6" Margin="-1,0,0,0" Cursor="SizeWE" Focusable="False"
+                 ToolTip="Drag to make the details wider" DragDelta="DrawerEdge_DragDelta" DragCompleted="DrawerEdge_DragCompleted">
+            <Thumb.Template>
+              <ControlTemplate TargetType="Thumb">
+                <Border x:Name="Edge" Background="Transparent" />
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Edge" Property="Background" Value="{DynamicResource Bt.Line}" />
+                  </Trigger>
+                  <Trigger Property="IsDragging" Value="True">
+                    <Setter TargetName="Edge" Property="Background" Value="{DynamicResource Bt.Accent}" />
+                  </Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Thumb.Template>
+          </Thumb>
+        </Grid>
       </Border>
     </Grid>
 

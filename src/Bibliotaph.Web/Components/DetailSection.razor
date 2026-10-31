@@ -1,5 +1,5 @@
 @* .bt-detailsection: a section of a book's details. Its heading folds and opens it; its own links sit at the right of the heading while it's open. *@
-@inject DetailSectionState Sections
+@inject DetailsPane Pane
 
 <section class="bt-detailsection" aria-label="@Label">
     <div class="bt-drawerhead-row">
@@ -33,9 +33,9 @@
 
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    bool Open => ForceOpen || Sections.IsOpen(Section);
+    bool Open => ForceOpen || Pane.IsOpen(Section);
 
     string Label => Name ?? Heading;
 
-    Task ToggleAsync() => Sections.SetOpenAsync(Section, !Open);
+    Task ToggleAsync() => Pane.SetOpenAsync(Section, !Open);
 }

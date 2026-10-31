@@ -3,13 +3,13 @@
 @using Bibliotaph.Core
 @inject ApiClient Api
 @inject CollectionActions Collections
-@inject DetailSectionState Sections
+@inject DetailsPane Pane
 @inject NavigationManager Navigation
 @inject Pins Pins
 @inject IJSRuntime JS
 
 <div class="bt-backdrop fixed" @onclick="Close"></div>
-<aside class="bt-drawer fixed bt-details" role="dialog" aria-modal="true" aria-label="@(_details?.Card.Title ?? "Book details")" @onkeydown="KeyDown">
+<aside class="bt-drawer fixed bt-details" role="dialog" aria-modal="true" aria-label="@(_details?.Card.Title ?? "Book details")" @onkeydown="KeyDown" @ref="_pane">
     <div class="bt-drawer-head">
         <span class="bt-eyebrow">@_details?.Eyebrow</span>
         <div class="bt-inline">
@@ -692,6 +692,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (firstRender) await MakeResizableAsync();
         if (_focusEditor)
         {
             _focusEditor = false;
@@ -703,6 +704,28 @@
         await _close.FocusAsync();
     }
 
+    ElementReference _pane;
+    IJSObjectReference? _resizing;
+    DotNetObjectReference<BookDetailsDrawer>? _self;
+
+    async Task MakeResizableAsync()
+    {
+        await Pane.LoadAsync();
+        _self = DotNetObjectReference.Create(this);
+        try
+        {
+            _resizing = await JS.InvokeAsync<IJSObjectReference?>("bibliotaphDetails.resizable", _pane, Pane.Width, _self);
+        }
+        catch (JSException)
+        {
+            // details.js didn't load: the pane keeps the stylesheet's width.
+        }
+    }
+
+    /// <summary>A drag of the pane's edge ended at this width.</summary>
+    [JSInvokable]
+    public Task Resized(int width) => Pane.SetWidthAsync(width);
+
     /// <summary>Reads the details again, as the library does while books are being read, so its processing follows.</summary>
     public async Task RefreshAsync()
     {
@@ -713,7 +736,7 @@
     async Task LoadAsync()
     {
         var entryId = EntryId;
-        await Sections.LoadAsync();
+        await Pane.LoadAsync();
         try
         {
             var details = await Api.BookAsync(entryId);
@@ -1220,5 +1243,18 @@
     {
         _resolving?.Cancel();
         await LeaveAsync(_shown);
+        if (_resizing is not null)
+        {
+            try
+            {
+                await _resizing.InvokeVoidAsync("stop");
+                await _resizing.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The page is going; so are its listeners.
+            }
+        }
+        _self?.Dispose();
     }
 }

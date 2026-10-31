@@ -195,7 +195,7 @@ the AI found inside, its collections, **Details**, each field with where its val
 **Suggested** or **Sources disagree** opens the evidence and the other suggestions; **More fields** shows the empty
 ones), then **About the file**, **Where it is** in your storage (the service first, such as OneDrive or Dropbox, then
 the account and its folders), its copies when it has more than one, each with its service too, and how far reading it
-has got. A section's heading folds it away; this browser remembers which are folded, and the last four start folded. **Esc**, the **×** or a click outside closes them.
+has got. A section's heading folds it away; this browser remembers which are folded, and the last four start folded. Drag the pane's left edge to make it wider, which this browser remembers too. **Esc**, the **×** or a click outside closes them.
 
 **Home** greets you with the books you opened last and those added last, a cover each; a click opens the book's details
 in the Library, and a right-click has the same menu as in the Library. Until AI is set up, Home asks **Fill in the

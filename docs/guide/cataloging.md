@@ -46,7 +46,7 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
 ## The details panel
 
 Click a cover in the Library to open its details on the right. Click anywhere outside them, even on another card, or
-press **Esc**, to close them.
+press **Esc**, to close them. Drag their left edge to make them wider; they stay that wide.
 
 Under the cover is a row of buttons for what you can do with the book:
 

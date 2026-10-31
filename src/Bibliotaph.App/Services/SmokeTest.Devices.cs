@@ -80,7 +80,7 @@ static partial class SmokeTest
         await library.RefreshAsync();
         await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == book.DocumentId), () => "The web library's book isn't in the Library.");
         await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == book.DocumentId));
-        library.Inspector!.Sections!.Where = true;
+        library.Inspector!.Pane!.Where = true;
         await WaitUntilAsync(window, () => library.Inspector is { CanKeepOffline: true, Locations.Count: > 0 }
             && Descendants<CheckBox>(window).Any(c => c.Name == "KeepOffline" && c.IsVisible),
             () => "The web library's book's details offer no Keep offline.");

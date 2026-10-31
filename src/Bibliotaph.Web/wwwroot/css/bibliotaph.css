@@ -447,7 +447,10 @@ a{color:var(--bt-accent)}
 .bt-field.narrow{min-width:0;flex:1 1 140px}
 .bt-field.narrow select{min-width:0}}
 /* A book's details, as the Windows app's details drawer: cover beside the title, then its sections, each headed in small capitals. */
-.bt-details{width:min(440px,100%)}
+.bt-details{width:min(440px,100%);max-width:100%}
+/* The left edge, dragged to make the details wider; js/details.js marks it while the pointer is on it. */
+.bt-details.at-edge,.bt-details.resizing{cursor:ew-resize;border-left-color:var(--bt-muted)}
+.bt-details.resizing{border-left-color:var(--bt-accent);user-select:none}
 .bt-details .bt-detail-layout{grid-template-columns:110px minmax(0,1fr);gap:18px}
 .bt-details .bt-detail-title{font-size:27px;font-weight:400;margin:0}
 .bt-details .bt-subtitle{margin-top:6px;font-size:11px}
