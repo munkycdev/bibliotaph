@@ -21,10 +21,12 @@ public sealed record MarkStores(FavoriteStore Favorites, ReadingStore Reading, C
 /// groups each entry is in (entry_scope: favourites, collections and session packs, with the collections' names in scope_name),
 /// when it was last opened (entry_opened) and the text of its notes, its own and its pages', for search (entry_note). index.db holds
 /// only this projection, never the assertions, so rebuilding it loses nothing: the projection runs again.
-/// <paramref name="covers"/> finds the covers books owned elsewhere got from their online library.
+/// <paramref name="covers"/> finds the covers books owned elsewhere got from their online library, and <paramref name="lookups"/>
+/// the catalogues that found each book, for the Found online filter.
 /// </summary>
 public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries, VocabularyStore vocabularies, IndexStore index, IndexQueries queries,
-    SettingsStore settings, ClassificationStore runs, MarkStores marks, CoverCache covers, ILogger<MetadataProjector>? log = null) : IDisposable
+    SettingsStore settings, ClassificationStore runs, MarkStores marks, CoverCache covers, LookupRecordStore? lookups = null,
+    ILogger<MetadataProjector>? log = null) : IDisposable
 {
     const int Batch = 200;
 
@@ -152,6 +154,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         await index.SetMetadataAsync([.. all.Values.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. shown.Where(id => !all.ContainsKey(id))], ct);
         await index.SetAiReadAsync(shown, await runs.GetReadByAsync(shown, ct), ct);
+        if (lookups is not null) await index.SetFoundByAsync(shown, await lookups.GetFoundByAsync(shown, ct), ct);
         await WriteMarksAsync(shown, ct);
         return entryIds;
     }
@@ -207,6 +210,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
             await index.SetMetadataAsync([.. chunk.Select(m => Build(m, vocabulary, reviewAll))], ct);
         await index.ClearMetadataAsync([.. withMetadata.Where(id => shown.Contains(id) && !all.ContainsKey(id))], ct);
         await index.SetAiReadAsync(null, (await runs.GetReadByAsync(ct: ct)).Where(r => shown.Contains(r.Key)).ToDictionary(), ct);
+        if (lookups is not null) await index.SetFoundByAsync(null, [.. (await lookups.GetFoundByAsync(ct: ct)).Where(f => shown.Contains(f.EntryId))], ct);
         await WriteMarksAsync(null, ct);
         _log.LogInformation("Projected metadata for {Count} entries", all.Count);
         return [.. all.Keys];
