@@ -161,13 +161,14 @@
         else
         {
             @* What the book holds first: a compilation's adventures or the file an adventure is in, a pack's files, and what the AI found inside. *@
-            <AdventuresSection @key="book.Card.EntryId" Book="book" Host="this" Note="_arrived" />
+            @* Blazor needs sibling keys to differ whatever the component, so each section pairs its own name with the book: another book starts every section afresh. *@
+            <AdventuresSection @key="(nameof(AdventuresSection), book.Card.EntryId)" Book="book" Host="this" Note="_arrived" />
             @if (book.PackFiles.Count > 0)
             {
-                <PackSection @key="book.Card.EntryId" Book="book" Host="this" />
+                <PackSection @key="(nameof(PackSection), book.Card.EntryId)" Book="book" Host="this" />
             }
-            <FoundInsideSection @key="book.Card.EntryId" Book="book" Host="this" />
-            <CollectionsSection @key="book.Card.EntryId" Book="book" Host="this" />
+            <FoundInsideSection @key="(nameof(FoundInsideSection), book.Card.EntryId)" Book="book" Host="this" />
+            <CollectionsSection @key="(nameof(CollectionsSection), book.Card.EntryId)" Book="book" Host="this" />
 
             @if (_correcting)
             {
@@ -191,7 +192,7 @@
                 </div>
             }
 
-            <FieldsSection @key="book.Card.EntryId" Book="book" Host="this" View="_fields" Correcting="_correcting" Decided="() => _decided = true"
+            <FieldsSection @key="(nameof(FieldsSection), book.Card.EntryId)" Book="book" Host="this" View="_fields" Correcting="_correcting" Decided="() => _decided = true"
                            Offered="o => _offer = o" />
 
             <DetailSection Section="@DetailSections.File" Heading="@book.FactsHeading">
@@ -206,7 +207,7 @@
 
             @if (book.ShowsLocations)
             {
-                <WhereSection @key="book.Card.EntryId" Book="book" Host="this" />
+                <WhereSection @key="(nameof(WhereSection), book.Card.EntryId)" Book="book" Host="this" />
             }
 
             @if (book.Copies.Count > 0)
