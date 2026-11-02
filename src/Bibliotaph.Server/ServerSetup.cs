@@ -52,6 +52,7 @@ public static class ServerSetup
         // Model services only on the internet, over https; tests put a stand-in here.
         services.AddSingleton(new ModelClientFactory(ModelServices.ClientFor));
         services.AddSingleton<UserLibraries>();
+        services.AddSingleton<Nornis.NornisWorlds>();
         services.AddHostedService<IdleLibraries>();
         // Only where the libraries come back from Blob storage after a deploy; on a developer's disk they're already there.
         if (!string.IsNullOrEmpty(options.ReplicaUrl)) services.AddHostedService<LibraryWarmup>();

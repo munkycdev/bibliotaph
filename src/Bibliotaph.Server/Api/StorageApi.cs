@@ -53,6 +53,22 @@ public static class StorageApi
             return Results.NoContent();
         });
 
+        api.MapPost("/storage/{id}/nornis/resync", async (string id, ClaimsPrincipal principal, StorageConnections connections,
+            UserDriveFactory drives, CancellationToken ct) =>
+        {
+            var account = (await connections.ListAsync(principal.UserId()!, ct)).FirstOrDefault(a => a.Id == id);
+            if (account?.Provider != NornisProvider.Key || drives.Drive(account) is not Bibliotaph.Storage.Nornis.NornisDrive drive) return Results.NotFound();
+            try
+            {
+                await drive.Client.ResyncAsync(ct);
+            }
+            catch (StorageException ex)
+            {
+                return Results.Problem(ex.Message, statusCode: StatusCodes.Status502BadGateway);
+            }
+            return Results.Accepted();
+        });
+
         api.MapGet("/storage/{id}/folders", async (string id, string? path, ClaimsPrincipal principal, StorageConnections connections,
             UserDriveFactory drives, UserLibraries libraries, CancellationToken ct) =>
         {

@@ -15,7 +15,7 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261030010317_CatalogLookupRecords";
+    public override string LastMigrationId => "20261102014956_CatalogNornisWorlds";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -861,6 +861,41 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("lookup_record");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.NornisWorld", b =>
+            {
+                b.Property<string>("WorldId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("world_id");
+
+                b.Property<long?>("CollectionId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("collection_id");
+
+                b.Property<DateTime?>("GoneUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("gone_utc");
+
+                b.Property<DateTime>("LastOccurredUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("last_occurred_utc");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("name");
+
+                b.Property<bool>("NameManaged")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("name_managed");
+
+                b.HasKey("WorldId");
+
+                b.HasIndex("CollectionId")
+                    .IsUnique();
+
+                b.ToTable("nornis_world");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Note", b =>
@@ -1891,6 +1926,14 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .HasForeignKey("SourceRootId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.NornisWorld", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.CollectionNode", null)
+                    .WithMany()
+                    .HasForeignKey("CollectionId")
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.Note", b =>

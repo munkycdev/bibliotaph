@@ -567,6 +567,8 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-collectionpin{position:absolute;top:8px;right:8px;color:var(--bt-accent);display:inline-flex}
 .bt-collectionname{margin-top:10px;font-size:12px;font-weight:600;color:var(--bt-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bt-collectioncount{margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bt-collectionbadge{display:inline-block;margin-top:4px;padding:1px 7px;border-radius:999px;font-size:11px;background:var(--bt-soft);color:var(--bt-accent)}
+.bt-collectionbadge.gone{background:var(--bt-warm);color:var(--bt-muted)}
 .bt-pagenote{margin-top:24px}
 .bt-headbuttons{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .bt-scopechip{margin:0 0 12px}

@@ -89,6 +89,16 @@ public sealed class NornisClient(HttpClient http, Uri apiBase, Func<Cancellation
         return await StorageDownloads.BodyAsync(response, range, ct);
     }
 
+    /// <summary>Asks Nornis to send a created event again for every world the user created, which its outbox does in its own time.</summary>
+    public async Task ResyncAsync(CancellationToken ct = default)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri(apiBase, "api/bibliotaph/v1/resync"));
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await accessToken(ct));
+        using var response = await http.SendAsync(request, ct);
+        if (response.StatusCode == HttpStatusCode.Unauthorized && refused is not null) await refused(ct);
+        if (!response.IsSuccessStatusCode) throw new StorageException(response.StatusCode, $"Nornis answered {(int)response.StatusCode}.");
+    }
+
     static string Cursor(string? cursor) => cursor is null ? "" : "?cursor=" + Uri.EscapeDataString(cursor);
 
     async Task<T?> GetAsync<T>(string path, CancellationToken ct) where T : class
@@ -116,6 +126,9 @@ public sealed class NornisDrive(NornisClient client, TimeProvider? clock = null)
     readonly ConcurrentDictionary<string, (DateTimeOffset Listed, IReadOnlyList<NornisFile>? Files)> _listings = new();
 
     public string ProviderName => "Nornis";
+
+    /// <summary>Nornis's API as this connection, for what isn't reading files.</summary>
+    public NornisClient Client => client;
 
     // Nornis hands out read-only SAS addresses, which a browser reads byte ranges from.
     public bool HasReadLinks => true;

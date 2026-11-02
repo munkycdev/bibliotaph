@@ -15,6 +15,7 @@ namespace Bibliotaph.Server.Tests;
 sealed class FakeNornis : HttpMessageHandler
 {
     public const string ApiHost = "api.nornis.test";
+    public const string TenantHost = "auth.test";
     public const string BlobHost = "files.nornis.test";
     public const string Origin = "https://nornis.test";
     public const string ApiBase = "https://api.nornis.test/";
@@ -29,7 +30,10 @@ sealed class FakeNornis : HttpMessageHandler
 
     public int Requests { get; private set; }
 
-    public static bool Handles(Uri uri) => uri.Host is ApiHost or BlobHost;
+    /// <summary>How many times Bibliotaph asked for the worlds to be sent again.</summary>
+    public int Resyncs { get; private set; }
+
+    public static bool Handles(Uri uri) => uri.Host is ApiHost or BlobHost or TenantHost;
 
     public void AddWorld(string worldId, string name) => _worlds[worldId] = (name, []);
 
@@ -40,6 +44,11 @@ sealed class FakeNornis : HttpMessageHandler
         Requests++;
         var uri = request.RequestUri!;
         if (uri.Host == BlobHost) return Blob(request);
+        // Auth0's token endpoint, refreshing the storage connection's token for Nornis's API.
+        if (uri.Host == TenantHost)
+            return uri.AbsolutePath == "/oauth/token" && !Refuses
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new { access_token = AccessToken, expires_in = 3600 }) }
+                : new HttpResponseMessage(HttpStatusCode.BadRequest);
         if (Refuses || request.Headers.Authorization?.Parameter != AccessToken) return new HttpResponseMessage(HttpStatusCode.Unauthorized);
 
         var path = uri.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries);
@@ -49,6 +58,7 @@ sealed class FakeNornis : HttpMessageHandler
         await Task.Yield();
         return path switch
         {
+            ["api", "bibliotaph", "v1", "resync"] when request.Method == HttpMethod.Post => Resynced(),
             ["api", "bibliotaph", "v1", "me"] => Json(new NornisMe(UserId, "Dana")),
             ["api", "bibliotaph", "v1", "worlds"] => Json(Page(_worlds.Select(w => new NornisWorld(w.Key, w.Value.Name, Updated)).ToList(), cursor,
                 (items, next) => new NornisWorldPage(items, next))),
@@ -59,6 +69,12 @@ sealed class FakeNornis : HttpMessageHandler
                 Json(new NornisLink($"https://{BlobHost}/{file}?sig=read", Updated.AddHours(1))),
             _ => new HttpResponseMessage(HttpStatusCode.NotFound),
         };
+    }
+
+    HttpResponseMessage Resynced()
+    {
+        Resyncs++;
+        return new HttpResponseMessage(HttpStatusCode.Accepted);
     }
 
     static readonly DateTimeOffset Updated = new(2026, 11, 1, 12, 0, 0, TimeSpan.Zero);

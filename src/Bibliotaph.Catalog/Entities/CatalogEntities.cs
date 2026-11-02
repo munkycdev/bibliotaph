@@ -632,6 +632,31 @@ public sealed class CollectionFolder
     public DateTime DecidedUtc { get; set; }
 }
 
+/// <summary>
+/// A Nornis world the user created, as Nornis's world events last described it, and the collection made for it. Nornis
+/// names worlds by ID, which a rename doesn't change; the collection follows the name until the user renames it here.
+/// </summary>
+public sealed class NornisWorld
+{
+    /// <summary>Nornis's world ID, a GUID in its "D" form.</summary>
+    public required string WorldId { get; set; }
+
+    /// <summary>The world's collection; null once the user deleted it, until the world is announced again.</summary>
+    public long? CollectionId { get; set; }
+
+    /// <summary>The name Nornis last sent.</summary>
+    public required string Name { get; set; }
+
+    /// <summary>Whether the collection still takes the world's name: false once the user renamed it.</summary>
+    public bool NameManaged { get; set; } = true;
+
+    /// <summary>When Nornis said the world was deleted; its collection stays, but answers Nornis no more.</summary>
+    public DateTime? GoneUtc { get; set; }
+
+    /// <summary>When the newest event applied to it happened, so an older one arriving late is dropped.</summary>
+    public DateTime LastOccurredUtc { get; set; }
+}
+
 /// <summary>A book marked with a heart.</summary>
 public sealed class Favorite
 {

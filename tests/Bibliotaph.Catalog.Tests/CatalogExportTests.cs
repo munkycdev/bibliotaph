@@ -136,6 +136,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
 
         db.CollectionItems.Add(new CollectionItem { CollectionId = collection.Id, EntryId = entry.Id, AddedUtc = now });
         db.CollectionDeclines.Add(new CollectionDecline { CollectionId = collection.Id, EntryId = joined.Id, CreatedUtc = now });
+        db.NornisWorlds.Add(new NornisWorld { WorldId = "6f1d8a52-0000-4000-8000-000000000001", CollectionId = collection.Id, Name = "Winter campaign", LastOccurredUtc = now });
         db.CollectionFolders.Add(new CollectionFolder { SourceRootId = root.Id, Folder = "Winter campaign", State = FolderCollectionState.Linked, CollectionId = collection.Id, DecidedUtc = now });
         // A new catalog has Favorites pinned already.
         db.Pins.Add(new Pin { Kind = PinKind.Collection, Position = 1, CollectionId = collection.Id });

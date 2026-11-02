@@ -22,6 +22,10 @@
     </div>
     <div class="bt-collectionname">@Card.Name</div>
     <div class="bt-small bt-collectioncount">@Card.Count</div>
+    @if (Card.Badge is { } badge)
+    {
+        <div class="bt-collectionbadge@(badge == "World gone" ? " gone" : "")">@badge</div>
+    }
 </a>
 
 @code {

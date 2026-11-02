@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **New: a collection for each Nornis world.** Each world you create in Nornis gets its own collection inside
+  **Nornis**, marked **Nornis world**, and it follows the world: renaming the world renames it (unless you renamed it
+  yourself), and deleting the world marks it **World gone** without deleting anything. **Resync Nornis worlds** in
+  **Settings** › **Library** brings back a world's collection you deleted.
 - **New: connect Nornis to your web library.** Starting from Nornis, connecting signs you in to bibliotaph.online
   with the same sign-in (making an account if you have none, while there's room), connects Nornis as storage that
   Bibliotaph only reads, and makes a **Nornis** collection for your worlds. Nornis is listed in **Settings** ›

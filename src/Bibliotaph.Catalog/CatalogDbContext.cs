@@ -26,6 +26,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<CollectionNode> Collections => Set<CollectionNode>();
     public DbSet<CollectionItem> CollectionItems => Set<CollectionItem>();
     public DbSet<CollectionFolder> CollectionFolders => Set<CollectionFolder>();
+    public DbSet<NornisWorld> NornisWorlds => Set<NornisWorld>();
     public DbSet<CollectionDecline> CollectionDeclines => Set<CollectionDecline>();
     public DbSet<SmartView> SmartViews => Set<SmartView>();
     public DbSet<Pin> Pins => Set<Pin>();
@@ -220,6 +221,14 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasOne<SourceRoot>().WithMany().HasForeignKey(f => f.SourceRootId).OnDelete(DeleteBehavior.Cascade);
             // A deleted collection leaves its folder answered, so the folder isn't asked about again.
             e.HasOne<CollectionNode>().WithMany().HasForeignKey(f => f.CollectionId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<NornisWorld>(e =>
+        {
+            e.HasKey(w => w.WorldId);
+            e.HasIndex(w => w.CollectionId).IsUnique();
+            // A deleted collection leaves the world known, so the next announcement makes it again.
+            e.HasOne<CollectionNode>().WithMany().HasForeignKey(w => w.CollectionId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<CollectionDecline>(e =>

@@ -15,7 +15,7 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261102012521_StorageConnectionLastUsed";
+    public override string LastMigrationId => "20261102015120_NornisWorldEvents";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -162,6 +162,50 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("logins");
             });
 
+        modelBuilder.Entity("Bibliotaph.Server.Accounts.NornisWorldEvent", b =>
+            {
+                b.Property<string>("UserId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("user_id");
+
+                b.Property<string>("EventId")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("event_id");
+
+                b.Property<DateTime?>("AppliedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("applied_utc");
+
+                b.Property<string>("Kind")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("kind");
+
+                b.Property<DateTime>("OccurredUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("occurred_utc");
+
+                b.Property<DateTime>("ReceivedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("received_utc");
+
+                b.Property<string>("WorldId")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("world_id");
+
+                b.Property<string>("WorldName")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("world_name");
+
+                b.HasKey("UserId", "EventId");
+
+                b.HasIndex("UserId", "AppliedUtc");
+
+                b.ToTable("nornis_world_events");
+            });
+
         modelBuilder.Entity("Bibliotaph.Server.Accounts.StorageConnection", b =>
             {
                 b.Property<string>("Id")
@@ -280,6 +324,15 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity("Bibliotaph.Server.Accounts.Login", b =>
+            {
+                b.HasOne("Bibliotaph.Server.Accounts.User", null)
+                    .WithMany()
+                    .HasForeignKey("UserId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("Bibliotaph.Server.Accounts.NornisWorldEvent", b =>
             {
                 b.HasOne("Bibliotaph.Server.Accounts.User", null)
                     .WithMany()
