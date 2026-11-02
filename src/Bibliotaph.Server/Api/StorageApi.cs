@@ -10,6 +10,7 @@ using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
 using Bibliotaph.Storage;
+using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Server.Api;
 
@@ -162,12 +163,19 @@ public static class StorageApi
         var store = library.Get<LibraryStore>();
         var queries = library.Get<IndexQueries>();
         var folders = new List<LibraryFolder>();
+        Dictionary<string, string> worlds;
+        await using (var catalog = await library.Contexts.CreateDbContextAsync(ct))
+            worlds = await catalog.NornisWorlds.AsNoTracking().ToDictionaryAsync(w => w.WorldId, w => w.Name, StringComparer.OrdinalIgnoreCase, ct);
         foreach (var root in await library.Get<SourceRootStore>().ListAsync(ct))
         {
             var ids = await store.GetVisibleEntryIdsAsync(root.Id, ct);
             var searchable = await queries.CountSearchableAsync(ids, ct);
             var offline = root.Availability == SourceRootAvailability.Offline;
-            folders.Add(new LibraryFolder(root.Id, FolderText.Name(root.Path), FolderText.Location(root.Path, library.Drives),
+            var (name, location) = (FolderText.Name(root.Path), FolderText.Location(root.Path, library.Drives));
+            // A world's folder is named by its ID, which survives renames; it reads as the world.
+            if (StoragePath.TryParse(root.Path, out var at) && at.Provider == NornisProvider.Key && worlds.TryGetValue(at.Path, out var world))
+                (name, location) = (world, $"{library.Drives.Account(at.Provider, at.Account)?.DisplayName ?? "Nornis"} › {world}");
+            folders.Add(new LibraryFolder(root.Id, name, location,
                 FolderText.Describe(root.AddedUtc, offline, scans.GetValueOrDefault(root.Id), searchable, ids.Count), offline));
         }
         return folders;

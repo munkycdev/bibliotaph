@@ -130,6 +130,15 @@ public static class ServerSetup
         return new Uri(account, "/backups");
     }
 
+    /// <summary>
+    /// The host of Nornis's file links, when set and a bare host name: anything else would widen the page's policy
+    /// beyond one host.
+    /// </summary>
+    internal static string? NornisBlobHost(IConfiguration configuration) =>
+        configuration["Storage:Nornis:BlobHost"]?.Trim() is { Length: > 0 } host && Uri.CheckHostName(host) == UriHostNameType.Dns
+            ? host.ToLowerInvariant()
+            : null;
+
     public static WebApplication UseBibliotaphServer(this WebApplication app)
     {
         // Anything left in the downloads folder is from before a crash: no book is kept beyond its reading. Here rather
@@ -142,16 +151,19 @@ public static class ServerSetup
         app.UseForwardedHeaders();
         if (!app.Environment.IsDevelopment()) app.UseHsts();
         app.UseExceptionHandler();
+        // The reader reads a book's byte ranges straight from OneDrive's download links (personal and business), and from
+        // the file links of Nornis's blob storage for a book uploaded to a world.
+        var connect = "'self' https://*.sharepoint.com https://*.1drv.com https://*.microsoftpersonalcontent.com";
+        if (NornisBlobHost(app.Configuration) is { } blobHost) connect += $" https://{blobHost}";
+        var policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; " +
+            $"font-src 'self'; connect-src {connect}; " +
+            "worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
         app.Use(async (context, next) =>
         {
             var headers = context.Response.Headers;
             headers["X-Content-Type-Options"] = "nosniff";
             headers["Referrer-Policy"] = "same-origin";
-            // The reader reads a book's byte ranges straight from OneDrive's download links (personal and business).
-            headers["Content-Security-Policy"] =
-                "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; " +
-                "font-src 'self'; connect-src 'self' https://*.sharepoint.com https://*.1drv.com https://*.microsoftpersonalcontent.com; " +
-                "worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+            headers["Content-Security-Policy"] = policy;
             await next(context);
         });
 

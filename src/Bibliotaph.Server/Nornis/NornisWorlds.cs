@@ -2,7 +2,11 @@ using System.Collections.Concurrent;
 using Bibliotaph.Catalog;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Accounts;
+using Bibliotaph.Catalog.Entities;
+using Bibliotaph.Core;
 using Bibliotaph.Server.Libraries;
+using Bibliotaph.Server.Storage;
+using Bibliotaph.Storage;
 using Microsoft.EntityFrameworkCore;
 using World = Bibliotaph.Catalog.Entities.NornisWorld;
 using WorldEvent = Bibliotaph.Api.Contracts.NornisWorldEvent;
@@ -13,7 +17,9 @@ namespace Bibliotaph.Server.Nornis;
 /// Nornis's world events turned into collections. Each batch is written to the user's inbox in accounts.db before
 /// Nornis is answered, so it's never lost while the library is closed; the inbox is applied at once when the library is
 /// open, and otherwise as it opens. Applying is idempotent: an event seen before is never written again, and an event
-/// older than the last one applied to its world is dropped, since it says something the world has moved past.
+/// older than the last one applied to its world is dropped, since it says something the world has moved past. While the
+/// user is connected to Nornis as storage, each live world's files are a library folder whose books join the world's
+/// collection, and files-changed scans that folder again.
 /// </summary>
 public sealed class NornisWorlds
 {
@@ -22,14 +28,16 @@ public sealed class NornisWorlds
 
     readonly AccountsDatabase _accounts;
     readonly UserLibraries _libraries;
+    readonly StorageConnections _connections;
     readonly TimeProvider _clock;
     readonly ILogger _log;
     readonly ConcurrentDictionary<string, SemaphoreSlim> _applying = new();
 
-    public NornisWorlds(AccountsDatabase accounts, UserLibraries libraries, TimeProvider clock, ILogger<NornisWorlds> log)
+    public NornisWorlds(AccountsDatabase accounts, UserLibraries libraries, StorageConnections connections, TimeProvider clock, ILogger<NornisWorlds> log)
     {
         _accounts = accounts;
         _libraries = libraries;
+        _connections = connections;
         _clock = clock;
         _log = log;
         libraries.WhenOpened(ApplyAsync);
@@ -83,9 +91,11 @@ public sealed class NornisWorlds
             await using var db = _accounts.CreateContext();
             var pending = (await db.NornisWorldEvents.Where(e => e.UserId == library.UserId && e.AppliedUtc == null).ToListAsync(ct))
                 .OrderBy(e => e.OccurredUtc).ThenBy(e => e.ReceivedUtc).ToList();
+            var account = pending.Count == 0 ? null
+                : (await _connections.ListAsync(library.UserId, ct)).FirstOrDefault(c => c.Provider == NornisProvider.Key && !c.NeedsReconnect)?.AccountId;
             foreach (var e in pending)
             {
-                await ApplyAsync(library, e, ct);
+                await ApplyAsync(library, e, account, ct);
                 // Marked one at a time: applying an event twice changes nothing, so a failure part way is safe to retry.
                 e.AppliedUtc = Now;
                 await db.SaveChangesAsync(ct);
@@ -99,13 +109,18 @@ public sealed class NornisWorlds
         }
     }
 
-    static async Task ApplyAsync(UserLibrary library, NornisWorldEvent e, CancellationToken ct)
+    /// <summary>One event applied; <paramref name="account"/> is the user's Nornis account as storage, or null while not connected.</summary>
+    static async Task ApplyAsync(UserLibrary library, NornisWorldEvent e, string? account, CancellationToken ct)
     {
         await using var catalog = await library.Contexts.CreateDbContextAsync(ct);
         var world = await catalog.NornisWorlds.FindAsync([e.WorldId], ct);
+        // Whenever it was sent, it says the files may differ from the last scan, and says nothing about the collection.
+        if (e.Kind == WorldEvent.FilesChanged)
+        {
+            if (account is not null && await FolderAsync(library, account, e.WorldId, ct) is { } scanned) library.Indexing.RequestScan(scanned.Id);
+            return;
+        }
         if (world is not null && e.OccurredUtc < world.LastOccurredUtc) return;
-        // A rescan of the world's folder comes with Nornis as storage; until then it says nothing about collections.
-        if (e.Kind == WorldEvent.FilesChanged) return;
 
         var collections = library.Get<CollectionsService>();
         var isNew = world is null;
@@ -139,6 +154,34 @@ public sealed class NornisWorlds
         world.Name = e.WorldName;
         world.LastOccurredUtc = e.OccurredUtc;
         await catalog.SaveChangesAsync(ct);
+        if (account is not null && world is { GoneUtc: null, CollectionId: { } filed } && e.Kind != WorldEvent.Deleted)
+            await FileFolderAsync(library, account, world.WorldId, filed, ct);
+    }
+
+    /// <summary>
+    /// The world's files as a library folder whose books join its collection: added the first time, and linked to the
+    /// collection again if that was made anew. A folder the user removed from the library stays removed.
+    /// </summary>
+    static async Task FileFolderAsync(UserLibrary library, string account, string worldId, long collectionId, CancellationToken ct)
+    {
+        var path = StoragePath.Of(NornisProvider.Key, account, worldId);
+        var roots = library.Get<SourceRootStore>();
+        var root = (await roots.ListWithRemovedAsync(ct)).FirstOrDefault(r => r.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
+        if (root is { Availability: SourceRootAvailability.RemovedByUser }) return;
+        var added = root is null;
+        root ??= await roots.AddAsync(path, ct);
+        var folders = library.Get<FolderCollectionStore>();
+        var whole = new FolderKey(root.Id, "");
+        var linked = (await folders.ListAsync(ct)).Any(f => f.Folder == whole && f.Follows && f.CollectionId == collectionId);
+        if (!linked) await folders.AnswerAsync(whole, collectionId, ct);
+        if (added || !linked) library.Indexing.RequestScan(root.Id);
+    }
+
+    /// <summary>The library folder of a world's files, if the library has it.</summary>
+    static async Task<SourceRoot?> FolderAsync(UserLibrary library, string account, string worldId, CancellationToken ct)
+    {
+        var path = StoragePath.Of(NornisProvider.Key, account, worldId);
+        return (await library.Get<SourceRootStore>().ListAsync(ct)).FirstOrDefault(r => r.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Each Nornis world's collection, and whether the world is gone, for the collections' badges.</summary>
