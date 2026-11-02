@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Net;
-using System.Text.Json;
 using Bibliotaph.Storage;
 using Bibliotaph.Storage.OneDrive;
 
@@ -63,30 +62,21 @@ public sealed class DriveTokens(IHttpClientFactory http, IConfiguration configur
         }
 
         var app = oauth.App(configuration) ?? new StorageApp();
-        var form = new Dictionary<string, string>
+        OAuthGrant grant;
+        try
         {
-            ["client_id"] = app.ClientId ?? "",
-            ["client_secret"] = app.ClientSecret ?? "",
-            ["grant_type"] = "refresh_token",
-            ["refresh_token"] = connections.RefreshToken(connection),
-        };
-        if (oauth.ScopesOnRefresh) form["scope"] = string.Join(' ', oauth.Scopes);
-        using var request = new FormUrlEncodedContent(form);
-        using var response = await http.CreateClient(nameof(DriveTokens)).PostAsync(oauth.TokenEndpoint, request, ct);
-        using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
-        var root = json.RootElement;
-        if (!response.IsSuccessStatusCode)
+            grant = await OAuthGrants.RefreshAsync(http.CreateClient(nameof(DriveTokens)), oauth.Kind, new OAuthClient(app.ClientId ?? "", app.ClientSecret ?? ""),
+                connections.RefreshToken(connection), ct);
+        }
+        catch (OAuthRefusedException)
         {
-            var error = root.TryGetProperty("error", out var e) && e.ValueKind == JsonValueKind.String ? e.GetString() : null;
-            // invalid_grant: revoked, expired, or the password changed. Only the user can fix that, by connecting again.
-            if (error == "invalid_grant") await RefusedAsync(connectionId, ct);
-            throw new StorageException(response.StatusCode, $"Signing in to {provider.Name} failed: {error ?? response.StatusCode.ToString()}");
+            await RefusedAsync(connectionId, ct);
+            throw new StorageException(System.Net.HttpStatusCode.BadRequest, $"Signing in to {provider.Name} failed: invalid_grant");
         }
 
-        var token = root.GetProperty("access_token").GetString()!;
-        var expires = clock.GetUtcNow() + TimeSpan.FromSeconds(root.TryGetProperty("expires_in", out var seconds) ? seconds.GetInt32() : 3600);
-        if (root.TryGetProperty("refresh_token", out var rotated) && rotated.GetString() is { Length: > 0 } refresh)
-            await connections.SaveRefreshTokenAsync(connectionId, refresh, ct);
+        var token = grant.AccessToken;
+        var expires = clock.GetUtcNow() + grant.ExpiresIn;
+        if (grant.RefreshToken is { } refresh) await connections.SaveRefreshTokenAsync(connectionId, refresh, ct);
         _cache[connectionId] = (token, expires);
         return token;
     }
@@ -126,7 +116,7 @@ public sealed class UserDriveFactory(StorageConnections connections, DriveTokens
 
     /// <summary>A connection's drive, or null for a provider this server doesn't know.</summary>
     public IStorageDrive? Drive(ConnectedAccount account) =>
-        (configuration is null ? StorageProviders.Find(account.Provider) : StorageProviders.Find(account.Provider, configuration))?.Drive(new DriveContext(http.CreateClient(account.Provider), account,
+        (configuration is null ? StorageProviders.Find(account.Provider) : StorageProviders.Find(account.Provider, configuration))?.Drive(new DriveContext(http.CreateClient(account.Provider), account.AccountId, account.AccountKind,
             c => tokens.AccessTokenAsync(account.Id, c), c => tokens.RefusedAsync(account.Id, c), clock));
 
     /// <summary>The HTTP client a provider's calls go through, as while an account is being connected.</summary>

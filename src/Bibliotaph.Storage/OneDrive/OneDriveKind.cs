@@ -1,17 +1,13 @@
-using Bibliotaph.Storage;
-using Bibliotaph.Storage.OneDrive;
-
-namespace Bibliotaph.Server.Storage;
+namespace Bibliotaph.Storage.OneDrive;
 
 /// <summary>OneDrive, personal or work and school, through the Microsoft identity platform and Microsoft Graph.</summary>
-public sealed class OneDriveProvider : OAuthStorageProvider
+public sealed class OneDriveKind : OAuthStorageKind
 {
     public const string Key = "onedrive";
 
     public override string Id => Key;
     public override string Name => "OneDrive";
     public override string Owner => "Microsoft";
-    protected override string ConfigurationName => "OneDrive";
 
     public override string AuthorizationEndpoint => "https://login.microsoftonline.com/common/oauth2/v2.0/authorize";
     public override string TokenEndpoint => "https://login.microsoftonline.com/common/oauth2/v2.0/token";
@@ -39,5 +35,20 @@ public sealed class OneDriveProvider : OAuthStorageProvider
     }
 
     public override IStorageDrive Drive(DriveContext context) =>
-        new OneDriveDrive(new OneDriveClient(context.Http, context.Credential, context.Clock), context.Account.AccountId);
+        new OneDriveDrive(new OneDriveClient(context.Http, context.Credential, context.Clock), context.AccountId);
+
+    /// <summary>The web server hears of changes through Graph's notifications; a PC asks the drive's delta instead.</summary>
+    public override IStorageChangeLog ChangeLog(IStorageDrive drive, DriveContext context) =>
+        new OneDriveChangeLog(new OneDriveClient(context.Http, context.Credential, context.Clock), context.AccountId);
+}
+
+/// <summary>
+/// Asks a OneDrive what changed through Graph's delta: a link that starts from now, then each answer's next link. Any
+/// item in an answer is a change somewhere in the drive.
+/// </summary>
+public sealed class OneDriveChangeLog(OneDriveClient client, string driveId) : IStorageChangeLog
+{
+    public Task<string> StartAsync(CancellationToken ct = default) => client.LatestDeltaAsync(driveId, ct);
+
+    public Task<(bool Changed, string Next)> ChangesSinceAsync(string cursor, CancellationToken ct = default) => client.DeltaSinceAsync(cursor, ct);
 }

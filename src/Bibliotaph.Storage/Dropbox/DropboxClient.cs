@@ -63,6 +63,37 @@ public sealed class DropboxClient(HttpClient http, Func<CancellationToken, Task<
         return json is null ? null : Entry(json.RootElement);
     }
 
+    /// <summary>A cursor over the whole account as it is now, so asking from it later hears only of what changed since.</summary>
+    public async Task<string> LatestCursorAsync(CancellationToken ct = default)
+    {
+        using var json = (await RpcAsync("files/list_folder/get_latest_cursor", new JsonObject { ["path"] = "", ["recursive"] = true }, ct))!;
+        return json.RootElement.GetProperty("cursor").GetString()!;
+    }
+
+    /// <summary>
+    /// Whether anything changed since <paramref name="cursor"/>, and the cursor to ask from next time. A cursor Dropbox
+    /// no longer takes (reset) starts again from now, counting as a change, since what happened meanwhile is unknown.
+    /// </summary>
+    public async Task<(bool Changed, string Next)> ChangesSinceAsync(string cursor, CancellationToken ct = default)
+    {
+        var changed = false;
+        try
+        {
+            while (true)
+            {
+                using var json = (await RpcAsync("files/list_folder/continue", new JsonObject { ["cursor"] = cursor }, ct))!;
+                var page = json.RootElement;
+                if (page.GetProperty("entries").GetArrayLength() > 0) changed = true;
+                cursor = page.GetProperty("cursor").GetString()!;
+                if (!page.GetProperty("has_more").GetBoolean()) return (changed, cursor);
+            }
+        }
+        catch (StorageException ex) when (ex.Status == HttpStatusCode.Conflict && ex.Message.Contains("reset", StringComparison.Ordinal))
+        {
+            return (true, await LatestCursorAsync(ct));
+        }
+    }
+
     /// <summary>A file's bytes, or the range of them asked for, streamed.</summary>
     public async Task<Stream> DownloadAsync(string path, ByteRange? range = null, CancellationToken ct = default)
     {

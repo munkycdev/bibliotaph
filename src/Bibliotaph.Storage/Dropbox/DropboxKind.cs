@@ -1,10 +1,7 @@
-using Bibliotaph.Storage;
-using Bibliotaph.Storage.Dropbox;
-
-namespace Bibliotaph.Server.Storage;
+namespace Bibliotaph.Storage.Dropbox;
 
 /// <summary>Dropbox, personal or a team's, through its OAuth 2 endpoints and API v2.</summary>
-public sealed class DropboxProvider : OAuthStorageProvider
+public sealed class DropboxKind : OAuthStorageKind
 {
     public const string Key = "dropbox";
 
@@ -14,7 +11,6 @@ public sealed class DropboxProvider : OAuthStorageProvider
     public override string Id => Key;
     public override string Name => "Dropbox";
     public override string Owner => "Dropbox";
-    protected override string ConfigurationName => "Dropbox";
 
     public override string AuthorizationEndpoint => "https://www.dropbox.com/oauth2/authorize";
     public override string TokenEndpoint => "https://api.dropboxapi.com/oauth2/token";
@@ -39,10 +35,23 @@ public sealed class DropboxProvider : OAuthStorageProvider
             account.TeamRoot is { } root ? TeamKind + root : "personal");
     }
 
-    public override IStorageDrive Drive(DriveContext context)
+    public override IStorageDrive Drive(DriveContext context) => new DropboxDrive(Client(context));
+
+    /// <summary>The web server hears of changes through Dropbox's webhook; a PC asks with a cursor over the whole account instead.</summary>
+    public override IStorageChangeLog ChangeLog(IStorageDrive drive, DriveContext context) => new DropboxChangeLog(Client(context));
+
+    static DropboxClient Client(DriveContext context)
     {
-        var kind = context.Account.AccountKind;
+        var kind = context.AccountKind;
         var teamRoot = kind is not null && kind.StartsWith(TeamKind, StringComparison.Ordinal) ? kind[TeamKind.Length..] : null;
-        return new DropboxDrive(new DropboxClient(context.Http, context.Credential, teamRoot, context.Clock));
+        return new DropboxClient(context.Http, context.Credential, teamRoot, context.Clock);
     }
+}
+
+/// <summary>Asks a Dropbox account what changed: a cursor over everything in it from now, then what came after each cursor.</summary>
+public sealed class DropboxChangeLog(DropboxClient client) : IStorageChangeLog
+{
+    public Task<string> StartAsync(CancellationToken ct = default) => client.LatestCursorAsync(ct);
+
+    public Task<(bool Changed, string Next)> ChangesSinceAsync(string cursor, CancellationToken ct = default) => client.ChangesSinceAsync(cursor, ct);
 }
