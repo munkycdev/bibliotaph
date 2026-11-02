@@ -52,8 +52,9 @@ The first time Bibliotaph opens, Home says **Welcome to Bibliotaph**.
 3. Add more folders the same way. You can add or remove folders later in **Settings > Library**.
 
 Bibliotaph reads PDF, EPUB, Kindle (MOBI, AZW and AZW3), JPG, PNG and WebP files, including ones inside ZIPs, which are never unpacked next to
-themselves. Folders on USB drives, network drives and OneDrive all work; see
-[OneDrive, drives and other PCs](onedrive-and-other-pcs.md).
+themselves. Folders on USB drives, network drives and OneDrive all work, and so do folders in OneDrive, Dropbox, Google Drive, Box
+or WebDAV read straight from the provider, without its app, once you connect it under **Storage** in
+**Settings > Library**; see [OneDrive, drives and other PCs](onedrive-and-other-pcs.md#storage-without-its-app).
 
 Removing a folder keeps your notes, collections and corrections, and never deletes a file.
 

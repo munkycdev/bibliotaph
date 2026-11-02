@@ -37,6 +37,7 @@ static partial class Composition
         services.AddTransient<SessionReaderViewModel>();
         services.AddTransient<NeedsReviewViewModel>();
         services.AddTransient<SettingsViewModel>();
+        services.AddTransient<StorageAccountsViewModel>();
         services.AddTransient<LibrarySectionViewModel>();
         services.AddTransient<ProcessingSectionViewModel>();
         services.AddTransient<PreferencesSectionViewModel>();

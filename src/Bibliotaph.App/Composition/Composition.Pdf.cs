@@ -13,7 +13,6 @@ static partial class Composition
     {
         services.AddSingleton(sp => new PdfWorkerPool(new PdfWorkerPoolOptions(), sp.GetRequiredService<ILoggerFactory>()));
         services.AddSingleton<IPdfEngine, WorkerPdfEngine>();
-        services.AddSingleton<ISourceFileReader, SourceFileReader>();
         return services;
     }
 }

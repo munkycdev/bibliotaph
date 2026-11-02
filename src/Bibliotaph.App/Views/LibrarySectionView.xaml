@@ -7,10 +7,137 @@
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LibrarySectionViewModel}">
+  <UserControl.Resources>
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Muted}" />
+      <Setter Property="Margin" Value="0,12,0,5" />
+    </Style>
+    <Style x:Key="Problem" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Accent}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+    <!-- Bt.TextBox's look, for the WebDAV password. -->
+    <Style x:Key="PasswordField" TargetType="PasswordBox">
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="SelectionBrush" Value="{DynamicResource Bt.Accent}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="PasswordBox">
+            <Border x:Name="Chrome" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
+                    BorderThickness="1" CornerRadius="6" Padding="9,6" SnapsToDevicePixels="True">
+              <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+  </UserControl.Resources>
   <StackPanel>
     <TextBlock Text="Library" Style="{StaticResource Text.H2}" />
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
                Text="Bibliotaph reads your folders. Your books stay exactly where you put them." />
+
+    <!-- Storage connected on this PC, as the web library's Settings > Library has it above its folders. -->
+    <TextBlock Text="Storage" Style="{StaticResource Text.Row}" Margin="0,12,0,0" />
+    <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
+               Text="Connect the online storage where your books are, then add folders from it to your library. Bibliotaph only reads them there: it never changes, moves or deletes anything in your storage. A folder your OneDrive or Dropbox app already keeps on this PC can be added as it is, with Add a folder." />
+    <ItemsControl x:Name="StorageAccounts" ItemsSource="{Binding Storage.Accounts}" Focusable="False">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type vm:StorageAccountItem}">
+          <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="15" Margin="0,12,0,0">
+            <DockPanel>
+              <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" VerticalAlignment="Top"
+                      ToolTip="Disconnect" AutomationProperties.Name="{Binding Name, StringFormat='Disconnect {0}'}"
+                      Command="{Binding DataContext.Storage.DisconnectCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                      CommandParameter="{Binding}" />
+              <Button DockPanel.Dock="Right" Content="Connect again" c:Ui.Icon="{StaticResource Icon.RotateCcw}" Margin="0,0,8,0" VerticalAlignment="Top"
+                      AutomationProperties.Name="{Binding Name, StringFormat='Connect {0} again'}"
+                      Visibility="{Binding NeedsReconnect, Converter={StaticResource Bt.VisibleWhenTrue}}"
+                      Command="{Binding DataContext.Storage.ConnectAgainCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                      CommandParameter="{Binding}" />
+              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.Cloud}" Margin="0,0,10,0" VerticalAlignment="Top" />
+              <StackPanel>
+                <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Allowed}" ToolTip="{Binding Scopes}" Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                           Visibility="{Binding Allowed, Converter={StaticResource Bt.VisibleWhenSet}}" />
+              </StackPanel>
+            </DockPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <TextBlock Visibility="{Binding Storage.HasAccounts, Converter={StaticResource Bt.CollapsedWhenTrue}}"
+               Style="{StaticResource Text.Small}" Margin="0,12,0,0" Text="No storage connected yet." />
+    <ItemsControl x:Name="StorageOptions" ItemsSource="{Binding Storage.Options}" Focusable="False" Margin="0,12,0,0">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate DataType="{x:Type vm:StorageConnectOption}">
+          <Button x:Name="Connect" Content="{Binding Label}" c:Ui.Icon="{StaticResource Icon.Plus}" Margin="0,0,8,8"
+                  Command="{Binding DataContext.Storage.ConnectCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                  CommandParameter="{Binding}" />
+          <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsPrimary}" Value="True">
+              <Setter TargetName="Connect" Property="Style" Value="{StaticResource Bt.Button.Primary}" />
+            </DataTrigger>
+          </DataTemplate.Triggers>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+    <!-- Waiting on the browser, or why connecting didn't finish. -->
+    <DockPanel Visibility="{Binding Storage.HasStatus, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,4,0,0">
+      <Button DockPanel.Dock="Right" Content="Cancel" Command="{Binding Storage.CancelConnectingCommand}" Margin="8,0,0,0" VerticalAlignment="Top"
+              Visibility="{Binding Storage.IsConnecting, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+      <TextBlock x:Name="StorageStatus" Text="{Binding Storage.Status}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+    </DockPanel>
+
+    <!-- WebDAV has no sign-in page of its own, so its address, user name and password are typed here. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="15" Margin="0,12,0,0"
+            Visibility="{Binding Storage.IsWebDavOpen, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <StackPanel>
+        <TextBlock Text="Connect WebDAV" Style="{StaticResource Text.Row}" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap"
+                   Text="For Nextcloud, ownCloud, a NAS or any WebDAV server, on the internet or your own network. Give the address of the folder your books are in, or one above it. Nextcloud and ownCloud show it under Files › Settings › WebDAV, like https://cloud.example.com/remote.php/dav/files/you/." />
+        <TextBlock Text="Address" Style="{StaticResource FieldLabel}" />
+        <TextBox x:Name="WebDavAddress" Style="{StaticResource Bt.TextBox}" Text="{Binding Storage.WebDavAddress, UpdateSourceTrigger=PropertyChanged}"
+                 AutomationProperties.Name="WebDAV address" />
+        <TextBlock Text="User name" Style="{StaticResource FieldLabel}" />
+        <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding Storage.WebDavUser, UpdateSourceTrigger=PropertyChanged}"
+                 AutomationProperties.Name="WebDAV user name" />
+        <TextBlock Text="Password" Style="{StaticResource FieldLabel}" />
+        <PasswordBox x:Name="WebDavPassword" Style="{StaticResource PasswordField}" PasswordChanged="OnWebDavPasswordChanged"
+                     AutomationProperties.Name="WebDAV password" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,8,0,0" TextWrapping="Wrap"
+                   Text="Use an app password made for Bibliotaph where your server offers one (in Nextcloud, Personal settings › Security › Create new app password), so you can take it back without changing your own. It's kept in Windows Credential Manager, never in Bibliotaph's files. An address that starts http:// sends it unencrypted: use one only on your own network." />
+        <TextBlock Text="{Binding Storage.WebDavProblem}" Style="{StaticResource Problem}"
+                   Visibility="{Binding Storage.HasWebDavProblem, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <WrapPanel Margin="0,12,0,0">
+          <Button Style="{StaticResource Bt.Button.Primary}" Content="Connect" c:Ui.Icon="{StaticResource Icon.Check}" Margin="0,0,8,0"
+                  Command="{Binding Storage.ConnectWebDavCommand}" />
+          <Button Content="Cancel" Command="{Binding Storage.CloseWebDavCommand}" />
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+    <TextBlock Style="{StaticResource Text.Small}" Margin="0,12,0,0" TextWrapping="Wrap"
+               Text="Disconnecting keeps your notes, collections and corrections. Its books come back when you connect it again." />
+
+    <TextBlock Text="Folders" Style="{StaticResource Text.Row}" Margin="0,30,0,0" />
 
     <!-- The list grows with the section, which scrolls as a whole: a box scrolling inside it would trap the mouse wheel. -->
     <ItemsControl ItemsSource="{Binding Folders}" Focusable="False">
@@ -58,7 +185,7 @@
               <DockPanel>
                 <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.FolderPlus}" Margin="0,0,10,0" VerticalAlignment="Top" />
                 <StackPanel>
-                  <TextBlock Text="{Binding Path}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding Shown}" Style="{StaticResource Text.Row}" TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" Margin="0,5,0,0" TextWrapping="Wrap" />
                 </StackPanel>
               </DockPanel>
@@ -77,9 +204,59 @@
       </ItemsControl.ItemTemplate>
     </ItemsControl>
 
+    <!-- Picks a folder in connected storage: choose the account, walk down from the top, then use the folder you're in. -->
+    <Border x:Name="StoragePicker" DataContext="{Binding Picker}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6"
+            Padding="15" Margin="0,12,0,0"
+            Visibility="{Binding DataContext.IsPicking, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Bt.VisibleWhenTrue}}">
+      <StackPanel>
+        <TextBlock Text="Pick a folder" Style="{StaticResource Text.Row}" />
+        <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Accounts}" SelectedItem="{Binding Account}" DisplayMemberPath="Name"
+                  HorizontalAlignment="Stretch" Margin="0,10,0,0" AutomationProperties.Name="Storage"
+                  Visibility="{Binding HasManyAccounts, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <ItemsControl ItemsSource="{Binding Crumbs}" Focusable="False" Margin="0,10,0,0">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:StorageFolderStep}">
+              <StackPanel Orientation="Horizontal">
+                <Button Style="{StaticResource Bt.Link}" Content="{Binding Name}" AutomationProperties.Name="{Binding Name, StringFormat='Go to {0}'}"
+                        Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                <c:LucideIcon Data="{StaticResource Icon.ChevronRight}" Size="13" Margin="4,0" VerticalAlignment="Center" Foreground="{DynamicResource Bt.Muted}" />
+              </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="Looking…" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                   Visibility="{Binding IsLoading, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <TextBlock Text="No folders in here." Style="{StaticResource Text.Small}" Margin="0,8,0,0"
+                   Visibility="{Binding IsEmpty, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <TextBlock Text="{Binding Problem}" Style="{StaticResource Problem}"
+                   Visibility="{Binding HasProblem, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <ItemsControl ItemsSource="{Binding Folders}" Focusable="False" Margin="0,6,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate DataType="{x:Type vm:StorageFolderStep}">
+              <Button Style="{StaticResource Bt.Link}" Content="{Binding Name}" c:Ui.Icon="{StaticResource Icon.Folder}" Foreground="{DynamicResource Bt.Text}"
+                      FontSize="12" AutomationProperties.Name="{Binding Name, StringFormat='Open {0}'}"
+                      Command="{Binding DataContext.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <WrapPanel Margin="0,12,0,0">
+          <Button Style="{StaticResource Bt.Button.Primary}" Content="Use this folder" c:Ui.Icon="{StaticResource Icon.Check}" Margin="0,0,8,0"
+                  Command="{Binding UseCommand}" />
+          <Button Content="Cancel" Command="{Binding CancelCommand}" />
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+
     <WrapPanel Margin="0,25,0,0">
       <Button Style="{StaticResource Bt.Button.Primary}" Content="Add a folder" Margin="0,0,8,0"
               c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
+      <Button x:Name="AddFromStorage" Content="Add from storage" Margin="0,0,8,0" c:Ui.Icon="{StaticResource Icon.Cloud}"
+              Command="{Binding AddFromStorageCommand}" ToolTip="A folder in the storage you connected above" />
       <Button Content="Look for changes" c:Ui.Icon="{StaticResource Icon.RotateCcw}" Command="{Binding RescanCommand}"
               Visibility="{Binding HasFolders, Converter={StaticResource Bt.VisibleWhenTrue}}" />
     </WrapPanel>

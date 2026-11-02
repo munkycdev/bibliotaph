@@ -189,6 +189,82 @@ public sealed class WebLibraryKeyVault(ILogger<WebLibraryKeyVault> log) : IWebLi
     }
 }
 
+/// <summary>
+/// The sign-ins of storage connected on this PC (refresh tokens, or a WebDAV folder's password), in Windows Credential
+/// Manager under this Windows account. A credential holds at most 2,560 bytes, which a Microsoft refresh token can pass,
+/// so a long one is kept in parts: the first says how many there are.
+/// </summary>
+public sealed class StorageSecretVault(ILogger<StorageSecretVault> log) : Bibliotaph.Storage.Desktop.IConnectionSecrets
+{
+    const string TargetPrefix = "Bibliotaph:storage:";
+    // UTF-16, so 1,200 characters are 2,400 bytes, with room for the count.
+    const int PartLength = 1200;
+
+    public string? Find(string connectionId)
+    {
+        var (first, error) = WindowsCredentials.Read(Target(connectionId));
+        if (error is not null) log.LogWarning("Reading a storage sign-in failed: {Error}", error);
+        var split = first?.IndexOf('\n', StringComparison.Ordinal) ?? -1;
+        if (first is null || split <= 0 || !int.TryParse(first.AsSpan(0, split), System.Globalization.CultureInfo.InvariantCulture, out var parts)) return null;
+        var secret = new StringBuilder(first[(split + 1)..]);
+        for (var i = 1; i < parts; i++)
+        {
+            var (part, partError) = WindowsCredentials.Read($"{Target(connectionId)}#{i}");
+            if (part is null)
+            {
+                if (partError is not null) log.LogWarning("Reading a storage sign-in failed: {Error}", partError);
+                return null;
+            }
+            secret.Append(part);
+        }
+        return secret.ToString();
+    }
+
+    public bool Remember(string connectionId, string secret)
+    {
+        Forget(connectionId);
+        var parts = Enumerable.Range(0, Math.Max(1, (secret.Length + PartLength - 1) / PartLength))
+            .Select(i => secret.Substring(i * PartLength, Math.Min(PartLength, secret.Length - i * PartLength))).ToList();
+        for (var i = parts.Count - 1; i >= 0; i--)
+        {
+            var target = i == 0 ? Target(connectionId) : $"{Target(connectionId)}#{i}";
+            var value = i == 0 ? $"{parts.Count}\n{parts[0]}" : parts[i];
+            if (WindowsCredentials.Write(target, value, "A storage sign-in kept by Bibliotaph") is { } error)
+            {
+                log.LogWarning("Keeping a storage sign-in failed: {Error}", error);
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public void Forget(string connectionId)
+    {
+        var (targets, listError) = WindowsCredentials.List(Target(connectionId));
+        if (listError is not null) log.LogWarning("Listing storage sign-ins failed: {Error}", listError);
+        foreach (var target in targets.Where(t => t == Target(connectionId) || t.StartsWith(Target(connectionId) + "#", StringComparison.Ordinal)))
+            if (WindowsCredentials.Delete(target) is { } error) log.LogWarning("Forgetting a storage sign-in failed: {Error}", error);
+    }
+
+    static string Target(string connectionId) => TargetPrefix + connectionId;
+}
+
+/// <summary>Storage sign-ins in memory, for the smoke test, which connects no real storage.</summary>
+public sealed class MemoryConnectionSecrets : Bibliotaph.Storage.Desktop.IConnectionSecrets
+{
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> _secrets = new();
+
+    public string? Find(string connectionId) => _secrets.GetValueOrDefault(connectionId);
+
+    public bool Remember(string connectionId, string secret)
+    {
+        _secrets[connectionId] = secret;
+        return true;
+    }
+
+    public void Forget(string connectionId) => _secrets.TryRemove(connectionId, out _);
+}
+
 /// <summary>Generic credentials in Windows Credential Manager, local to this machine. Errors come back as text for the log.</summary>
 static class WindowsCredentials
 {

@@ -19,10 +19,43 @@ The file's content, name, place and dates don't change. Files you already had on
 **Always keep on this device**, and a book you have open are left alone. To keep everything downloaded instead, untick
 **Return files to online-only after indexing** in **Settings > Processing**.
 
-Other cloud apps' folders work too, as ordinary folders.
+Other cloud apps' folders work too, as ordinary folders. To read OneDrive, Dropbox, Google Drive, Box or WebDAV
+without their apps, see [Storage without its app](#storage-without-its-app).
 
 Bibliotaph's own catalog is kept in `%LOCALAPPDATA%\Bibliotaph` on your PC, never in OneDrive. Don't move it into a
 synced folder: to use your library on two PCs, see [More than one PC](#more-than-one-pc) below.
+
+## Storage without its app
+
+Bibliotaph can also read your books straight from OneDrive, Dropbox, Google Drive, Box or a WebDAV server (Nextcloud,
+ownCloud or a NAS), with no sync app on the PC and nothing downloaded to keep, the way [the web library](web.md#connecting-your-storage)
+does. It's the same storage and the same folders, connected on this PC.
+
+At the top of **Settings > Library**, under **Storage**, choose **Connect OneDrive**, **Connect Dropbox**,
+**Connect Google Drive** or **Connect Box**. Your browser opens at the provider's own page: sign in with the account
+that holds your books and let Bibliotaph read your files. When the browser says you can close the tab, the account is
+listed in Settings with what it was allowed, such as "Allowed to read your files and keep access while you're signed
+out"; point at that line for the provider's own words. Bibliotaph asks for nothing that writes, so it can't change,
+move or delete your files. If you change your mind while the browser is open, **Cancel** stops waiting for it.
+
+**Connect WebDAV** asks for the folder's address, your user name and a password instead, as the web library does. Here
+the server can be on your own network too, such as a NAS at http://192.168.1.20/books/; an address that starts http://
+sends the password unencrypted, so use one only at home. Make an app password for Bibliotaph where your server offers
+one.
+
+What lets Bibliotaph in is kept in Windows Credential Manager, never in Bibliotaph's files or backups, so after a
+[restore on a new PC](#a-new-pc) you connect your storage again and its folders come back.
+
+Then **Add from storage** under the folders, or **Add a folder from storage…** in the Library's **Add** menu, picks a
+folder: choose the account if you connected more than one, click down to the folder your books are in, and choose
+**Use this folder**. You see what it holds before you add it, as with any folder. Each book is downloaded to be read,
+and its copy deleted straight after; opening a book downloads it again. Bibliotaph looks for changes in your storage
+every five minutes, and **Look for changes** looks now.
+
+If a provider stops letting Bibliotaph in, for example after you change your password or remove its access, the
+account shows **Needs connecting again** with **Connect again**, and its folders are offline until you do; their books
+stay in your library and searchable. **Disconnect** forgets the account's access on this PC. Its folders go offline,
+and everything you did with their books stays for when you connect it again.
 
 ## USB and external drives
 

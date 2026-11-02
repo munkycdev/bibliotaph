@@ -29,12 +29,18 @@ public interface IWebBooks
     Task<Stream> OpenFileAsync(string contentHash, CancellationToken ct);
 }
 
+/// <summary>How a path in storage connected on this PC reads to the user, "OneDrive · Dana › RPG", or null for any other path.</summary>
+public interface IStoragePathNames
+{
+    string? Show(string path);
+}
+
 /// <summary>
 /// The web library's files as this PC last listed them, kept on disk (<see cref="AppPaths.WebShelf"/>) so its folders
 /// list, and its files' hashes are known, while the server can't be reached. A file's hash comes from the list, so a
 /// file is never downloaded to be hashed (<see cref="IKnownHashes"/>).
 /// </summary>
-public sealed class WebShelfCache(AppPaths paths, ILogger<WebShelfCache>? log = null) : IKnownHashes
+public sealed class WebShelfCache(AppPaths paths, ILogger<WebShelfCache>? log = null, IStoragePathNames? storage = null) : IKnownHashes
 {
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
@@ -74,12 +80,12 @@ public sealed class WebShelfCache(AppPaths paths, ILogger<WebShelfCache>? log = 
     public ContentHash? Find(string path) => File(path) is { } file && ContentHash.TryParse(file.ContentHash, out var hash) ? hash : null;
 
     /// <summary>
-    /// A web library path as the user knows it, "bibliotaph.online › OneDrive · Dana › RPG › Maps › harbor.png"; any
-    /// other path as it is.
+    /// A web library path as the user knows it, "bibliotaph.online › OneDrive · Dana › RPG › Maps › harbor.png"; a path in
+    /// storage connected on this PC as its account and folders; any other path as it is.
     /// </summary>
     public string Show(string path)
     {
-        if (!WebLibraryPaths.TryParse(path, out var id, out var relative)) return path;
+        if (!WebLibraryPaths.TryParse(path, out var id, out var relative)) return storage?.Show(path) ?? path;
         var folder = Folder(id)?.Location ?? "a folder no longer in the web library";
         var under = relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
         return string.Join(" › ", [WebLibraryPaths.Host, folder, .. under]);

@@ -629,6 +629,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     [RelayCommand]
     void AddFolder() => _folders.RequestPick();
 
+    /// <summary>Settings > Library's storage picker, or its Connect buttons when no storage is connected yet.</summary>
+    [RelayCommand]
+    void AddFromStorage() => _folders.RequestStoragePick();
+
     [RelayCommand]
     void ManageFolders() => _folders.Manage();
 

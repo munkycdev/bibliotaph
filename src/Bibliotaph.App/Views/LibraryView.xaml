@@ -162,6 +162,9 @@
                     Click="DropDown_Click" ToolTip="Add a book you own elsewhere, or check a download">
               <Button.ContextMenu>
                 <ContextMenu Style="{StaticResource Bt.Menu}">
+                  <MenuItem x:Name="AddFromStorage" Header="Add a folder from storage…" Command="{Binding AddFromStorageCommand}"
+                            ToolTip="A folder in OneDrive, Dropbox, Google Drive, Box or WebDAV, read where it is"
+                            AutomationProperties.Name="Add a folder from storage" />
                   <MenuItem x:Name="AddElsewhere" Header="Add a book I own elsewhere…" Command="{Binding AddElsewhereCommand}"
                             ToolTip="A book you own in print, on a virtual tabletop or on an online service, with no file here"
                             AutomationProperties.Name="Add a book I own elsewhere" />

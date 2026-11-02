@@ -76,7 +76,7 @@ static partial class Composition
         services.AddSingleton<ArchiveReader>();
         services.AddSingleton<SourceFiles>();
         services.AddSingleton<IDiskSpace, DiskSpace>();
-        services.AddSingleton<IFileIdentity, FileIdentity>();
+        services.AddSingleton<IFileIdentity>(new Bibliotaph.Storage.Desktop.StorageAwareFileIdentity(new FileIdentity()));
         services.AddSingleton<ForgetText>();
         return services;
     }

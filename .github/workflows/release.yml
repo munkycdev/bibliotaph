@@ -113,11 +113,19 @@ jobs:
       # The app starts its workers from pdfworker\ beside Bibliotaph.exe (WorkerOptions.DefaultWorkerPath), so the
       # worker is published there too, self-contained like the app: neither needs .NET installed.
       # The built-in AI's engine comes with the app, in aiworker\ (build/fetch-engine.ps1, run by the Engine step above).
+      # Storage's desktop OAuth apps come from the repository's settings, so no client ID lives in the source; a build
+      # without them connects WebDAV only. Google's desktop "secret" isn't secret (it ships in every copy), but it's kept
+      # as one so it isn't printed.
       - name: Publish (self-contained win-x64)
         shell: pwsh
         env:
           VERSION: ${{ steps.version.outputs.number }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          BIBLIOTAPH_ONEDRIVE_CLIENT_ID: ${{ vars.BIBLIOTAPH_ONEDRIVE_CLIENT_ID }}
+          BIBLIOTAPH_DROPBOX_CLIENT_ID: ${{ vars.BIBLIOTAPH_DROPBOX_CLIENT_ID }}
+          BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID: ${{ vars.BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID }}
+          BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET: ${{ secrets.BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET }}
+          BIBLIOTAPH_BOX_CLIENT_ID: ${{ vars.BIBLIOTAPH_BOX_CLIENT_ID }}
         run: |
           dotnet publish src/Bibliotaph.App/Bibliotaph.App.csproj --configuration Release --runtime win-x64 --self-contained `
             -p:Version=$env:VERSION -p:ReleasesUrl=$env:REPO_URL --output publish

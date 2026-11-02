@@ -16,8 +16,8 @@ public sealed record InspectorFact(string Label, string Value);
 /// Where a document's file is, and whether it can be read now. The first place carries the book's Reprocess button
 /// beside its Show in File Explorer: copies are one book, so reprocessing one covers them all. For a file inside a ZIP,
 /// File Explorer selects the ZIP (<see cref="ExplorerPath"/>). A file that has gone missing offers its last location
-/// instead: the folder it was in, or the nearest one above it that is still there. A file in the web library
-/// (<see cref="IsWeb"/>) is on no disk here, so it has nothing to show.
+/// instead: the folder it was in, or the nearest one above it that is still there. A file in the web library or in
+/// connected storage (<see cref="IsWeb"/>) is on no disk here, so it has nothing to show.
 /// </summary>
 public sealed record InspectorLocation(string Path, string State, bool ShowsReprocess = false, string? ExplorerPath = null, bool IsMissing = false,
     bool IsWeb = false)
@@ -237,13 +237,16 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if ((copy.ExplorerPath ?? copy.Path) is { } path) _shell.ShowInFolder(path);
     }
 
+    /// <summary>A file in the web library or in storage connected here is on no disk of this PC's, so File Explorer can't show it.</summary>
+    static bool OnNoDisk(string path) => WebLibraryPaths.IsWebPath(path) || Bibliotaph.Storage.StoragePath.IsStoragePath(path);
+
     static InspectorCopy ToCopy(CopyDetails details, WebShelfCache? shelf)
     {
         var copy = details.Copy;
         var location = details.Locations.FirstOrDefault(l => l.State != FileLocationState.Missing);
         var path = location?.FullPath;
         return new InspectorCopy(copy.DocumentId, DetailsText.CopyHeading(copy, path is not null), DetailsText.CopyDetail(copy),
-            path is null ? null : shelf?.Show(path) ?? path, copy.IsCurrent, location?.ExplorerPath, path is not null && WebLibraryPaths.IsWebPath(path));
+            path is null ? null : shelf?.Show(path) ?? path, copy.IsCurrent, location?.ExplorerPath, path is not null && OnNoDisk(path));
     }
 
     [ObservableProperty]
@@ -523,7 +526,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         {
             locations = [.. (await library.GetLocationsAsync(item.DocumentId))
                 .Select((l, i) => new InspectorLocation(shelf?.Show(l.FullPath) ?? l.FullPath, LocationState(l), ShowsReprocess: i == 0, l.ExplorerPath,
-                    IsMissing: l.State == FileLocationState.Missing && l.RootAvailability == SourceRootAvailability.Online, IsWeb: WebLibraryPaths.IsWebPath(l.FullPath)))];
+                    IsMissing: l.State == FileLocationState.Missing && l.RootAvailability == SourceRootAvailability.Online, IsWeb: OnNoDisk(l.FullPath)))];
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
             // Only a book that opens from the web library, with no file of its own here, can be kept offline.
