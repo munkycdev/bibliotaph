@@ -1024,6 +1024,11 @@
             </Border>
             <TextBlock Text="{Binding Name}" Margin="0,10,0,0" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource Bt.Text}" />
             <TextBlock Text="{Binding CountLabel}" Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextTrimming="CharacterEllipsis" />
+            <!-- A Nornis world's collection, or one whose world was deleted in Nornis. -->
+            <Border x:Name="WorldBadge" Margin="0,4,0,0" Padding="7,1" CornerRadius="9" HorizontalAlignment="Left" Background="{DynamicResource Bt.Soft}"
+                    Visibility="Collapsed">
+              <TextBlock x:Name="WorldBadgeText" Text="{Binding Badge}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" />
+            </Border>
           </StackPanel>
           <ControlTemplate.Triggers>
             <DataTrigger Binding="{Binding HasCovers}" Value="True">
@@ -1032,6 +1037,13 @@
             </DataTrigger>
             <DataTrigger Binding="{Binding HasSecondCover}" Value="True">
               <Setter TargetName="Second" Property="Visibility" Value="Visible" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding HasBadge}" Value="True">
+              <Setter TargetName="WorldBadge" Property="Visibility" Value="Visible" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Badge}" Value="World gone">
+              <Setter TargetName="WorldBadge" Property="Background" Value="{DynamicResource Bt.Side}" />
+              <Setter TargetName="WorldBadgeText" Property="Foreground" Value="{DynamicResource Bt.Muted}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding Pinned}" Value="True">
               <Setter TargetName="Pin" Property="Visibility" Value="Visible" />

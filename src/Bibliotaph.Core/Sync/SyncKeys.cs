@@ -190,6 +190,14 @@ public static class SyncFields
     public const string Name = "name";
     public const string Description = "description";
     public const string Parent = "parent";
+
+    /// <summary>
+    /// A collection's Nornis world, by its ID, and whether the world is gone. Only the web library hears from Nornis, so
+    /// it's the only one that changes them; the others show them.
+    /// </summary>
+    public const string NornisWorld = "nornisWorld";
+
+    public const string NornisGone = "nornisGone";
     public const string Definition = "definition";
     public const string Title = "title";
     public const string Date = "date";

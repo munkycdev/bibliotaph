@@ -32,6 +32,7 @@ static partial class Composition
         services.AddSingleton<FavoritesService>();
         services.AddSingleton<CollectionStore>();
         services.AddSingleton<FolderCollectionStore>();
+        services.AddSingleton<NornisWorldStore>();
         services.AddSingleton<CollectionsService>();
         services.AddSingleton<FolderCollections>();
         services.AddSingleton<CollectionSuggestions>();

@@ -75,6 +75,10 @@ public static class CollectionText
     }
 
     /// <summary>A card's tip: its name, and its description when it has one.</summary>
+    /// <summary>A Nornis world's collection's mark, "Nornis world" or "World gone", or null for any other collection.</summary>
+    public static string? Badge(IReadOnlyDictionary<long, bool> worlds, long collectionId) =>
+        worlds.TryGetValue(collectionId, out var gone) ? gone ? "World gone" : "Nornis world" : null;
+
     public static string Tip(CollectionInfo collection) => collection.Description is { } description ? $"{collection.Name}: {description}" : collection.Name;
 
     /// <summary>The picker's heading for New collection: at the top, or inside another.</summary>

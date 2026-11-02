@@ -210,7 +210,8 @@ public sealed partial class LibrarySyncStore
                 }
                 row.Name = Read<string>(wanted, SyncFields.Name);
                 row.Description = ReadOrDefault<string>(wanted, SyncFields.Description);
-                return await SaveAsync(db, ct);
+                var changed = await SaveAsync(db, ct);
+                return await SetNornisWorldAsync(db, row, wanted, ct) || changed;
             }
             if (SyncKeys.IdOf(key, SyncKeys.SavedSearch) is { } viewId)
             {
@@ -296,6 +297,28 @@ public sealed partial class LibrarySyncStore
     }
 
     static async Task<bool> SaveAsync(CatalogDbContext db, CancellationToken ct) => await db.SaveChangesAsync(ct) > 0;
+
+    /// <summary>
+    /// The collection's Nornis world as the web library has it: mapped to this collection, gone or not, and no other
+    /// world mapped to it. A world first met here takes the collection's name as the one Nornis last sent, so a rename
+    /// in Nornis still follows it.
+    /// </summary>
+    async Task<bool> SetNornisWorldAsync(CatalogDbContext db, CollectionNode collection, IReadOnlyDictionary<string, string> wanted, CancellationToken ct)
+    {
+        var worldId = ReadOrDefault<string>(wanted, SyncFields.NornisWorld);
+        var gone = ReadOrDefault<bool>(wanted, SyncFields.NornisGone);
+        foreach (var other in await db.NornisWorlds.Where(w => w.CollectionId == collection.Id && w.WorldId != worldId).ToListAsync(ct))
+            other.CollectionId = null;
+        if (worldId is not null)
+        {
+            var world = await db.NornisWorlds.FindAsync([worldId], ct)
+                ?? db.NornisWorlds.Add(new NornisWorld { WorldId = worldId, Name = collection.Name }).Entity;
+            world.CollectionId = collection.Id;
+            if (!gone) world.GoneUtc = null;
+            else world.GoneUtc ??= Now;
+        }
+        return await SaveAsync(db, ct);
+    }
 
     static Task<long?> PackAsync(CatalogDbContext db, IReadOnlyDictionary<string, string> fields, CancellationToken ct) =>
         GuidOf(fields, SyncFields.Binder) is { } binder

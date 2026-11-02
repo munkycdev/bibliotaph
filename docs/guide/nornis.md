@@ -5,7 +5,8 @@
 [Nornis](https://nornis.app) is a campaign app for game masters and their players, from Bibliotaph's maker.
 Connected, Bibliotaph becomes where your Nornis sourcebooks live: your books stay in your own storage, Bibliotaph
 catalogues and indexes them, and Nornis asks Bibliotaph when it needs them. This works with your library at
-[bibliotaph.online](web.md); a Windows PC connected to it sees the same collections.
+[bibliotaph.online](web.md); a Windows PC connected to it sees the same collections, with the same **Nornis world** and
+**World gone** marks.
 
 ## Connecting Nornis
 

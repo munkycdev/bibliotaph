@@ -7,7 +7,8 @@ namespace Bibliotaph.App.ViewModels;
 /// A collection's card: a mosaic of the covers of the two books added last, its name, and how many books and
 /// sub-collections it holds. A click opens the Library scoped to it.
 /// </summary>
-public sealed class CollectionCardViewModel(CollectionInfo collection, string countLabel, IReadOnlyList<LibraryItemViewModel> covers)
+public sealed class CollectionCardViewModel(CollectionInfo collection, string countLabel, IReadOnlyList<LibraryItemViewModel> covers,
+    string? badge = null)
 {
     public CollectionInfo Collection { get; } = collection;
 
@@ -31,6 +32,11 @@ public sealed class CollectionCardViewModel(CollectionInfo collection, string co
     public bool HasSecondCover => Covers.Count > 1;
 
     public string Tip => Processing.CollectionText.Tip(Collection);
+
+    /// <summary>"Nornis world" or "World gone" on a Nornis world's collection.</summary>
+    public string? Badge { get; } = badge;
+
+    public bool HasBadge => Badge is not null;
 }
 
 /// <summary>A collection in a picker: indented under the one it sits in, or listed by its path while filtering.</summary>

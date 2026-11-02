@@ -189,11 +189,18 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
         foreach (var decline in await db.CollectionDeclines.AsNoTracking().ToListAsync(ct))
             if (cardFields.TryGetValue(decline.EntryId, out var fields) && collectionIds.TryGetValue(decline.CollectionId, out var syncId))
                 fields[SyncFields.DeclinedPrefix + Id(syncId)] = Json(true);
+        var worlds = (await db.NornisWorlds.AsNoTracking().Where(w => w.CollectionId != null).ToListAsync(ct))
+            .GroupBy(w => w.CollectionId!.Value).ToDictionary(g => g.Key, g => g.OrderBy(w => w.WorldId, StringComparer.Ordinal).First());
         foreach (var c in collections)
+        {
+            var world = worlds.GetValueOrDefault(c.Id);
             records[SyncKeys.For(SyncKeys.Collection, c.SyncId)] = Fields(
                 (SyncFields.Name, Json(c.Name)),
                 (SyncFields.Description, c.Description is { } d ? Json(d) : null),
-                (SyncFields.Parent, c.ParentId is { } p && collectionIds.TryGetValue(p, out var parent) ? Json(Id(parent)) : null));
+                (SyncFields.Parent, c.ParentId is { } p && collectionIds.TryGetValue(p, out var parent) ? Json(Id(parent)) : null),
+                (SyncFields.NornisWorld, world is null ? null : Json(world.WorldId)),
+                (SyncFields.NornisGone, world is { GoneUtc: not null } ? Json(true) : null));
+        }
 
         var views = await db.SmartViews.AsNoTracking().ToListAsync(ct);
         foreach (var v in views)
