@@ -218,6 +218,7 @@ public static class LibraryServices
         services.AddSingleton<BookVectorQueries>();
         services.AddSingleton<BookVectors>();
         services.AddSingleton<LibraryAskService>();
+        services.AddSingleton<NornisScope>();
         services.AddSingleton<MeaningSearchService>();
         services.AddSingleton<LibraryVectors>();
         services.AddSingleton<IStageCatalog, StageCatalog>();

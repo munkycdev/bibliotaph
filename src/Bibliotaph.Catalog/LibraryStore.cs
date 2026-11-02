@@ -778,6 +778,20 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
     }
 
     /// <summary>The relative path of every file the library shows, with its document, for the folder label list.</summary>
+    /// <summary>A document's content hash, or null when there's no such document.</summary>
+    public async Task<string?> GetContentHashAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.Documents.AsNoTracking().Where(d => d.Id == documentId).Select(d => d.ContentHash).SingleOrDefaultAsync(ct);
+    }
+
+    /// <summary>The document with this content, or null when the library has no such file.</summary>
+    public async Task<long?> FindDocumentAsync(string contentHash, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.Documents.AsNoTracking().Where(d => d.ContentHash == contentHash).Select(d => (long?)d.Id).FirstOrDefaultAsync(ct);
+    }
+
     public async Task<IReadOnlyList<(long DocumentId, string RelativePath)>> GetRelativePathsAsync(CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);

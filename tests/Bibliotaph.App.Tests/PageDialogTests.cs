@@ -1,4 +1,5 @@
 using System.Globalization;
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Reading;
@@ -120,5 +121,40 @@ public class PageDialogTests
 
         Assert.NotNull(dialog.PagesProblem);
         Assert.False(dialog.SaveCommand.CanExecute(null));
+    }
+
+    static readonly NornisSendWorld Ashes = new(new Guid("6f1d8a52-0000-4000-8000-000000000001"), "Ashes",
+        "https://nornis.test/bibliotaph/excerpt?world=6f1d8a52-0000-4000-8000-000000000001&document=7");
+
+    static readonly NornisSendWorld Tides = new(new Guid("6f1d8a52-0000-4000-8000-000000000002"), "Tides",
+        "https://nornis.test/bibliotaph/excerpt?world=6f1d8a52-0000-4000-8000-000000000002&document=7");
+
+    [Fact]
+    public void Send_to_Nornis_opens_the_chosen_world_s_excerpt_at_the_typed_pages_and_label()
+    {
+        var dialog = new SendToNornisDialogViewModel(new NornisSend([Ashes, Tides]), "3", "1", "", FindPage);
+        string? opened = null;
+        dialog.Closed += (_, url) => opened = url;
+
+        dialog.Label = "Warehouse ambush";
+        dialog.World = Tides;
+        dialog.OpenCommand.Execute(null);
+
+        Assert.True(dialog.ChoosesWorld);
+        Assert.Equal(Tides.Url + "&from=4&to=6&label=Warehouse%20ambush", opened);
+    }
+
+    [Fact]
+    public void Send_to_Nornis_refuses_more_than_its_most_pages_and_pages_the_book_does_not_have()
+    {
+        // A 60-page book without printed numbers: pages are typed as the PDF numbers them.
+        var tooMany = new SendToNornisDialogViewModel(new NornisSend([Ashes]), "1", "41", "", text => PageNumbers.Find(text, new string?[60], 60));
+        var unknown = new SendToNornisDialogViewModel(new NornisSend([Ashes]), "xl", "", "", FindPage);
+
+        Assert.False(tooMany.ChoosesWorld);
+        Assert.Equal(NornisSend.TooManyPages, tooMany.PagesProblem);
+        Assert.False(tooMany.OpenCommand.CanExecute(null));
+        Assert.NotNull(unknown.PagesProblem);
+        Assert.False(unknown.OpenCommand.CanExecute(null));
     }
 }

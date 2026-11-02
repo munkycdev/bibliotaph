@@ -94,15 +94,16 @@ Nornis asks for this as soon as someone opens a world, so it's usually ready by 
 
 ## Sending pages to Nornis
 
-On [bibliotaph.online](web.md), the reader has **Send to Nornis** for a book that's in one of your worlds'
-collections. It opens with the page you're on, or an adventure's pages, as From and To; change them to the pages you
+The reader has **Send to Nornis** for a book that's in one of your worlds' collections, on
+[bibliotaph.online](web.md) and in the Windows app on a PC connected to it. It opens with the page you're on, or an adventure's pages, as From and To; change them to the pages you
 want, up to 40, give the excerpt a label if you like, and pick the world if the book is in more than one. **Open in
-Nornis** opens Nornis in a new tab, where it reads those pages and asks you to confirm the excerpt. Bibliotaph sends
-Nornis nothing itself.
+Nornis** opens Nornis in a new tab (on Windows, in your browser), where it reads those pages from your web library and
+asks you to confirm the excerpt. Bibliotaph sends Nornis nothing itself. On Windows, the file you have open must be in
+your web library too, since that's where Nornis reads it, and the PC needs to reach bibliotaph.online.
 
 A binder's item of pages has **Send to Nornis** in its menu (right-click it while editing the binder), with the item's
 label; a whole book in a binder isn't an excerpt. A book in a folder you keep from AI shows the action greyed out,
-since its pages never go to Nornis.
+since its pages never go to Nornis; on Windows, the binder's item says so instead.
 
 ## Players reading your books
 

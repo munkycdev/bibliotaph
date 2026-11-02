@@ -72,7 +72,7 @@ public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
     NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
     IUserPrompts UserPrompts, IDesktopShell Shell, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null, PackService? Packs = null,
-    EbookBrowser? Ebooks = null, WebLibraryCopies? WebCopies = null);
+    EbookBrowser? Ebooks = null, WebLibraryCopies? WebCopies = null, NornisScope? Nornis = null, WebLibrary? Web = null);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -117,6 +117,10 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     int _coverPage;
     readonly PagePlaces _places;
     readonly AskService _ask;
+    readonly NornisScope? _nornis;
+    readonly WebLibrary? _web;
+    /// <summary>The open file's content, by which the web library finds its own copy for Send to Nornis.</summary>
+    string? _nornisHash;
     readonly ILogger<ViewerViewModel> _log;
     readonly Dispatcher _dispatcher;
     readonly UiTimer _noticeTimer;
@@ -177,6 +181,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         _places = services.Places;
         _chapters = services.Chapters;
         _ask = services.Ask;
+        _nornis = services.Nornis;
+        _web = services.Web;
         EbookBrowser = services.Ebooks;
         _log = services.Log;
         _windows = windows;
@@ -627,6 +633,63 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     }
 
     /// <summary>Closes the book, remembering the page in view so Back reopens it there; a book opened ahead of time stays.</summary>
+    /// <summary>
+    /// Whether the open book is in a Nornis world's collection here, which shows Send to Nornis. The web library has the
+    /// last word, as Nornis reads the pages there: Send to Nornis asks it for the worlds and their addresses.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendToNornisCommand))]
+    public partial bool ShowsSendToNornis { get; private set; }
+
+    /// <summary>Send to Nornis, as a dialog over the reader.</summary>
+    [ObservableProperty]
+    public partial SendToNornisDialogViewModel? NornisDialog { get; private set; }
+
+    async Task LoadNornisAsync(long documentId, string contentHash)
+    {
+        if (_nornis is null || _web is null) return;
+        var version = _version;
+        try
+        {
+            var worlds = await Task.Run(() => _nornis.WorldsHoldingAsync(documentId));
+            if (version != _version) return;
+            _nornisHash = contentHash;
+            ShowsSendToNornis = worlds.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Finding the Nornis worlds of the open book failed");
+        }
+    }
+
+    /// <summary>Opens Send to Nornis at an adventure's pages, or the page in view.</summary>
+    [RelayCommand(CanExecute = nameof(ShowsSendToNornis), AllowConcurrentExecutions = false)]
+    async Task SendToNornis()
+    {
+        if (_web is null || _nornisHash is not { } hash) return;
+        var version = _version;
+        var answer = await _web.NornisSendAsync(hash, null, CancellationToken.None);
+        if (version != _version) return;
+        if (NornisSendText.Refusal(answer) is { } refusal)
+        {
+            ShowNotice(refusal);
+            return;
+        }
+        var (from, to) = _request?.Part?.Pages is { } part ? (part.First, part.Last) : (CurrentPageIndex, CurrentPageIndex);
+        var dialog = new SendToNornisDialogViewModel(answer!.Send!, PageNumbers.Display(from, _labels), PageNumbers.Display(to, _labels), "",
+            text => PageNumbers.Find(text, _labels, PageCount));
+        dialog.Closed += (_, url) =>
+        {
+            NornisDialog = null;
+            if (url is not null && _shell.Open(url) is { } failed)
+            {
+                _log.LogWarning(failed, "Opening Nornis failed");
+                ShowNotice("Nornis couldn't be opened in your browser.");
+            }
+        };
+        NornisDialog = dialog;
+    }
+
     void CloseBook()
     {
         _version++;
@@ -640,6 +703,9 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         Sessions.Close();
         Notes.Detach();
         PartEditor?.CancelCommand.Execute(null);
+        NornisDialog?.CancelCommand.Execute(null);
+        ShowsSendToNornis = false;
+        _nornisHash = null;
         _pins.Changed -= OnPinsChanged;
         _sessions.Changed -= OnSessionsChanged;
         if (_webCopies is not null) _webCopies.Progress -= OnWebDownload;
@@ -1356,6 +1422,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             if (request.Ask && Ask.IsOn) AskVisible = true;
             PrepareAskAsync(source.DocumentId).FireAndForget();
             Notes.Attach(source.DocumentId);
+            LoadNornisAsync(source.DocumentId, source.ContentHash).FireAndForget();
             ShowSessionBanner();
             if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
             await RecordOpenAsync(source.DocumentId);
@@ -1644,6 +1711,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         if (request.Ask && Ask.IsOn) AskVisible = true;
         PrepareAskAsync(source.DocumentId).FireAndForget();
         Notes.Attach(source.DocumentId);
+        LoadNornisAsync(source.DocumentId, source.ContentHash).FireAndForget();
         ShowSessionBanner();
         if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
         if (request.Query?.HighlightTerms() is { Count: > 0 } terms && !content.FixedLayout && EbookTerms is { } mark)

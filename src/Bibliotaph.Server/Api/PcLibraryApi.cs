@@ -7,6 +7,7 @@ using Bibliotaph.Processing;
 using Bibliotaph.Server.Accounts;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
+using Bibliotaph.Server.Nornis;
 using Bibliotaph.Server.Storage;
 using Bibliotaph.Storage;
 
@@ -98,6 +99,8 @@ public static class PcLibraryApi
             board.Forget(principal.UserId()!, principal.DeviceId()!);
             return Results.NoContent();
         });
+
+        pc.MapPcSendToNornis();
 
         pc.MapGet("/books/{hash}/reading", async (string hash, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {

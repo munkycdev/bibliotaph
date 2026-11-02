@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core.Reading;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -35,6 +36,10 @@ public sealed partial class SessionPackViewModel : PageViewModel
     readonly INavigationService _navigation;
     readonly IDesktopShell _shell;
     readonly ILogger<SessionPackViewModel> _log;
+    readonly NornisWorldStore? _worlds;
+    readonly IndexQueries? _index;
+    readonly WebLibrary? _web;
+    readonly LibraryStore _library;
     readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
     readonly UiTimer _notesTimer;
     int _version;
@@ -43,8 +48,12 @@ public sealed partial class SessionPackViewModel : PageViewModel
 
     public SessionPackViewModel(SessionActions actions, SessionsService sessions, SessionPages sessionPages, LibraryPages pages, LibraryQueries queries,
         CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell, TimeProvider time,
-        ILogger<SessionPackViewModel> log)
+        ILogger<SessionPackViewModel> log, LibraryStore library, NornisWorldStore? worlds = null, IndexQueries? index = null, WebLibrary? web = null)
     {
+        _library = library;
+        _worlds = worlds;
+        _index = index;
+        _web = web;
         _online = online;
         _shell = shell;
         Actions = actions;
@@ -175,6 +184,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
                 Rows.Add(row);
             }
             HasItems = contents.Items.Count > 0;
+            HasNornisWorlds = _web is not null && _worlds is not null && (await Task.Run(() => _worlds.LiveAsync())).Count > 0;
             IsMissing = false;
             IsLoaded = true;
             if (focus is { } id) FocusItemRequested?.Invoke(this, id);
@@ -183,6 +193,59 @@ public sealed partial class SessionPackViewModel : PageViewModel
         {
             _log.LogError(ex, "Showing session pack {PackId} failed", PackId);
         }
+    }
+
+    /// <summary>Whether the library has a live Nornis world, so an item of pages offers Send to Nornis.</summary>
+    public bool HasNornisWorlds { get; private set; }
+
+    /// <summary>Send to Nornis, as a dialog over the page.</summary>
+    [ObservableProperty]
+    public partial SendToNornisDialogViewModel? NornisDialog { get; private set; }
+
+    /// <summary>An item of pages can be sent to Nornis; a whole book in a binder isn't an excerpt.</summary>
+    public static bool CanSendToNornis(SessionItemRow row) => row.Item.Range is not null && row.Target.DocumentId is not null;
+
+    /// <summary>Send to Nornis for an item of pages, with its pages and label, in a world its book is in on the web library.</summary>
+    [RelayCommand]
+    async Task SendToNornis(SessionItemRow row)
+    {
+        if (_web is null || _index is null || !CanSendToNornis(row) || row.Target.DocumentId is not { } documentId) return;
+        NornisSendAnswer? answer;
+        IReadOnlyList<string?> labels;
+        try
+        {
+            if (await Task.Run(() => _library.GetContentHashAsync(documentId)) is not { } hash)
+            {
+                Actions.Undo.Say("This item's file isn't in the library any more.");
+                return;
+            }
+            answer = await _web.NornisSendAsync(hash, (row.Target.FirstPage, row.Target.LastPage, row.Label), CancellationToken.None);
+            labels = await Task.Run(() => _index.GetPageLabelsAsync(documentId));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Asking for the Nornis worlds of a binder item failed");
+            Actions.Undo.Say("That didn't work. The log has the details.");
+            return;
+        }
+        if (NornisSendText.Refusal(answer) is { } refusal)
+        {
+            Actions.Undo.Say(refusal);
+            return;
+        }
+        var pageCount = Math.Max(labels.Count, row.Target.LastPage + 1);
+        var dialog = new SendToNornisDialogViewModel(answer!.Send!, PageNumbers.Display(row.Target.FirstPage, labels),
+            PageNumbers.Display(row.Target.LastPage, labels), row.Label ?? "", text => PageNumbers.Find(text, labels, pageCount));
+        dialog.Closed += (_, url) =>
+        {
+            NornisDialog = null;
+            if (url is not null && _shell.Open(url) is { } failed)
+            {
+                _log.LogWarning(failed, "Opening Nornis failed");
+                Actions.Undo.Say("Nornis couldn't be opened in your browser.");
+            }
+        };
+        NornisDialog = dialog;
     }
 
     async void OnItemEdited(object? sender, EventArgs e)
