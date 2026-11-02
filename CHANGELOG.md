@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed: on bibliotaph.online, opening any book's details showed an error instead of the book.** The sections of the
+  details pane were labelled alike, which the page refuses to show. Each now has a label of its own.
+
 ## 1.4 ┬╖ 28 October 2026
 
 New in 1.4.1152 (31 October 2026):
