@@ -74,6 +74,18 @@ Nornis, as is anything else in your library.
 If your library is closed when Nornis asks, Bibliotaph starts opening it and Nornis tries again a few seconds later.
 Nornis asks for this as soon as someone opens a world, so it's usually ready by the time anyone asks a question.
 
+## Sending pages to Nornis
+
+On [bibliotaph.online](web.md), the reader has **Send to Nornis** for a book that's in one of your worlds'
+collections. It opens with the page you're on, or an adventure's pages, as From and To; change them to the pages you
+want, up to 40, give the excerpt a label if you like, and pick the world if the book is in more than one. **Open in
+Nornis** opens Nornis in a new tab, where it reads those pages and asks you to confirm the excerpt. Bibliotaph sends
+Nornis nothing itself.
+
+A binder's item of pages has **Send to Nornis** in its menu (right-click it while editing the binder), with the item's
+label; a whole book in a binder isn't an excerpt. A book in a folder you keep from AI shows the action greyed out,
+since its pages never go to Nornis.
+
 ## Players reading your books
 
 When you share a book with your players in Nornis, they can read it in Bibliotaph's reader without an account of their

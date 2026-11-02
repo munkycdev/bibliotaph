@@ -68,6 +68,10 @@ public sealed class BindersClient(ApiHttp http)
     public Task<ActionResult> RemoveBinderItemAsync(long item, CancellationToken ct = default) =>
         http.SendAsync<ActionResult>(HttpMethod.Delete, BinderItem(item), null, ct);
 
+    /// <summary>The Nornis worlds a binder item's pages can be sent to as an excerpt; none for a whole book, or without Nornis.</summary>
+    public async Task<NornisSend> NornisSendAsync(long itemId, CancellationToken ct = default) =>
+        await http.FindAsync<NornisSend>($"{BinderItem(itemId)}/nornis", System.Net.HttpStatusCode.NotFound, ct) ?? new NornisSend([]);
+
     static string Binder(long id) => $"api/binders/{id.ToString(CultureInfo.InvariantCulture)}";
 
     static string BinderItem(long id) => $"api/binders/items/{id.ToString(CultureInfo.InvariantCulture)}";

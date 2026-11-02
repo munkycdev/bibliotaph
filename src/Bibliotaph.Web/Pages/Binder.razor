@@ -124,6 +124,7 @@ else
     bool _missing;
     bool _sectionMenu;
     long? _itemMenu;
+    NornisSend? _itemNornis;
     BinderItem? _dragging;
     (long Id, bool Heading)? _dropOn;
     string _notes = "";
@@ -355,12 +356,35 @@ else
 
     public void Dispose() => _ = SaveNotesAsync();
 
+    /// <summary>The item's menu, with Send to Nornis once it's known the item's pages can go to a world.</summary>
+    void OpenItemMenu(BinderItem item)
+    {
+        _itemMenu = item.Id;
+        _itemNornis = null;
+        _ = LoadItemNornisAsync(item.Id);
+    }
+
+    async Task LoadItemNornisAsync(long itemId)
+    {
+        try
+        {
+            var send = await BindersApi.NornisSendAsync(itemId);
+            if (_itemMenu != itemId) return;
+            _itemNornis = send;
+            StateHasChanged();
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // The menu goes on without it.
+        }
+    }
+
     RenderFragment Item(BinderItem item) => __builder =>
     {
         <div class="bt-binderitem @(item.Dimmed ? "dimmed" : "") @(_dropOn == (item.Id, false) ? "drop" : "")" role="listitem" tabindex="0" aria-label="@item.Heading"
              @key="(item.Id, false)" @onkeydown="e => ItemKeyAsync(item, e)"
              @ondragover="() => _dropOn = (item.Id, false)" @ondragover:preventDefault="true" @ondrop="() => DropOnItemAsync(item)"
-             @oncontextmenu="() => _itemMenu = item.Id" @oncontextmenu:preventDefault="true">
+             @oncontextmenu="() => OpenItemMenu(item)" @oncontextmenu:preventDefault="true">
             <span class="bt-bindergrip" title="Drag to reorder (or Alt+Up and Alt+Down)" draggable="true" @ondragstart="() => _dragging = item" @ondragend="EndDrag">
                 <Icon Name="GripVertical" Size="14" />
             </span>
@@ -407,6 +431,22 @@ else
                             @foreach (var move in item.Moves)
                             {
                                 <button class="bt-menuitem" role="menuitem" @onclick="() => MoveAsync(item, new BinderItemMove(SectionId: move.SectionId))">@move.Label</button>
+                            }
+                            @if (_itemNornis is { Worlds.Count: > 0 } send && send.From is { } from && send.To is { } to)
+                            {
+                                @foreach (var world in send.Worlds)
+                                {
+                                    var label = send.Worlds.Count == 1 ? "Send to Nornis" : $"Send to Nornis: {world.Name}";
+                                    @if (send.Problem is { } problem)
+                                    {
+                                        <button class="bt-menuitem" role="menuitem" disabled title="@problem">@label</button>
+                                    }
+                                    else
+                                    {
+                                        <a class="bt-menuitem" role="menuitem" href="@NornisSend.Excerpt(world, from, to, send.Label ?? item.Label)" target="_blank" rel="noopener"
+                                           title="File these pages as an excerpt in @world.Name" @onclick="() => _itemMenu = null">@label</a>
+                                    }
+                                }
                             }
                             <button class="bt-menuitem" role="menuitem" @onclick="() => RemoveAsync(item)">Remove from binder<span class="bt-gesture">Delete</span></button>
                         </div>

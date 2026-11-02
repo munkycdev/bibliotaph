@@ -374,9 +374,12 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         {
             return;
         }
-        // Off the opening's own continuation, so the slot has its value by the time the lease asks for it.
-        await Task.Yield();
-        await using var lease = await LeaseIfOpenAsync(userId);
+        // The slot publishes the opening only once its factory returns, which can be just after the opening itself has
+        // finished, so a lease asked for at once may find nothing yet; it waits for that, not for a library that closed.
+        LibraryLease? found;
+        while ((found = await LeaseIfOpenAsync(userId)) is null && _slots.TryGetValue(userId, out var slot) && !slot.Opening.IsValueCreated)
+            await Task.Delay(10);
+        await using var lease = found;
         if (lease is null) return;
         foreach (var step in steps)
         {

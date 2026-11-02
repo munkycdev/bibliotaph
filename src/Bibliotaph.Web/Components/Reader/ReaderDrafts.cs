@@ -49,3 +49,12 @@ public sealed class PasswordTicks
     /// <summary>Remembering it lets indexing use it too, so a remembered password always makes the text searchable.</summary>
     public bool MakesSearchable => Searchable || Remember;
 }
+
+/// <summary>Send to Nornis: From and To as the reader names pages, a label, and the world, the first unless picked.</summary>
+public sealed class SendDraft
+{
+    public string From { get; set; } = "";
+    public string To { get; set; } = "";
+    public string Label { get; set; } = "";
+    public Guid WorldId { get; set; }
+}

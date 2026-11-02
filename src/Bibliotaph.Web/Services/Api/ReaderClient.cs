@@ -79,6 +79,10 @@ public sealed class ReaderClient(ApiHttp http)
     public Task<ReaderNotesChanged> DeletePageNoteAsync(long documentId, long noteId, CancellationToken ct = default) =>
         http.SendAsync<ReaderNotesChanged>(HttpMethod.Delete, $"{Document(documentId)}/notes/{noteId.ToString(CultureInfo.InvariantCulture)}", null, ct);
 
+    /// <summary>The Nornis worlds a book's pages can be sent to as an excerpt; none when Nornis isn't set up or connected.</summary>
+    public async Task<NornisSend> NornisSendAsync(long documentId, CancellationToken ct = default) =>
+        await http.FindAsync<NornisSend>($"{Document(documentId)}/nornis", System.Net.HttpStatusCode.NotFound, ct) ?? new NornisSend([]);
+
     /// <summary>A book a game master shared through Nornis, as a player opens it, at a page or where the ticket said.</summary>
     public Task<GuestBook> GuestReaderAsync(long documentId, int? page, CancellationToken ct = default) =>
         http.SendAsync<GuestBook>(HttpMethod.Get, $"{Table(documentId)}/reader" + (page is { } at ? $"?page={at.ToString(CultureInfo.InvariantCulture)}" : ""), null, ct);
