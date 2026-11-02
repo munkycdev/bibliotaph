@@ -67,6 +67,11 @@ else
                         <button class="bt-button" title="Add a note on the page in view" aria-label="Add a note on this page" @onclick="AddNoteAsync"><Icon Name="Pencil" />Note</button>
                     }
                     <AddToBinderButton @key="book.DocumentId" Picked="p => AddPageAsync(p.Menu, p.Choice)" AddPages="AddPagesAsync" Failed="r => _binderDone = r" />
+                    @if (HasPages && _nornis is { Worlds.Count: > 0 } send)
+                    {
+                        <button class="bt-button" title="@(send.Problem ?? "File pages of this book as an excerpt in a Nornis world")" aria-label="Send to Nornis"
+                                disabled="@(send.Problem is not null)" @onclick="SendToNornis"><Icon Name="Send" />Send to Nornis</button>
+                    }
                 </div>
             }
         </div>
@@ -285,6 +290,10 @@ else
     {
         <AddPagesDialog @key="pages" Draft="pages" Book="open" Saved="SavePagesAsync" Closed="() => _pagesDialog = null" />
     }
+    @if (_sendDialog is { } sending && _nornis is { } nornis)
+    {
+        <SendToNornisDialog @key="sending" Draft="sending" Book="open" Send="nornis" Closed="() => _sendDialog = null" />
+    }
     @if (_partDialog is { } marking)
     {
         <AdventureDialog @key="marking" Draft="marking" Book="open" Saved="SavePartAsync" Closed="() => _partDialog = null" />
@@ -399,6 +408,8 @@ else
     ActionResult? _binderDone;
     PagesDraft? _pagesDialog;
     AdventureDraft? _partDialog;
+    NornisSend? _nornis;
+    SendDraft? _sendDialog;
     ReaderOutline? _outlineMenu;
 
     (bool Retry, TaskCompletionSource<string?> Answer)? _password;
@@ -492,10 +503,13 @@ else
         _outlineMenu = null;
         if (_book.Notice is { } notice) ShowNotice(notice);
         _ask = null;
+        _nornis = null;
+        _sendDialog = null;
         if (HasPages && !Guest)
         {
             _ = LoadNotesAsync(_book);
             _ = LoadAskAsync(_book);
+            _ = LoadNornisAsync(_book);
         }
         ReportPlace();
     }
@@ -727,6 +741,38 @@ else
         }
         _find.Text = phrase;
         await ShowMatchAsync(_find.Take(phrase, hits, page));
+    }
+
+    // Send to Nornis.
+
+    /// <summary>The Nornis worlds the book is in, for Send to Nornis; none hides it.</summary>
+    async Task LoadNornisAsync(ReaderBook book)
+    {
+        NornisSend send;
+        try
+        {
+            send = await ReaderApi.NornisSendAsync(book.DocumentId);
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            return;
+        }
+        if (_book != book) return;
+        _nornis = send;
+        StateHasChanged();
+    }
+
+    /// <summary>Opens Send to Nornis at an adventure's pages, or the page in view.</summary>
+    void SendToNornis()
+    {
+        if (_book is not { } book || _nornis is not { Worlds: [var first, ..] }) return;
+        var (from, to) = book.Part is { } part ? (part.FirstPage, part.LastPage) : (_page, _page);
+        _sendDialog = new SendDraft
+        {
+            From = ReaderPageNumbers.Display(from, book.Labels),
+            To = ReaderPageNumbers.Display(to, book.Labels),
+            WorldId = first.WorldId,
+        };
     }
 
     // The Notes panel and Note.

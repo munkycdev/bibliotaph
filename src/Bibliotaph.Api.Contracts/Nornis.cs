@@ -80,3 +80,25 @@ public sealed record NornisTicket(string Url, DateTimeOffset ExpiresAt);
 /// world, where to go when the hour is up, and when that is.
 /// </summary>
 public sealed record GuestBook(ReaderBook Book, string SharedBy, string World, string Renew, DateTimeOffset ExpiresAt);
+
+/// <summary>A live Nornis world a book is in, and the start of its address on Nornis for filing an excerpt.</summary>
+public sealed record NornisSendWorld(Guid WorldId, string Name, string Url);
+
+/// <summary>
+/// Send to Nornis for a book: the worlds it can go to (none hides the action), why it can't when it can't, and for a
+/// binder item, its pages and label.
+/// </summary>
+public sealed record NornisSend(IReadOnlyList<NornisSendWorld> Worlds, string? Problem = null, int? From = null, int? To = null, string? Label = null)
+{
+    /// <summary>The most pages one excerpt takes, as Nornis's page text gives at once.</summary>
+    public const int MostPages = NornisPageTexts.MostPages;
+
+    public const string KeptFromAi = "This book is in a folder kept from AI, so its pages don't go to Nornis.";
+
+    public static string TooManyPages => $"Send at most {MostPages} pages to Nornis at a time.";
+
+    /// <summary>The excerpt's address on Nornis: the world's, with the zero-based pages, first to last, and a label if there is one.</summary>
+    public static string Excerpt(NornisSendWorld world, int from, int to, string? label) =>
+        $"{world.Url}&from={from.ToString(System.Globalization.CultureInfo.InvariantCulture)}&to={to.ToString(System.Globalization.CultureInfo.InvariantCulture)}"
+        + (label?.Trim() is { Length: > 0 } named ? $"&label={Uri.EscapeDataString(named)}" : "");
+}

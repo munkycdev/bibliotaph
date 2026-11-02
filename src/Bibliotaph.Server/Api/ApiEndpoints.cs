@@ -5,6 +5,7 @@ using Bibliotaph.Processing;
 using Bibliotaph.Server.Accounts;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
+using Bibliotaph.Server.Nornis;
 using Bibliotaph.Server.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
@@ -78,6 +79,7 @@ public static class ApiEndpoints
         api.MapElsewhereApi();
         api.MapOnlineApi();
         api.MapReaderApi();
+        api.MapSendToNornis();
         api.MapPasswordsApi();
         api.MapCheckApi();
         api.MapPageNotesApi();

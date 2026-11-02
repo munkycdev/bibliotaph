@@ -230,7 +230,11 @@ books (title, subtitle, type, system, pages, format, cover), up to ten pages tha
 by meaning when the library has an embedding model, with nothing at all in ask mode when the signals are weak but the
 closest pages when the game master is choosing excerpts, and the text of up to 40 pages at a time. Books in folders kept
 from AI are never searched and their text is refused. A closed library starts opening, and Nornis is told to try again
-in a few seconds. Players with no Bibliotaph account can read a book the game master shares with them in Nornis: Nornis
+in a few seconds.
+**Send to Nornis**, in the web reader and on a binder's item of pages, opens Nornis's excerpt page for up to 40 pages
+of a book in one of the game master's live worlds (a picker when it's in several; greyed out for a book kept from AI),
+and Nornis reads the pages and asks to confirm.
+Players with no Bibliotaph account can read a book the game master shares with them in Nornis: Nornis
 checks they may, Bibliotaph checks the book is in the world, and the player reads it view-only in the web reader for an
 hour at a time (no notes, Ask, binders, favourites or Keep offline), Shared by the game master in the world, with a
 link back to Nornis, which checks again when the hour is up. The game master's library keeps no place, recent open or

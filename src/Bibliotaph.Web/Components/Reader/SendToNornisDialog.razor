@@ -1,0 +1,77 @@
+@* .bt-dialog: Send to Nornis, pages of the book filed as an excerpt in one of its Nornis worlds. Nornis's page opens in
+   a new tab, reads the pages' text and asks the game master to confirm. Esc, Cancel or a click outside closes it. *@
+@using Bibliotaph.Core.Reading
+
+<div class="bt-backdrop fixed bt-dialogback" @onclick="Close"></div>
+<div class="bt-dialog" role="dialog" aria-modal="true" aria-label="Send to Nornis" @onkeydown="KeyAsync">
+    <div class="bt-drawer-head bt-dialoghead">
+        <div>
+            <span class="bt-eyebrow bt-eyebrow-block">NORNIS</span>
+            <h2 class="bt-dialogtitle">Send to Nornis</h2>
+        </div>
+        <button class="bt-icon" title="Close (Esc)" aria-label="Close" @onclick="Close"><Icon Name="X" /></button>
+    </div>
+    <div class="bt-small bt-dialogintro">Nornis files these pages as an excerpt in the world, once you confirm there.</div>
+    <div class="bt-inline bt-notepagefields">
+        <label class="bt-field">From page<input aria-label="From page" @bind="Draft.From" @bind:event="oninput" @ref="_from" /></label>
+        <label class="bt-field">To page<input aria-label="To page" @bind="Draft.To" @bind:event="oninput" /></label>
+    </div>
+    @if (Problem is { } problem)
+    {
+        <div class="bt-small bt-notepageproblem">@problem</div>
+    }
+    <label class="bt-field bt-notefield">Label<input aria-label="Label" title="A name for the excerpt, such as Warehouse ambush" @bind="Draft.Label" @bind:event="oninput" /></label>
+    @if (Send.Worlds.Count > 1)
+    {
+        <label class="bt-field">World
+            <select class="bt-select" aria-label="World" value="@Draft.WorldId" @onchange="e => Draft.WorldId = Guid.TryParse(e.Value?.ToString(), out var id) ? id : Draft.WorldId">
+                @foreach (var world in Send.Worlds)
+                {
+                    <option value="@world.WorldId">@world.Name</option>
+                }
+            </select>
+        </label>
+    }
+    <div class="bt-boxactions end bt-dialogactions">
+        <button class="bt-button" @onclick="Close">Cancel</button>
+        @if (Url is { } url)
+        {
+            <a class="bt-button primary" href="@url" target="_blank" rel="noopener" @onclick="Close"><Icon Name="Send" />Open in Nornis</a>
+        }
+        else
+        {
+            <button class="bt-button primary" disabled><Icon Name="Send" />Open in Nornis</button>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SendDraft Draft { get; set; } = default!;
+    [Parameter, EditorRequired] public ReaderBook Book { get; set; } = default!;
+    [Parameter, EditorRequired] public NornisSend Send { get; set; } = default!;
+    [Parameter] public EventCallback Closed { get; set; }
+
+    ElementReference _from;
+
+    (int First, int Last)? Range => ReaderPageNumbers.Range(Draft.From, Draft.To, Book.Labels, Book.PageCount);
+
+    string? Problem => Range is not { } range ? "Type pages as the book numbers them, or PDF page numbers."
+        : range.Last - range.First + 1 > NornisSend.MostPages ? NornisSend.TooManyPages
+        : null;
+
+    string? Url => Problem is null && Range is { } range && Send.Worlds.FirstOrDefault(w => w.WorldId == Draft.WorldId) is { } world
+        ? NornisSend.Excerpt(world, range.First, range.Last, Draft.Label)
+        : null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender) await _from.FocusAsync();
+    }
+
+    Task Close() => Closed.InvokeAsync();
+
+    async Task KeyAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") await Close();
+    }
+}

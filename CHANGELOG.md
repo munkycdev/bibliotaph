@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **New: Send to Nornis.** On bibliotaph.online, the reader and a binder's item of pages can send up to 40 pages of a
+  book in one of your Nornis worlds to Nornis as an excerpt. Nornis opens in a new tab, reads the pages and asks you to
+  confirm.
 - **New: players can read the books you share in Nornis.** A player with no Bibliotaph account opens a book you share
   with them in Nornis in Bibliotaph's reader, view-only, for an hour at a time before Nornis checks again. Your library
   keeps nothing about them, and taking the book out of the world closes it at once.
