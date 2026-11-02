@@ -529,9 +529,9 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
                     IsMissing: l.State == FileLocationState.Missing && l.RootAvailability == SourceRootAvailability.Online, IsWeb: OnNoDisk(l.FullPath)))];
             // An adventure inside a file is in the file's copies; its file's details list them.
             if (!item.IsPart) copyList = await Task.Run(() => copies.GetAsync(item.EntryId));
-            // Only a book that opens from the web library, with no file of its own here, can be kept offline.
+            // Only a book that opens from the web library or connected storage, with no file of its own here, can be kept offline.
             if (webCopies is not null && locations.Any(l => l.IsWeb)
-                && await library.GetSourceAsync(item.DocumentId) is { } source && WebReadings.Serves(source))
+                && await library.GetSourceAsync(item.DocumentId) is { } source && webCopies.Holds(source, toRead: true))
                 webSource = source;
         }
         var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, stages, copies, packs, elsewhere,
@@ -548,7 +548,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     DocumentSource? _webSource;
     bool _showingKept;
 
-    /// <summary>The book opens from the web library, with no file of its own here: it can be kept on this PC to read without a connection.</summary>
+    /// <summary>The book opens from the web library or connected storage, with no file of its own here: it can be kept on this PC to read without a connection.</summary>
     public bool CanKeepOffline => _webSource is not null;
 
     /// <summary>"Keep offline on this PC": downloads the book now and keeps it, or lets it go with the other downloads.</summary>
@@ -606,7 +606,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         _showingKept = false;
         OfflineText = kept ? "Kept on this PC, so it opens without a connection."
             : _webCopies!.Has(_webSource!.ContentHash) ? "Downloaded to this PC for now. It's let go when the room for downloads is needed."
-            : "Downloaded from bibliotaph.online when you open it.";
+            : WebLibraryPaths.IsWebPath(_webSource.FullPath) ? "Downloaded from bibliotaph.online when you open it."
+            : "Downloaded from your storage when you open it.";
     }
 
     /// <summary>

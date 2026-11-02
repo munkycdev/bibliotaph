@@ -97,7 +97,7 @@ static partial class SmokeTest
 
         var page = (DevicesSectionViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Devices)).Selected;
         await WaitUntilAsync(window, () => page.IsConnected
-            && page.CopiesLine?.StartsWith("1 book from your web library downloaded to this PC", StringComparison.Ordinal) == true
+            && page.CopiesLine?.StartsWith("1 book downloaded to this PC to read", StringComparison.Ordinal) == true
             && page.CopiesLine.EndsWith(", 1 kept offline.", StringComparison.Ordinal)
             && Descendants<ComboBox>(window).Any(c => c.Name == "WebCopiesRoom" && c.IsVisible),
             () => $"Settings > Devices says \"{page.StatusLine}\" and \"{page.CopiesLine}\".");

@@ -9,8 +9,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.Processing;
 
-/// <summary>A web library book being downloaded: how much of it has come, of how much.</summary>
-public sealed record WebDownload(string ContentHash, long Received, long Total)
+/// <summary>
+/// A book being downloaded to read: how much of it has come, of how much (0 when the size isn't known), and from where,
+/// in words such as "bibliotaph.online".
+/// </summary>
+public sealed record WebDownload(string ContentHash, long Received, long Total, string From = WebLibraryCopies.WebLibraryName)
 {
     public int Percent => Total <= 0 ? 0 : (int)Math.Clamp(Received * 100 / Total, 0, 100);
 }
@@ -19,16 +22,19 @@ public sealed record WebDownload(string ContentHash, long Received, long Total)
 public sealed record WebCopiesSummary(int Books, long Bytes, int KeptOffline);
 
 /// <summary>
-/// A connected PC's copies of the web library's books, downloaded through bibliotaph.online when one is opened or its
-/// scanned pages are read, and kept in <see cref="AppPaths.WebCopies"/> under their content hash, checked against it.
-/// Those the user keeps offline stay; the rest go, least recently read first, once they pass the room set for them
-/// (<see cref="DefaultRoomGb"/> to start), and all of them when this PC is disconnected. <see cref="Progress"/> says how
-/// a download is going, for the reader to show. <paramref name="gigabyte"/> is the size the room is counted in: a GB,
-/// or a few bytes in the tests.
+/// A PC's copies of the books it reads from elsewhere: the web library's, downloaded through bibliotaph.online when one
+/// is opened or its scanned pages are read, and those in <paramref name="storage"/> connected on this PC, downloaded from
+/// the provider when one is opened to read or kept offline. They're kept in <see cref="AppPaths.WebCopies"/> under their
+/// content hash, checked against it. Those the user keeps offline stay; the rest go, least recently read first, once
+/// they pass the room set for them (<see cref="DefaultRoomGb"/> to start), and all of them when this PC is disconnected
+/// from the web library. <see cref="Progress"/> says how a download is going, for the reader to show.
+/// <paramref name="gigabyte"/> is the size the room is counted in: a GB, or a few bytes in the tests.
 /// </summary>
 public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCache shelf, SettingsStore settings, IDiskSpace disk,
-    IndexingOptions? options = null, ILogger<WebLibraryCopies>? log = null, long gigabyte = 1L << 30) : IKeptCopies
+    IndexingOptions? options = null, ILogger<WebLibraryCopies>? log = null, long gigabyte = 1L << 30, IRemoteFiles? storage = null) : IKeptCopies
 {
+    public const string WebLibraryName = "bibliotaph.online";
+
     public const string KeptKey = "web.kept-offline";
     public const string RoomKey = "web.copies-room-gb";
     public const int DefaultRoomGb = 5;
@@ -49,7 +55,10 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
     /// <summary>A download moved on. Raised on a background thread, at most once a percent.</summary>
     public event EventHandler<WebDownload>? Progress;
 
-    public bool Holds(DocumentSource source) => !source.InArchive && WebLibraryPaths.IsWebPath(source.FullPath);
+    public bool Holds(DocumentSource source, bool toRead) =>
+        !source.InArchive && (WebLibraryPaths.IsWebPath(source.FullPath) || (IsInStorage(source) && (toRead || Has(source.ContentHash))));
+
+    bool IsInStorage(DocumentSource source) => storage?.IsRemote(source.FullPath) == true;
 
     /// <summary>
     /// The book's copy here, downloaded first when there isn't one. Throws <see cref="IOException"/> when it can't be had
@@ -150,7 +159,8 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
                 File.SetLastWriteTimeUtc(target, DateTime.UtcNow);
                 return;
             }
-            await DownloadAsync(source.ContentHash, target, shelf.File(source.FullPath)?.SizeBytes ?? 0, ct);
+            if (IsInStorage(source)) await DownloadAsync(source.ContentHash, target, 0, c => storage!.OpenAsync(source.FullPath, c), "your storage", ct);
+            else await DownloadAsync(source.ContentHash, target, shelf.File(source.FullPath)?.SizeBytes ?? 0, c => web.OpenFileAsync(source.ContentHash, c), WebLibraryName, ct);
         }
         finally
         {
@@ -158,7 +168,7 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
         }
     }
 
-    async Task DownloadAsync(string hash, string target, long total, CancellationToken ct)
+    async Task DownloadAsync(string hash, string target, long total, Func<CancellationToken, Task<Stream>> open, string from, CancellationToken ct)
     {
         Directory.CreateDirectory(Folder);
         if (disk.FreeBytes(Folder) is { } free && free - total < _reserveBytes)
@@ -167,7 +177,7 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
         try
         {
             using var sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            await using (var input = await web.OpenFileAsync(hash, ct))
+            await using (var input = await open(ct))
             await using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 16, FileOptions.Asynchronous))
             {
                 var buffer = new byte[1 << 16];
@@ -179,16 +189,18 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
                     sha.AppendData(buffer, 0, read);
                     await output.WriteAsync(buffer.AsMemory(0, read), ct);
                     received += read;
-                    var progress = new WebDownload(hash, received, total);
-                    if (progress.Percent == shown) continue;
-                    shown = progress.Percent;
+                    var progress = new WebDownload(hash, received, total, from);
+                    // With no size to go by, a step is a megabyte.
+                    var step = total > 0 ? progress.Percent : (int)(received >> 20);
+                    if (step == shown) continue;
+                    shown = step;
                     Progress?.Invoke(this, progress);
                 }
             }
             if (!ContentHash.FromBytes(sha.GetHashAndReset()).Hex.Equals(hash, StringComparison.OrdinalIgnoreCase))
-                throw new SourceChangedException("The file bibliotaph.online gave isn't the book it lists; it may have changed in your storage.");
+                throw new SourceChangedException($"The file {from} gave isn't the book this is; it may have changed in your storage.");
             File.Move(temp, target, overwrite: true);
-            _log.LogInformation("Downloaded a web library book, {Bytes} bytes", new FileInfo(target).Length);
+            _log.LogInformation("Downloaded a book from {From} to read, {Bytes} bytes", from, new FileInfo(target).Length);
         }
         catch
         {

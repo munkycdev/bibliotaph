@@ -6,8 +6,11 @@
   bibliotaph.online does: connect OneDrive, Dropbox, Google Drive, Box or a WebDAV server (Nextcloud, ownCloud or a
   NAS, on the internet or at home) and add folders from it with **Add from storage**, or **Add a folder from storage…**
   in the Library's **Add** menu. Bibliotaph reads the books straight from your storage with read-only access, with no
-  sync app needed and no copies kept, and looks for changes every five minutes. What lets it in is kept in Windows
+  sync app needed, and looks for changes every five minutes. What lets it in is kept in Windows
   Credential Manager.
+- **New: keep a book from your storage offline.** A book you open from storage connected on the PC is kept for next
+  time with the web library's downloads, and **Keep offline on this PC** in its details keeps it for reading without a
+  connection. **Settings > Devices** counts and frees up both.
 
 ## 1.5 · 2 November 2026
 

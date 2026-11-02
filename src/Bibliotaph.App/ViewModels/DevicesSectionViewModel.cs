@@ -15,7 +15,7 @@ namespace Bibliotaph.App.ViewModels;
 /// the room for the downloads not kept offline.
 /// </summary>
 public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync sync, WebShelfSync shelf, WebLibraryCopies copies, IDesktopShell shell,
-    TimeProvider clock, ILogger<DevicesSectionViewModel> log) : SettingsSectionViewModel
+    TimeProvider clock, Bibliotaph.Storage.Desktop.PcConnections storage, ILogger<DevicesSectionViewModel> log) : SettingsSectionViewModel
 {
     System.Windows.Threading.Dispatcher? _dispatcher;
     // Stops the wait; the wait itself owns its token source.
@@ -57,9 +57,13 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
     [ObservableProperty]
     public partial int RoomGb { get; set; } = WebLibraryCopies.DefaultRoomGb;
 
-    /// <summary>How many of the web library's books are downloaded here, their size, and how many are kept offline.</summary>
+    /// <summary>How many books from the web library and connected storage are downloaded here, their size, and how many are kept offline.</summary>
     [ObservableProperty]
     public partial string? CopiesLine { get; private set; }
+
+    /// <summary>Whether there are downloads to speak of: connected to the web library, storage connected here, or copies left from either.</summary>
+    [ObservableProperty]
+    public partial bool ShowsCopies { get; private set; }
 
     bool _showingRoom;
 
@@ -100,11 +104,12 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
     async Task ShowCopiesAsync()
     {
         var summary = await Task.Run(() => copies.SummarizeAsync());
+        ShowsCopies = IsConnected || summary.Books > 0 || (await Task.Run(() => storage.ListAsync())).Count > 0;
         _showingRoom = true;
         RoomGb = await copies.GetRoomGbAsync();
         _showingRoom = false;
-        CopiesLine = summary.Books == 0 ? "None of your web library's books are downloaded to this PC."
-            : $"{summary.Books} {LibraryActivity.Plural(summary.Books, "book", "books")} from your web library downloaded to this PC, {LibraryActivity.Size(summary.Bytes)}"
+        CopiesLine = summary.Books == 0 ? "No books are downloaded to this PC to read."
+            : $"{summary.Books} {LibraryActivity.Plural(summary.Books, "book", "books")} downloaded to this PC to read, {LibraryActivity.Size(summary.Bytes)}"
                 + (summary.KeptOffline == 0 ? "." : $", {summary.KeptOffline} kept offline.");
     }
 

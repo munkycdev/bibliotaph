@@ -258,6 +258,56 @@ public abstract partial class PipelineTests
             Assert.False(copies.Has(book.ContentHash));
         }
 
+        [Fact]
+        public async Task A_storage_book_is_kept_for_reading_but_not_for_indexing_and_its_content_is_checked()
+        {
+            var bytes = Enumerable.Repeat((byte)9, 300).ToArray();
+            var hash = Convert.ToHexStringLower(SHA256.HashData(bytes));
+            var storage = new FakeStorage { Files = { ["/dropbox/dbid:1/RPG/Book.pdf"] = bytes, ["/dropbox/dbid:1/RPG/Changed.pdf"] = [1, 2] } };
+            var copies = new WebLibraryCopies(_paths, _web, _shelf, _settings, new DiskSpace(), storage: storage);
+            var book = new DocumentSource(1, hash, "pdf", "/dropbox/dbid:1/RPG/Book.pdf", "", []);
+            var changed = new DocumentSource(2, hash, "pdf", "/dropbox/dbid:1/RPG/Changed.pdf", "", []);
+            var local = new DocumentSource(3, hash, "pdf", Path.Combine(_dir, "Book.pdf"), "", []);
+            var progress = new List<WebDownload>();
+            copies.Progress += (_, d) => progress.Add(d);
+
+            var forIndexing = copies.Holds(book, toRead: false);
+            var forReading = copies.Holds(book, toRead: true);
+            await using (var file = await copies.OpenAsync(book, Ct)) Assert.Equal(bytes, await File.ReadAllBytesAsync(file.Path, Ct));
+            var onceRead = copies.Holds(book, toRead: false);
+            await copies.KeepAsync(book, keep: true, Ct);
+            await copies.ClearAsync(keepKept: true, Ct);
+
+            Assert.False(forIndexing);
+            Assert.True(forReading);
+            Assert.True(onceRead);
+            Assert.False(copies.Holds(local, toRead: true));
+            Assert.True(copies.Has(hash));
+            Assert.True(await copies.IsKeptAsync(hash, Ct));
+            Assert.Equal(1, storage.Opened);
+            Assert.All(progress, d => Assert.Equal("your storage", d.From));
+            await copies.KeepAsync(book, keep: false, Ct);
+            await copies.ClearAsync(keepKept: true, Ct);
+            Assert.False(copies.Has(hash));
+            await Assert.ThrowsAsync<SourceChangedException>(() => copies.OpenAsync(changed, Ct));
+        }
+
+        /// <summary>Storage connected on a PC, as <see cref="SourceFiles"/> and the copies see it: paths starting with a provider.</summary>
+        sealed class FakeStorage : IRemoteFiles
+        {
+            public Dictionary<string, byte[]> Files { get; } = [];
+
+            public int Opened { get; private set; }
+
+            public bool IsRemote(string path) => path.StartsWith("/dropbox/", StringComparison.Ordinal);
+
+            public Task<Stream> OpenAsync(string path, CancellationToken ct)
+            {
+                Opened++;
+                return Files.TryGetValue(path, out var bytes) ? Task.FromResult<Stream>(new MemoryStream(bytes)) : throw new FileNotFoundException(path);
+            }
+        }
+
         static async Task<long> WaitForAsync(Func<Task<long?>> found)
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);

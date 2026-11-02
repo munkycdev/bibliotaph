@@ -1,10 +1,13 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Automation.Peers;
+using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
+using Bibliotaph.Processing;
 using Bibliotaph.Storage;
 using Bibliotaph.Storage.Desktop;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,8 +22,8 @@ static partial class SmokeTest
 {
     /// <summary>
     /// WebDAV connected in Settings > Library with its address and password, a folder in it picked from the Library's
-    /// Add menu, previewed and added, its book downloaded, read and found by a search, then the folder removed and the
-    /// storage disconnected, forgetting its password.
+    /// Add menu, previewed and added, its book downloaded, read and found by a search, opened (keeping a copy to read
+    /// again) and kept offline, then the folder removed and the storage disconnected, forgetting its password.
     /// </summary>
     static async Task ConnectStorageAsync(IServiceProvider services, Window window)
     {
@@ -88,7 +91,41 @@ static partial class SmokeTest
         if (!found.Entries.Any(e => e.Pages.Any(p => p.DocumentId == book.DocumentId && p.PdfPage == 1)))
             throw new InvalidOperationException("A search doesn't find the storage folder's book at its second page.");
 
+        // Opened, it's downloaded to the copies for reading, where Keep offline in its details keeps it.
+        var copies = services.GetRequiredService<WebLibraryCopies>();
+        var hash = (await services.GetRequiredService<LibraryStore>().GetSourceAsync(book.DocumentId))!.ContentHash;
+        if (copies.Has(hash)) throw new InvalidOperationException("Indexing the storage folder's book left a copy among the books downloaded to read.");
+        services.GetRequiredService<ReaderWindows>().OpenInMainWindow(new ViewerRequest(book.DocumentId, SmokeWebDav.Title, 1));
+        var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("The storage folder's book didn't open the viewer.");
+        await WaitUntilAsync(window, () => viewer.IsPdf || viewer.Mode == ViewerMode.Problem, () => $"The storage folder's book didn't open (still {viewer.Mode}).");
+        if (!viewer.IsPdf) throw new InvalidOperationException($"The storage folder's book didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        if (!copies.Has(hash)) throw new InvalidOperationException("Opening the storage folder's book kept no copy of it.");
+        navigation.GoBack();
+        await Settle(window);
+
+        navigation.NavigateTo(Route.Library);
+        library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("The Library didn't open.");
+        await library.RefreshAsync();
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == book.DocumentId), () => "The storage folder's book isn't in the Library.");
+        await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == book.DocumentId));
+        library.Inspector!.Pane!.Where = true;
+        await WaitUntilAsync(window, () => library.Inspector is { CanKeepOffline: true, Locations.Count: > 0 }
+            && Descendants<CheckBox>(window).Any(c => c.Name == "KeepOffline" && c.IsVisible),
+            () => "The storage folder's book's details offer no Keep offline.");
+        var inspector = library.Inspector!;
+        if (inspector.Locations[0] is not { IsWeb: true, CanShowInExplorer: false } location
+            || !location.Path.EndsWith($"› {SmokeWebDav.Folder} › {SmokeWebDav.Title}.pdf", StringComparison.Ordinal))
+            throw new InvalidOperationException($"The details show {inspector.Locations[0]} for the storage folder's book.");
+        ((IToggleProvider)new CheckBoxAutomationPeer(Descendants<CheckBox>(window).First(c => c.Name == "KeepOffline")).GetPattern(PatternInterface.Toggle)).Toggle();
+        await WaitUntilAsync(window, () => inspector is { IsKeptOffline: true, OfflineText: "Kept on this PC, so it opens without a connection." },
+            () => $"Keep offline says \"{inspector.OfflineText}\".");
+        await AuditAsync(window, "a storage book's details, kept offline");
+        library.CloseDetailsCommand.Execute(null);
+        await Settle(window);
+
         // Removing the folder and disconnecting leave nothing behind for the checks after this one.
+        page = (LibrarySectionViewModel)(await OpenSettingsAsync(services, window, SettingsSection.Library)).Selected;
+        await WaitUntilAsync(window, () => page.Storage.HasAccounts, () => "Settings > Library lost the WebDAV account.");
         var folder = page.Folders.FirstOrDefault(f => f.IsWeb && f.Path.EndsWith($"› {SmokeWebDav.Folder}", StringComparison.Ordinal))
             ?? throw new InvalidOperationException($"Settings > Library lists the storage folder as {string.Join(", ", page.Folders.Select(f => f.Path))}.");
         await page.RemoveCommand.ExecuteAsync(folder);
@@ -97,6 +134,7 @@ static partial class SmokeTest
         if (services.GetRequiredService<IConnectionSecrets>().Find(account.Connection.Id) is not null)
             throw new InvalidOperationException("Disconnecting WebDAV kept its password.");
         if (services.GetRequiredService<PcDrives>().All.Count > 0) throw new InvalidOperationException("Disconnecting WebDAV left its drive.");
+        await copies.ClearAsync(keepKept: false);
         navigation.GoBack();
         await Settle(window);
     }

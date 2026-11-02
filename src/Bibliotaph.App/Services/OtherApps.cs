@@ -52,7 +52,7 @@ public sealed class SmokeShellLauncher : IShellLauncher
 /// <summary>
 /// Open in another app, for a PDF whose protection Bibliotaph can't open: the file goes to the user's default PDF app,
 /// read where it is. A file inside a ZIP can't be opened by itself without being copied out, so its ZIP is opened
-/// instead, in whatever Windows opens ZIPs with. A book only the web library has opens from its copy downloaded here.
+/// instead, in whatever Windows opens ZIPs with. A book only the web library or connected storage has opens from its copy downloaded here.
 /// </summary>
 public sealed class OtherApps(LibraryStore library, IShellLauncher launcher, IKeptCopies? kept = null)
 {
@@ -64,11 +64,11 @@ public sealed class OtherApps(LibraryStore library, IShellLauncher launcher, IKe
         LocalFile? copy = null;
         try
         {
-            if (kept is not null && kept.Holds(source)) copy = await kept.OpenAsync(source, ct);
+            if (kept is not null && kept.Holds(source, toRead: true)) copy = await kept.OpenAsync(source, ct);
         }
         catch (System.IO.IOException ex)
         {
-            return $"It couldn't be downloaded from your web library. {ex.Message}";
+            return $"It couldn't be downloaded. {ex.Message}";
         }
         // A downloaded copy is held only while Windows starts the app; one the other app has open can't be deleted under it.
         await using var held = copy;
