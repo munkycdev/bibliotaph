@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **New: books you upload to Nornis join your library.** Each world's files in Nornis are a library folder on
+  bibliotaph.online, named after the world, and their books are filed in the world's collection. Uploading or removing
+  files in Nornis has Bibliotaph look at that folder again. If you connected Nornis earlier, choose **Resync Nornis
+  worlds** in **Settings** › **Library** once.
 - **New: Send to Nornis.** On bibliotaph.online, the reader and a binder's item of pages can send up to 40 pages of a
   book in one of your Nornis worlds to Nornis as an excerpt. Nornis opens in a new tab, reads the pages and asks you to
   confirm.

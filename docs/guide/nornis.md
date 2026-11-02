@@ -18,8 +18,9 @@ Connecting does three things:
 
 - It signs you in to Bibliotaph as the same person you are in Nornis. If you already had a Bibliotaph account with that
   sign-in, it's that one, even if you were signed in to another account in that browser.
-- It connects Nornis as storage, so Bibliotaph can read the books you upload to your worlds in Nornis. Bibliotaph only
-  reads them; it never changes anything in Nornis.
+- It connects Nornis as storage, so Bibliotaph can read the books you upload to your worlds in Nornis (see
+  [Books you upload to Nornis](#books-you-upload-to-nornis)). Bibliotaph only reads them; it never changes anything in
+  Nornis.
 - It makes a collection called **Nornis** at the top of your collections, where each of your worlds will have a
   collection of its own. If you delete it, connecting again makes a new one.
 
@@ -50,6 +51,22 @@ Nornis keeps these collections up to date as your worlds change, even while your
   it again, empty.
 
 Only a world's creator has a collection for it; players reach books through the game master's world.
+
+## Books you upload to Nornis
+
+Books you upload to a world in Nornis join your library by themselves. Each world you create gets a library folder,
+listed in **Settings** › **Library** under **Folders** with the world's name, and its books are filed in the world's
+collection, as a folder's books are when you accept making it a collection in Needs review, new ones too. When you
+upload or remove files in Nornis, Nornis tells Bibliotaph, which looks at that world's folder again; a book removed in
+Nornis goes the way a file deleted from your other storage does. Bibliotaph only reads these files, and you can read
+them in the reader like any other book. Nornis decides which of a world's files are listed.
+
+If you already own the same book elsewhere in your library, Bibliotaph finds it and keeps it as a second copy, as it
+does for any folder. Remove a world's folder with its **×** if you don't want its books in your library; it stays
+removed even as the world changes, and its collection stays. Nornis isn't in the list you pick folders from, since
+its worlds arrive by themselves.
+
+If you connected Nornis before this came in, choose **Resync Nornis worlds** once so your worlds' folders arrive.
 
 ## What Nornis can see
 

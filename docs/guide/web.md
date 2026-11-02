@@ -113,8 +113,9 @@ Google Drive lets two files in one folder have the same name, and a name have a 
 second of a name as "Handbook (2).pdf", and a slash as ∕. Google Docs, Sheets and shortcuts aren't books, so they're
 left out.
 
-Nornis is listed here too once you've connected it, which you do from Nornis; see
-[Using Bibliotaph with Nornis](nornis.md).
+Nornis is listed here too once you've connected it, which you do from Nornis. Its worlds' files arrive as library
+folders by themselves, so Nornis isn't offered when you add a folder; see
+[Using Bibliotaph with Nornis](nornis.md#books-you-upload-to-nornis).
 
 You can connect more than one account, of either kind. If one stops letting Bibliotaph in, for example after you change
 your password or remove its access, it shows **Needs connecting again** with a **Connect again** button. Its books stay
