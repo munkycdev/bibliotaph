@@ -76,6 +76,13 @@ public static class AuthSetup
             limits.AddPolicy(NornisAuthentication.Limit, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.User.UserId() ?? context.Connection.RemoteIpAddress?.ToString() ?? "",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1) }));
+            limits.AddPolicy(NornisAuthentication.TicketLimit, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.User.UserId() ?? "",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 60, Window = TimeSpan.FromMinutes(1) }));
+            // Anyone may try a reading ticket's link, so tries are counted by address.
+            limits.AddPolicy(NornisAuthentication.TableLimit, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
             limits.AddPolicy(Storage.ReadLinks.ReadLimit, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.User.UserId() ?? context.Connection.RemoteIpAddress?.ToString() ?? "",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 300, Window = TimeSpan.FromMinutes(1) }));

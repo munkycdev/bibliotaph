@@ -5,9 +5,10 @@ namespace Bibliotaph.Web.Components.Reader;
 
 /// <summary>
 /// The passwords one opening of a PDF tries: one that opened it in this tab, or else a remembered one, first; then
-/// what the reader types, again while it doesn't open it. A known password that fails is forgotten, not reported.
+/// what the reader types, again while it doesn't open it. A known password that fails is forgotten, not reported. A
+/// guest's passwords stay in the tab: the game master's library neither remembers nor gives them.
 /// </summary>
-public sealed class ReaderPasswords(ReaderClient readerApi, UnlockedBooks unlocked)
+public sealed class ReaderPasswords(ReaderClient readerApi, UnlockedBooks unlocked, bool guest = false)
 {
     bool _knownTried;
     (string Password, bool Remembered)? _tryingKnown;
@@ -34,14 +35,14 @@ public sealed class ReaderPasswords(ReaderClient readerApi, UnlockedBooks unlock
             // The book changed its password, or a different file now has this content.
             _tryingKnown = null;
             unlocked.Forget(book.ContentHash);
-            if (failed.Remembered) _ = ForgetRememberedAsync(book.DocumentId);
+            if (failed.Remembered && !guest) _ = ForgetRememberedAsync(book.DocumentId);
             retry = false;
         }
         else if (!_knownTried)
         {
             _knownTried = true;
             var known = unlocked.Find(book.ContentHash);
-            var remembered = known is null ? await RememberedAsync(book.DocumentId) : null;
+            var remembered = known is null && !guest ? await RememberedAsync(book.DocumentId) : null;
             if ((known ?? remembered) is { } password)
             {
                 _tryingKnown = (password, known is null);
@@ -66,7 +67,7 @@ public sealed class ReaderPasswords(ReaderClient readerApi, UnlockedBooks unlock
         if (_entered is not { } use) return null;
         _entered = null;
         unlocked.Add(book.ContentHash, use.Password);
-        if (!use.Remember && !use.Searchable) return null;
+        if (guest || (!use.Remember && !use.Searchable)) return null;
         try
         {
             await readerApi.UsePasswordAsync(book.DocumentId, use);

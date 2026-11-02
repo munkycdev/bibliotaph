@@ -1,0 +1,10 @@
+@page "/guest/{DocumentId:long}"
+@layout PublicLayout
+@* A player reading a book a game master shared through Nornis: the reader, view-only, for the hour the link gave. *@
+
+<ReaderView Guest="true" Doc="DocumentId" Page="Page" />
+
+@code {
+    [Parameter] public long DocumentId { get; set; }
+    [SupplyParameterFromQuery] public int? Page { get; set; }
+}

@@ -53,6 +53,7 @@ public static class ServerSetup
         services.AddSingleton(new ModelClientFactory(ModelServices.ClientFor));
         services.AddSingleton<UserLibraries>();
         services.AddSingleton<Nornis.NornisWorlds>();
+        services.AddSingleton<Nornis.ReadingTickets>();
         services.AddHostedService<IdleLibraries>();
         // Only where the libraries come back from Blob storage after a deploy; on a developer's disk they're already there.
         if (!string.IsNullOrEmpty(options.ReplicaUrl)) services.AddHostedService<LibraryWarmup>();
@@ -168,6 +169,7 @@ public static class ServerSetup
         app.MapStorage();
         app.MapNornisConnect();
         app.MapNornisApi();
+        app.MapTableApi();
         app.MapSite();
 
         // The Blazor WebAssembly client: its files, and its page for every other path so its router can take over.

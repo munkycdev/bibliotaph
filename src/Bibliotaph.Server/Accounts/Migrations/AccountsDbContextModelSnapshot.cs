@@ -15,7 +15,7 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261102015120_NornisWorldEvents";
+    public override string LastMigrationId => "20261102024543_ReadingTickets";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -206,6 +206,64 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("nornis_world_events");
             });
 
+        modelBuilder.Entity("Bibliotaph.Server.Accounts.ReadingTicket", b =>
+            {
+                b.Property<string>("CodeHash")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("code_hash");
+
+                b.Property<DateTime>("CreatedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("created_utc");
+
+                b.Property<long>("DocumentId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("document_id");
+
+                b.Property<long>("EntryId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("entry_id");
+
+                b.Property<DateTime>("ExpiresUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("expires_utc");
+
+                b.Property<DateTime?>("RedeemedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("redeemed_utc");
+
+                b.Property<string>("Renew")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("renew");
+
+                b.Property<int?>("StartPage")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("start_page");
+
+                b.Property<string>("UserId")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("user_id");
+
+                b.Property<string>("ViewerName")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("viewer_name");
+
+                b.Property<string>("WorldId")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("world_id");
+
+                b.HasKey("CodeHash");
+
+                b.HasIndex("ExpiresUtc");
+
+                b.HasIndex("UserId");
+
+                b.ToTable("reading_tickets");
+            });
+
         modelBuilder.Entity("Bibliotaph.Server.Accounts.StorageConnection", b =>
             {
                 b.Property<string>("Id")
@@ -333,6 +391,15 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity("Bibliotaph.Server.Accounts.NornisWorldEvent", b =>
+            {
+                b.HasOne("Bibliotaph.Server.Accounts.User", null)
+                    .WithMany()
+                    .HasForeignKey("UserId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("Bibliotaph.Server.Accounts.ReadingTicket", b =>
             {
                 b.HasOne("Bibliotaph.Server.Accounts.User", null)
                     .WithMany()

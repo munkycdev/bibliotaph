@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **New: players can read the books you share in Nornis.** A player with no Bibliotaph account opens a book you share
+  with them in Nornis in Bibliotaph's reader, view-only, for an hour at a time before Nornis checks again. Your library
+  keeps nothing about them, and taking the book out of the world closes it at once.
 - **New: Nornis can read the books in your worlds' collections.** Nornis lists a world's books with their covers,
   finds the pages that answer a question you or your players ask about the world (by words, and by meaning when your
   library has an embedding model), and files the pages you choose as excerpts. It sees nothing outside the world's

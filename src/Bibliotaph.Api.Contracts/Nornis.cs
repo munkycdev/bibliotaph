@@ -61,3 +61,22 @@ public sealed record NornisPageTexts(long DocumentId, IReadOnlyList<NornisPageTe
 {
     public const int MostPages = 40;
 }
+
+/// <summary>
+/// A link for a player to read one book, view-only, as POST /api/nornis/v1/worlds/{worldId}/reading-tickets takes it:
+/// the document, the zero-based page to open at, the player's name (at most 100 characters, for the logs only) and
+/// the address on Nornis the reader sends them to when their hour is up.
+/// </summary>
+public sealed record NornisTicketRequest(long DocumentId, string Renew, int? StartPage = null, string? ViewerName = null)
+{
+    public const int LongestViewerName = 100;
+}
+
+/// <summary>The link to send the player's browser to, good once until <see cref="ExpiresAt"/>, two minutes away.</summary>
+public sealed record NornisTicket(string Url, DateTimeOffset ExpiresAt);
+
+/// <summary>
+/// A book a player was given to read, for the guest reader: the book as the reader opens it, who shared it in which
+/// world, where to go when the hour is up, and when that is.
+/// </summary>
+public sealed record GuestBook(ReaderBook Book, string SharedBy, string World, string Renew, DateTimeOffset ExpiresAt);
