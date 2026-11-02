@@ -162,7 +162,7 @@ internal sealed class HashingLoop(LibraryStore library, JobBoard queue, Indexing
         try
         {
             await files.Returns.BeforeReadAsync(file, ct);
-            hash = await files.Hasher.HashAsync(file.FullPath, ct);
+            hash = await files.Hasher.HashAsync(file, ct);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

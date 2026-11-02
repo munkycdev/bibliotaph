@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 
 namespace Bibliotaph.Processing;
@@ -7,6 +8,12 @@ namespace Bibliotaph.Processing;
 public interface IKnownHashes
 {
     ContentHash? Find(string path);
+
+    /// <summary>
+    /// The hash of a file listed with this size and modified time, which lets a hash known for the same file at another
+    /// path (the web library's copy of a folder this PC reads itself) count only while the file is unchanged.
+    /// </summary>
+    ContentHash? Find(string path, long sizeBytes, DateTime modifiedUtc) => Find(path);
 }
 
 /// <summary>
@@ -19,6 +26,14 @@ public sealed class FileHasher(ISourceFileReader reader, IKnownHashes? known = n
     {
         if (known?.Find(path) is { } hash) return hash;
         await using var stream = reader.OpenRead(path);
+        return await HashAsync(stream, ct);
+    }
+
+    /// <summary>A listed file's hash, known already or read from the file.</summary>
+    public async Task<ContentHash> HashAsync(UnhashedFile file, CancellationToken ct = default)
+    {
+        if (known?.Find(file.FullPath, file.SizeBytes, file.ModifiedUtc) is { } hash) return hash;
+        await using var stream = reader.OpenRead(file.FullPath);
         return await HashAsync(stream, ct);
     }
 

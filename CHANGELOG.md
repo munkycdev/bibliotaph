@@ -8,6 +8,10 @@
   in the Library's **Add** menu. Bibliotaph reads the books straight from your storage with read-only access, with no
   sync app needed, and looks for changes every five minutes. What lets it in is kept in Windows
   Credential Manager.
+- **New: a folder your PC reads from storage replaces its web library copy.** On a PC connected to your web library,
+  adding the same storage folder (or one above it) in **Settings > Library** has the PC read those books itself, with
+  no download needed to recognise the ones the web library has read, and the web library's copy of the folder leaves
+  the PC's list until you remove yours.
 - **New: keep a book from your storage offline.** A book you open from storage connected on the PC is kept for next
   time with the web library's downloads, and **Keep offline on this PC** in its details keeps it for reading without a
   connection. **Settings > Devices** counts and frees up both.

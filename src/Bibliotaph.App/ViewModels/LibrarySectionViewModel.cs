@@ -86,7 +86,8 @@ public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, 
 public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
     LibraryFolders folders, FolderRules rules, VocabularyStore vocabularies, IFilePicker files, WebShelfCache shelf,
-    StorageAccountsViewModel storage, Bibliotaph.Storage.Desktop.PcDrives drives, ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
+    StorageAccountsViewModel storage, Bibliotaph.Storage.Desktop.PcDrives drives, WebShelfSync webShelf, ILogger<LibrarySectionViewModel> log)
+    : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Library;
     public override string Label => "Library";
@@ -310,8 +311,26 @@ public sealed partial class LibrarySectionViewModel(
     {
         Pending.Remove(pending);
         var root = await roots.AddAsync(pending.Path);
-        indexing.RequestScan(root.Id);
+        if (Bibliotaph.Storage.StoragePath.IsStoragePath(root.Path)) ReadDirectlyAfterScanAsync(root.Id).FireAndForget();
+        else indexing.RequestScan(root.Id);
         await RefreshFoldersAsync();
+    }
+
+    /// <summary>
+    /// The web library's copy of a storage folder this PC now reads itself is left out once the PC's own has been
+    /// looked through, so its books aren't missing in between.
+    /// </summary>
+    async Task ReadDirectlyAfterScanAsync(long rootId)
+    {
+        try
+        {
+            await indexing.ScanNowAsync([rootId]);
+            await webShelf.ReapplyAsync();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogWarning(ex, "Looking through library folder {RootId} failed", rootId);
+        }
     }
 
     /// <summary>
@@ -347,6 +366,8 @@ public sealed partial class LibrarySectionViewModel(
     async Task Remove(LibraryFolderItem folder)
     {
         await roots.RemoveAsync(folder.Id);
+        // A storage folder removed here brings back the web library's copy of it, if it has one.
+        await webShelf.ReapplyAsync();
         await RefreshFoldersAsync();
         await LoadFolderRulesAsync();
     }

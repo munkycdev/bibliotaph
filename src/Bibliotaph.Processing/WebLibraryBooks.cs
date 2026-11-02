@@ -49,20 +49,23 @@ public sealed class WebShelfCache(AppPaths paths, ILogger<WebShelfCache>? log = 
     Snapshot? _snapshot;
     bool _loaded;
 
-    /// <summary>A shelf with its folders and files found by id and path.</summary>
-    sealed record Snapshot(WebShelf Shelf, IReadOnlyDictionary<long, (WebShelfFolder Folder, IReadOnlyDictionary<string, WebShelfFile> Files)> Folders)
+    /// <summary>A shelf with its folders and files found by id and path, and by where they are in the user's storage.</summary>
+    sealed record Snapshot(WebShelf Shelf, IReadOnlyDictionary<long, (WebShelfFolder Folder, IReadOnlyDictionary<string, WebShelfFile> Files)> Folders,
+        IReadOnlyList<(string Place, IReadOnlyDictionary<string, WebShelfFile> Files)> Places)
     {
         public static Snapshot Of(WebShelf shelf)
         {
             var folders = new Dictionary<long, (WebShelfFolder, IReadOnlyDictionary<string, WebShelfFile>)>();
+            var places = new List<(string, IReadOnlyDictionary<string, WebShelfFile>)>();
             foreach (var folder in shelf.Folders)
             {
                 // Paths compare as Windows compares them; storage that tells two names apart by case alone keeps the first.
                 var files = new Dictionary<string, WebShelfFile>(StringComparer.OrdinalIgnoreCase);
                 foreach (var file in folder.Files) files.TryAdd(file.Path, file);
                 folders.TryAdd(folder.Id, (folder, files));
+                if (folder.StoragePath is { Length: > 1 } place) places.Add((place.TrimEnd('/'), files));
             }
-            return new Snapshot(shelf, folders);
+            return new Snapshot(shelf, folders, places);
         }
     }
 
@@ -78,6 +81,33 @@ public sealed class WebShelfCache(AppPaths paths, ILogger<WebShelfCache>? log = 
             && folder.Files.TryGetValue(relative, out var file) ? file : null;
 
     public ContentHash? Find(string path) => File(path) is { } file && ContentHash.TryParse(file.ContentHash, out var hash) ? hash : null;
+
+    /// <summary>
+    /// A web library file's hash by its path, or, for a file in storage this PC reads itself, the hash the web library
+    /// has for the same file while its size and modified time are the ones listed there, so it isn't downloaded to be
+    /// hashed again.
+    /// </summary>
+    public ContentHash? Find(string path, long sizeBytes, DateTime modifiedUtc)
+    {
+        if (WebLibraryPaths.IsWebPath(path)) return Find(path);
+        if (!path.StartsWith('/') || Load() is not { Places.Count: > 0 } snapshot) return null;
+        var forward = path.Replace('\\', '/');
+        foreach (var (place, files) in snapshot.Places)
+        {
+            if (!forward.StartsWith(place + "/", StringComparison.OrdinalIgnoreCase)) continue;
+            // The server and this PC list the file from the same provider, so the same file has the same size and time.
+            if (files.TryGetValue(forward[(place.Length + 1)..], out var file) && file.SizeBytes == sizeBytes
+                && (file.ModifiedUtc - modifiedUtc).Duration() < TimeSpan.FromSeconds(2) && ContentHash.TryParse(file.ContentHash, out var hash))
+                return hash;
+        }
+        return null;
+    }
+
+    /// <summary>Whether a web library folder is in storage at, or inside, one of these library folders this PC reads itself.</summary>
+    public static bool ReadDirectly(WebShelfFolder folder, IEnumerable<string> storageRoots) =>
+        folder.StoragePath is { Length: > 1 } place
+        && storageRoots.Any(root => string.Equals(place.TrimEnd('/'), root.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
+            || place.StartsWith(root.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
     /// A web library path as the user knows it, "bibliotaph.online › OneDrive · Dana › RPG › Maps › harbor.png"; a path in

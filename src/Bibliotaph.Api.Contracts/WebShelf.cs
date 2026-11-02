@@ -7,8 +7,12 @@ namespace Bibliotaph.Api.Contracts;
 /// </summary>
 public sealed record WebShelf(string Version, IReadOnlyList<WebShelfFolder> Folders);
 
-/// <summary>A library folder in the user's storage: its ID in the web library, its name and where it is ("OneDrive · Dana").</summary>
-public sealed record WebShelfFolder(long Id, string Name, string Location, IReadOnlyList<WebShelfFile> Files);
+/// <summary>
+/// A library folder in the user's storage: its ID in the web library, its name, where it is ("OneDrive · Dana"), and its
+/// path in the storage as <c>/provider/account/path</c>, by which a PC that connects the same storage itself knows it
+/// reads the same folder.
+/// </summary>
+public sealed record WebShelfFolder(long Id, string Name, string Location, IReadOnlyList<WebShelfFile> Files, string? StoragePath = null);
 
 /// <summary>A file in a library folder, its path under the folder with forward slashes, and its content's SHA-256.</summary>
 public sealed record WebShelfFile(string Path, string ContentHash, long SizeBytes, DateTime ModifiedUtc);

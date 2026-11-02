@@ -60,6 +60,12 @@ go. To read a book without a connection, such as at the table, tick **Keep offli
 you're online: it stays until you untick it, even if you disconnect the storage. **Open in another app** opens the
 downloaded copy, and **Free up space** in **Settings > Devices** deletes the downloads not kept offline.
 
+If the PC is [connected to your web library](#more-than-one-pc) and a folder you add from storage holds one of the web
+library's folders (or is the same folder), the PC reads those books straight from your storage and the web library's
+copy of that folder leaves this PC's list. Nothing is downloaded again to recognise them, since the web library already
+knows each file, and what you did with the books stays with them. Remove the folder here and the web library's copy
+comes back.
+
 If a provider stops letting Bibliotaph in, for example after you change your password or remove its access, the
 account shows **Needs connecting again** with **Connect again**, and its folders are offline until you do; their books
 stay in your library and searchable. **Disconnect** forgets the account's access on this PC. Its folders go offline,

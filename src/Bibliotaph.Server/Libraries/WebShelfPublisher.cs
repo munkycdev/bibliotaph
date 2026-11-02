@@ -33,7 +33,7 @@ public sealed class WebShelfPublisher(LibraryStore library, SourceRootStore root
         List<WebShelfFolder> folders =
         [
             .. (await roots.ListAsync(ct)).Select(root => new WebShelfFolder(root.Id, FolderText.Name(root.Path), FolderText.Location(root.Path, drives),
-                [.. byRoot[root.Id].Select(f => new WebShelfFile(f.RelativePath.Replace('\\', '/'), f.ContentHash, f.SizeBytes, f.ModifiedUtc))])),
+                [.. byRoot[root.Id].Select(f => new WebShelfFile(f.RelativePath.Replace('\\', '/'), f.ContentHash, f.SizeBytes, f.ModifiedUtc))], root.Path)),
         ];
         // The version names the content, so the same shelf built again, here or after a restart, is the same version.
         var version = Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(folders, JsonSerializerOptions.Web)))[..32];

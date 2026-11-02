@@ -308,6 +308,48 @@ public abstract partial class PipelineTests
             }
         }
 
+        [Fact]
+        public async Task A_web_folder_this_pc_reads_from_storage_itself_is_left_out_until_it_stops_and_lends_its_hashes()
+        {
+            var modified = new DateTime(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);
+            var hash = new string('a', 64);
+            _web.Shelf = new WebShelf("v1",
+            [
+                Folder(7, "RPG", new WebShelfFile("Maps/harbor.pdf", hash, 300, modified)) with { StoragePath = "/onedrive/d1/RPG" },
+                Folder(8, "Other") with { StoragePath = "/dropbox/x1/Other" },
+            ]);
+            var sync = new WebShelfSync(_web, _shelf, _roots, _service, settings: _settings);
+            await sync.SyncNowAsync(Ct);
+            async Task<SourceRootAvailability?> WebFolderAsync(long id) =>
+                (await _roots.ListWithRemovedAsync(Ct)).FirstOrDefault(r => r.Path == WebLibraryPaths.Of(id))?.Availability;
+            var before = await WebFolderAsync(7);
+            // The user removes the other web folder; reading storage here mustn't bring it back later.
+            await _roots.RemoveAsync((await _roots.ListAsync(Ct)).Single(r => r.Path == WebLibraryPaths.Of(8)).Id, Ct);
+
+            var own = await _roots.AddAsync("/onedrive/d1", Ct);
+            await _roots.AddAsync("/dropbox/x1/Other", Ct);
+            await sync.ReapplyAsync(Ct);
+            var whileRead = await WebFolderAsync(7);
+            var borrowed = _shelf.Find("/onedrive/d1/RPG\\Maps\\harbor.pdf", 300, modified);
+            var changedSize = _shelf.Find("/onedrive/d1/RPG/Maps/harbor.pdf", 301, modified);
+            var changedTime = _shelf.Find("/onedrive/d1/RPG/Maps/harbor.pdf", 300, modified.AddMinutes(5));
+            var elsewhere = _shelf.Find("/onedrive/d2/RPG/Maps/harbor.pdf", 300, modified);
+
+            await _roots.RemoveAsync(own.Id, Ct);
+            await _roots.RemoveAsync((await _roots.ListAsync(Ct)).Single(r => r.Path == "/dropbox/x1/Other").Id, Ct);
+            await sync.ReapplyAsync(Ct);
+
+            Assert.Equal(SourceRootAvailability.Online, before);
+            Assert.Equal(SourceRootAvailability.RemovedByUser, whileRead);
+            Assert.Equal(hash, borrowed?.Hex);
+            Assert.Null(changedSize);
+            Assert.Null(changedTime);
+            Assert.Null(elsewhere);
+            Assert.Equal(SourceRootAvailability.Online, await WebFolderAsync(7));
+            Assert.Equal(SourceRootAvailability.RemovedByUser, await WebFolderAsync(8));
+            Assert.Equal("[]", await _settings.GetAsync(WebShelfSync.ReadDirectlyKey, Ct));
+        }
+
         static async Task<long> WaitForAsync(Func<Task<long?>> found)
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
