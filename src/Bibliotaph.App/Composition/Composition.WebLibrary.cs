@@ -24,7 +24,10 @@ static partial class Composition
         // The web library's folders list from its list of files, and their books are read through it, never from a disk.
         services.AddSingleton<WebShelfCache>();
         services.AddSingleton<IKnownHashes>(sp => sp.GetRequiredService<WebShelfCache>());
-        services.AddSingleton<ISourceLister>(sp => new WebAwareSourceLister(new FileSystemSourceLister(), sp.GetRequiredService<WebShelfCache>()));
+        // Storage connected on this PC lists through its drives; the web library's folders from its list of files.
+        services.AddSingleton<ISourceLister>(sp => new Bibliotaph.Storage.Desktop.StorageAwareSourceLister(
+            new Bibliotaph.Storage.StorageSourceLister(sp.GetRequiredService<Bibliotaph.Storage.IStorageDrives>()),
+            new WebAwareSourceLister(new FileSystemSourceLister(), sp.GetRequiredService<WebShelfCache>())));
         services.AddSingleton<WebLibraryCopies>();
         services.AddSingleton<IKeptCopies>(sp => sp.GetRequiredService<WebLibraryCopies>());
         services.AddSingleton<WebReadings>();

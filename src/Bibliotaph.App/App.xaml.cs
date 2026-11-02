@@ -143,6 +143,7 @@ public partial class App : Application
             .AddPdfWorkers()
             .AddLibrary(smokeTest)
             .AddWebLibrary(smokeTest)
+            .AddStorage(smokeTest)
             .AddAi(paths, pilot, smokeTest)
             .AddStages()
             // Hosted services stop in reverse order: indexing after the index writer, so it stops first and can still
@@ -173,6 +174,9 @@ public partial class App : Application
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
+
+        // Before the first scan, so folders in connected storage aren't taken for unreachable.
+        await services.GetRequiredService<Bibliotaph.Storage.Desktop.PcDrives>().ReloadAsync();
         // Before the first projection, which checks every card: books owned elsewhere meet the files already in the library.
         services.GetRequiredService<ElsewhereService>().CheckFilesWhenProjected();
     }

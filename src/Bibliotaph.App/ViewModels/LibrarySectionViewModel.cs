@@ -44,9 +44,12 @@ public sealed partial class LibraryFolderItem(long id, string path, bool isWeb =
 }
 
 /// <summary>A folder the user picked, shown with what it holds before it joins the library.</summary>
-public sealed partial class PendingFolder(string path) : ObservableObject
+public sealed partial class PendingFolder(string path, string? shown = null) : ObservableObject
 {
     public string Path { get; } = path;
+
+    /// <summary>Where it is as the user knows it: a Windows path as it is, a folder in storage by its account and folders.</summary>
+    public string Shown { get; } = shown ?? path;
 
     [ObservableProperty]
     public partial string Detail { get; set; } = "Looking at what's inside…";
@@ -83,7 +86,7 @@ public sealed partial class FolderRuleItem(FolderRuleInfo rule, string meaning, 
 public sealed partial class LibrarySectionViewModel(
     SourceRootStore roots, LibraryStore library, IndexQueries queries, IndexingService indexing, LibraryActivity activity,
     LibraryFolders folders, FolderRules rules, VocabularyStore vocabularies, IFilePicker files, WebShelfCache shelf,
-    ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
+    StorageAccountsViewModel storage, Bibliotaph.Storage.Desktop.PcDrives drives, ILogger<LibrarySectionViewModel> log) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.Library;
     public override string Label => "Library";
@@ -91,6 +94,16 @@ public sealed partial class LibrarySectionViewModel(
     public ObservableCollection<LibraryFolderItem> Folders { get; } = [];
 
     public ObservableCollection<PendingFolder> Pending { get; } = [];
+
+    /// <summary>The storage connected on this PC, above the folders, as the web has it.</summary>
+    public StorageAccountsViewModel Storage { get; } = storage;
+
+    /// <summary>The picker for a folder in connected storage, while it's open.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPicking))]
+    public partial StorageFolderPickerViewModel? Picker { get; set; }
+
+    public bool IsPicking => Picker is not null;
 
     [ObservableProperty]
     public partial bool HasFolders { get; set; }
@@ -110,9 +123,20 @@ public sealed partial class LibrarySectionViewModel(
     {
         activity.Refreshed -= OnActivityRefreshed;
         activity.Refreshed += OnActivityRefreshed;
+        Storage.Changed -= OnStorageChanged;
+        Storage.Changed += OnStorageChanged;
+        await Storage.LoadAsync();
+        AddFromStorageCommand.NotifyCanExecuteChanged();
         await RefreshFoldersAsync();
         await LoadFolderRulesAsync();
         if (folders.TakePickRequest()) await AddFolder();
+        if (folders.TakeStoragePickRequest()) AddFromStorage();
+    }
+
+    async void OnStorageChanged(object? sender, EventArgs e)
+    {
+        AddFromStorageCommand.NotifyCanExecuteChanged();
+        await RefreshFoldersAsync();
     }
 
     async Task LoadFolderRulesAsync()
@@ -146,7 +170,12 @@ public sealed partial class LibrarySectionViewModel(
         }
     }
 
-    public override void Unload() => activity.Refreshed -= OnActivityRefreshed;
+    public override void Unload()
+    {
+        activity.Refreshed -= OnActivityRefreshed;
+        Storage.Changed -= OnStorageChanged;
+        Storage.Leave();
+    }
 
     async void OnActivityRefreshed(object? sender, EventArgs e)
     {
@@ -170,7 +199,8 @@ public sealed partial class LibrarySectionViewModel(
                 var root = current[i];
                 var item = Folders.FirstOrDefault(f => f.Id == root.Id);
                 if (item is null)
-                    Folders.Insert(Math.Min(i, Folders.Count), item = new LibraryFolderItem(root.Id, shelf.Show(root.Path), WebLibraryPaths.IsWebPath(root.Path)));
+                    Folders.Insert(Math.Min(i, Folders.Count), item = new LibraryFolderItem(root.Id, shelf.Show(root.Path),
+                        WebLibraryPaths.IsWebPath(root.Path) || Bibliotaph.Storage.StoragePath.IsStoragePath(root.Path)));
                 var ids = await library.GetVisibleEntryIdsAsync(root.Id);
                 var searchable = await queries.CountSearchableAsync(ids);
                 item.Path = shelf.Show(root.Path);
@@ -243,6 +273,36 @@ public sealed partial class LibrarySectionViewModel(
                 + (preview.Summary.OnlineOnly > 0 ? ". Online-only files download as they are indexed; local files go first." : "");
             pending.CanAdd = true;
         }
+    }
+
+    bool CanAddFromStorage() => Storage.HasAccounts;
+
+    /// <summary>Add from storage: the picker for a folder in storage connected on this PC, then the same preview as any folder.</summary>
+    [RelayCommand(CanExecute = nameof(CanAddFromStorage))]
+    void AddFromStorage()
+    {
+        if (!Storage.HasAccounts) return;
+        Picker = new StorageFolderPickerViewModel([.. Storage.Accounts], drives, path =>
+        {
+            Picker = null;
+            _ = PreviewAsync(path, shelf.Show(path));
+        }, () => Picker = null, log);
+        Picker.Start();
+    }
+
+    async Task PreviewAsync(string path, string shown)
+    {
+        if (Pending.Any(p => string.Equals(p.Path, path, StringComparison.OrdinalIgnoreCase))) return;
+        var pending = new PendingFolder(path, shown);
+        Pending.Add(pending);
+        var preview = await Task.Run(() => indexing.PreviewAsync(path));
+        if (preview is null)
+        {
+            pending.Detail = "This folder can't be opened.";
+            return;
+        }
+        pending.Detail = $"{DescribeContents(preview.Summary)}. Each book is downloaded to be read, then its copy deleted.";
+        pending.CanAdd = true;
     }
 
     [RelayCommand]

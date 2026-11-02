@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **New: connect your storage in the Windows app.** **Settings > Library** now has **Storage** above your folders, as
+  bibliotaph.online does: connect OneDrive, Dropbox, Google Drive, Box or a WebDAV server (Nextcloud, ownCloud or a
+  NAS, on the internet or at home) and add folders from it with **Add from storage**, or **Add a folder from storage…**
+  in the Library's **Add** menu. Bibliotaph reads the books straight from your storage with read-only access, with no
+  sync app needed and no copies kept, and looks for changes every five minutes. What lets it in is kept in Windows
+  Credential Manager.
+
 ## 1.5 · 2 November 2026
 
 - **New: Nornis worlds' collections on Windows.** A PC connected to your web library shows your Nornis worlds'

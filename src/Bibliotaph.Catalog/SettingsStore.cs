@@ -29,9 +29,15 @@ public static class SettingKeys
     /// </summary>
     public const string ServerPdfPasswords = "server.pdf-passwords";
 
+    /// <summary>
+    /// The storage accounts this PC connected, as JSON. Their sign-ins are in Credential Manager, which a backup restored
+    /// on another PC couldn't open, so the list stays with the PC.
+    /// </summary>
+    public const string StorageConnections = "storage.connections";
+
     /// <summary>Settings left out of backups and the JSON export, as they're only any use where they were made.</summary>
     public static IReadOnlySet<string> Private { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys, ServerPausedLanes, ServerPdfPasswords };
+        new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys, ServerPausedLanes, ServerPdfPasswords, StorageConnections };
 
     /// <summary>
     /// Settings about the library and how it shows, the same on the web and every PC: library sync carries them. The

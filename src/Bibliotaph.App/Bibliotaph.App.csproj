@@ -26,11 +26,23 @@
   <ItemGroup>
     <AssemblyMetadata Include="ReleasesUrl" Value="$(ReleasesUrl)" />
   </ItemGroup>
+  <!--
+    The storage providers' desktop OAuth apps, from the build's environment (the repository's variables in CI), so no
+    client ID is in the source and a fork's own builds use its own apps. A provider left out can't be connected.
+  -->
+  <ItemGroup>
+    <AssemblyMetadata Include="Storage.onedrive.ClientId" Value="$(BIBLIOTAPH_ONEDRIVE_CLIENT_ID)" Condition="'$(BIBLIOTAPH_ONEDRIVE_CLIENT_ID)' != ''" />
+    <AssemblyMetadata Include="Storage.dropbox.ClientId" Value="$(BIBLIOTAPH_DROPBOX_CLIENT_ID)" Condition="'$(BIBLIOTAPH_DROPBOX_CLIENT_ID)' != ''" />
+    <AssemblyMetadata Include="Storage.googledrive.ClientId" Value="$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID)" Condition="'$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID)' != ''" />
+    <AssemblyMetadata Include="Storage.googledrive.ClientSecret" Value="$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET)" Condition="'$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET)' != ''" />
+    <AssemblyMetadata Include="Storage.box.ClientId" Value="$(BIBLIOTAPH_BOX_CLIENT_ID)" Condition="'$(BIBLIOTAPH_BOX_CLIENT_ID)' != ''" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
     <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
     <ProjectReference Include="..\Bibliotaph.Index\Bibliotaph.Index.csproj" />
     <ProjectReference Include="..\Bibliotaph.Processing\Bibliotaph.Processing.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Storage\Bibliotaph.Storage.csproj" />
     <ProjectReference Include="..\Bibliotaph.Ebooks\Bibliotaph.Ebooks.csproj" />
     <ProjectReference Include="..\Bibliotaph.Classification\Bibliotaph.Classification.csproj" />
     <ProjectReference Include="..\Bibliotaph.Pdf.Contracts\Bibliotaph.Pdf.Contracts.csproj" />
