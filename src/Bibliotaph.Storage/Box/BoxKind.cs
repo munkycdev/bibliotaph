@@ -1,20 +1,16 @@
-using Bibliotaph.Storage;
-using Bibliotaph.Storage.Box;
-
-namespace Bibliotaph.Server.Storage;
+namespace Bibliotaph.Storage.Box;
 
 /// <summary>
 /// Box, through its OAuth 2 endpoints and API 2.0. Box hands out a new refresh token with every access token and the
-/// old one stops working, so <see cref="DriveTokens"/> keeping the newest is what keeps the connection.
+/// old one stops working, so keeping the newest is what keeps the connection.
 /// </summary>
-public sealed class BoxProvider : OAuthStorageProvider
+public sealed class BoxKind : OAuthStorageKind
 {
     public const string Key = "box";
 
     public override string Id => Key;
     public override string Name => "Box";
     public override string Owner => "Box";
-    protected override string ConfigurationName => "Box";
 
     public override string AuthorizationEndpoint => "https://account.box.com/api/oauth2/authorize";
     public override string TokenEndpoint => "https://api.box.com/oauth2/token";

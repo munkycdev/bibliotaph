@@ -1,17 +1,13 @@
-using Bibliotaph.Storage;
-using Bibliotaph.Storage.GoogleDrive;
-
-namespace Bibliotaph.Server.Storage;
+namespace Bibliotaph.Storage.GoogleDrive;
 
 /// <summary>Google Drive, through Google's OAuth 2 endpoints and Drive API v3.</summary>
-public sealed class GoogleDriveProvider : OAuthStorageProvider
+public sealed class GoogleDriveKind : OAuthStorageKind
 {
     public const string Key = "googledrive";
 
     public override string Id => Key;
     public override string Name => "Google Drive";
     public override string Owner => "Google";
-    protected override string ConfigurationName => "GoogleDrive";
 
     public override string AuthorizationEndpoint => "https://accounts.google.com/o/oauth2/v2/auth";
     public override string TokenEndpoint => "https://oauth2.googleapis.com/token";

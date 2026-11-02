@@ -30,14 +30,25 @@ sealed class FakeGraph : HttpMessageHandler
     /// <summary>The token endpoint answers invalid_grant, as for a revoked refresh token.</summary>
     public bool RefuseRefresh { get; set; }
 
+    /// <summary>How many times the drive has changed, which a delta link's token counts up to.</summary>
+    public int Changes { get; private set; }
+
     public void Add(string path, byte[] bytes, DateTime? modified = null)
     {
-        lock (_lock) _files[path.Trim('/')] = (bytes, modified ?? new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc));
+        lock (_lock)
+        {
+            _files[path.Trim('/')] = (bytes, modified ?? new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc));
+            Changes++;
+        }
     }
 
     public void Remove(string path)
     {
-        lock (_lock) _files.Remove(path.Trim('/'));
+        lock (_lock)
+        {
+            _files.Remove(path.Trim('/'));
+            Changes++;
+        }
     }
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -55,6 +66,7 @@ sealed class FakeGraph : HttpMessageHandler
         var prefix = $"/v1.0/drives/{DriveId}/root";
         if (!path.StartsWith(prefix, StringComparison.Ordinal)) return Status(HttpStatusCode.NotFound);
         var rest = path[prefix.Length..];
+        if (rest == "/delta") return Delta(System.Web.HttpUtility.ParseQueryString(uri.Query)["token"]);
         if (rest == "/children") return Children("");
         if (!rest.StartsWith(":/", StringComparison.Ordinal)) return rest.Length == 0 ? Item("") : Status(HttpStatusCode.NotFound);
         rest = rest[2..];
@@ -83,6 +95,22 @@ sealed class FakeGraph : HttpMessageHandler
                 .Select(g => g.Any(k => k.Contains('/', StringComparison.Ordinal)) ? Folder(g.Key) : File(start + g.Key))
                 .ToList();
             return Json(new Dictionary<string, object> { ["value"] = entries });
+        }
+    }
+
+    // A token from before the drive's last change hears of one item per change; "expired" answers 410, as an old link does.
+    Task<HttpResponseMessage> Delta(string? token)
+    {
+        lock (_lock)
+        {
+            if (token == "expired") return Status(HttpStatusCode.Gone);
+            var since = token == "latest" ? Changes : int.Parse(token ?? "0", System.Globalization.CultureInfo.InvariantCulture);
+            var items = Enumerable.Range(since, Math.Max(0, Changes - since)).Select(i => new { id = $"change-{i}" }).ToList();
+            return Json(new Dictionary<string, object>
+            {
+                ["value"] = token == "latest" ? [] : items,
+                ["@odata.deltaLink"] = $"https://graph.microsoft.com/v1.0/drives/{DriveId}/root/delta?token={Changes}",
+            });
         }
     }
 

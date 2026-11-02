@@ -28,9 +28,16 @@ sealed class FakeDropbox : HttpMessageHandler
 
     public static bool Handles(Uri uri) => uri.Host is "api.dropboxapi.com" or "content.dropboxapi.com";
 
+    /// <summary>How many times the account has changed, which a latest cursor counts up to.</summary>
+    public int Changes { get; private set; }
+
     public void Add(string path, byte[] bytes, DateTime? modified = null)
     {
-        lock (_lock) _files[path.Trim('/')] = (bytes, modified ?? new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc));
+        lock (_lock)
+        {
+            _files[path.Trim('/')] = (bytes, modified ?? new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc));
+            Changes++;
+        }
     }
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -52,6 +59,7 @@ sealed class FakeDropbox : HttpMessageHandler
                 root_info = new Dictionary<string, string> { [".tag"] = TeamRoot is null ? "user" : "team", ["root_namespace_id"] = TeamRoot ?? "1", ["home_namespace_id"] = "1" },
             }),
             "/2/files/list_folder" => List(Arg(body!), 0),
+            "/2/files/list_folder/get_latest_cursor" => Json(new { cursor = $"v|{Changes}" }),
             "/2/files/list_folder/continue" => Continue(body!["cursor"]!.GetValue<string>()),
             "/2/files/get_metadata" => Metadata(Arg(body!)),
             _ => new HttpResponseMessage(HttpStatusCode.BadRequest),
@@ -63,7 +71,20 @@ sealed class FakeDropbox : HttpMessageHandler
     HttpResponseMessage Continue(string cursor)
     {
         var parts = cursor.Split('|', 2);
+        if (parts[0] == "reset")
+            return new HttpResponseMessage(HttpStatusCode.Conflict) { Content = new StringContent("""{"error_summary":"reset/..","error":{".tag":"reset"}}""") };
+        if (parts[0] == "v") return Changed(int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
         return List(parts[1], int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    // A cursor from before the last change hears of one entry per change.
+    HttpResponseMessage Changed(int since)
+    {
+        lock (_lock)
+        {
+            var entries = Enumerable.Range(since, Math.Max(0, Changes - since)).Select(i => Folder($"change-{i}")).ToList();
+            return Json(new Dictionary<string, object> { ["entries"] = entries, ["has_more"] = false, ["cursor"] = $"v|{Changes}" });
+        }
     }
 
     HttpResponseMessage List(string folder, int offset)

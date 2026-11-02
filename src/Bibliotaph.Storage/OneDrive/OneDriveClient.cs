@@ -92,6 +92,53 @@ public sealed class OneDriveClient(HttpClient http, Func<CancellationToken, Task
         return await StorageDownloads.BodyAsync(response, range, ct);
     }
 
+    /// <summary>A delta link that starts from now, so the first question after it hears only of later changes.</summary>
+    public async Task<string> LatestDeltaAsync(string driveId, CancellationToken ct = default)
+    {
+        using var json = (await GetJsonAsync($"{ItemUrl(driveId, "")}/delta?token=latest", ct))!;
+        return NextDelta(json.RootElement) ?? throw new StorageException(HttpStatusCode.BadGateway, "OneDrive sent no delta link.");
+    }
+
+    /// <summary>
+    /// Whether anything changed since <paramref name="deltaLink"/>, and the link to ask from next time. Every page is
+    /// read, as only the last one carries that link. An expired link (410) starts again from now, counting as a change,
+    /// since whatever happened meanwhile is unknown.
+    /// </summary>
+    public async Task<(bool Changed, string Next)> DeltaSinceAsync(string deltaLink, CancellationToken ct = default)
+    {
+        var changed = false;
+        var next = deltaLink;
+        try
+        {
+            while (true)
+            {
+                using var json = (await GetJsonAsync(next, ct))!;
+                var root = json.RootElement;
+                if (root.TryGetProperty("value", out var items) && items.GetArrayLength() > 0) changed = true;
+                if (root.TryGetProperty("@odata.nextLink", out var page) && page.GetString() is { } more) next = more;
+                else return (changed, NextDelta(root) ?? deltaLink);
+            }
+        }
+        catch (StorageException ex) when (ex.Status == HttpStatusCode.Gone)
+        {
+            var driveId = DriveIdOf(deltaLink);
+            return (true, driveId is null ? deltaLink : await LatestDeltaAsync(driveId, ct));
+        }
+    }
+
+    static string? NextDelta(JsonElement root) => root.TryGetProperty("@odata.deltaLink", out var link) ? link.GetString() : null;
+
+    /// <summary>The drive a delta link is for: Graph's links keep the drives/{id} they were asked of.</summary>
+    static string? DriveIdOf(string deltaLink)
+    {
+        var marker = "/drives/";
+        var start = deltaLink.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0) return null;
+        start += marker.Length;
+        var end = deltaLink.IndexOf('/', start);
+        return end < 0 ? null : Uri.UnescapeDataString(deltaLink[start..end]);
+    }
+
     /// <summary>Asks Graph to call <paramref name="notificationUrl"/> whenever anything in the drive changes.</summary>
     public async Task<DriveSubscription> SubscribeAsync(DriveSummary drive, string notificationUrl, string clientState, CancellationToken ct = default)
     {
