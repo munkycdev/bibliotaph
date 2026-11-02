@@ -845,6 +845,8 @@ button.bt-heart{color:var(--bt-accent)}
 /* The reader: the pages fill the window under the toolbar, and scroll on their own. */
 .bt-reader{display:flex;flex-direction:column;height:calc(100vh - 68px - 66px);min-height:460px}
 .bt-reader.popout{height:calc(100vh - 60px)}
+.bt-reader.guest{height:100vh;padding:16px 24px;box-sizing:border-box}
+.bt-sharedby{margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .bt-shell.popout{display:block}
 .bt-reader-titles{flex:1;min-width:0}
 .bt-reader-title{font:550 13px/1.4 'DM Sans',sans-serif;letter-spacing:0}

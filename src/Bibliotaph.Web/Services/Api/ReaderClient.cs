@@ -3,7 +3,7 @@ using Bibliotaph.Api.Contracts;
 
 namespace Bibliotaph.Web.Services;
 
-/// <summary>The reader: the book open, its link, passwords, Find, the page kept, and the Notes panel.</summary>
+/// <summary>The reader: the book open, its link, passwords, Find, the page kept, and the Notes panel; and a player's guest reader.</summary>
 public sealed class ReaderClient(ApiHttp http)
 {
     /// <summary>A book to read: the card's own file, or <paramref name="documentId"/> in a pack; at a page, or with a search's words.</summary>
@@ -45,13 +45,8 @@ public sealed class ReaderClient(ApiHttp http)
         http.SendAsync<List<RememberedPassword>>(HttpMethod.Delete, "api/library/passwords", null, ct);
 
     /// <summary>Every page with a match, in pages <paramref name="from"/> to <paramref name="to"/> when given (an adventure's).</summary>
-    public Task<ReaderFind> FindInBookAsync(long documentId, string text, int? from, int? to, CancellationToken ct = default)
-    {
-        var url = $"{Document(documentId)}/find?q={Uri.EscapeDataString(text)}";
-        if (from is { } first) url += $"&from={first.ToString(CultureInfo.InvariantCulture)}";
-        if (to is { } last) url += $"&to={last.ToString(CultureInfo.InvariantCulture)}";
-        return http.SendAsync<ReaderFind>(HttpMethod.Get, url, null, ct);
-    }
+    public Task<ReaderFind> FindInBookAsync(long documentId, string text, int? from, int? to, CancellationToken ct = default) =>
+        http.SendAsync<ReaderFind>(HttpMethod.Get, FindUrl(Document(documentId), text, from, to), null, ct);
 
     public Task SavePositionAsync(long documentId, int page, CancellationToken ct = default) =>
         http.SendAsync(HttpMethod.Put, $"{Document(documentId)}/position", new ReaderPosition(page), ct);
@@ -83,6 +78,29 @@ public sealed class ReaderClient(ApiHttp http)
 
     public Task<ReaderNotesChanged> DeletePageNoteAsync(long documentId, long noteId, CancellationToken ct = default) =>
         http.SendAsync<ReaderNotesChanged>(HttpMethod.Delete, $"{Document(documentId)}/notes/{noteId.ToString(CultureInfo.InvariantCulture)}", null, ct);
+
+    /// <summary>A book a game master shared through Nornis, as a player opens it, at a page or where the ticket said.</summary>
+    public Task<GuestBook> GuestReaderAsync(long documentId, int? page, CancellationToken ct = default) =>
+        http.SendAsync<GuestBook>(HttpMethod.Get, $"{Table(documentId)}/reader" + (page is { } at ? $"?page={at.ToString(CultureInfo.InvariantCulture)}" : ""), null, ct);
+
+    public Task<ReaderLink> GuestLinkAsync(long documentId, CancellationToken ct = default) =>
+        http.SendAsync<ReaderLink>(HttpMethod.Get, $"{Table(documentId)}/link", null, ct);
+
+    public Task<ReaderFind> GuestFindAsync(long documentId, string text, int? from, int? to, CancellationToken ct = default) =>
+        http.SendAsync<ReaderFind>(HttpMethod.Get, FindUrl(Table(documentId), text, from, to), null, ct);
+
+    public Task<ReaderPrintedPages> GuestPrintedPagesAsync(long documentId, CancellationToken ct = default) =>
+        http.SendAsync<ReaderPrintedPages>(HttpMethod.Get, $"{Table(documentId)}/printed-pages", null, ct);
+
+    static string FindUrl(string document, string text, int? from, int? to)
+    {
+        var url = $"{document}/find?q={Uri.EscapeDataString(text)}";
+        if (from is { } first) url += $"&from={first.ToString(CultureInfo.InvariantCulture)}";
+        if (to is { } last) url += $"&to={last.ToString(CultureInfo.InvariantCulture)}";
+        return url;
+    }
+
+    static string Table(long documentId) => $"api/table/{documentId.ToString(CultureInfo.InvariantCulture)}";
 
     static string Book(long entryId) => $"api/library/books/{entryId.ToString(CultureInfo.InvariantCulture)}";
 

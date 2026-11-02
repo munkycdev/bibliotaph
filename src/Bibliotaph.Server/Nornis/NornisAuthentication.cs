@@ -32,6 +32,12 @@ public static class NornisAuthentication
     /// <summary>Calls per user, so one busy world can't crowd out the rest of the server.</summary>
     public const string Limit = "nornis";
 
+    /// <summary>Minting reading tickets, per user.</summary>
+    public const string TicketLimit = "nornis-tickets";
+
+    /// <summary>Opening a reading ticket's link, per address.</summary>
+    public const string TableLimit = "table";
+
     /// <summary>The policy an endpoint asks for: this scheme, and the scope named.</summary>
     public static string Policy(string scope) => $"nornis:{scope}";
 
@@ -54,6 +60,9 @@ public static class NornisAuthentication
         foreach (var scope in new[] { BooksRead, TicketsWrite, WorldsWrite })
             authorization.AddPolicy(Policy(scope), policy => policy.AddAuthenticationSchemes(Scheme).RequireAuthenticatedUser()
                 .RequireClaim(ConnectionClaim).RequireClaim(ScopeClaim, scope));
+        authentication.AddScheme<AuthenticationSchemeOptions, GuestAuthentication>(GuestAuthentication.SchemeName, null);
+        authorization.AddPolicy(GuestAuthentication.Policy, policy => policy.AddAuthenticationSchemes(GuestAuthentication.SchemeName)
+            .RequireAuthenticatedUser().RequireClaim(GuestAuthentication.PassClaim));
     }
 
     /// <summary>Who the token is for here: an open account that still has its Nornis connection, or no one.</summary>

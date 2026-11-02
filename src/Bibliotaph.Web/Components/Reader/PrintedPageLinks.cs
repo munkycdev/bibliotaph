@@ -11,7 +11,7 @@ public sealed record PrintedLink(int Start, int Length, int PageIndex, string Ti
 /// The printed page numbers on an index or contents page, by the Windows reader's rules. None when nothing says how
 /// the book numbers its pages. How the book numbers them is asked once for each file opened.
 /// </summary>
-public sealed class PrintedPageLinks(ReaderClient readerApi)
+public sealed class PrintedPageLinks(ReaderClient readerApi, bool guest = false)
 {
     (long DocumentId, Task<(PrintedPages Printed, HashSet<int> Listed)?> Pages)? _printed;
 
@@ -27,7 +27,7 @@ public sealed class PrintedPageLinks(ReaderClient readerApi)
     {
         try
         {
-            var found = await readerApi.PrintedPagesAsync(documentId);
+            var found = guest ? await readerApi.GuestPrintedPagesAsync(documentId) : await readerApi.PrintedPagesAsync(documentId);
             var source = found.FromLabels ? PrintedPagesSource.Labels : PrintedPagesSource.Folios;
             return (PrintedPages.FromTable(source, found.Pages), [.. found.Listed]);
         }

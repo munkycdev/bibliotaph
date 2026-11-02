@@ -15,6 +15,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<ClosedAccount> ClosedAccounts => Set<ClosedAccount>();
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<NornisWorldEvent> NornisWorldEvents => Set<NornisWorldEvent>();
+    public DbSet<ReadingTicket> ReadingTickets => Set<ReadingTicket>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -60,6 +61,14 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
             e.HasKey(w => new { w.UserId, w.EventId });
             e.HasOne<User>().WithMany().HasForeignKey(w => w.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(w => new { w.UserId, w.AppliedUtc });
+        });
+
+        modelBuilder.Entity<ReadingTicket>(e =>
+        {
+            e.ToTable("reading_tickets");
+            e.HasKey(t => t.CodeHash);
+            e.HasOne<User>().WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(t => t.ExpiresUtc);
         });
 
         modelBuilder.Entity<ClosedAccount>(e =>
@@ -215,4 +224,28 @@ public sealed class NornisWorldEvent
     public DateTime OccurredUtc { get; set; }
     public DateTime ReceivedUtc { get; set; }
     public DateTime? AppliedUtc { get; set; }
+}
+
+/// <summary>
+/// A link Nornis made for a player to read one of the game master's books: its code's SHA-256 only, as invitations
+/// keep theirs, the book and world it's for, and whether it was used. Good once, for two minutes.
+/// </summary>
+public sealed class ReadingTicket
+{
+    public required string CodeHash { get; set; }
+    public required string UserId { get; set; }
+    public required string WorldId { get; set; }
+    public long DocumentId { get; set; }
+    public long EntryId { get; set; }
+    public int? StartPage { get; set; }
+
+    /// <summary>Who Nornis says will read it, for the logs only.</summary>
+    public string? ViewerName { get; set; }
+
+    /// <summary>Where on Nornis the reader sends the player when their hour is up.</summary>
+    public required string Renew { get; set; }
+
+    public DateTime CreatedUtc { get; set; }
+    public DateTime ExpiresUtc { get; set; }
+    public DateTime? RedeemedUtc { get; set; }
 }

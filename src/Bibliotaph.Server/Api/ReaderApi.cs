@@ -89,8 +89,12 @@ public static partial class ReaderApi
         });
     }
 
+    /// <summary>
+    /// The book as the reader opens it. A guest (a player reading through Nornis) opens it as it is: no place kept or
+    /// recorded, no favourite, no cover page, so the game master's library notes nothing about them.
+    /// </summary>
     internal static async Task<ReaderBook?> OpenAsync(UserLibrary library, EntryId entryId, long? asked, int? page, string? q, bool keep,
-        CancellationToken ct, long? itemId = null)
+        CancellationToken ct, long? itemId = null, bool guest = false)
     {
         var queries = library.Get<LibraryQueries>();
         if (await queries.GetDetailsAsync(entryId, ct) is not { } details) return null;
@@ -103,7 +107,7 @@ public static partial class ReaderApi
             page ??= opened.Value.Target.FirstPage;
         }
         var entry = details.Entry;
-        var favorite = await library.Get<FavoritesService>().IsFavoriteAsync(entryId, ct);
+        var favorite = !guest && await library.Get<FavoritesService>().IsFavoriteAsync(entryId, ct);
         var marks = q is { Length: > 0 } ? SearchQuery.Parse(q).HighlightTerms() : [];
 
         if (entry.IsElsewhere)
@@ -130,15 +134,16 @@ public static partial class ReaderApi
             ? $"{CardText.FormatName(format)} image"
             : $"{CardText.FormatName(format)} · {pageCount.ToString("N0", CultureInfo.CurrentCulture)} {(pageCount == 1 ? "page" : "pages")}";
         if (entry.IsPack) kind = $"{kind} in {entry.PackTitle ?? entry.Title}";
-        var subtitle = string.Join(" · ", new[] { kind, source.FolderHint }.Where(s => !string.IsNullOrEmpty(s)));
+        // The game master's folders are theirs, not a guest's to see.
+        var subtitle = string.Join(" · ", new[] { kind, guest ? null : source.FolderHint }.Where(s => !string.IsNullOrEmpty(s)));
 
         var reading = library.Get<ReadingService>();
-        var ordinary = page is null && string.IsNullOrWhiteSpace(q) && part is null && opened is null;
+        var ordinary = !guest && page is null && string.IsNullOrWhiteSpace(q) && part is null && opened is null;
         var kept = ordinary ? await reading.GetPositionAsync(documentId, ct) : 0;
         var start = Math.Clamp(page ?? part?.FirstPage ?? kept, 0, Math.Max(0, pageCount - 1));
         var notice = kept > 0 && start == kept ? $"Back at page {ReaderPageNumbers.Display(start, labels)}, where you left off." : null;
         // Home's Recently opened, as an open in the Windows app records it.
-        await reading.RecordOpenAsync(documentId, ct);
+        if (!guest) await reading.RecordOpenAsync(documentId, ct);
 
         var problem = source.InArchive
             ? new ReaderProblem("This file is inside a ZIP.", "Bibliotaph on the web can't open a file inside a ZIP yet. The Windows app can.")
@@ -147,10 +152,10 @@ public static partial class ReaderApi
             favorite, problem, notice)
         {
             Outline = await OutlineAsync(library, documentId, pageCount, labels, part, ct),
-            KeepsPlace = ordinary || keep,
+            KeepsPlace = !guest && (ordinary || keep),
             Kind = readerKind,
             Pack = [.. pack.Select(p => new ReaderPackFile(p.DocumentId, p.Name, SourceFormats.IsImage(p.Format), p.MemberEntryId.Value))],
-            CoverPage = readerKind == ReaderKinds.Pdf ? await library.Get<CoverPages>().GetAsync(documentId, ct) : 0,
+            CoverPage = readerKind == ReaderKinds.Pdf && !guest ? await library.Get<CoverPages>().GetAsync(documentId, ct) : 0,
             Item = opened is { } open && open.Target.DocumentId == documentId ? ToItem(open, readerKind != ReaderKinds.Image) : null,
         };
     }

@@ -73,3 +73,19 @@ Nornis, as is anything else in your library.
 
 If your library is closed when Nornis asks, Bibliotaph starts opening it and Nornis tries again a few seconds later.
 Nornis asks for this as soon as someone opens a world, so it's usually ready by the time anyone asks a question.
+
+## Players reading your books
+
+When you share a book with your players in Nornis, they can read it in Bibliotaph's reader without an account of their
+own. Nornis decides who may read it; Bibliotaph checks that the book is still in the world's collection. Nornis sends
+the player to a link that works once and only for two minutes, and the player's browser can then read that book for an
+hour. A minute before the hour is up, the reader goes back to Nornis at the page they're on, and Nornis checks again
+and, if they still may, opens the book again there.
+
+The player reads view-only: their reader has no notes, Ask, binders, favourites, pins, Keep offline or Pop out, and
+says **Shared by** you **in** the world, with a link back to Nornis. Your library keeps nothing about them: their place
+isn't kept, the book isn't added to your recently opened books, and nothing they do changes your library. Take the book
+out of the world's collection, or delete the world, and they can't read it any more, straight away.
+
+The reader reads the file from your storage, as yours does, so a determined player could save it during their hour.
+Nornis keeps a record of who opened which book.

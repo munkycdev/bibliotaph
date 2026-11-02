@@ -20,7 +20,14 @@
 {
     @if (_loadProblem is { } problem)
     {
-        <EmptyState Title="@problem.Title" Message="@problem.Message" ActionText="Return to library" ActionIcon="LibraryBig" ActionHref="library" />
+        @if (Guest)
+        {
+            <EmptyState Title="@problem.Title" Message="@problem.Message" />
+        }
+        else
+        {
+            <EmptyState Title="@problem.Title" Message="@problem.Message" ActionText="Return to library" ActionIcon="LibraryBig" ActionHref="library" />
+        }
     }
     else
     {
@@ -30,13 +37,17 @@
 else
 {
     var problem = book.Problem ?? _problem;
-    <div class="bt-reader @(Popout == true ? "popout" : "") @(InBinder ? "inbinder" : "")">
+    <div class="bt-reader @(Popout == true ? "popout" : "") @(InBinder ? "inbinder" : "") @(Guest ? "guest" : "")">
         <div class="bt-reader-head">
             <div class="bt-reader-titles">
                 <h1 class="bt-reader-title" title="@book.Title">@book.Title</h1>
                 @if (book.Subtitle.Length > 0) { <div class="bt-small bt-reader-subtitle" title="@book.Subtitle">@book.Subtitle</div> }
+                @if (_guest is { } shared)
+                {
+                    <div class="bt-small bt-sharedby">Shared by @shared.SharedBy in @shared.World · <a href="@shared.Renew">Back to Nornis</a></div>
+                }
             </div>
-            @if (problem is null)
+            @if (problem is null && !Guest)
             {
                 <div class="bt-reader-actions">
                     @if (IsPdf)
@@ -102,6 +113,8 @@ else
                     }
                     <span class="bt-tooldivider"></span>
                 </div>
+                @if (!Guest)
+                {
                 <div class="bt-toolgroup">
                     <button class="bt-link bt-iconlink bt-notestoggle @(_showNotes ? "on" : "")" title="Show or hide the notes on this book's pages" aria-pressed="@_showNotes"
                             @onclick="ToggleNotes"><Icon Name="NotebookPen" Size="14" />@(_notes?.Label ?? "Notes")</button>
@@ -114,6 +127,7 @@ else
                         <span class="bt-tooldivider"></span>
                     }
                 </div>
+                }
                 }
                 @if (book.Pack.Count > 0)
                 {
@@ -141,12 +155,13 @@ else
                         }
                     </select>
                     <button class="bt-icon" title="Zoom in (Ctrl+plus)" aria-label="Zoom in" @onclick="() => ZoomAsync(true)"><Icon Name="Plus" Size="15" /></button>
+                    @* A player reads and nothing more: the game master's favourites, pins and offline copies are theirs. *@
+                    @if (!Guest)
+                    {
                     <span class="bt-tooldivider"></span>
-                    @{
-                        var favoriteAction = _favorite ? "Remove from favorites" : "Add to favorites";
-                        var pinned = Pins.IsPinned(PinKinds.Book, book.EntryId);
-                        var pinAction = pinned ? "Unpin from the sidebar" : "Pin to the sidebar";
-                    }
+                    var favoriteAction = _favorite ? "Remove from favorites" : "Add to favorites";
+                    var pinned = Pins.IsPinned(PinKinds.Book, book.EntryId);
+                    var pinAction = pinned ? "Unpin from the sidebar" : "Pin to the sidebar";
                     <button class="bt-icon bt-heart @(_favorite ? "on" : "")" title="@favoriteAction" aria-label="@favoriteAction" aria-pressed="@_favorite"
                             @onclick="ToggleFavoriteAsync"><Icon Name="Heart" Size="15" /></button>
                     <button class="bt-icon bt-pinbutton @(pinned ? "on" : "")" title="@pinAction" aria-label="@pinAction" aria-pressed="@pinned"
@@ -176,6 +191,7 @@ else
                     {
                         <span class="bt-tooldivider"></span>
                         <button class="bt-icon" title="Pop out into a window of its own" aria-label="Pop out" @onclick="PopOutAsync"><Icon Name="SquareArrowOutUpRight" Size="15" /></button>
+                    }
                     }
                 </div>
                 @if (HasPages)
@@ -208,7 +224,7 @@ else
                                         <span class="bt-contentstitle">@line.Title</span><span class="bt-small">@line.PageText</span>
                                     </button>
                                     @if (line.Found is { } found) { <div class="bt-small bt-contentsfound" title="Found by the AI reading this chapter">@found</div> }
-                                    @if (_outlineMenu == line)
+                                    @if (_outlineMenu == line && !Guest)
                                     {
                                         <div class="bt-backdrop fixed bt-menuback" @onclick="() => _outlineMenu = null" @oncontextmenu="() => _outlineMenu = null" @oncontextmenu:preventDefault="true"></div>
                                         <div class="bt-menu bt-menuleft" role="menu" aria-label="@line.Title">
@@ -277,7 +293,7 @@ else
 
 @if (_password is { } asking)
 {
-    <PasswordDialog @key="asking.Answer" Title="@(_book?.Title ?? "")" Retry="asking.Retry" Ticks="_passwords.Ticks" Answered="AnswerPassword" />
+    <PasswordDialog @key="asking.Answer" Title="@(_book?.Title ?? "")" Retry="asking.Retry" Ticks="_passwords.Ticks" Guest="Guest" Answered="AnswerPassword" />
 }
 
 @code {
@@ -338,7 +354,15 @@ else
     /// <summary>Use this page pointed the binder's item somewhere else, so its list says so.</summary>
     [Parameter] public EventCallback ItemMoved { get; set; }
 
+    /// <summary>
+    /// A player reading the book <see cref="Doc"/> that a game master shared through Nornis: view-only, with nothing kept
+    /// in the game master's library, and sent back to Nornis to renew a minute before the hour is up.
+    /// </summary>
+    [Parameter] public bool Guest { get; set; }
+
     ReaderBook? _book;
+    GuestBook? _guest;
+    Timer? _renewTimer;
     ReaderProblem? _loadProblem;
     ReaderProblem? _problem;
     string? _problemAction;
@@ -396,8 +420,8 @@ else
 
     protected override void OnInitialized()
     {
-        _passwords = new ReaderPasswords(ReaderApi, Unlocked);
-        _links = new PrintedPageLinks(ReaderApi);
+        _passwords = new ReaderPasswords(ReaderApi, Unlocked, Guest);
+        _links = new PrintedPageLinks(ReaderApi, Guest);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -418,7 +442,18 @@ else
         _problem = null;
         try
         {
-            _book = await ReaderApi.ReaderAsync(EntryId, doc, page, Q, Keep == true, item);
+            if (Guest)
+            {
+                _guest = await ReaderApi.GuestReaderAsync(doc ?? 0, page);
+                _book = _guest.Book;
+                RenewBeforeTheHourIsUp(_guest);
+            }
+            else _book = await ReaderApi.ReaderAsync(EntryId, doc, page, Q, Keep == true, item);
+        }
+        catch (ApiProblemException e) when (Guest && e.Status is System.Net.HttpStatusCode.NotFound or System.Net.HttpStatusCode.Unauthorized)
+        {
+            _loadProblem = new ReaderProblem("This book isn't open to you just now.", "Your time with it may be up, or it's no longer shared. Open it again from Nornis.");
+            return;
         }
         catch (ApiProblemException e) when (e.Status == System.Net.HttpStatusCode.NotFound)
         {
@@ -435,7 +470,7 @@ else
             _loadProblem = new ReaderProblem("This book could not be opened.", "Check your connection, then try again.");
             return;
         }
-        if (!InBinder) Breadcrumb.Show(_book.Title);
+        if (!InBinder && !Guest) Breadcrumb.Show(_book.Title);
         _favorite = _book.Favorite;
         _page = _book.StartPage;
         _pageEntry = ReaderPageNumbers.Display(_page, _book.Labels);
@@ -456,9 +491,12 @@ else
         _partDialog = null;
         _outlineMenu = null;
         if (_book.Notice is { } notice) ShowNotice(notice);
-        if (HasPages) _ = LoadNotesAsync(_book);
         _ask = null;
-        if (HasPages) _ = LoadAskAsync(_book);
+        if (HasPages && !Guest)
+        {
+            _ = LoadNotesAsync(_book);
+            _ = LoadAskAsync(_book);
+        }
         ReportPlace();
     }
 
@@ -1044,7 +1082,7 @@ else
         if (_book is null) return null;
         try
         {
-            var link = await ReaderApi.ReaderLinkAsync(_book.DocumentId);
+            var link = Guest ? await ReaderApi.GuestLinkAsync(_book.DocumentId) : await ReaderApi.ReaderLinkAsync(_book.DocumentId);
             if (link.Problem is { } problem) _linkProblem = problem;
             return link.Url;
         }
@@ -1313,7 +1351,8 @@ else
         ReaderFind found;
         try
         {
-            found = await ReaderApi.FindInBookAsync(_book.DocumentId, text, part?.FirstPage, part?.LastPage);
+            found = Guest ? await ReaderApi.GuestFindAsync(_book.DocumentId, text, part?.FirstPage, part?.LastPage)
+                : await ReaderApi.FindInBookAsync(_book.DocumentId, text, part?.FirstPage, part?.LastPage);
         }
         catch (Exception e) when (e is ApiProblemException or HttpRequestException)
         {
@@ -1436,11 +1475,28 @@ else
 
     void OnPinsChanged() => InvokeAsync(StateHasChanged);
 
+    /// <summary>
+    /// A minute before the hour ends, back to Nornis with the page in view, so Nornis checks again and, if the player
+    /// still may read, opens the book again there with a new ticket.
+    /// </summary>
+    void RenewBeforeTheHourIsUp(GuestBook guest)
+    {
+        var due = guest.ExpiresAt - DateTimeOffset.UtcNow - TimeSpan.FromMinutes(1);
+        _renewTimer ??= new Timer(_ => _ = InvokeAsync(() =>
+        {
+            if (_guest is not { } now) return;
+            var page = _page.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Navigation.NavigateTo($"{now.Renew}{(now.Renew.Contains('?', StringComparison.Ordinal) ? '&' : '?')}page={page}", forceLoad: true);
+        }));
+        _renewTimer.Change(due > TimeSpan.Zero ? due : TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+    }
+
     public async ValueTask DisposeAsync()
     {
         Pins.Changed -= OnPinsChanged;
-        if (!InBinder) Breadcrumb.Show(null);
+        if (!InBinder && !Guest) Breadcrumb.Show(null);
         _noticeTimer?.Cancel();
+        if (_renewTimer is not null) await _renewTimer.DisposeAsync();
         if (_placeTimer is not null) await _placeTimer.DisposeAsync();
         await CloseAsync();
         if (_module is not null)

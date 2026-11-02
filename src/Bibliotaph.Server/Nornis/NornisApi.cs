@@ -8,6 +8,7 @@ using Bibliotaph.Processing;
 using Bibliotaph.Server.Api;
 using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 
 namespace Bibliotaph.Server.Nornis;
@@ -20,7 +21,7 @@ public static class NornisApi
 {
     public static void MapNornisApi(this IEndpointRouteBuilder app)
     {
-        if (NornisOptions.From(app.ServiceProvider.GetRequiredService<IConfiguration>()) is null) return;
+        if (NornisOptions.From(app.ServiceProvider.GetRequiredService<IConfiguration>()) is not { } options) return;
         var nornis = app.MapGroup("/api/nornis/v1").RequireRateLimiting(NornisAuthentication.Limit);
         // Made now, so it's there to apply each library's inbox as the library opens.
         app.ServiceProvider.GetRequiredService<NornisWorlds>();
@@ -126,5 +127,36 @@ public static class NornisApi
                     .Select(r => new NornisPageText(r.PdfPage, PageNumbers.Display(r.PdfPage, r.Label), r.Text))]));
             }
         }).RequireAuthorization(books);
+
+        // Nornis has checked the player may read the book; this checks the book is in the world.
+        nornis.MapPost("/worlds/{worldId:guid}/reading-tickets", async (Guid worldId, NornisTicketRequest? asked, ClaimsPrincipal principal,
+            UserLibraries libraries, ReadingTickets tickets, IOptions<ServerOptions> server, HttpContext context, ILoggerFactory logs,
+            CancellationToken ct) =>
+        {
+            // The name goes into the logs, so it can't carry a line break or any other control character.
+            var viewer = asked?.ViewerName is { } name
+                ? new string([.. name.Replace(Environment.NewLine, " ", StringComparison.Ordinal).Where(c => !char.IsControl(c))]).Trim()
+                : null;
+            if (asked is not { DocumentId: > 0 } || !options.IsOwn(asked.Renew) || asked.StartPage is < 0
+                || viewer is { Length: > NornisTicketRequest.LongestViewerName })
+                return NornisProblems.Refuse(StatusCodes.Status400BadRequest, "malformed",
+                    $"Send a documentId, a renew address on Nornis, an optional startPage of 0 or more and a viewerName of at most {NornisTicketRequest.LongestViewerName} characters.");
+            var userId = principal.UserId()!;
+            var (lease, refusal) = await NornisReads.LeaseAsync(libraries, userId, context, ct);
+            if (lease is null) return refusal!;
+            await using (lease)
+            {
+                if (await NornisReads.WorldAsync(lease.Library, worldId, ct) is not { } world || !world.Pages.Holds(asked.DocumentId)) return Results.NotFound();
+                // A page outside the world's pages of the file (another adventure in it) opens where the world's book starts.
+                var start = asked.StartPage is { } page && world.Pages.Contains(asked.DocumentId, page) ? asked.StartPage : null;
+                var entry = world.EntryFor(asked.DocumentId, start ?? -1) ?? world.Entries.First(e => e.DocumentId == asked.DocumentId);
+                var (code, expires) = await tickets.MintAsync(userId, worldId, asked.DocumentId, entry.EntryId.Value, start,
+                    viewer is { Length: > 0 } ? viewer : null, asked.Renew, ct);
+                logs.CreateLogger("Bibliotaph.Server.Nornis.Table").LogInformation(
+                    "Reading ticket minted for user {UserId}, world {WorldId}, document {DocumentId}, viewer {Viewer}", userId, worldId, asked.DocumentId, viewer ?? "");
+                return Results.Ok(new NornisTicket($"{AuthEndpoints.PublicOrigin(server.Value, context.Request)}/table/{code}",
+                    new DateTimeOffset(expires, TimeSpan.Zero)));
+            }
+        }).RequireAuthorization(NornisAuthentication.Policy(NornisAuthentication.TicketsWrite)).RequireRateLimiting(NornisAuthentication.TicketLimit);
     }
 }
