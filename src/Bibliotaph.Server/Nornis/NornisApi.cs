@@ -133,7 +133,10 @@ public static class NornisApi
             UserLibraries libraries, ReadingTickets tickets, IOptions<ServerOptions> server, HttpContext context, ILoggerFactory logs,
             CancellationToken ct) =>
         {
-            var viewer = asked?.ViewerName is { } name ? new string([.. name.Where(c => !char.IsControl(c))]).Trim() : null;
+            // The name goes into the logs, so it can't carry a line break or any other control character.
+            var viewer = asked?.ViewerName is { } name
+                ? new string([.. name.Replace(Environment.NewLine, " ", StringComparison.Ordinal).Where(c => !char.IsControl(c))]).Trim()
+                : null;
             if (asked is not { DocumentId: > 0 } || !options.IsOwn(asked.Renew) || asked.StartPage is < 0
                 || viewer is { Length: > NornisTicketRequest.LongestViewerName })
                 return NornisProblems.Refuse(StatusCodes.Status400BadRequest, "malformed",
