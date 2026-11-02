@@ -77,6 +77,35 @@ public abstract partial class ApiTests
         }
 
         [Fact]
+        public async Task Ids_go_to_Nornis_as_strings_and_come_back_as_either()
+        {
+            using var server = Server();
+            var world = await WorldLibraryAsync(server, Ct);
+            var reader = Reader(server);
+            var crown = world.Crown.EntryId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            using var books = System.Text.Json.JsonDocument.Parse(await reader.GetStringAsync(World(Ashes, "books"), Ct));
+            using var asked = await reader.PostAsync(World(Ashes, "passages"), new StringContent(
+                $$"""{"question":"Where do the bog goblins wait?","entryIds":["{{crown}}"],"mode":"search"}""",
+                System.Text.Encoding.UTF8, "application/json"), Ct);
+            using var found = System.Text.Json.JsonDocument.Parse(await asked.Content.ReadAsStringAsync(Ct));
+            using var pages = System.Text.Json.JsonDocument.Parse(
+                await reader.GetStringAsync(World(Ashes, $"documents/{world.Crown.DocumentId}/pages?from=0&to=0"), Ct));
+            using var ticket = await Minter(server).PostAsync(World(Ashes, "reading-tickets"), new StringContent(
+                $$"""{"documentId":"{{world.Crown.DocumentId}}","renew":"{{Renew}}","viewerName":"Ana"}""",
+                System.Text.Encoding.UTF8, "application/json"), Ct);
+
+            var book = books.RootElement.GetProperty("books").EnumerateArray().First();
+            Assert.Equal((System.Text.Json.JsonValueKind.String, System.Text.Json.JsonValueKind.String),
+                (book.GetProperty("entryId").ValueKind, book.GetProperty("documentId").ValueKind));
+            Assert.Equal(HttpStatusCode.OK, asked.StatusCode);
+            Assert.Equal(crown, Assert.Single(found.RootElement.GetProperty("pages").EnumerateArray()
+                .Select(p => p.GetProperty("entryId").GetString()).Distinct()));
+            Assert.Equal(System.Text.Json.JsonValueKind.String, pages.RootElement.GetProperty("documentId").ValueKind);
+            Assert.True(ticket.IsSuccessStatusCode, ticket.StatusCode.ToString());
+        }
+
+        [Fact]
         public async Task A_world_reads_only_the_books_in_its_collection_and_never_the_text_of_one_kept_from_AI()
         {
             using var server = Server();

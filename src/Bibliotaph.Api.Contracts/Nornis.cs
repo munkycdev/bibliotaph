@@ -1,4 +1,15 @@
+using System.Text.Json.Serialization;
+
 namespace Bibliotaph.Api.Contracts;
+
+/// <summary>
+/// How the contract carries Bibliotaph's ids: as strings, since Nornis treats them as opaque and reads them as strings,
+/// while either form is taken in.
+/// </summary>
+public static class NornisIds
+{
+    public const JsonNumberHandling Handling = JsonNumberHandling.WriteAsString | JsonNumberHandling.AllowReadingFromString;
+}
 
 /// <summary>
 /// One of Nornis's world events, as POST /api/nornis/v1/worlds/events takes them, up to 100 at a time: a world the user
@@ -25,7 +36,7 @@ public sealed record NornisWorldEvent(Guid EventId, string Kind, Guid WorldId, s
 /// opens, its type and system as vocabulary keys, and its cover by name. <see cref="NornisFileId"/> is set when the
 /// file is one uploaded to Nornis.
 /// </summary>
-public sealed record NornisBook(long EntryId, long DocumentId, string Title, string? Subtitle, string? Type, string? System, int? PageCount,
+public sealed record NornisBook([property: JsonNumberHandling(NornisIds.Handling)] long EntryId, [property: JsonNumberHandling(NornisIds.Handling)] long DocumentId, string Title, string? Subtitle, string? Type, string? System, int? PageCount,
     string Format, string? CoverName, string? NornisFileId = null);
 
 /// <summary>The books in a world's collection and the collections inside it.</summary>
@@ -36,7 +47,7 @@ public sealed record NornisBooks(IReadOnlyList<NornisBook> Books);
 /// given, and ask (for the Loremaster, nothing when the signals are weak) or search (the GM choosing excerpts, the
 /// closest pages anyway).
 /// </summary>
-public sealed record NornisPassageQuestion(string Question, int? Limit = null, IReadOnlyList<long>? EntryIds = null, string? Mode = null)
+public sealed record NornisPassageQuestion(string Question, int? Limit = null, [property: JsonNumberHandling(NornisIds.Handling)] IReadOnlyList<long>? EntryIds = null, string? Mode = null)
 {
     public const string Ask = "ask";
     public const string Search = "search";
@@ -45,7 +56,7 @@ public sealed record NornisPassageQuestion(string Question, int? Limit = null, I
 }
 
 /// <summary>A page found for a question: its book, its zero-based page and label as the reader shows it, its text and score.</summary>
-public sealed record NornisPassage(long EntryId, long DocumentId, string Title, int PageIndex, string PageLabel, string Text, double Score);
+public sealed record NornisPassage([property: JsonNumberHandling(NornisIds.Handling)] long EntryId, [property: JsonNumberHandling(NornisIds.Handling)] long DocumentId, string Title, int PageIndex, string PageLabel, string Text, double Score);
 
 /// <summary>
 /// The pages found: whether they answer it (false, with none, when ask's signals were weak), whether meaning was used
@@ -57,7 +68,7 @@ public sealed record NornisPassages(bool Covered, bool MeaningUsed, IReadOnlyLis
 public sealed record NornisPageText(int PageIndex, string PageLabel, string Text);
 
 /// <summary>Pages of one document, at most 40 at a time.</summary>
-public sealed record NornisPageTexts(long DocumentId, IReadOnlyList<NornisPageText> Pages)
+public sealed record NornisPageTexts([property: JsonNumberHandling(NornisIds.Handling)] long DocumentId, IReadOnlyList<NornisPageText> Pages)
 {
     public const int MostPages = 40;
 }
@@ -67,7 +78,7 @@ public sealed record NornisPageTexts(long DocumentId, IReadOnlyList<NornisPageTe
 /// the document, the zero-based page to open at, the player's name (at most 100 characters, for the logs only) and
 /// the address on Nornis the reader sends them to when their hour is up.
 /// </summary>
-public sealed record NornisTicketRequest(long DocumentId, string Renew, int? StartPage = null, string? ViewerName = null)
+public sealed record NornisTicketRequest([property: JsonNumberHandling(NornisIds.Handling)] long DocumentId, string Renew, int? StartPage = null, string? ViewerName = null)
 {
     public const int LongestViewerName = 100;
 }
