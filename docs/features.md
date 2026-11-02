@@ -225,7 +225,12 @@ Reconnect Bibliotaph otherwise. Each world the game master creates in Nornis get
 **Nornis world**: Nornis sends world events (created, renamed, deleted) that are kept until the library opens, a
 world's rename renames its collection unless the game master renamed it, a deleted world marks its collection **World
 gone** and deletes nothing, and **Resync Nornis worlds** in Settings has Nornis send every world again, which makes a
-missing collection again. See [Using Bibliotaph with Nornis](guide/nornis.md).
+missing collection again. Nornis reads only what is in a live world's collection, sub-collections included: the
+books (title, subtitle, type, system, pages, format, cover), up to ten pages that answer a question, found by words and
+by meaning when the library has an embedding model, with nothing at all in ask mode when the signals are weak but the
+closest pages when the game master is choosing excerpts, and the text of up to 40 pages at a time. Books in folders kept
+from AI are never searched and their text is refused. A closed library starts opening, and Nornis is told to try again
+in a few seconds. See [Using Bibliotaph with Nornis](guide/nornis.md).
 
 ## Out of scope
 

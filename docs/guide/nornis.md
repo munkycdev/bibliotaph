@@ -54,4 +54,22 @@ Only a world's creator has a collection for it; players reach books through the 
 ## What Nornis can see
 
 Nornis reaches your library only while you're connected, and only for you: it can't reach anyone else's library, and
-it reaches yours only through what's described here.
+it reaches yours only through what's described here. Everything it sees is in a world's collection, or in collections
+inside it, and only while the world isn't gone:
+
+- **The world's books**, for Nornis's Library page: each book's title, subtitle, type, system, number of pages, format
+  and cover.
+- **Pages that answer a question.** When you or your players ask Nornis about a world, Bibliotaph finds the pages of
+  that world's books that answer it, as **Ask your library** does: by their words, and by their meaning too when your
+  library has an embedding model in **Settings** › **AI**. Nornis gets up to ten pages, each cut to its most useful
+  part, and its own AI answers from them. If nothing in the books answers the question well, Nornis is told so and
+  gets no pages, so it doesn't make an answer up. When you're choosing excerpts in Nornis, it gets the closest pages
+  anyway.
+- **The text of pages you choose**, to file an excerpt in Nornis, up to 40 pages at a time.
+
+Books in a library folder you keep from AI (**Settings** › **AI**) never go to Nornis: their pages aren't searched
+and their text isn't sent, though they're still listed. A book outside every world's collection is invisible to
+Nornis, as is anything else in your library.
+
+If your library is closed when Nornis asks, Bibliotaph starts opening it and Nornis tries again a few seconds later.
+Nornis asks for this as soon as someone opens a world, so it's usually ready by the time anyone asks a question.

@@ -49,6 +49,9 @@ public sealed class PageScope
         return new PageScope(byDocument);
     }
 
+    /// <summary>Whether any page of this document is in scope.</summary>
+    public bool Holds(long documentId) => !_excluded.Contains(documentId) && (_byDocument is null || _byDocument.ContainsKey(documentId));
+
     /// <summary>Every page, with no narrowing.</summary>
     public bool IsEverything => _byDocument is null && _excluded.Count == 0;
 
@@ -171,6 +174,16 @@ public sealed class LibraryAskQueries(IndexDatabase database)
         var rows = await connection.QueryAsync<(long PageId, long DocumentId, long PdfPage, string? Label, string Text)>(new CommandDefinition(
             "SELECT id, document_id, pdf_page, label, text FROM page WHERE id IN (SELECT value FROM json_each(@ids))",
             new { ids = JsonSerializer.Serialize(pageIds) }, cancellationToken: ct));
+        return [.. rows.Select(r => new LibraryPageRow(r.PageId, r.DocumentId, (int)r.PdfPage, r.Label, r.Text))];
+    }
+
+    /// <summary>A document's pages <paramref name="first"/> to <paramref name="last"/> (zero-based PDF pages), with their labels and indexed text.</summary>
+    public async Task<IReadOnlyList<LibraryPageRow>> GetDocumentPagesAsync(long documentId, int first, int last, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long PageId, long DocumentId, long PdfPage, string? Label, string Text)>(new CommandDefinition(
+            "SELECT id, document_id, pdf_page, label, text FROM page WHERE document_id = @documentId AND pdf_page BETWEEN @first AND @last ORDER BY pdf_page",
+            new { documentId, first, last }, cancellationToken: ct));
         return [.. rows.Select(r => new LibraryPageRow(r.PageId, r.DocumentId, (int)r.PdfPage, r.Label, r.Text))];
     }
 

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **New: Nornis can read the books in your worlds' collections.** Nornis lists a world's books with their covers,
+  finds the pages that answer a question you or your players ask about the world (by words, and by meaning when your
+  library has an embedding model), and files the pages you choose as excerpts. It sees nothing outside the world's
+  collection, and never the text of books in a folder you keep from AI. The privacy policy now says what Nornis
+  receives.
 - **New: a collection for each Nornis world.** Each world you create in Nornis gets its own collection inside
   **Nornis**, marked **Nornis world**, and it follows the world: renaming the world renames it (unless you renamed it
   yourself), and deleting the world marks it **World gone** without deleting anything. **Resync Nornis worlds** in
