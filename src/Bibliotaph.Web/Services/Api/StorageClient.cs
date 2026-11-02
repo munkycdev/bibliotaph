@@ -18,6 +18,10 @@ public sealed class StorageClient(ApiHttp http)
     public Task DisconnectStorageAsync(string id, CancellationToken ct = default) =>
         http.SendAsync(HttpMethod.Delete, $"api/storage/{Uri.EscapeDataString(id)}", null, ct);
 
+    /// <summary>Asks Nornis to send its worlds again, which makes any world's missing collection again.</summary>
+    public Task ResyncNornisAsync(string id, CancellationToken ct = default) =>
+        http.SendAsync(HttpMethod.Post, $"api/storage/{Uri.EscapeDataString(id)}/nornis/resync", null, ct);
+
     public Task<StorageFolderList> StorageFoldersAsync(string id, string path, CancellationToken ct = default) =>
         http.SendAsync<StorageFolderList>(HttpMethod.Get, $"api/storage/{Uri.EscapeDataString(id)}/folders?path={Uri.EscapeDataString(path)}", null, ct);
 

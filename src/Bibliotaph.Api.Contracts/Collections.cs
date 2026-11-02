@@ -16,7 +16,7 @@ public sealed record CollectionMenuItem(string Kind, long? Id, string Label, str
 public sealed record CollectionList(IReadOnlyList<CollectionNode> Tree, IReadOnlyList<int> Depths, IReadOnlyList<CollectionMenuItem> Menu);
 
 /// <summary>A collection's card: the covers of the two books added last, its name and "12 books · 2 collections".</summary>
-public sealed record CollectionCard(long Id, string Name, string Tip, bool Pinned, string Count, IReadOnlyList<BookCard> Covers);
+public sealed record CollectionCard(long Id, string Name, string Tip, bool Pinned, string Count, IReadOnlyList<BookCard> Covers, string? Badge = null);
 
 /// <summary>A collection's page in the Library: its name and subtitle, its path for the scope chip, and its sub-collections.</summary>
 public sealed record CollectionPage(CollectionNode Collection, string Subtitle, IReadOnlyList<CollectionCard> Children);

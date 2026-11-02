@@ -34,7 +34,15 @@
                     {
                         <small title="@(account.Scopes is { } scopes ? $"As {StorageOwner(account)} names it: {scopes}" : null)">Allowed to @Sentence(access).</small>
                     }
+                    @if (_resynced.TryGetValue(account.Id, out var resynced))
+                    {
+                        <small role="status">@resynced</small>
+                    }
                 </div>
+                @if (account.Provider == NornisProvider && !account.NeedsReconnect)
+                {
+                    <button class="bt-button" disabled="@_resyncing.Contains(account.Id)" @onclick="() => ResyncNornis(account)"><Icon Name="RotateCcw" />Resync Nornis worlds</button>
+                }
                 @if (account.NeedsReconnect && SignsInHere(account.Provider))
                 {
                     <button class="bt-button" @onclick="() => OpenForm(account.Provider)"><Icon Name="RotateCcw" />Connect again</button>
@@ -129,6 +137,11 @@
     // Once connected, the next thing to do is add a folder from it.
     static string ConnectLink(string provider) => $"storage/connect/{Uri.EscapeDataString(provider)}?returnUrl=%2Fsettings%23library";
 
+    // Nornis's worlds become collections; it can send them all again when one went missing.
+    const string NornisProvider = "nornis";
+    readonly Dictionary<string, string> _resynced = [];
+    readonly HashSet<string> _resyncing = [];
+
     string? About(string provider) => _providers.FirstOrDefault(p => p.Id == provider)?.About;
 
     bool SignsInHere(string provider) => _providers.FirstOrDefault(p => p.Id == provider)?.SignsInWithPassword == true;
@@ -193,6 +206,24 @@
         _storage = await StorageApi.StorageAsync();
         Activity.Refresh();
         await Changed.InvokeAsync();
+    }
+
+    async Task ResyncNornis(StorageAccount account)
+    {
+        _resyncing.Add(account.Id);
+        try
+        {
+            await StorageApi.ResyncNornisAsync(account.Id);
+            _resynced[account.Id] = "Nornis is sending your worlds again. A world whose collection is missing gets it back in a moment.";
+        }
+        catch (Exception ex) when (ex is ApiProblemException or HttpRequestException)
+        {
+            _resynced[account.Id] = "Nornis couldn't be reached just now. Try again in a moment.";
+        }
+        finally
+        {
+            _resyncing.Remove(account.Id);
+        }
     }
 
     async Task Disconnect(StorageAccount account)

@@ -99,6 +99,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
     readonly ConcurrentDictionary<string, DateTimeOffset> _failed = new();
     readonly ILogger _log = host.Logs.CreateLogger<UserLibraries>();
     readonly TimeProvider clock = host.Clock;
+    readonly List<Func<UserLibrary, CancellationToken, Task>> _whenOpened = [];
 
     /// <summary>Libraries open now, for tests and diagnostics.</summary>
     public int OpenCount => _slots.Count;
@@ -108,7 +109,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         userId = UserIds.Require(userId);
         while (true)
         {
-            var slot = _slots.GetOrAdd(userId, id => new Slot(new Lazy<Task<UserLibrary>>(() => OpenLibraryAsync(id))));
+            var slot = _slots.GetOrAdd(userId, id => new Slot(new Lazy<Task<UserLibrary>>(() => OpenAndFollowAsync(id))));
             Task? closing;
             lock (slot)
             {
@@ -340,6 +341,53 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
         {
             _slots.TryRemove(new KeyValuePair<string, Slot>(userId, slot));
             done.TrySetResult();
+        }
+    }
+
+    /// <summary>
+    /// Something to do each time a library has opened, such as applying what arrived for it while it was closed. It runs
+    /// once the library counts as open, so anything arriving meanwhile finds it open and is handled there instead; a
+    /// failure is logged and leaves the library open.
+    /// </summary>
+    public void WhenOpened(Func<UserLibrary, CancellationToken, Task> step)
+    {
+        lock (_whenOpened) _whenOpened.Add(step);
+    }
+
+    Task<UserLibrary> OpenAndFollowAsync(string userId)
+    {
+        var opening = OpenLibraryAsync(userId);
+        _ = FollowOpeningAsync(userId, opening);
+        return opening;
+    }
+
+    async Task FollowOpeningAsync(string userId, Task<UserLibrary> opening)
+    {
+        Func<UserLibrary, CancellationToken, Task>[] steps;
+        lock (_whenOpened) steps = [.. _whenOpened];
+        if (steps.Length == 0) return;
+        try
+        {
+            await opening;
+        }
+        catch
+        {
+            return;
+        }
+        // Off the opening's own continuation, so the slot has its value by the time the lease asks for it.
+        await Task.Yield();
+        await using var lease = await LeaseIfOpenAsync(userId);
+        if (lease is null) return;
+        foreach (var step in steps)
+        {
+            try
+            {
+                await step(lease.Library, CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "A step after opening the library of {User} failed", userId);
+            }
         }
     }
 

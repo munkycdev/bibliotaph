@@ -14,6 +14,7 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
     public DbSet<StorageConnection> StorageConnections => Set<StorageConnection>();
     public DbSet<ClosedAccount> ClosedAccounts => Set<ClosedAccount>();
     public DbSet<Device> Devices => Set<Device>();
+    public DbSet<NornisWorldEvent> NornisWorldEvents => Set<NornisWorldEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -51,6 +52,14 @@ public sealed class AccountsDbContext(DbContextOptions<AccountsDbContext> option
             e.HasOne<User>().WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(d => d.KeyHash).IsUnique();
             e.HasIndex(d => d.UserId);
+        });
+
+        modelBuilder.Entity<NornisWorldEvent>(e =>
+        {
+            e.ToTable("nornis_world_events");
+            e.HasKey(w => new { w.UserId, w.EventId });
+            e.HasOne<User>().WithMany().HasForeignKey(w => w.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(w => new { w.UserId, w.AppliedUtc });
         });
 
         modelBuilder.Entity<ClosedAccount>(e =>
@@ -185,4 +194,25 @@ public sealed class StorageConnection
 
     /// <summary>When the connected app last called in with it (Nornis), written at most every five minutes.</summary>
     public DateTime? LastUsed { get; set; }
+}
+
+/// <summary>
+/// A world event Nornis delivered, kept until the user's library applies it: Nornis counts it delivered once it's here,
+/// whether or not the library is open. Kept a while after it's applied, so Nornis sending it again changes nothing.
+/// </summary>
+public sealed class NornisWorldEvent
+{
+    public required string UserId { get; set; }
+
+    /// <summary>Nornis's ID for the event, a GUID in its "D" form.</summary>
+    public required string EventId { get; set; }
+
+    /// <summary>created, renamed, deleted or files-changed.</summary>
+    public required string Kind { get; set; }
+
+    public required string WorldId { get; set; }
+    public required string WorldName { get; set; }
+    public DateTime OccurredUtc { get; set; }
+    public DateTime ReceivedUtc { get; set; }
+    public DateTime? AppliedUtc { get; set; }
 }

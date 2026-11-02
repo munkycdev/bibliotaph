@@ -29,7 +29,7 @@ namespace Bibliotaph.Server.Tests;
 public abstract partial class ApiTests
 {
     /// <summary>Connect Nornis, and Nornis's tokens for the Bibliotaph API.</summary>
-    public sealed class NornisTests(SyntheticPdfs pdfs) : ApiTests(pdfs)
+    public sealed partial class NornisTests(SyntheticPdfs pdfs) : ApiTests(pdfs)
     {
         const string Return = FakeNornis.Origin + "/settings/connected-apps";
         const string Subject = "oauth2|discord|5678";

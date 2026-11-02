@@ -160,6 +160,7 @@ public static class CollectionsApi
         var visible = await store.GetVisibleEntryIdsAsync(ct: ct);
         var away = await store.GetUnavailableAsync(ct);
         var counts = await queries.CountGroupsAsync("collection:", visible, ct);
+        var worlds = await Nornis.NornisWorlds.CollectionsAsync(library, ct);
         var cards = new List<CollectionCard>();
         foreach (var collection in shown)
         {
@@ -167,7 +168,8 @@ public static class CollectionsApi
             var covers = await queries.ListAsync(new LibraryFilter(visible, Sort: LibrarySort.RecentlyAdded, Group: key), limit: 2, ct: ct);
             var children = all.Values.Count(c => c.ParentId == collection.Id);
             cards.Add(new CollectionCard(collection.Id, collection.Name, CollectionText.Tip(collection), collection.Pinned,
-                CollectionText.Count(counts.GetValueOrDefault(key), children), [.. covers.Select(e => LibraryApi.ToCard(e, away.GetValueOrDefault(e.EntryId)))]));
+                CollectionText.Count(counts.GetValueOrDefault(key), children), [.. covers.Select(e => LibraryApi.ToCard(e, away.GetValueOrDefault(e.EntryId)))],
+                worlds.TryGetValue(collection.Id, out var gone) ? gone ? "World gone" : "Nornis world" : null));
         }
         return cards;
     }

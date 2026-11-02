@@ -221,7 +221,11 @@ full), connects Nornis as storage that Bibliotaph only reads, makes a top-level 
 deleted) and goes back to Nornis. Settings › Library lists the connection with what Nornis can do and no Connect button
 of its own; disconnecting stops Nornis reaching the library and keeps the collections. Nornis calls the Bibliotaph API
 with its own Auth0 token for the game master, honoured only while they keep the connection, and Nornis is told to offer
-Reconnect Bibliotaph otherwise. See [Using Bibliotaph with Nornis](guide/nornis.md).
+Reconnect Bibliotaph otherwise. Each world the game master creates in Nornis gets a collection inside Nornis, marked
+**Nornis world**: Nornis sends world events (created, renamed, deleted) that are kept until the library opens, a
+world's rename renames its collection unless the game master renamed it, a deleted world marks its collection **World
+gone** and deletes nothing, and **Resync Nornis worlds** in Settings has Nornis send every world again, which makes a
+missing collection again. See [Using Bibliotaph with Nornis](guide/nornis.md).
 
 ## Out of scope
 
