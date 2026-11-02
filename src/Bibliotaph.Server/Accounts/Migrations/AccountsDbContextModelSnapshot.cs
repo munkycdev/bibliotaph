@@ -15,7 +15,7 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261026033628_Devices";
+    public override string LastMigrationId => "20261102012521_StorageConnectionLastUsed";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -91,14 +91,14 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("INTEGER")
                     .HasColumnName("admin");
 
+                b.Property<string>("Code")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("code");
+
                 b.Property<string>("CodeHash")
                     .IsRequired()
                     .HasColumnType("TEXT")
                     .HasColumnName("code_hash");
-
-                b.Property<string>("Code")
-                    .HasColumnType("TEXT")
-                    .HasColumnName("code");
 
                 b.Property<DateTime>("Created")
                     .HasColumnType("TEXT")
@@ -184,6 +184,10 @@ partial class AccountsDbContextModelSnapshot : ModelSnapshot
                 b.Property<string>("DisplayName")
                     .HasColumnType("TEXT")
                     .HasColumnName("display_name");
+
+                b.Property<DateTime?>("LastUsed")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("last_used");
 
                 b.Property<bool>("NeedsReconnect")
                     .HasColumnType("INTEGER")

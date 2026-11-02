@@ -32,6 +32,12 @@ public abstract class StorageProvider
     /// <summary>Who asks the user for access, in "allow Bibliotaph to read your files when Microsoft asks".</summary>
     public abstract string Owner { get; }
 
+    /// <summary>What a connection does, in Settings' words, when what it was granted doesn't say it all.</summary>
+    public virtual string? About => null;
+
+    /// <summary>Whether it's connected by starting in the provider's own app rather than from Settings.</summary>
+    public virtual bool StartsInItsOwnApp => false;
+
     /// <summary>Whether this server can connect it, which for an OAuth provider needs its app.</summary>
     public abstract bool IsAvailable(IConfiguration configuration);
 
@@ -39,6 +45,12 @@ public abstract class StorageProvider
     public abstract IReadOnlyList<string> Access(string? scopes);
 
     public abstract IStorageDrive Drive(DriveContext context);
+
+    /// <summary>
+    /// The provider with whatever this server's configuration says about where it is. Most providers are at fixed
+    /// addresses and are themselves; Nornis's sign-in and API are wherever the configuration puts them.
+    /// </summary>
+    public virtual StorageProvider Bind(IConfiguration configuration) => this;
 
     protected const string KeepAccess = "keep access while you're signed out";
 }
@@ -88,7 +100,7 @@ public abstract class OAuthStorageProvider : StorageProvider
     public override bool IsAvailable(IConfiguration configuration) => App(configuration) is not null;
 
     /// <summary>The OAuth app, or null until it's configured, which leaves the provider out of Settings.</summary>
-    public StorageApp? App(IConfiguration configuration) =>
+    public virtual StorageApp? App(IConfiguration configuration) =>
         configuration.GetSection(Section).Get<StorageApp>() is { ClientId.Length: > 0, ClientSecret.Length: > 0 } app ? app : null;
 
     /// <summary>The account an access token from connecting belongs to.</summary>
@@ -98,9 +110,14 @@ public abstract class OAuthStorageProvider : StorageProvider
 /// <summary>Every storage provider the server knows, whether or not it can be connected here.</summary>
 public static class StorageProviders
 {
-    public static readonly IReadOnlyList<StorageProvider> All = [new OneDriveProvider(), new DropboxProvider(), new GoogleDriveProvider(), new BoxProvider(), new WebDavProvider()];
+    public static readonly IReadOnlyList<StorageProvider> All =
+        [new OneDriveProvider(), new DropboxProvider(), new GoogleDriveProvider(), new BoxProvider(), new WebDavProvider(), new NornisProvider()];
 
     public static StorageProvider? Find(string id) => All.FirstOrDefault(p => p.Id == id);
 
-    public static IEnumerable<StorageProvider> Configured(IConfiguration configuration) => All.Where(p => p.IsAvailable(configuration));
+    /// <summary>A provider bound to this server's configuration, for anything that calls it.</summary>
+    public static StorageProvider? Find(string id, IConfiguration configuration) => Find(id)?.Bind(configuration);
+
+    public static IEnumerable<StorageProvider> Configured(IConfiguration configuration) =>
+        All.Where(p => p.IsAvailable(configuration)).Select(p => p.Bind(configuration));
 }

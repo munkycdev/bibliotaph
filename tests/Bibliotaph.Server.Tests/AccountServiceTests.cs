@@ -229,4 +229,59 @@ public sealed class AccountServiceTests : IDisposable
         Assert.True(invited.User!.IsAdmin);
         Assert.Equal(SignInResult.NeedsInvite, (await _accounts.SignInAsync(new ExternalIdentity("google", "sub-5", "Lee", null), null, null)).Result);
     }
+    [Fact]
+    public async Task Connecting_from_Nornis_makes_an_account_without_an_invitation()
+    {
+        var made = await _accounts.SignInFromNornisAsync(Dana, null);
+        var again = await _accounts.SignInFromNornisAsync(Dana, null);
+
+        Assert.Equal(SignInResult.Created, made.Result);
+        Assert.Equal(SignInResult.SignedIn, again.Result);
+        Assert.Equal(made.User!.Id, again.User!.Id);
+        Assert.Equal(SignInResult.NeedsInvite, (await _accounts.SignInAsync(DanaOnGoogle, null, null)).Result);
+    }
+
+    [Fact]
+    public async Task Connecting_from_Nornis_stops_at_the_most_accounts()
+    {
+        var accounts = new AccountService(_database, _clock, new SignUpOptions { MostAccounts = 1 });
+        await accounts.SignInFromNornisAsync(Dana, null);
+
+        Assert.Equal(SignInResult.Full, (await accounts.SignInFromNornisAsync(DanaOnGoogle, null)).Result);
+    }
+
+    [Fact]
+    public async Task Connecting_from_Nornis_signs_into_the_account_the_sign_in_belongs_to_whoever_is_signed_in()
+    {
+        var dana = (await _accounts.SignInFromNornisAsync(Dana, null)).User!;
+        var other = (await _accounts.SignInFromNornisAsync(DanaOnGoogle, null)).User!;
+
+        var outcome = await _accounts.SignInFromNornisAsync(Dana, other.Id);
+
+        Assert.Equal(SignInResult.SignedIn, outcome.Result);
+        Assert.Equal(dana.Id, outcome.User!.Id);
+    }
+
+    [Fact]
+    public async Task Connecting_from_Nornis_with_a_new_sign_in_links_it_to_the_account_signed_in()
+    {
+        var (code, _) = await _accounts.CreateInviteAsync(null, null, admin: false);
+        var dana = (await _accounts.SignInAsync(Dana, code, null)).User!;
+
+        var outcome = await _accounts.SignInFromNornisAsync(DanaOnGoogle, dana.Id);
+
+        Assert.Equal(SignInResult.Linked, outcome.Result);
+        Assert.Equal(dana.Id, (await _accounts.FindBySubjectAsync("google", "google-sub-1", []))!.Id);
+    }
+
+    [Fact]
+    public async Task A_subject_is_found_by_a_former_spelling_and_not_once_the_account_is_closed()
+    {
+        var discord = new ExternalIdentity("auth0", "oauth2|discord|5678", "Dana", null);
+        var dana = (await _accounts.SignInFromNornisAsync(discord, null)).User!;
+
+        Assert.Equal(dana.Id, (await _accounts.FindBySubjectAsync("auth0", "discord|5678", ["oauth2|discord|5678"]))!.Id);
+        await _accounts.CloseAsync(dana.Id);
+        Assert.Null(await _accounts.FindBySubjectAsync("auth0", "oauth2|discord|5678", []));
+    }
 }

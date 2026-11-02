@@ -17,6 +17,9 @@ public static class SettingKeys
     /// </summary>
     public const string ServerAiKeys = "server.ai-keys";
 
+    /// <summary>The ID of the web library's top-level collection that holds the Nornis worlds' collections.</summary>
+    public const string NornisCollection = "server.nornis-collection";
+
     /// <summary>The indexing lanes paused in Settings › Processing on the web, by name, separated by commas.</summary>
     public const string ServerPausedLanes = "server.paused-lanes";
 

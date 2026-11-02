@@ -8,6 +8,7 @@ using Bibliotaph.Pdf.Host;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Indexing;
 using Bibliotaph.Server.Libraries;
+using Bibliotaph.Server.Nornis;
 using Bibliotaph.Server.Site;
 using Bibliotaph.Server.Storage;
 using Microsoft.AspNetCore.DataProtection;
@@ -164,6 +165,8 @@ public static class ServerSetup
             developerSignIn: app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Auth:DeveloperSignIn"));
         app.MapApi();
         app.MapStorage();
+        app.MapNornisConnect();
+        app.MapNornisApi();
         app.MapSite();
 
         // The Blazor WebAssembly client: its files, and its page for every other path so its router can take over.

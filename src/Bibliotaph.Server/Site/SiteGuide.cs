@@ -29,6 +29,7 @@ public static class SiteGuide
         new("onedrive-and-other-pcs", "OneDrive, USB and network drives, backups, a new PC and more than one PC."),
         new("faq", "Questions and answers about safety, privacy, getting going and day-to-day use."),
         new("web", "bibliotaph.online: invitations, storage, your library in the browser, AI, connecting a Windows PC and more."),
+        new("nornis", "Connecting Nornis, so your Nornis sourcebooks live in your Bibliotaph library."),
     ];
 
     /// <summary>The chapter's title, from its file's own heading.</summary>

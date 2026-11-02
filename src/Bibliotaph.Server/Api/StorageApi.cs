@@ -23,7 +23,8 @@ public static class StorageApi
 
         // Only providers this server can connect (an OAuth one needs its app) are offered in Settings.
         api.MapGet("/storage/providers", (IConfiguration configuration) =>
-            StorageProviders.Configured(configuration).Select(p => new StorageProviderInfo(p.Id, p.Name, p.Owner, p is not OAuthStorageProvider)));
+            StorageProviders.Configured(configuration).Select(p => new StorageProviderInfo(p.Id, p.Name, p.Owner, p is not OAuthStorageProvider, p.About,
+                p.StartsInItsOwnApp)));
 
         // Connects a WebDAV folder, or connects one again with a new password: the same address and user name are the same account.
         api.MapPost("/storage/webdav", async (WebDavConnect request, ClaimsPrincipal principal, IConfiguration configuration, IHttpClientFactory http,
