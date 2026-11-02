@@ -24,6 +24,9 @@ sealed class FakeBox : HttpMessageHandler
 
     public int Downloads { get; private set; }
 
+    /// <summary>What the last token request sent, as its form's fields.</summary>
+    public IReadOnlyDictionary<string, string> LastTokenRequest { get; private set; } = new Dictionary<string, string>();
+
     /// <summary>The refresh token the last token answer handed out.</summary>
     public string? LastRefreshToken { get; private set; }
 
@@ -62,6 +65,8 @@ sealed class FakeBox : HttpMessageHandler
         {
             if (uri.AbsolutePath == "/oauth2/token")
             {
+                LastTokenRequest = QueryHelpers.ParseQuery(request.Content!.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult())
+                    .ToDictionary(p => p.Key, p => p.Value.ToString());
                 LastRefreshToken = $"box-refresh-{++_tokens}";
                 return Json(new { access_token = "box-access", expires_in = 3600, token_type = "bearer", refresh_token = LastRefreshToken });
             }

@@ -37,6 +37,8 @@ that holds your books and let Bibliotaph read your files. When the browser says 
 listed in Settings with what it was allowed, such as "Allowed to read your files and keep access while you're signed
 out"; point at that line for the provider's own words. Bibliotaph asks for nothing that writes, so it can't change,
 move or delete your files. If you change your mind while the browser is open, **Cancel** stops waiting for it.
+Box only lets Bibliotaph in through bibliotaph.online, which adds Bibliotaph's Box key to the request and keeps nothing
+about it; you don't need an account there.
 
 **Connect WebDAV** asks for the folder's address, your user name and a password instead, as the web library does. Here
 the server can be on your own network too, such as a NAS at http://192.168.1.20/books/; an address that starts http://
