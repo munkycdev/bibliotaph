@@ -39,7 +39,7 @@ public abstract partial class ApiTests
         static CancellationToken Ct => TestContext.Current.CancellationToken;
 
         /// <summary>The server with Nornis configured, Auth0's keys and endpoints standing in for the tenant's.</summary>
-        WebApplicationFactory<Program> Server(bool configured = true) => _factory.WithWebHostBuilder(host =>
+        WebApplicationFactory<Program> Server(bool configured = true, Action<IServiceCollection>? more = null) => _factory.WithWebHostBuilder(host =>
         {
             if (configured)
             {
@@ -67,6 +67,7 @@ public abstract partial class ApiTests
                         AuthorizationEndpoint = "https://auth.test/authorize",
                         TokenEndpoint = "https://auth.test/oauth/token",
                     }));
+                more?.Invoke(services);
             });
         });
 

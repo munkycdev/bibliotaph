@@ -26,8 +26,21 @@ public sealed record BookFilter(LibraryFilter Filter, SearchPlan Plan) : AskFilt
 public sealed record LibraryAskPassage(long DocumentId, string Book, int PdfPage, string Page, string? Heading, string Text, string? Phrase, bool ByWords,
     bool ByMeaning);
 
-/// <summary>A page an answer from the library is read from: its book, its page as the reader numbers it, its bookmark, and its text cut to its share.</summary>
-public sealed record LibraryAskEvidence(long DocumentId, string Book, int PdfPage, string Page, string? Heading, string Text);
+/// <summary>
+/// A page an answer from the library is read from: its book, its page as the reader numbers it, its bookmark, its text
+/// cut to its share, and its fused score.
+/// </summary>
+public sealed record LibraryAskEvidence(long DocumentId, string Book, int PdfPage, string Page, string? Heading, string Text, double Score = 0);
+
+/// <summary>
+/// How a caller wants pages found. The Ask panel needs AI on and no pages when the signals are weak; a caller sending
+/// the pages on to its own model, such as Nornis, finds them by words alone when AI is off, may want the closest pages
+/// even when weak, and may want fewer than the usual ten.
+/// </summary>
+public sealed record LibraryAskWay(bool NeedsAi = true, bool EvenIfWeak = false, int? MaxPages = null)
+{
+    public static LibraryAskWay Panel { get; } = new();
+}
 
 /// <summary>
 /// What retrieval found across the library: the passages to show, the evidence a model would read, whether both signals
@@ -94,6 +107,8 @@ public sealed class LibraryAskService(
     /// Which of these books have had a file in a folder kept from AI, as Ask this book decides it, gone files included:
     /// the scope leaves out what is in those folders now, and this catches a book whose file there has since gone.
     /// </summary>
+    public async Task<bool> IsKeptFromAiAsync(long documentId, CancellationToken ct = default) => (await KeptFromAiAsync([documentId], ct)).Count > 0;
+
     async Task<IReadOnlyList<long>> KeptFromAiAsync(IReadOnlyList<long> documentIds, CancellationToken ct)
     {
         var kept = ai.Setup.SkippedRoots;
@@ -104,12 +119,18 @@ public sealed class LibraryAskService(
         return found;
     }
 
-    /// <summary>Finds the pages across the library, within <paramref name="filters"/>, that answer <paramref name="question"/>.</summary>
+    /// <summary>Finds the pages across the library, within <paramref name="filters"/>, that answer <paramref name="question"/>, for the Ask panel.</summary>
     /// <exception cref="AskUnavailableException">AI is off.</exception>
-    public async Task<LibraryAskFindings> FindAsync(string question, IReadOnlyList<AskFilter> filters, CancellationToken ct = default)
+    public Task<LibraryAskFindings> FindAsync(string question, IReadOnlyList<AskFilter> filters, CancellationToken ct = default) =>
+        FindAsync(question, filters, LibraryAskWay.Panel, ct);
+
+    /// <summary>Finds the pages across the library, within <paramref name="filters"/>, that answer <paramref name="question"/>, as <paramref name="way"/> asks.</summary>
+    /// <exception cref="AskUnavailableException">AI is off and <paramref name="way"/> needs it.</exception>
+    public async Task<LibraryAskFindings> FindAsync(string question, IReadOnlyList<AskFilter> filters, LibraryAskWay way, CancellationToken ct = default)
     {
         var state = ai.Current;
-        if (!state.Setup.IsReady) throw new AskUnavailableException("Asking your library uses AI, which is off. Set it up in Settings > AI.");
+        if (way.NeedsAi && !state.Setup.IsReady) throw new AskUnavailableException("Asking your library uses AI, which is off. Set it up in Settings > AI.");
+        var options = way.MaxPages is { } most ? _options with { MaxPages = Math.Clamp(most, 1, _options.MaxPages) } : _options;
         using var busy = use.Begin();
         var started = Stopwatch.GetTimestamp();
         var embedder = state.Embedder;
@@ -117,7 +138,7 @@ public sealed class LibraryAskService(
         var scope = await ScopeAsync(filters, ct);
 
         var words = AskRetrieval.Words(question);
-        var wordHits = AskRetrieval.WordsMatch(words) is { } match ? await ask.FindWordsAsync(match, scope, _options.RankDepth, ct) : [];
+        var wordHits = AskRetrieval.WordsMatch(words) is { } match ? await ask.FindWordsAsync(match, scope, options.RankDepth, ct) : [];
         var coverage = await ask.GetCoverageAsync(model, EmbeddingText.Version, scope, ct);
 
         MeaningRanking? meaning = null;
@@ -127,7 +148,7 @@ public sealed class LibraryAskService(
             try
             {
                 var asked = await embedder.EmbedAsync(model, [EmbeddingText.Query(model, question)], ct);
-                meaning = new MeaningRanking(asked[0], _options.RankDepth);
+                meaning = new MeaningRanking(asked[0], options.RankDepth);
                 await foreach (var vector in ask.ReadVectorsAsync(model, EmbeddingText.Version, scope, ct)) meaning.Add(vector.PageId, vector.Vector);
             }
             catch (ModelEndpointException ex)
@@ -163,24 +184,25 @@ public sealed class LibraryAskService(
         }
         string? HeadingOf(LibraryPageRow row) => headings.TryGetValue(row.DocumentId, out var paths) ? paths.GetValueOrDefault(row.PdfPage)?.Title : null;
 
-        var ranked = AskRetrieval.Fuse([.. wordHits.Select(h => h.PageId)], [.. byMeaning.Select(m => m.PageId)], boosted, _options, lists);
-        var capped = AskRetrieval.CapPerBook(ranked, bookOf, _options.MaxPagesPerBook);
+        var ranked = AskRetrieval.Fuse([.. wordHits.Select(h => h.PageId)], [.. byMeaning.Select(m => m.PageId)], boosted, options, lists);
+        var capped = AskRetrieval.CapPerBook(ranked, bookOf, options.MaxPagesPerBook);
 
         // The weak-signal guard weighs each word by how rare it is in the books asked, and reads the best few pages by
         // words that aren't lists.
         var pagesWith = words.Count == 0 ? [] : await ask.CountPagesAsync([.. words.Select(AskRetrieval.WordMatch)], scope, ct);
-        var best = wordHits.Where(h => !lists.Contains(h.PageId)).Take(_options.GuardPages).Select(h => rows.TryGetValue(h.PageId, out var row) ? row.Text : "");
+        var best = wordHits.Where(h => !lists.Contains(h.PageId)).Take(options.GuardPages).Select(h => rows.TryGetValue(h.PageId, out var row) ? row.Text : "");
         var wordShare = AskRetrieval.WordShare(words, pagesWith, best);
-        var weak = AskRetrieval.IsWeak(wordShare, meaning?.Cosines, _options);
+        var weak = AskRetrieval.IsWeak(wordShare, meaning?.Cosines, options);
 
         var titles = await ask.GetTitlesAsync([.. rows.Values.Select(r => r.DocumentId).Distinct()], ct);
         string Title(long documentId) => titles.GetValueOrDefault(documentId) ?? "Untitled";
-        var chosen = weak ? [] : AskRetrieval.Choose(capped, rows.ToDictionary(r => r.Key, r => new AskPage(r.Key, r.Value.PdfPage, r.Value.Text)), _options);
+        var chosen = weak && !way.EvenIfWeak ? [] : AskRetrieval.Choose(capped, rows.ToDictionary(r => r.Key, r => new AskPage(r.Key, r.Value.PdfPage, r.Value.Text)), options);
         var byRank = ranked.ToDictionary(r => r.PageId);
         var evidence = chosen.Select(p =>
         {
             var row = rows[p.PageId];
-            return new LibraryAskEvidence(row.DocumentId, Title(row.DocumentId), row.PdfPage, PageNumbers.Display(row.PdfPage, row.Label), HeadingOf(row), p.Text);
+            return new LibraryAskEvidence(row.DocumentId, Title(row.DocumentId), row.PdfPage, PageNumbers.Display(row.PdfPage, row.Label), HeadingOf(row), p.Text,
+                byRank[p.PageId].Score);
         }).ToList();
         var passages = chosen.Select(p =>
         {
@@ -191,7 +213,7 @@ public sealed class LibraryAskService(
                 passage.Text, passage.Phrase, rank.WordRank is not null, rank.MeaningRank is not null);
         }).ToList();
         var lookedAt = weak
-            ? capped.Take(_options.MaxPages).Where(r => rows.ContainsKey(r.PageId)).Select(r => rows[r.PageId])
+            ? capped.Take(options.MaxPages).Where(r => rows.ContainsKey(r.PageId)).Select(r => rows[r.PageId])
                 .Select(r => $"{Title(r.DocumentId)}, p. {PageNumbers.Display(r.PdfPage, r.Label)}").ToList()
             : [];
 
@@ -233,7 +255,7 @@ public sealed class LibraryAskService(
     static string Short(string title) => title.Length <= CitationTitle ? title : title[..(CitationTitle - 1)].TrimEnd() + "…";
 
     /// <summary>
-    /// Asks the model to answer the question from the pages <see cref="FindAsync"/> chose, streaming its answer to
+    /// Asks the model to answer the question from the pages <see cref="FindAsync(string, IReadOnlyList{AskFilter}, CancellationToken)"/> chose, streaming its answer to
     /// <paramref name="progress"/> as written (check it with <see cref="Check"/>), and checks its citations and quotes.
     /// </summary>
     /// <exception cref="AskUnavailableException">AI is off.</exception>

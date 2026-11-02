@@ -372,6 +372,17 @@ public sealed class LibraryQueries(IndexDatabase database)
         return new PageResults(results, books.Count, matchingPages);
     }
 
+    /// <summary>The subtitles these entries were catalogued with, for those that have one.</summary>
+    public async Task<IReadOnlyDictionary<EntryId, string>> GetSubtitlesAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return new Dictionary<EntryId, string>();
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long EntryId, string Subtitle)>(new CommandDefinition(
+            "SELECT rowid, subtitle FROM entry_fts WHERE rowid IN (SELECT value FROM json_each(@ids)) AND coalesce(subtitle, '') <> ''",
+            new { ids = JsonSerializer.Serialize(entryIds.Select(e => e.Value)) }, cancellationToken: ct));
+        return rows.ToDictionary(r => new EntryId(r.EntryId), r => r.Subtitle);
+    }
+
     /// <summary>
     /// The pages a question to the library may read among the cards the library shows for <paramref name="filter"/> and
     /// <paramref name="plan"/>: each PDF's or e-book's pages, or an adventure's own pages in its file. Images, packs and books owned
