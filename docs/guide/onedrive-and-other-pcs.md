@@ -37,6 +37,8 @@ that holds your books and let Bibliotaph read your files. When the browser says 
 listed in Settings with what it was allowed, such as "Allowed to read your files and keep access while you're signed
 out"; point at that line for the provider's own words. Bibliotaph asks for nothing that writes, so it can't change,
 move or delete your files. If you change your mind while the browser is open, **Cancel** stops waiting for it.
+Box only lets Bibliotaph in through bibliotaph.online, which adds Bibliotaph's Box key to the request and keeps nothing
+about it; you don't need an account there.
 
 **Connect WebDAV** asks for the folder's address, your user name and a password instead, as the web library does. Here
 the server can be on your own network too, such as a NAS at http://192.168.1.20/books/; an address that starts http://
@@ -49,8 +51,14 @@ What lets Bibliotaph in is kept in Windows Credential Manager, never in Bibliota
 Then **Add from storage** under the folders, or **Add a folder from storage…** in the Library's **Add** menu, picks a
 folder: choose the account if you connected more than one, click down to the folder your books are in, and choose
 **Use this folder**. You see what it holds before you add it, as with any folder. Each book is downloaded to be read,
-and its copy deleted straight after; opening a book downloads it again. Bibliotaph looks for changes in your storage
-every five minutes, and **Look for changes** looks now.
+and its copy deleted straight after. Bibliotaph looks for changes in your storage every five minutes, and
+**Look for changes** looks now.
+
+Opening a book downloads it again, and the reader shows how much has come. That copy is kept for next time, with the
+web library's, up to the **Room for downloads** in **Settings > Devices**; past that, the ones you read least recently
+go. To read a book without a connection, such as at the table, tick **Keep offline on this PC** in its details while
+you're online: it stays until you untick it, even if you disconnect the storage. **Open in another app** opens the
+downloaded copy, and **Free up space** in **Settings > Devices** deletes the downloads not kept offline.
 
 If a provider stops letting Bibliotaph in, for example after you change your password or remove its access, the
 account shows **Needs connecting again** with **Connect again**, and its folders are offline until you do; their books

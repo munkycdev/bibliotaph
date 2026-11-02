@@ -34,12 +34,17 @@ public interface IRemoteFiles
 }
 
 /// <summary>
-/// Library files kept in a cache of their own, with its own rules, rather than the extract cache: a connected PC's copies
-/// of the web library's books. <see cref="SourceFiles"/> hands it the files it <see cref="Holds"/>.
+/// Library files kept in a cache of their own, with its own rules, rather than the extract cache: a PC's copies of the
+/// books it reads from the web library or from storage connected on it. <see cref="SourceFiles"/> hands it the files it
+/// <see cref="Holds"/>.
 /// </summary>
 public interface IKeptCopies
 {
-    bool Holds(DocumentSource source);
+    /// <summary>
+    /// Whether this cache gives the file: always for a web library book, and for a book in connected storage when it's
+    /// opened to read (<paramref name="toRead"/>) or already has a copy here, so indexing doesn't crowd out what was read.
+    /// </summary>
+    bool Holds(DocumentSource source, bool toRead);
 
     /// <summary>The file's copy, fetched first when there isn't one, held until disposed.</summary>
     Task<LocalFile> OpenAsync(DocumentSource source, CancellationToken ct);
@@ -79,9 +84,17 @@ public sealed class SourceFiles(AppPaths paths, ArchiveReader archives, IDiskSpa
     /// done. Throws <see cref="SourceChangedException"/> when the ZIP no longer holds that content, and
     /// <see cref="IOException"/> or <see cref="InvalidDataException"/> when it can't be read.
     /// </summary>
-    public async Task<LocalFile> OpenAsync(DocumentSource source, CancellationToken ct = default)
+    public Task<LocalFile> OpenAsync(DocumentSource source, CancellationToken ct = default) => OpenAsync(source, toRead: false, ct);
+
+    /// <summary>
+    /// <see cref="OpenAsync(DocumentSource, CancellationToken)"/> for the reader and other apps: a book downloaded to be
+    /// read is kept for reading again, where one downloaded for indexing goes once its stages are done.
+    /// </summary>
+    public Task<LocalFile> OpenToReadAsync(DocumentSource source, CancellationToken ct = default) => OpenAsync(source, toRead: true, ct);
+
+    async Task<LocalFile> OpenAsync(DocumentSource source, bool toRead, CancellationToken ct)
     {
-        if (kept?.Holds(source) == true)
+        if (kept?.Holds(source, toRead) == true)
         {
             Track(source.FullPath, +1);
             try

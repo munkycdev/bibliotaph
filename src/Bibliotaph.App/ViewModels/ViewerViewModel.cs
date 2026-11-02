@@ -754,7 +754,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             var source = await _library.GetSourceAsync(request.DocumentId);
             // Only a PDF is drawn ahead; an e-book or an image opens quickly enough as it is.
             if (source is null || SourceFormats.IsImage(source.Format) || SourceFormats.IsEbook(source.Format) || version != _standbyVersion) return;
-            file = await _sources.OpenAsync(source);
+            file = await _sources.OpenToReadAsync(source);
             renderer = new PdfRenderer(Worker(), _dispatcher);
             var password = _opener.KnownPassword(source.ContentHash);
             var doc = await renderer.OpenAsync(file.Path, password);
@@ -939,7 +939,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     void OnWebDownload(object? sender, WebDownload download) => _dispatcher.InvokeAsync(() =>
     {
         if (IsOpening && string.Equals(_source?.ContentHash, download.ContentHash, StringComparison.OrdinalIgnoreCase))
-            OpeningText = $"Downloading from bibliotaph.online… {download.Percent.ToString(CultureInfo.CurrentCulture)}%";
+            OpeningText = download.Total > 0 ? $"Downloading from {download.From}… {download.Percent.ToString(CultureInfo.CurrentCulture)}%"
+                : $"Downloading from {download.From}… {LibraryActivity.Size(download.Received)}";
     });
 
     /// <summary>Moves the book to a window of its own at the same page and zoom; the main window goes Back.</summary>
@@ -1334,7 +1335,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
 
     async Task OpenImageAsync(DocumentSource source, int version)
     {
-        await using var file = await _sources.OpenAsync(source);
+        await using var file = await _sources.OpenToReadAsync(source);
         var image = await Task.Run(() =>
         {
             using var stream = _files.OpenRead(file.Path);
@@ -1359,7 +1360,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         if (_preparing is { } preparing && preparing.DocumentId == request.DocumentId) await preparing.Task;
         if (version != _version) return;
         var ready = TakeStandby(request.DocumentId);
-        var file = ready?.File ?? await _sources.OpenAsync(source);
+        var file = ready?.File ?? await _sources.OpenToReadAsync(source);
         var renderer = ready?.Renderer ?? new PdfRenderer(Worker(), _dispatcher);
         try
         {
@@ -1646,7 +1647,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             ShowEbookProblem("Bibliotaph's e-book reader isn't available here.");
             return;
         }
-        var file = await _sources.OpenAsync(source);
+        var file = await _sources.OpenToReadAsync(source);
         EbookContent content;
         try
         {

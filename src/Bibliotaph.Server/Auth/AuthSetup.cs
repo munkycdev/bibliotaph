@@ -83,6 +83,10 @@ public static class AuthSetup
             limits.AddPolicy(NornisAuthentication.TableLimit, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
+            // A PC asks for a Box token at a connect and about once an hour after; anyone may ask, so by address.
+            limits.AddPolicy(Storage.BoxTokenRelay.Limit, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 30, Window = TimeSpan.FromMinutes(1) }));
             limits.AddPolicy(Storage.ReadLinks.ReadLimit, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.User.UserId() ?? context.Connection.RemoteIpAddress?.ToString() ?? "",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 300, Window = TimeSpan.FromMinutes(1) }));

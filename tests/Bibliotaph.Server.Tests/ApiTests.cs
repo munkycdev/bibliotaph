@@ -25,6 +25,7 @@ public abstract partial class ApiTests : IDisposable
     readonly TempFolder _folder = new();
     readonly FakeGraph _graph = new();
     readonly FakeDropbox _dropbox = new();
+    readonly FakeBox _box = new();
     readonly FakeModelService _models = new();
     readonly ScriptedCatalogue _catalogue = new();
     readonly SyntheticPdfs _pdfs;
@@ -37,7 +38,7 @@ public abstract partial class ApiTests : IDisposable
         {
             host.UseEnvironment("Testing");
             host.UseSetting("Server:DataRoot", _folder.Path);
-            host.ConfigureServices(services => services.AddSingleton<IHttpClientFactory>(new FakeHttp(new FakeHosts(_graph, _dropbox))));
+            host.ConfigureServices(services => services.AddSingleton<IHttpClientFactory>(new FakeHttp(new FakeHosts(_graph, _dropbox, box: _box))));
             host.ConfigureServices(services => services.AddSingleton(new ModelClientFactory(_models.ClientFor, TimeSpan.FromMilliseconds(50))));
             host.ConfigureServices(services => services.AddSingleton<IBookCatalogue>(_catalogue));
             host.ConfigureServices(services => services.AddAuthentication()

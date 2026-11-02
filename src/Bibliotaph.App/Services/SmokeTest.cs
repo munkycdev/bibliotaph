@@ -185,7 +185,7 @@ static partial class SmokeTest
                 await Check("Settings > Devices offering Connect on a PC not connected", () => ShowDevicesAsync(services, window));
                 await Check("a connected PC listing the web library's book and finding it by search without downloading it, downloading it to open, keeping it offline, and letting its folder go on Disconnect",
                     () => ShowWebLibraryBooksAsync(services, window));
-                await Check("WebDAV connected in Settings > Library, a folder in it picked from the Library's Add menu and added, its book downloaded, read and found by search, then removed and disconnected",
+                await Check("WebDAV connected in Settings > Library, a folder in it picked from the Library's Add menu and added, its book downloaded, read and found by search, opened and kept offline, then removed and disconnected",
                     () => ConnectStorageAsync(services, window));
                 await Check("an index page with no links of its own: its printed page numbers followed as links, with Back",
                     () => FollowPrintedPageNumbersAsync(services, window));

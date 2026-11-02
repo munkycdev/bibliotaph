@@ -98,6 +98,7 @@ public static class StorageSetup
         var storage = app.MapGroup("/storage");
         ReadLinks.Map(storage);
         DropboxWebhook.Map(storage);
+        BoxTokenRelay.Map(storage);
 
         storage.MapGet("/connect/{provider}", (string provider, HttpContext context, string? returnUrl) =>
             StorageProviders.Find(provider) is OAuthStorageProvider known && known.App(context.RequestServices.GetRequiredService<IConfiguration>()) is not null
