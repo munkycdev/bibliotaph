@@ -23,7 +23,7 @@ OneDrive, Google Drive, Dropbox, Box or a WebDAV server such as Nextcloud. It lo
 keeps your catalog, never a copy of your books. It's invite-only for now. Connect the Windows app to it and your work
 is the same on every PC and browser. See [Bibliotaph on the web](docs/guide/web.md).
 
-This is version 1.4. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
+This is version 1.5. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
 
 <p align="center">
   <img src="docs/images/library.png" width="860" alt="The Library: a grid of book covers with a search box, filters and the sidebar">
@@ -138,6 +138,11 @@ you read online, too. Step through it with **Next** and **Previous**, and keep a
 
 **Looks after your work.** Weekly backups, restore on a new PC, export to a spreadsheet, and the same work on every
 PC through your web library. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md)
+
+**Works with Nornis.** Connect [Nornis](https://nornis.app), a campaign app from the same maker, to your web library
+and your worlds get collections of their own, Nornis can search and read the books in them, your players can read the
+books you share with them, and **Send to Nornis** files pages as an excerpt there. Your books stay in your own storage.
+[Using Bibliotaph with Nornis](docs/guide/nornis.md)
 
 ## The guide
 

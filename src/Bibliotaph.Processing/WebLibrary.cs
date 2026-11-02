@@ -396,6 +396,31 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         return WebReading.NotYet;
     }
 
+    /// <summary>
+    /// Send to Nornis for the web library's copy of this file, or for its <paramref name="pages"/>: the worlds it can go
+    /// to, with their addresses on Nornis. <see cref="NornisSendAnswer.NotThere"/> when the web library hasn't the file,
+    /// null when it didn't answer.
+    /// </summary>
+    public async Task<NornisSendAnswer?> NornisSendAsync(string contentHash, (int First, int Last, string? Label)? pages, CancellationToken ct)
+    {
+        try
+        {
+            var path = $"api/pc/books/{Uri.EscapeDataString(contentHash)}/nornis";
+            if (pages is { } range)
+                path += FormattableString.Invariant($"?from={range.First}&to={range.Last}") + (range.Label is { Length: > 0 } label ? $"&label={Uri.EscapeDataString(label)}" : "");
+            using var response = await SendAsync(HttpMethod.Get, path, null, withKey: true, ct);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if (response.StatusCode == HttpStatusCode.NotFound) return NornisSendAnswer.NotThere;
+            if (response.IsSuccessStatusCode && await response.Content.ReadFromJsonAsync<NornisSend>(ct) is { } send) return new NornisSendAnswer(send);
+            log.LogWarning("Asking the web library for a book's Nornis worlds got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct))
+        {
+            log.LogInformation(ex, "Couldn't reach the web library for a book's Nornis worlds");
+        }
+        return null;
+    }
+
     /// <summary>A cover the web library drew, by its file name, or null when it has none by that name or didn't answer.</summary>
     public async Task<byte[]?> ReadCoverAsync(string name, CancellationToken ct)
     {
@@ -546,4 +571,10 @@ public sealed record WebShelfRead(bool Reached, WebShelf? Shelf)
 {
     public static readonly WebShelfRead Unchanged = new(true, null);
     public static readonly WebShelfRead Unreached = new(false, null);
+}
+
+/// <summary>The web library's answer to Send to Nornis: what it offers, or that it hasn't the file.</summary>
+public sealed record NornisSendAnswer(NornisSend? Send)
+{
+    public static readonly NornisSendAnswer NotThere = new((NornisSend?)null);
 }

@@ -240,5 +240,11 @@
       <Border Margin="-42,-36,0,-36" Background="{DynamicResource Bt.Shadow}" />
       <v:SessionDialogView x:Name="SessionDialog" DataContext="{Binding Actions.Dialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Top" />
     </Grid>
+
+    <!-- Send to Nornis for an item of pages, as a dialog over the page. Esc or Cancel closes it. -->
+    <Grid Visibility="{Binding NornisDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Margin="-42,-36,0,-36" Background="{DynamicResource Bt.Shadow}" />
+      <v:SendToNornisDialogView x:Name="SendToNornisDialog" DataContext="{Binding NornisDialog}" MaxWidth="480" Margin="0,24,42,24" VerticalAlignment="Top" />
+    </Grid>
   </Grid>
 </UserControl>

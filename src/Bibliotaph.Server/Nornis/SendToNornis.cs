@@ -47,31 +47,36 @@ public static class SendToNornis
         });
     }
 
+    /// <summary>
+    /// The same for a connected PC, by the content of the file it has open: the answer names the web library's own
+    /// document, since Nornis reads the pages here, so a file the web library doesn't have can't be sent.
+    /// </summary>
+    public static void MapPcSendToNornis(this RouteGroupBuilder pc)
+    {
+        if (NornisOptions.From(pc.ServiceProvider().GetRequiredService<IConfiguration>()) is not { } nornis) return;
+
+        pc.MapGet("/books/{hash}/nornis", async (string hash, int? from, int? to, string? label, ClaimsPrincipal principal, UserLibraries libraries,
+            StorageConnections connections, CancellationToken ct) =>
+        {
+            if (from is null != to is null || from < 0 || to < from || label?.Length > LongestLabel) return Results.BadRequest();
+            var userId = principal.UserId()!;
+            if (!await ConnectedAsync(connections, userId, ct)) return Results.Ok(None);
+            await using var lease = await libraries.OpenAsync(userId, ct);
+            if (await lease.Library.Get<LibraryStore>().FindDocumentAsync(hash, ct) is not { } documentId) return Results.NotFound();
+            return Results.Ok(await ForAsync(lease.Library, nornis, documentId, from is { } first ? (first, to!.Value, label) : null, ct));
+        });
+    }
+
+    /// <summary>Longer than any binder item's label.</summary>
+    const int LongestLabel = 500;
+
     static IServiceProvider ServiceProvider(this RouteGroupBuilder api) => ((IEndpointRouteBuilder)api).ServiceProvider;
 
     /// <summary>Nornis can file nothing for a user who isn't connected to it, so nothing is offered.</summary>
     static async Task<bool> ConnectedAsync(StorageConnections connections, string userId, CancellationToken ct) =>
         (await connections.ListAsync(userId, ct)).Any(c => c.Provider == NornisProvider.Key && !c.NeedsReconnect);
 
-    static async Task<NornisSend> ForAsync(UserLibrary library, NornisOptions nornis, long documentId, (int First, int Last, string? Label)? pages,
-        CancellationToken ct)
-    {
-        List<(string Id, string Name)> live;
-        await using (var catalog = await library.Contexts.CreateDbContextAsync(ct))
-            live = [.. (await catalog.NornisWorlds.AsNoTracking().Where(w => w.GoneUtc == null && w.CollectionId != null)
-                .Select(w => new { w.WorldId, w.Name }).ToListAsync(ct)).Select(w => (w.WorldId, w.Name))];
-        var worlds = new List<NornisSendWorld>();
-        foreach (var (id, name) in live.OrderBy(w => w.Name, StringComparer.CurrentCultureIgnoreCase))
-        {
-            if (!Guid.TryParse(id, out var worldId) || await NornisReads.WorldAsync(library, worldId, ct) is not { } world) continue;
-            // An adventure inside a file lends only its own pages, so it's offered where its pages are.
-            var holds = pages is { } range ? world.Pages.Contains(documentId, range.First) : world.Pages.Holds(documentId);
-            if (holds) worlds.Add(new NornisSendWorld(worldId, name, $"{nornis.Origin!.TrimEnd('/')}/bibliotaph/excerpt?world={id}&document={documentId}"));
-        }
-        if (worlds.Count == 0) return None;
-        var problem = await library.Get<LibraryAskService>().IsKeptFromAiAsync(documentId, ct) ? NornisSend.KeptFromAi
-            : pages is { } chosen && chosen.Last - chosen.First + 1 > NornisSend.MostPages ? NornisSend.TooManyPages
-            : null;
-        return new NornisSend(worlds, problem, pages?.First, pages?.Last, pages?.Label);
-    }
+    static Task<NornisSend> ForAsync(UserLibrary library, NornisOptions nornis, long documentId, (int First, int Last, string? Label)? pages,
+        CancellationToken ct) =>
+        library.Get<NornisScope>().SendAsync(nornis.Origin!, documentId, pages, ct);
 }

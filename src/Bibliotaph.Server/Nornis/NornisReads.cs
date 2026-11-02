@@ -1,23 +1,10 @@
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
-using Bibliotaph.Core.Search;
-using Bibliotaph.Index;
+using Bibliotaph.Processing;
 using Bibliotaph.Server.Libraries;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Server.Nornis;
-
-/// <summary>
-/// What one of the user's Nornis worlds may read: the books its collection holds, sub-collections included, and their
-/// pages. Only a world that is mapped, still has its collection and isn't gone has one.
-/// </summary>
-public sealed record NornisWorldBooks(long CollectionId, IReadOnlyList<LibraryEntry> Entries, LibraryFilter Filter, PageScope Pages)
-{
-    /// <summary>The book a page of a document belongs to in this world: an adventure inside the file if the page is in it, else the file.</summary>
-    public LibraryEntry? EntryFor(long documentId, int pdfPage) =>
-        Entries.Where(e => e.DocumentId == documentId && (e.Pages is not { } pages || (pdfPage >= pages.First && pdfPage <= pages.Last)))
-            .OrderBy(e => e.IsPart ? 0 : 1).FirstOrDefault();
-}
 
 /// <summary>
 /// The one check every read Nornis makes passes through, and the way a read waits for a library: briefly, so a call
@@ -52,24 +39,8 @@ public static class NornisReads
     /// The world's books, or null when the world isn't one of this user's live worlds: every refusal then is the same
     /// 404, so nothing tells Nornis what else the library holds.
     /// </summary>
-    public static async Task<NornisWorldBooks?> WorldAsync(UserLibrary library, Guid worldId, CancellationToken ct)
-    {
-        long collectionId;
-        await using (var catalog = await library.Contexts.CreateDbContextAsync(ct))
-        {
-            var id = worldId.ToString("D");
-            var world = await catalog.NornisWorlds.AsNoTracking().SingleOrDefaultAsync(w => w.WorldId == id, ct);
-            if (world is not { GoneUtc: null, CollectionId: { } collection }) return null;
-            collectionId = collection;
-        }
-        var visible = await library.Get<LibraryStore>().GetVisibleEntryIdsAsync(ct: ct);
-        var filter = new LibraryFilter(visible, Sort: LibrarySort.Title, Group: ScopeKeys.Collection(collectionId));
-        var queries = library.Get<LibraryQueries>();
-        // Books owned elsewhere have nothing to read, and a pack is read through its files.
-        var entries = (await queries.ListAsync(filter, ct: ct)).Where(e => !e.IsElsewhere && !e.IsPack).ToList();
-        var pages = PageScope.Of(await queries.GetPageSpansAsync(filter, SearchPlan.From(SearchQuery.Parse("")), ct));
-        return new NornisWorldBooks(collectionId, entries, filter, pages);
-    }
+    public static Task<NornisWorldBooks?> WorldAsync(UserLibrary library, Guid worldId, CancellationToken ct) =>
+        library.Get<NornisScope>().WorldAsync(worldId, ct);
 
     /// <summary>The cover names of the books in every live world of the user's: the only covers Nornis may fetch.</summary>
     public static async Task<IReadOnlySet<string>> CoversAsync(UserLibrary library, CancellationToken ct)

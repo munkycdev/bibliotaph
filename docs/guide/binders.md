@@ -64,7 +64,7 @@ Pick one and the page opens in a window of its own, so the binder and page you'r
 - Drag an item by its grip to move it, or use **Alt+Up** and **Alt+Down**. Each item's menu moves it to another
   section.
 - Each item has a label (blank shows the book's title) and a note.
-- On bibliotaph.online, an item of pages from a book in a Nornis world has **Send to Nornis** in its menu, to file
+- An item of pages from a book in a Nornis world has **Send to Nornis** in its menu, to file
   those pages as an excerpt there: see [Sending pages to Nornis](nornis.md#sending-pages-to-nornis).
 - **Duplicate** copies the binder (without its date) to start a similar one; **Delete** removes it, with **Undo**. The
   books stay in your library either way.

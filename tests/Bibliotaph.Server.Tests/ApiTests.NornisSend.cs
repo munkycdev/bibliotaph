@@ -1,8 +1,10 @@
 using System.Net.Http.Json;
 using Bibliotaph.Api.Contracts;
+using Bibliotaph.Catalog;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Storage;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.Server.Tests;
@@ -60,6 +62,47 @@ public abstract partial class ApiTests
             var send = await Browser(server, world.User).GetFromJsonAsync<NornisSend>($"/api/library/documents/{world.Crown.DocumentId}/nornis", Ct);
 
             Assert.Empty(send!.Worlds);
+        }
+
+        [Fact]
+        public async Task A_connected_PC_is_told_the_web_library_s_own_document_for_the_file_it_has_open()
+        {
+            using var server = Server();
+            var world = await WorldLibraryAsync(server, Ct);
+            string hash;
+            await using (var lease = await server.Services.GetRequiredService<UserLibraries>().OpenAsync(world.User.Id, Ct))
+                hash = (await lease.Library.Get<LibraryStore>().GetContentHashAsync(world.Crown.DocumentId, Ct))!;
+            var pc = await ConnectPcAsync(server, Browser(server, world.User));
+
+            var book = await pc.NornisSendAsync(hash, null, Ct);
+            var pages = await pc.NornisSendAsync(hash, (1, 3, "Bog ambush"), Ct);
+            var missing = await pc.NornisSendAsync(new string('f', 64), null, Ct);
+            using var anonymous = await server.CreateClient().GetAsync($"/api/pc/books/{hash}/nornis", Ct);
+            using var browser = await Browser(server, world.User).GetAsync($"/api/pc/books/{hash}/nornis", Ct);
+
+            var ashes = Assert.Single(book!.Send!.Worlds);
+            Assert.Equal($"{FakeNornis.Origin}/bibliotaph/excerpt?world={Ashes}&document={world.Crown.DocumentId}", ashes.Url);
+            Assert.Equal((1, 3, "Bog ambush"), (pages!.Send!.From, pages.Send.To, pages.Send.Label));
+            Assert.Same(NornisSendAnswer.NotThere, missing);
+            Assert.Equal(System.Net.HttpStatusCode.Unauthorized, anonymous.StatusCode);
+            Assert.NotEqual(System.Net.HttpStatusCode.OK, browser.StatusCode);
+        }
+
+        /// <summary>A PC connected to this server's web library, as <see cref="ApiTests.ConnectPcAsync"/> is to the plain one.</summary>
+        async Task<WebLibrary> ConnectPcAsync(WebApplicationFactory<Program> server, HttpClient web)
+        {
+            var path = Path.Combine(_folder.Path, $"pc-{Guid.NewGuid():N}.db");
+            var catalog = new CatalogDatabase(path, Path.Combine(_folder.Path, "pc-backups"));
+            await using (var db = catalog.CreateContext()) await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database, Ct);
+            var settings = new SettingsStore(new CatalogFile(path));
+            await settings.SetAsync(SettingKeys.WebAddress, "http://localhost", Ct);
+            var pc = new WebLibrary(new HttpClient(server.Server.CreateHandler()), new MemoryWebLibraryKey(), settings, TimeProvider.System,
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<WebLibrary>.Instance);
+            var started = (await pc.StartAsync("DESKTOP-1", Ct))!;
+            var waiting = pc.WaitAsync(started, Ct);
+            (await web.PostAsync($"/api/devices/connect/{started.Code}", null, Ct)).EnsureSuccessStatusCode();
+            Assert.Equal(WebConnectOutcome.Connected, await waiting);
+            return pc;
         }
     }
 }

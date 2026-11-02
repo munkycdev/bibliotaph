@@ -107,6 +107,11 @@
         <Button x:Name="AddNote" Content="Note" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="0,0,8,0" Click="AddNote_Click"
                 ToolTip="Add a note on the page in view" AutomationProperties.Name="Add a note on this page"
                 Visibility="{Binding HasPages, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        <!-- Send to Nornis: pages of a book in a Nornis world's collection, filed there as an excerpt. -->
+        <Button x:Name="SendToNornis" Content="Send to Nornis" c:Ui.Icon="{StaticResource Icon.Send}" Margin="0,0,8,0"
+                Command="{Binding SendToNornisCommand}" ToolTip="File pages of this book as an excerpt in a Nornis world"
+                AutomationProperties.Name="Send to Nornis"
+                Visibility="{Binding ShowsSendToNornis, Converter={StaticResource Bt.VisibleWhenTrue}}" />
         <Button x:Name="AddToBinder" Style="{StaticResource Bt.Button.Primary}" Content="Add to binder" c:Ui.Icon="{StaticResource Icon.Plus}"
                 IsEnabled="{Binding CanAddToBinder}" Click="AddToBinder_Click" ToolTip="Add the page in view to a binder"
                 AutomationProperties.Name="Add to binder">
@@ -607,6 +612,14 @@
       <!-- Scrolls when the window is too short for it (at 200% scaling, say): this page doesn't scroll itself. -->
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
         <v:PageNoteDialogView x:Name="PageNoteDialog" DataContext="{Binding Notes.Dialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
+      </ScrollViewer>
+    </Grid>
+
+    <!-- Send to Nornis, as a dialog over the reader. Esc or Cancel closes it. -->
+    <Grid Grid.RowSpan="4" Visibility="{Binding NornisDialog, Converter={StaticResource Bt.VisibleWhenSet}}">
+      <Border Background="{DynamicResource Bt.Shadow}" />
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+        <v:SendToNornisDialogView x:Name="SendToNornisDialog" DataContext="{Binding NornisDialog}" MaxWidth="480" Margin="0,24,0,24" VerticalAlignment="Top" />
       </ScrollViewer>
     </Grid>
 

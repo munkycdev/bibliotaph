@@ -44,6 +44,7 @@ static partial class Composition
         services.AddSingleton<BookVectorQueries>();
         services.AddSingleton<BookVectors>();
         services.AddSingleton<LibraryAskService>();
+        services.AddSingleton<NornisScope>();
         services.AddSingleton<MeaningSearchService>();
         services.AddSingleton<ExampleFinder>();
         services.AddSingleton<ClassifierInputs>();

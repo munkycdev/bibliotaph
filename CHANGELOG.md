@@ -2,8 +2,11 @@
 
 ## Unreleased
 
+## 1.5 · 2 November 2026
+
 - **New: Nornis worlds' collections on Windows.** A PC connected to your web library shows your Nornis worlds'
-  collections with the same **Nornis world** and **World gone** marks as bibliotaph.online.
+  collections with the same **Nornis world** and **World gone** marks as bibliotaph.online, and its reader and
+  binders have **Send to Nornis** too, which opens Nornis in your browser.
 - **New: books you upload to Nornis join your library.** Each world's files in Nornis are a library folder on
   bibliotaph.online, named after the world, and their books are filed in the world's collection. Uploading or removing
   files in Nornis has Bibliotaph look at that folder again. If you connected Nornis earlier, choose **Resync Nornis

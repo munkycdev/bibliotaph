@@ -81,7 +81,7 @@ can open a card's book in a window too, to check it before deciding (see
 
 **Add to binder** lists your binders, the one you worked on last first, and puts the page you're on into the one you
 choose; **New binder…** makes one, and **Add pages…** at the bottom adds a range. See
-[Binders](binders.md#add-books-and-pages). On bibliotaph.online, a book in a Nornis world's collection also has
+[Binders](binders.md#add-books-and-pages). A book in a Nornis world's collection also has
 **Send to Nornis**, which files pages of it as an excerpt in Nornis: see
 [Sending pages to Nornis](nornis.md#sending-pages-to-nornis).
 
