@@ -68,6 +68,44 @@ public sealed class LibrarySyncStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_Nornis_world_s_collection_carries_its_world_and_whether_it_is_gone_to_the_other_device()
+    {
+        const string World = "6f1d8a52-0000-4000-8000-000000000001";
+        await using (var db = _first.CreateContext())
+        {
+            var node = db.Collections.Add(new CollectionNode { Name = "Ashes", SyncId = Guid.NewGuid(), CreatedUtc = DateTime.UtcNow, UsedUtc = DateTime.UtcNow }).Entity;
+            db.Collections.Add(new CollectionNode { Name = "Handouts", SyncId = Guid.NewGuid(), CreatedUtc = DateTime.UtcNow, UsedUtc = DateTime.UtcNow });
+            await db.SaveChangesAsync(Ct);
+            db.NornisWorlds.Add(new NornisWorld { WorldId = World, Name = "Ashes", CollectionId = node.Id });
+            await db.SaveChangesAsync(Ct);
+        }
+
+        async Task<IReadOnlyDictionary<long, bool>> CopyAsync()
+        {
+            var first = await Store(_first).ReadAsync(Ct);
+            var before = await Store(_second).ReadAsync(Ct);
+            await Store(_second).ApplyAsync([.. first.Records.Select(r => new SyncChange(r.Key, r.Value, before.Records.GetValueOrDefault(r.Key)))], before.FindCard, Ct);
+            return await new NornisWorldStore(new Factory(_second)).CollectionsAsync(Ct);
+        }
+
+        var live = await CopyAsync();
+        await using (var db = _first.CreateContext())
+            await db.NornisWorlds.ExecuteUpdateAsync(s => s.SetProperty(w => w.GoneUtc, DateTime.UtcNow), Ct);
+        var gone = await CopyAsync();
+        var readBack = await Store(_second).ReadAsync(Ct);
+        var original = await Store(_first).ReadAsync(Ct);
+
+        var collection = original.Records.Single(r => r.Value.GetValueOrDefault(SyncFields.Name) == "\"Ashes\"").Key;
+        await using var second = _second.CreateContext();
+        var here = await second.Collections.SingleAsync(c => c.Name == "Ashes", Ct);
+        Assert.Equal(new Dictionary<long, bool> { [here.Id] = false }, live);
+        Assert.Equal(new Dictionary<long, bool> { [here.Id] = true }, gone);
+        Assert.Equal(World, (await second.NornisWorlds.SingleAsync(Ct)).WorldId);
+        // Read back, the other device says what it was told, so it never sends a change of its own.
+        Assert.Equal(original.Records[collection], readBack.Records[collection]);
+    }
+
+    [Fact]
     public async Task A_book_is_named_by_the_lowest_hash_of_its_copies_and_answers_to_the_others()
     {
         var book = await TestEntries.AddAsync(_first, 'c');

@@ -102,6 +102,7 @@ public static class LibraryServices
         services.AddSingleton<ReadingStore>();
         services.AddSingleton<CollectionStore>();
         services.AddSingleton<FolderCollectionStore>();
+        services.AddSingleton<NornisWorldStore>();
         services.AddSingleton<CollectionsService>();
         services.AddSingleton<FolderCollections>();
         services.AddSingleton<PageRefStore>();

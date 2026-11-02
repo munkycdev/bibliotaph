@@ -184,12 +184,5 @@ public sealed class NornisWorlds
         return (await library.Get<SourceRootStore>().ListAsync(ct)).FirstOrDefault(r => r.Path.Equals(path, StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>Each Nornis world's collection, and whether the world is gone, for the collections' badges.</summary>
-    public static async Task<IReadOnlyDictionary<long, bool>> CollectionsAsync(UserLibrary library, CancellationToken ct)
-    {
-        await using var catalog = await library.Contexts.CreateDbContextAsync(ct);
-        return await catalog.NornisWorlds.Where(w => w.CollectionId != null).ToDictionaryAsync(w => w.CollectionId!.Value, w => w.GoneUtc != null, ct);
-    }
-
     static string Id(Guid id) => id.ToString("D");
 }
