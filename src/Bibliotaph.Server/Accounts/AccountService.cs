@@ -75,7 +75,21 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
     /// Finishes a sign-in. A known sign-in signs into its account. An unknown one links to the account already signed in
     /// (<paramref name="currentUserId"/>), or makes a new account if it came with a valid invitation, and is refused otherwise.
     /// </summary>
-    public async Task<SignInOutcome> SignInAsync(ExternalIdentity identity, string? inviteCode, string? currentUserId, CancellationToken ct = default)
+    public Task<SignInOutcome> SignInAsync(ExternalIdentity identity, string? inviteCode, string? currentUserId, CancellationToken ct = default) =>
+        SignInAsync(identity, inviteCode, currentUserId, openSignUp: false, ct);
+
+    /// <summary>
+    /// Finishes a sign-in that came through Connect Nornis. Nornis's tokens will carry this subject, so an account it
+    /// already belongs to is the one signed in, even over another session; an unknown one is linked to whoever is signed
+    /// in, or makes an account without an invitation, within the most accounts.
+    /// </summary>
+    public async Task<SignInOutcome> SignInFromNornisAsync(ExternalIdentity identity, string? currentUserId, CancellationToken ct = default)
+    {
+        var known = await FindBySubjectAsync(identity.Provider, identity.Subject, identity.FormerSubjects, ct);
+        return await SignInAsync(identity, null, known is null ? currentUserId : null, openSignUp: true, ct);
+    }
+
+    async Task<SignInOutcome> SignInAsync(ExternalIdentity identity, string? inviteCode, string? currentUserId, bool openSignUp, CancellationToken ct)
     {
         await using var db = database.CreateContext();
         var login = await db.Logins.FindAsync([identity.Provider, identity.Subject], ct) ?? await MoveFormerAsync(db, identity, ct);
@@ -101,7 +115,7 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
         Invite? invite = null;
         if (string.IsNullOrEmpty(inviteCode))
         {
-            if (!_signUp.Open) return new(SignInResult.NeedsInvite, null);
+            if (!_signUp.Open && !openSignUp) return new(SignInResult.NeedsInvite, null);
             if (await db.Users.CountAsync(ct) >= _signUp.MostAccounts) return new(SignInResult.Full, null);
         }
         else
@@ -144,6 +158,23 @@ public sealed class AccountService(AccountsDatabase database, TimeProvider clock
             var moved = new Login { Provider = old.Provider, Subject = identity.Subject, UserId = old.UserId, Email = old.Email, Added = old.Added };
             db.Logins.Add(moved);
             return moved;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// The open account a sign-in belongs to, by its subject or one of its former spellings, or null. Only reads: a
+    /// token another app presents doesn't move a login, the next sign-in here does.
+    /// </summary>
+    public async Task<User?> FindBySubjectAsync(string provider, string subject, IReadOnlyList<string> formerSubjects, CancellationToken ct = default)
+    {
+        await using var db = database.CreateContext();
+        foreach (var candidate in formerSubjects.Prepend(subject))
+        {
+            if (await db.Logins.AsNoTracking().SingleOrDefaultAsync(l => l.Provider == provider && l.Subject == candidate, ct) is not { } login) continue;
+            return await db.Users.AsNoTracking().SingleOrDefaultAsync(u => u.Id == login.UserId, ct) is { } user && await IsOpenAsync(user.Id, ct)
+                ? user
+                : null;
         }
         return null;
     }

@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Server.Accounts;
+using Bibliotaph.Server.Nornis;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.RateLimiting;
@@ -60,9 +61,10 @@ public static class AuthSetup
 
         if (Auth0(configuration) is { } client) auth.AddOpenIdConnect(Auth0SignIn.Id, "Auth0", options => Auth0SignIn.Configure(options, client));
 
-        services.AddAuthorizationBuilder()
+        var authorization = services.AddAuthorizationBuilder()
             .AddPolicy(AdminPolicy, policy => policy.RequireAuthenticatedUser().RequireClaim(AdminClaim, "true"))
             .AddPolicy(DevicePolicy, policy => policy.AddAuthenticationSchemes(DeviceScheme).RequireAuthenticatedUser().RequireClaim(DeviceClaim));
+        if (Auth0(configuration) is { } auth0 && NornisOptions.From(configuration) is { } nornis) NornisAuthentication.Add(auth, authorization, auth0, nornis);
 
         services.AddRateLimiter(limits =>
         {
@@ -71,6 +73,9 @@ public static class AuthSetup
                 context.Connection.RemoteIpAddress?.ToString() ?? "",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
             // Reading a book through the server: by the signed-in user, or by address for a read that isn't signed in.
+            limits.AddPolicy(NornisAuthentication.Limit, context => RateLimitPartition.GetFixedWindowLimiter(
+                context.User.UserId() ?? context.Connection.RemoteIpAddress?.ToString() ?? "",
+                _ => new FixedWindowRateLimiterOptions { PermitLimit = 120, Window = TimeSpan.FromMinutes(1) }));
             limits.AddPolicy(Storage.ReadLinks.ReadLimit, context => RateLimitPartition.GetFixedWindowLimiter(
                 context.User.UserId() ?? context.Connection.RemoteIpAddress?.ToString() ?? "",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 300, Window = TimeSpan.FromMinutes(1) }));

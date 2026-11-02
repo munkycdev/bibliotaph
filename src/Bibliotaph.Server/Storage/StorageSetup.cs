@@ -57,7 +57,9 @@ public static class StorageSetup
             options.Events.OnRemoteFailure = context =>
             {
                 context.HandleResponse();
-                context.Response.Redirect($"/settings?problem=storage&provider={provider.Id}");
+                // Connect Nornis started in Nornis, so that's where the browser goes back to.
+                context.Response.Redirect(Nornis.NornisConnect.FailedReturn(context.Properties, context.HttpContext.RequestServices.GetRequiredService<IConfiguration>())
+                    ?? $"/settings?problem=storage&provider={provider.Id}");
                 return Task.CompletedTask;
             };
         });

@@ -39,6 +39,8 @@
   <ItemGroup Label="Server">
     <!-- The web app's server and its Blazor WebAssembly client (MIT), in the .NET 11 band. -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="$(DotNetPackagesVersion)" />
+    <!-- MIT. Nornis's access tokens for the Bibliotaph API. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="$(DotNetPackagesVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="$(DotNetPackagesVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="$(DotNetPackagesVersion)" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="$(DotNetPackagesVersion)" />

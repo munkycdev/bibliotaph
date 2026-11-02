@@ -78,6 +78,13 @@ param(
     # RPGGeek first. Once set, a later run without it keeps it.
     [switch] $RpgGeekToken,
 
+    # Nornis's web origin (https://nornis.app), its API's public address, and its API's identifier in Auth0, which the
+    # nornis storage connection asks for. With all three, Nornis can connect to Bibliotaph; the Bibliotaph API's
+    # identifier is https://<domain>/api. Once set, a later run without them keeps them.
+    [string] $NornisOrigin,
+    [string] $NornisApiBase,
+    [string] $NornisApiAudience,
+
     # Asks again for these secrets and replaces them in Key Vault, rather than keeping the ones it has: Microsoft makes
     # the OneDrive app registration a new client secret; the rest ask for theirs, with the IDs the app already has
     # unless they're given too. A new Dropbox, Google or Box ID, or Auth0 client ID, asks for its secret anyway.
@@ -299,6 +306,21 @@ if (-not (StorageApp 'Box' 'Box' $BoxClientId "Client secret for Box app $BoxCli
 }
 Write-Host "  In Box's Developer Console: a Platform App with User Authentication (OAuth 2.0); application scope"
 Write-Host "  'Read all files and folders stored in Box' only; Redirect URI https://$Domain/storage/callback/box"
+
+Step 'Nornis'
+# Plain settings, no secret: the grant is made with Bibliotaph's own Auth0 application.
+$NornisOrigin = $NornisOrigin ? $NornisOrigin.TrimEnd('/') : (KnownSetting 'Nornis__Origin')
+$NornisApiBase = $NornisApiBase ? $NornisApiBase : (KnownSetting 'Nornis__ApiBase')
+$NornisApiAudience = $NornisApiAudience ? $NornisApiAudience : (KnownSetting 'Storage__Nornis__Audience')
+if ($NornisOrigin -and $NornisApiBase -and $NornisApiAudience) {
+    $providers += "Nornis__Audience=https://$Domain/api", "Nornis__Origin=$NornisOrigin", "Nornis__ApiBase=$NornisApiBase",
+        "Storage__Nornis__Audience=$NornisApiAudience"
+    Write-Host "  In Auth0: the API https://$Domain/api with scopes books:read, tickets:write and worlds:write; the application's"
+    Write-Host "  callback URL https://$Domain/storage/callback/nornis and the Refresh Token grant, with rotation"
+}
+else {
+    Write-Host '  Nornis can connect once this runs with -NornisOrigin, -NornisApiBase and -NornisApiAudience.' -ForegroundColor Yellow
+}
 
 Step 'Google Books'
 if ($Replace -contains 'GoogleBooks' -or ($GoogleBooksKey -and -not (SecretExists 'lookup-googlebooks'))) {

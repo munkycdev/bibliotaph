@@ -52,7 +52,7 @@ public sealed class DriveTokens(IHttpClientFactory http, IConfiguration configur
     {
         var connection = await connections.FindAsync(connectionId, ct)
             ?? throw new StorageException(HttpStatusCode.Unauthorized, "That storage isn't connected any more.");
-        var provider = StorageProviders.Find(connection.Provider)
+        var provider = StorageProviders.Find(connection.Provider, configuration)
             ?? throw new StorageException(HttpStatusCode.Unauthorized, $"Bibliotaph can't read {connection.Provider} storage.");
         if (connection.NeedsReconnect) throw new StorageException(HttpStatusCode.Unauthorized, $"{provider.Name} needs connecting again.");
         if (provider is not OAuthStorageProvider oauth)
@@ -119,13 +119,14 @@ public sealed class UserDrives(string userId, StorageConnections connections, Us
 }
 
 /// <summary>Makes each library's <see cref="UserDrives"/>; the server's own services are shared between them.</summary>
-public sealed class UserDriveFactory(StorageConnections connections, DriveTokens tokens, IHttpClientFactory http, TimeProvider clock)
+public sealed class UserDriveFactory(StorageConnections connections, DriveTokens tokens, IHttpClientFactory http, TimeProvider clock,
+    IConfiguration? configuration = null)
 {
     public UserDrives For(string userId) => new(userId, connections, this);
 
     /// <summary>A connection's drive, or null for a provider this server doesn't know.</summary>
     public IStorageDrive? Drive(ConnectedAccount account) =>
-        StorageProviders.Find(account.Provider)?.Drive(new DriveContext(http.CreateClient(account.Provider), account,
+        (configuration is null ? StorageProviders.Find(account.Provider) : StorageProviders.Find(account.Provider, configuration))?.Drive(new DriveContext(http.CreateClient(account.Provider), account,
             c => tokens.AccessTokenAsync(account.Id, c), c => tokens.RefusedAsync(account.Id, c), clock));
 
     /// <summary>The HTTP client a provider's calls go through, as while an account is being connected.</summary>

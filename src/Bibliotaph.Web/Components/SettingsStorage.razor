@@ -26,6 +26,10 @@
                 <div>@account.Name<small>@(account.NeedsReconnect
                     ? $"Needs connecting again: {StorageOwner(account)} no longer lets Bibliotaph read it. Its books stay in your library."
                     : $"Connected {account.Added:d MMMM yyyy}")</small>
+                    @if (About(account.Provider) is { } about)
+                    {
+                        <small>@about</small>
+                    }
                     @if (account.Access is { Count: > 0 } access)
                     {
                         <small title="@(account.Scopes is { } scopes ? $"As {StorageOwner(account)} names it: {scopes}" : null)">Allowed to @Sentence(access).</small>
@@ -53,7 +57,7 @@
         else
         {
             <div class="bt-actions" data-tour="storage">
-                @foreach (var kind in _providers)
+                @foreach (var kind in _providers.Where(p => !p.StartsInItsOwnApp))
                 {
                     var look = _storage.Count == 0 && kind == _providers[0] ? "bt-button primary" : "bt-button";
                     if (kind.SignsInWithPassword)
@@ -124,6 +128,8 @@
 
     // Once connected, the next thing to do is add a folder from it.
     static string ConnectLink(string provider) => $"storage/connect/{Uri.EscapeDataString(provider)}?returnUrl=%2Fsettings%23library";
+
+    string? About(string provider) => _providers.FirstOrDefault(p => p.Id == provider)?.About;
 
     bool SignsInHere(string provider) => _providers.FirstOrDefault(p => p.Id == provider)?.SignsInWithPassword == true;
 

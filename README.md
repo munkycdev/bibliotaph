@@ -157,6 +157,8 @@ The guide is on the web too, a page per chapter, at [bibliotaph.online/guide](ht
 10. [OneDrive, drives and other PCs](docs/guide/onedrive-and-other-pcs.md): cloud files, USB drives, backups and sync.
 11. [Questions and answers](docs/guide/faq.md)
 12. [Bibliotaph on the web](docs/guide/web.md): bibliotaph.online, your library in the browser.
+13. [Using Bibliotaph with Nornis](docs/guide/nornis.md): connecting Nornis, so your Nornis sourcebooks live in your
+    library.
 
 ## Help and feedback
 

@@ -182,4 +182,7 @@ public sealed class StorageConnection
 
     public DateTime Created { get; set; }
     public DateTime Updated { get; set; }
+
+    /// <summary>When the connected app last called in with it (Nornis), written at most every five minutes.</summary>
+    public DateTime? LastUsed { get; set; }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Bibliotaph.Server.Accounts;
 using Microsoft.AspNetCore.DataProtection;
@@ -93,6 +94,21 @@ public sealed class StorageConnections(AccountsDatabase database, IDataProtectio
         UpdateAsync(id, c => c.ProtectedRefreshToken = _tokens.Protect(refreshToken), ct);
 
     public Task SetNeedsReconnectAsync(string id, CancellationToken ct = default) => UpdateAsync(id, c => c.NeedsReconnect = true, ct);
+
+    static readonly TimeSpan LastUsedEvery = TimeSpan.FromMinutes(5);
+    readonly ConcurrentDictionary<string, DateTimeOffset> _used = new();
+
+    /// <summary>Notes that the app on the other end of a connection called in, at most every five minutes, as for connected PCs.</summary>
+    public async Task TouchAsync(string id, CancellationToken ct = default)
+    {
+        var now = clock.GetUtcNow();
+        if (_used.TryGetValue(id, out var last) && now - last < LastUsedEvery) return;
+        _used[id] = now;
+        await using var db = database.CreateContext();
+        if (await db.StorageConnections.SingleOrDefaultAsync(c => c.Id == id, ct) is not { } connection) return;
+        connection.LastUsed = now.UtcDateTime;
+        await db.SaveChangesAsync(ct);
+    }
 
     public Task SetSubscriptionAsync(string id, string? subscriptionId, DateTimeOffset? expires, CancellationToken ct = default) =>
         UpdateAsync(id, c => (c.SubscriptionId, c.SubscriptionExpires) = (subscriptionId, expires?.UtcDateTime), ct);

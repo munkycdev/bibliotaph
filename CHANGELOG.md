@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **New: connect Nornis to your web library.** Starting from Nornis, connecting signs you in to bibliotaph.online
+  with the same sign-in (making an account if you have none, while there's room), connects Nornis as storage that
+  Bibliotaph only reads, and makes a **Nornis** collection for your worlds. Nornis is listed in **Settings** ›
+  **Library** with your other storage, and **×** disconnects it. This is the first step of the Nornis integration; what
+  Nornis can do with your library comes next. See [Using Bibliotaph with Nornis](docs/guide/nornis.md).
 - **Fixed: on bibliotaph.online, opening any book's details showed an error instead of the book.** The sections of the
   details pane were labelled alike, which the page refuses to show. Each now has a label of its own.
 

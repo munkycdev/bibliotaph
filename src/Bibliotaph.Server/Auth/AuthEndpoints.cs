@@ -1,5 +1,7 @@
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Server.Accounts;
+using Bibliotaph.Server.Nornis;
+using Bibliotaph.Server.Storage;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.Options;
@@ -56,6 +58,8 @@ public static class AuthEndpoints
                 return Results.LocalRedirect("/signin?problem=failed");
 
             var current = await context.AuthenticateAsync(AuthSetup.SessionScheme);
+            if (Item(items, NornisConnect.ConnectItem) == NornisProvider.Key)
+                return await FromNornisAsync(context, accounts, identity, current.Principal?.UserId(), external.Properties!);
             var outcome = await accounts.SignInAsync(identity, Item(items, "invite"), current.Principal?.UserId(), context.RequestAborted);
             switch (outcome.Result)
             {
@@ -79,6 +83,21 @@ public static class AuthEndpoints
             await context.SignOutAsync(AuthSetup.SessionScheme);
             return AfterSignOut(auth0, options.Value, context.Request);
         });
+    }
+
+    /// <summary>A sign-in on the way through Connect Nornis: every outcome but a signed-in account goes back to Nornis.</summary>
+    static async Task<IResult> FromNornisAsync(HttpContext context, AccountService accounts, ExternalIdentity identity, string? currentUserId,
+        AuthenticationProperties properties)
+    {
+        var configuration = context.RequestServices.GetRequiredService<IConfiguration>();
+        var outcome = await accounts.SignInFromNornisAsync(identity, currentUserId, context.RequestAborted);
+        if (outcome.Result is SignInResult.SignedIn or SignInResult.Created or SignInResult.Linked)
+        {
+            await context.SignInAsync(AuthSetup.SessionScheme, AuthSetup.SessionPrincipal(outcome.User!));
+            return Results.LocalRedirect(LocalOrHome(Item(properties.Items, "returnUrl")));
+        }
+        var back = NornisConnect.FailedReturn(properties, configuration, outcome.Result == SignInResult.Full ? NornisConnect.Full : NornisConnect.Failed);
+        return back is null ? Results.LocalRedirect("/signin?problem=failed") : Results.Redirect(back);
     }
 
     /// <summary>Where the page goes once the session has ended: Auth0's logout, which ends its session too, then home.</summary>

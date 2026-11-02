@@ -10,9 +10,11 @@ public sealed record StorageAccount(string Id, string Provider, string Name, boo
 /// <summary>
 /// A kind of storage this server can connect: "OneDrive", whose consent screen is "Microsoft"'s. One that
 /// <see cref="SignsInWithPassword"/> (WebDAV) is connected with an address, user name and password typed in Settings
-/// rather than on its owner's sign-in page.
+/// rather than on its owner's sign-in page. <see cref="About"/> says what a connection does, where the access granted
+/// doesn't say it all, and one that <see cref="StartsInItsOwnApp"/> (Nornis) is connected from that app, not Settings.
 /// </summary>
-public sealed record StorageProviderInfo(string Id, string Name, string Owner, bool SignsInWithPassword = false);
+public sealed record StorageProviderInfo(string Id, string Name, string Owner, bool SignsInWithPassword = false, string? About = null,
+    bool StartsInItsOwnApp = false);
 
 /// <summary>A WebDAV folder to connect: its address, and the user name and password that open it.</summary>
 public sealed record WebDavConnect(string Url, string User, string Password);
