@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.6 · 3 November 2026
+
 - **Fixed: Nornis couldn't show a world's books.** Its Library page said Bibliotaph couldn't be reached, and the
   Loremaster couldn't quote your books, because Bibliotaph sent book IDs in a form Nornis didn't read.
 - **New: connect your storage in the Windows app.** **Settings > Library** now has **Storage** above your folders, as
