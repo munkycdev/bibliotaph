@@ -1157,6 +1157,8 @@ else
             "password" => (new ReaderProblem("This PDF needs a password.", "Enter its password to read it."), "Enter password"),
             "link" => (_linkProblem ?? new ReaderProblem("The file couldn't be reached.", "Check your connection, then try again."), "Try again"),
             "invalid" => (new ReaderProblem("This book could not be opened.", "The file isn't a PDF Bibliotaph can read. It may be damaged."), "Try again"),
+            "unreachable" => (new ReaderProblem("The file couldn't be reached.",
+                "Its storage didn't answer, or didn't let this site read it. Check your connection and try again; if it keeps happening, let us know from Contact us."), "Try again"),
             "image" => (new ReaderProblem("This image could not be read.", "The file may be damaged, or still uploading."), "Try again"),
             _ => (new ReaderProblem("This book could not be opened.", SomethingWentWrong), "Try again"),
         };
