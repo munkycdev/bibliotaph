@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed: a book uploaded to Nornis couldn't be opened from Nornis.** Reading one, such as an adventure printed in
+  Nornis's Prep, said "Something went wrong while opening it", because Nornis's storage didn't let bibliotaph.online
+  read the file. Setup now allows it, and a reader that can't reach a book's storage says the file couldn't be reached.
 - **Fixed: Nornis couldn't show a world's books.** Its Library page said Bibliotaph couldn't be reached, and the
   Loremaster couldn't quote your books, because Bibliotaph sent book IDs in a form Nornis didn't read.
 - **New: connect your storage in the Windows app.** **Settings > Library** now has **Storage** above your folders, as

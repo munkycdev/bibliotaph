@@ -241,7 +241,9 @@ and Nornis reads the pages and asks to confirm.
 Players with no Bibliotaph account can read a book the game master shares with them in Nornis: Nornis
 checks they may, Bibliotaph checks the book is in the world, and the player reads it view-only in the web reader for an
 hour at a time (no notes, Ask, binders, favourites or Keep offline), Shared by the game master in the world, with a
-link back to Nornis, which checks again when the hour is up. The game master's library keeps no place, recent open or
+link back to Nornis, which checks again when the hour is up. The reader reads a Nornis book straight from Nornis's
+blob storage, which must allow bibliotaph.online in its CORS rules; setup adds that rule, and a reader whose read is
+blocked or can't reach the storage says **The file couldn't be reached** rather than that something went wrong. The game master's library keeps no place, recent open or
 anything else about the player, and taking the book out of the world closes it at once. See
 [Using Bibliotaph with Nornis](guide/nornis.md).
 

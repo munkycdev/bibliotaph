@@ -81,8 +81,8 @@ param(
     # Nornis's web origin (https://nornis.app), its API's public address, and its API's identifier in Auth0, which the
     # nornis storage connection asks for. With all three, Nornis can connect to Bibliotaph; the Bibliotaph API's
     # identifier is https://<domain>/api. The host Nornis's file links point at (its blob storage, such as
-    # <account>.blob.core.windows.net) lets the reader open books uploaded to a world. Once set, a later run without
-    # them keeps them.
+    # <account>.blob.core.windows.net) lets the reader open books uploaded to a world, and gets a CORS rule for this site
+    # added to that account's Blob service. Once set, a later run without them keeps them.
     [string] $NornisOrigin,
     [string] $NornisApiBase,
     [string] $NornisApiAudience,
@@ -310,6 +310,47 @@ if (-not (StorageApp 'Box' 'Box' $BoxClientId "Client secret for Box app $BoxCli
 Write-Host "  In Box's Developer Console: a Platform App with User Authentication (OAuth 2.0); application scope"
 Write-Host "  'Read all files and folders stored in Box' only; Redirect URI https://$Domain/storage/callback/box"
 
+# The reader reads a Nornis book's byte ranges straight from Nornis's blob storage, from this site's origin: without a
+# CORS rule for it there, the browser blocks every read and the book can't be opened. Nornis's own provisioning adds the
+# rule only in one of its set-ups, so it's made sure of here. Only a rule for this origin is added; the account's other
+# rules stay as they are. The account's key access may be off, so the rules are read and written through Azure Resource
+# Manager.
+function AllowReadsFrom([string] $blobHost, [string] $origin) {
+    $rule = "GET, HEAD and OPTIONS from $origin, with the Range header, exposing Content-Range, Content-Length and Accept-Ranges"
+    $account = if ($blobHost -match '^([a-z0-9]{3,24})\.blob\.core\.windows\.net$') {
+        $name = $Matches[1]
+        Json (az storage account list -o json) | Where-Object name -eq $name
+    }
+    if (-not $account) {
+        Write-Host "  $blobHost isn't a storage account this sign-in can see: allow $rule in its CORS rules." -ForegroundColor Yellow
+        return
+    }
+    $service = "https://management.azure.com$($account.id)/blobServices/default?api-version=2023-05-01"
+    try { $properties = (Json (az rest --method get --url $service -o json)).properties }
+    catch {
+        Write-Host "  $($account.name)'s CORS rules couldn't be read: allow $rule in them." -ForegroundColor Yellow
+        return
+    }
+    $rules = @($properties.cors.corsRules | Where-Object { $_ })
+    if ($rules | Where-Object { $_.allowedOrigins -contains $origin -or $_.allowedOrigins -contains '*' }) { return }
+    $rules += [pscustomobject]@{
+        allowedOrigins  = @($origin)
+        allowedMethods  = @('GET', 'HEAD', 'OPTIONS')
+        allowedHeaders  = @('Range', 'If-Match', 'If-None-Match', 'If-Modified-Since')
+        exposedHeaders  = @('Content-Range', 'Content-Length', 'Accept-Ranges', 'ETag', 'Last-Modified')
+        maxAgeInSeconds = 3600
+    }
+    $properties | Add-Member -NotePropertyName cors -NotePropertyValue ([pscustomobject]@{ corsRules = $rules }) -Force
+    $body = New-TemporaryFile
+    try {
+        @{ properties = $properties } | ConvertTo-Json -Depth 10 | Set-Content $body.FullName -Encoding utf8NoBOM
+        az rest --method put --url $service --body "@$($body.FullName)" -o none
+        Write-Host "  allowed $rule in $($account.name)'s CORS rules"
+    }
+    catch { Write-Host "  $($account.name)'s CORS rules couldn't be changed: allow $rule in them." -ForegroundColor Yellow }
+    finally { Remove-Item $body }
+}
+
 Step 'Nornis'
 # Plain settings, no secret: the grant is made with Bibliotaph's own Auth0 application.
 $NornisOrigin = $NornisOrigin ? $NornisOrigin.TrimEnd('/') : (KnownSetting 'Nornis__Origin')
@@ -319,7 +360,10 @@ $NornisBlobHost = $NornisBlobHost ? ([uri]"https://$($NornisBlobHost -replace '^
 if ($NornisOrigin -and $NornisApiBase -and $NornisApiAudience) {
     $providers += "Nornis__Audience=https://$Domain/api", "Nornis__Origin=$NornisOrigin", "Nornis__ApiBase=$NornisApiBase",
         "Storage__Nornis__Audience=$NornisApiAudience"
-    if ($NornisBlobHost) { $providers += "Storage__Nornis__BlobHost=$NornisBlobHost" }
+    if ($NornisBlobHost) {
+        $providers += "Storage__Nornis__BlobHost=$NornisBlobHost"
+        AllowReadsFrom $NornisBlobHost "https://$Domain"
+    }
     else { Write-Host "  The reader can't open books uploaded to Nornis until this runs with -NornisBlobHost." -ForegroundColor Yellow }
     Write-Host "  In Auth0: the API https://$Domain/api with scopes books:read, tickets:write and worlds:write; the application's"
     Write-Host "  callback URL https://$Domain/storage/callback/nornis and the Refresh Token grant, with rotation"

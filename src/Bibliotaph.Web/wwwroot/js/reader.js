@@ -3,6 +3,9 @@
 // a find marked, and a strip of page thumbnails. The page around it is Blazor's; this reports back what the reader does.
 import { BookCache, ChunkSize, LinkError, trim } from './bookcache.js';
 
+/** Why a read of the whole file failed: no link, or fetch's TypeError when the storage can't be reached or doesn't let this site read it (CORS). */
+const readFailure = e => e instanceof LinkError ? 'link' : e instanceof TypeError ? 'unreachable' : 'other';
+
 const base = new URL('../lib/pdfjs/', import.meta.url).href;
 const ZoomSteps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 const ThumbnailHeight = 96;
@@ -323,7 +326,9 @@ class Reader {
     const kind = this.cancelled ? 'password'
       : e instanceof LinkError ? 'link'
       : e?.name === 'InvalidPDFException' ? 'invalid'
-      : this.doc ? 'read' : 'other';
+      : this.doc ? 'read'
+      // fetch rejects with a TypeError when the storage can't be reached or doesn't let this site read it (CORS).
+      : e instanceof TypeError ? 'unreachable' : 'other';
     this.page.invokeMethodAsync('Failed', kind, String(e?.message ?? ''));
   }
 
@@ -721,7 +726,7 @@ class ImageReader {
     try {
       bytes = await this.cache.read(0, this.book.size);
     } catch (e) {
-      if (!this.closed) this.page.invokeMethodAsync('Failed', e instanceof LinkError ? 'link' : 'other', String(e?.message ?? ''));
+      if (!this.closed) this.page.invokeMethodAsync('Failed', readFailure(e), String(e?.message ?? ''));
       return;
     }
     if (this.closed) return;
@@ -894,7 +899,7 @@ class EbookReader {
       bytes = await this.cache.read(0, this.book.size);
       await workerReady();
     } catch (e) {
-      if (!this.closed) this.page.invokeMethodAsync('Failed', e instanceof LinkError ? 'link' : 'other', String(e?.message ?? ''));
+      if (!this.closed) this.page.invokeMethodAsync('Failed', readFailure(e), String(e?.message ?? ''));
       return;
     }
     if (this.closed) return;

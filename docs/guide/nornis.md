@@ -60,7 +60,9 @@ listed in **Settings** › **Library** under **Folders** with the world's name, 
 collection, as a folder's books are when you accept making it a collection in Needs review, new ones too. When you
 upload or remove files in Nornis, Nornis tells Bibliotaph, which looks at that world's folder again; a book removed in
 Nornis goes the way a file deleted from your other storage does. Bibliotaph only reads these files, and you can read
-them in the reader like any other book. Nornis decides which of a world's files are listed.
+them in the reader like any other book, such as an adventure you printed in Nornis's Prep. Nornis decides which of a
+world's files are listed. If the reader says **The file couldn't be reached** for one of them, Nornis's storage isn't
+letting bibliotaph.online read it yet; the site's administrator fixes that by running its setup again.
 
 If you already own the same book elsewhere in your library, Bibliotaph finds it and keeps it as a second copy, as it
 does for any folder. Remove a world's folder with its **×** if you don't want its books in your library; it stays
