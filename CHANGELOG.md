@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Fixed: D&D Beyond and Demiplane books kept coming back without covers.** A cover lost on one device could only
+  come back by reading the service's page again. Bibliotaph now remembers where each imported cover came from, syncs
+  that address, and downloads a missing cover from the service's own image site by itself. Books imported before this
+  version don't have an address yet, so **Home** says how many have no cover and opens the service: read its library
+  page once more and import, and they get their covers back on every device.
 - **Fixed: a book uploaded to Nornis couldn't be opened from Nornis.** Reading one, such as an adventure printed in
   Nornis's Prep, said "Something went wrong while opening it", because Nornis's storage didn't let bibliotaph.online
   read the file. Setup now allows it, and a reader that can't reach a book's storage says the file couldn't be reached.

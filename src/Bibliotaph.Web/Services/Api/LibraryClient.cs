@@ -43,6 +43,9 @@ public sealed class LibraryClient(ApiHttp http)
     public Task AiLaterAsync(CancellationToken ct = default) =>
         http.SendAsync(HttpMethod.Post, "api/home/ai-later", null, ct);
 
+    public Task CoversLaterAsync(CancellationToken ct = default) =>
+        http.SendAsync(HttpMethod.Post, "api/home/covers-later", null, ct);
+
     public async Task<HomeShelves> HomeAsync(CancellationToken ct = default) =>
         await http.GetAsync<HomeShelves>("api/home", new HomeShelves([], [], ""), ct);
 

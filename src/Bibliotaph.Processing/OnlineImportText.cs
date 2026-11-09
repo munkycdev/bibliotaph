@@ -88,6 +88,29 @@ public static class OnlineImportText
         return did.Length == 0 ? back : back.Length == 0 ? did : $"{did} {back}";
     }
 
+    /// <summary>"31 books from D&amp;D Beyond have no cover", or "40 books from your online libraries have no cover".</summary>
+    public static string MissingCoversHeading(IReadOnlyList<MissingCovers> missing) => missing switch
+    {
+        [var one] => $"{Count(one.Books, "book")} from {one.Reader.Name} {(one.Books == 1 ? "has" : "have")} no cover",
+        _ => $"{Count(missing.Sum(m => m.Books), "book")} from your online libraries have no cover",
+    };
+
+    /// <summary>How to get them back on Windows, where each service opens in Bibliotaph's own browser.</summary>
+    public static string MissingCoversHowWindows(IReadOnlyList<MissingCovers> missing) =>
+        $"Their covers come from your library page on {Names(missing)}. Open it, choose Read this page, then Import: "
+        + "each book that shows \"Gets its cover back\" gets it, here and on your other devices.";
+
+    /// <summary>How to get them back on the web, where a page comes in through Send to Bibliotaph.</summary>
+    public static string MissingCoversHowWeb(IReadOnlyList<MissingCovers> missing) =>
+        $"Their covers come from your library page on {Names(missing)}. Send the page to Bibliotaph again from Online libraries "
+        + "and choose Import: each book that shows \"Gets its cover back\" gets it, here and on your other devices.";
+
+    static string Names(IReadOnlyList<MissingCovers> missing) => missing.Count switch
+    {
+        1 => missing[0].Reader.Name,
+        _ => string.Join(", ", missing.Take(missing.Count - 1).Select(m => m.Reader.Name)) + " and " + missing[^1].Reader.Name,
+    };
+
     public static string Removed(string title) => $"Removed {title} from your library.";
 
     static string Count(int n, string noun) => $"{n.ToString("N0", CultureInfo.CurrentCulture)} {noun}{(n == 1 ? "" : "s")}";

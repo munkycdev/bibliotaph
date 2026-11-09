@@ -117,6 +117,11 @@ public sealed class Entry
     public long? CoverEntryId { get; set; }
     public DateTime CreatedUtc { get; set; }
     /// <summary>
+    /// For a book imported from an online library, the address of the cover its page showed: on the service's own image
+    /// server, which gives it without a sign-in, so a cover lost on a device can be downloaded again from there.
+    /// </summary>
+    public string? CoverUrl { get; set; }
+    /// <summary>
     /// Names a book owned elsewhere in the library sync file, which has no content hash to be named by; a book with
     /// files is named by its files' hashes instead. Made once, and the same on every PC it reaches.
     /// </summary>

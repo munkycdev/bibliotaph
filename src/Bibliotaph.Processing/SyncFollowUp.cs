@@ -12,7 +12,7 @@ namespace Bibliotaph.Processing;
 /// imported from an online library, are kept with this device's covers. Each is skipped where its service isn't here.
 /// </summary>
 public sealed class SyncFollowUp(UserTagService? userTags = null, MetadataHints? hints = null, ForgetText? forget = null, CoverPages? coverPages = null,
-    CoverCache? covers = null, ILogger<SyncFollowUp>? log = null)
+    CoverCache? covers = null, ILogger<SyncFollowUp>? log = null, LostCovers? lost = null)
 {
     readonly ILogger _log = log ?? NullLogger<SyncFollowUp>.Instance;
 
@@ -49,5 +49,7 @@ public sealed class SyncFollowUp(UserTagService? userTags = null, MetadataHints?
             foreach (var folder in follow.Folders) await hints.RefreshFolderAsync(folder, ct);
         if (coverPages is not null)
             foreach (var (documentId, page) in follow.CoverPages) await coverPages.UseAsync(documentId, page, ct);
+        // In the background, so a slow service doesn't hold up sync.
+        if (lost is not null && follow.CoverUrls.Count > 0) lost.Start([.. follow.CoverUrls]);
     }
 }

@@ -37,6 +37,9 @@ public sealed class SyncFollowUps
     public Dictionary<long, int> CoverPages { get; } = [];
     public Dictionary<Guid, byte[]?> ChosenCovers { get; } = [];
     public Dictionary<Guid, byte[]?> ImportedCovers { get; } = [];
+
+    /// <summary>Books owned elsewhere whose cover's address arrived, which can download a cover they don't have.</summary>
+    public HashSet<EntryId> CoverUrls { get; } = [];
     public HashSet<FolderKey> Folders { get; } = [];
 }
 
@@ -459,6 +462,12 @@ public sealed partial class LibrarySyncStore
                     : await db.Pins.Where(PinStore.Matches(PinTarget.Entry(id))).ExecuteDeleteAsync(ct) > 0;
             if (Differs(SyncFields.Read) && SyncKeys.IdOf(key, SyncKeys.Adventure) is not null)
                 changed |= await SetAdventureReadingAsync(db, entryId, ReadOrDefault<SyncedReading>(wanted, SyncFields.Read), ct);
+            if (Differs(SyncFields.CoverUrl))
+            {
+                var url = ReadOrDefault<string>(wanted, SyncFields.CoverUrl);
+                changed |= await db.Entries.Where(e => e.Id == entryId).ExecuteUpdateAsync(s => s.SetProperty(e => e.CoverUrl, url), ct) > 0;
+                if (url is not null) follow.CoverUrls.Add(id);
+            }
             foreach (var (field, pictures) in new[] { (SyncFields.Picture, follow.ChosenCovers), (SyncFields.ImportedPicture, follow.ImportedCovers) })
                 if (Differs(field) && await db.Entries.Where(e => e.Id == entryId).Select(e => (Guid?)e.SyncId).SingleOrDefaultAsync(ct) is { } syncId)
                 {

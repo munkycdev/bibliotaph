@@ -843,6 +843,18 @@ public sealed class LibrarySyncTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_address_a_cover_was_imported_with_travels_so_another_device_can_download_it()
+    {
+        var vellum = await new EntryStore(_desk.Contexts).AddElsewhereAsync(Ct);
+        const string Url = "https://www.dndbeyond.com/avatars/900/901/1.jpeg";
+        await new EntryStore(_desk.Contexts).SetCoverUrlsAsync(new Dictionary<EntryId, string> { [vellum] = Url }, Ct);
+
+        await RoundAsync();
+
+        Assert.Equal(Url, Assert.Single(await new EntryStore(_laptop.Contexts).GetCoverUrlsAsync(ct: Ct)).CoverUrl);
+    }
+
+    [Fact]
     public async Task Library_settings_travel_and_so_does_putting_one_back_while_the_devices_own_stay()
     {
         var settings = new SettingsStore(_desk.Contexts);

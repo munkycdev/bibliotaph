@@ -439,6 +439,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             library.Get<CoverCache>().MoveOldImported();
             await library.Get<CoverMirror>().StartAsync(CancellationToken.None);
             await library.Get<MetadataProjector>().ProjectElsewhereAsync();
+            library.Get<LostCovers>().Start();
 
             // Before the Classify lane looks at whether it may send anything.
             await library.Get<ServerApiKeys>().LoadAsync();

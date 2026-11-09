@@ -13,7 +13,8 @@ static partial class Composition
     public static IServiceCollection AddSync(this IServiceCollection services)
     {
         services.AddSingleton(sp => new SyncFollowUp(sp.GetRequiredService<UserTagService>(), sp.GetRequiredService<MetadataHints>(),
-            sp.GetRequiredService<ForgetText>(), sp.GetRequiredService<CoverPages>(), sp.GetRequiredService<CoverCache>(), sp.GetRequiredService<ILogger<SyncFollowUp>>()));
+            sp.GetRequiredService<ForgetText>(), sp.GetRequiredService<CoverPages>(), sp.GetRequiredService<CoverCache>(), sp.GetRequiredService<ILogger<SyncFollowUp>>(),
+            sp.GetRequiredService<LostCovers>()));
         services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<LibrarySyncStore>>(), sp.GetRequiredService<LookupRecordStore>(), sp.GetRequiredService<SyncFollowUp>().ReadChosenCovers,

@@ -14,9 +14,10 @@ library as books owned elsewhere, so they turn up in searches, collections and b
   scrolls or goes to another page by itself. Nothing is read until you press **Read this page**, and nothing is
   imported until you press **Import**.
 - **Only books you own** are imported. Books someone shares with you on D&D Beyond are left out.
-- **Covers are the pictures the page already showed.** Bibliotaph fetches nothing else for the books. It keeps them
-  with your own data, never with your book files, and they reach your other PCs and the web library with the rest of
-  your library.
+- **Covers are the pictures the page already showed.** Bibliotaph keeps them with your own data, never with your book
+  files, and they reach your other PCs and the web library with the rest of your library. It also remembers where each
+  picture came from, so if a cover is ever lost (on a new PC, say), it downloads that picture again by itself, but only
+  from the service's own image sites and without your sign-in.
 
 ## The services
 
@@ -43,6 +44,11 @@ stores**.
      cover gets it back ("Gets its cover back"). Nothing you've set changes.
    - **Imported before**: nothing to change.
 5. Untick any book you'd rather leave out, and click **Import 30 books**. **Undo** takes it all back.
+
+If books you imported from a service have no cover and Bibliotaph doesn't yet know where their pictures came from
+(books imported with an earlier version), **Home** says so, for example "31 books from D&D Beyond have no cover", with a
+button that opens that service. Read its library page once and import: each book showing **Gets its cover back** gets
+it, here and on your other devices. **Not now** hides the note until more books lose their covers.
 
 A few services need a step first:
 

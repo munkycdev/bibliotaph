@@ -69,6 +69,12 @@ public interface IOnlineLibraryReader
     IReadOnlyList<string> SignInSites => [];
 
     /// <summary>
+    /// The sites a cover the page showed may be downloaded from again, with their subdomains: the service's own, by
+    /// default, from its library page's address ("dndbeyond.com"). Nothing else is ever fetched.
+    /// </summary>
+    IReadOnlyList<string> CoverSites => [string.Join('.', LibraryPage.Host.Split('.')[^2..])];
+
+    /// <summary>
     /// Where a book's link goes: Also own for a service whose books are read there, as D&amp;D Beyond's are; Get it
     /// from for a store whose books are files still to download (Humble Bundle, DriveThruRPG).
     /// </summary>

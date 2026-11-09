@@ -19,7 +19,7 @@ namespace Bibliotaph.Server.Libraries;
 /// </summary>
 public sealed record LibraryHost(ILoggerFactory Logs, TimeProvider Clock, UserDriveFactory Drives, string TemporaryFolder, IPdfEngine Pdf,
     IImageCodec Images, ICoverStore Covers, IDataProtectionProvider Protection, ModelClientFactory Models, ForegroundActivity? Foreground = null,
-    UploadMemory? Uploads = null, IBookCatalogue? Catalogue = null);
+    UploadMemory? Uploads = null, IBookCatalogue? Catalogue = null, HttpClient? CoverDownloads = null);
 
 /// <summary>
 /// One library's services: the same stores, queries and indexing the Windows app composes in its own host, built once
@@ -28,6 +28,15 @@ public sealed record LibraryHost(ILoggerFactory Logs, TimeProvider Clock, UserDr
 /// </summary>
 public static class LibraryServices
 {
+    /// <summary>Where a host gives no way out to the internet, as in tests: every download is refused.</summary>
+    static readonly HttpClient NoDownloads = new(new RefuseAll());
+
+    sealed class RefuseAll : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) =>
+            Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.Forbidden));
+    }
+
     /// <summary>
     /// The most of a user's books kept at once while being read. Copies go as soon as their stages are done, and books
     /// are read one at a time, so this is only a backstop.
@@ -144,7 +153,8 @@ public static class LibraryServices
         services.AddSingleton(syncFiles);
         services.AddSingleton<ServerSyncChannel>();
         services.AddSingleton(sp => new SyncFollowUp(sp.GetRequiredService<UserTagService>(), sp.GetRequiredService<MetadataHints>(),
-            sp.GetRequiredService<ForgetText>(), sp.GetRequiredService<CoverPages>(), sp.GetRequiredService<CoverCache>(), sp.GetRequiredService<ILogger<SyncFollowUp>>()));
+            sp.GetRequiredService<ForgetText>(), sp.GetRequiredService<CoverPages>(), sp.GetRequiredService<CoverCache>(), sp.GetRequiredService<ILogger<SyncFollowUp>>(),
+            sp.GetRequiredService<LostCovers>()));
         services.AddSingleton(sp => new LibrarySyncStore(sp.GetRequiredService<IDbContextFactory<CatalogDbContext>>(),
             sp.GetRequiredService<MetadataStore>(), sp.GetRequiredService<VocabularyStore>(), host.Clock, sp.GetRequiredService<ILogger<LibrarySyncStore>>(),
             sp.GetRequiredService<LookupRecordStore>(), sp.GetRequiredService<SyncFollowUp>().ReadChosenCovers,
@@ -235,6 +245,8 @@ public static class LibraryServices
         // Needs review: its cards come from these, and each decision goes through them.
         services.AddSingleton<ElsewhereService>();
         services.AddSingleton<LookupMatches>();
+        services.AddSingleton(sp => new LostCovers(sp.GetRequiredService<EntryStore>(), sp.GetRequiredService<CoverCache>(), host.Images,
+            sp.GetRequiredService<MetadataProjector>(), host.CoverDownloads ?? NoDownloads, sp.GetRequiredService<ILogger<LostCovers>>()));
         services.AddSingleton<OnlineImports>();
         services.AddSingleton(new HeldOnlinePages(host.Clock, host.Uploads));
         services.AddSingleton<CollectionSuggestions>();

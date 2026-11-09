@@ -171,6 +171,9 @@ public abstract partial class ApiTests
                 new OnlineImportChoice([.. preview.Groups.SelectMany(g => g.Rows).Select(r => r.Index)]), ct);
             var imported = (await importResponse.Content.ReadFromJsonAsync<OnlineImported>(ct))!;
             var books = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books;
+            var home = (await client.GetFromJsonAsync<HomeShelves>("/api/home", ct))!;
+            using (await client.PostAsync("/api/home/covers-later", null, ct)) { }
+            var homeLater = (await client.GetFromJsonAsync<HomeShelves>("/api/home", ct))!;
             using (await client.PostAsync($"/api/library/held/{imported.Result.Undo}", null, ct)) { }
             var afterUndo = (await client.GetFromJsonAsync<OnlinePreview>($"/api/online/pages/{preview.Token}", ct))!;
             using var gone = await client.GetAsync("/api/online/pages/0123456789abcdef0123456789abcdef", ct);
@@ -195,6 +198,10 @@ public abstract partial class ApiTests
             Assert.Equal(["Imported before, with more to fill in · 1", "Imported before · 1"], imported.Preview.Groups.Select(g => g.Heading));
             Assert.Equal("Gets its cover back.", imported.Preview.Groups[0].Rows.Single().Detail);
             Assert.Equal((1, 0), (imported.Preview.Covers, imported.Preview.CoversFound));
+            // Home says so, until Not now.
+            Assert.Equal("1 book from D&D Beyond has no cover", home.MissingCovers?.Heading);
+            Assert.StartsWith("Their covers come from your library page on D&D Beyond.", home.MissingCovers!.How, StringComparison.Ordinal);
+            Assert.Null(homeLater.MissingCovers);
             Assert.Equal(2, books.Count(b => b.Title is "The Ember Vault" or "Atlas of the Drowned Coast"));
             Assert.Equal(["New · 2"], afterUndo.Groups.Select(g => g.Heading));
             Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
