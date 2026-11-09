@@ -135,6 +135,9 @@ public sealed partial class HumbleBundleReader : IOnlineLibraryReader
 
     public Uri LibraryPage { get; } = new("https://www.humblebundle.com/home/library");
 
+    /// <summary>Humble Bundle's pictures are served from its image service's own site.</summary>
+    public IReadOnlyList<string> CoverSites => ["humblebundle.com", "hb.imgix.net"];
+
     public MetadataField LinkField => MetadataFields.GetItFrom;
 
     public OnlinePage? Read(string html)

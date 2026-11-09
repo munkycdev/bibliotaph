@@ -71,7 +71,7 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
 
         // Cards: a book by the lowest hash of its files, a pack by the lowest of its images', a book owned elsewhere by its sync id.
         var entries = await db.Entries.AsNoTracking().Where(e => e.MergedIntoEntryId == null)
-            .Select(e => new { e.Id, e.Kind, e.SyncId, e.ParentEntryId, e.CoverEntryId }).ToListAsync(ct);
+            .Select(e => new { e.Id, e.Kind, e.SyncId, e.ParentEntryId, e.CoverEntryId, e.CoverUrl }).ToListAsync(ct);
         var hashes = (await db.EntrySources.AsNoTracking().Where(s => s.FirstPdfPage == null)
             .Select(s => new { s.EntryId, s.Document.ContentHash }).ToListAsync(ct)).ToLookup(s => s.EntryId, s => s.ContentHash);
         var members = entries.Where(e => e.ParentEntryId != null).ToLookup(e => e.ParentEntryId!.Value, e => e.Id);
@@ -151,6 +151,8 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
         // The covers of a book owned elsewhere, the one chosen for it and the one it was imported with from its online
         // library, which no other device can draw for itself. They stay with the card after the book met its file, as
         // the card's cover files are named by its sync id.
+        foreach (var entry in entries.Where(e => e.CoverUrl is not null && cardFields.ContainsKey(e.Id)))
+            cardFields[entry.Id][SyncFields.CoverUrl] = Json(entry.CoverUrl!);
         foreach (var (field, read) in new[] { (SyncFields.Picture, chosenCovers), (SyncFields.ImportedPicture, importedCovers) })
             if (read?.Invoke() is { Count: > 0 } pictures)
                 foreach (var entry in entries.Where(e => cardFields.ContainsKey(e.Id)))

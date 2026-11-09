@@ -175,7 +175,10 @@ public static class LibraryChoices
 /// <summary>
 /// Home's rows: the books opened last and added last, a cover each, and what the library is
 /// doing, for the note shown before any book has been read. <see cref="AskAboutAi"/> is the Windows app's first-run step: folders are in, AI isn't set up, and the user hasn't
-/// said Not now.
+/// said Not now. <see cref="MissingCovers"/> offers to get back the covers of books imported from online libraries that have none.
 /// </summary>
 public sealed record HomeShelves(IReadOnlyList<BookCard> Opened, IReadOnlyList<BookCard> Added, string Status, BinderCard? Preparing = null,
-    bool AskAboutAi = false);
+    bool AskAboutAi = false, MissingCoversNote? MissingCovers = null);
+
+/// <summary>Home's note that books imported from online libraries have no cover, and how to get them back.</summary>
+public sealed record MissingCoversNote(string Heading, string How);

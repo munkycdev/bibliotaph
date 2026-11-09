@@ -101,6 +101,31 @@
             </WrapPanel>
           </StackPanel>
         </Border>
+        <!-- Books imported from an online library with no cover, as on a device that got them before covers travelled. -->
+        <Border Visibility="{Binding MissingCoversHeading, Converter={StaticResource Bt.VisibleWhenSet}}" Background="{DynamicResource Bt.Side}"
+                CornerRadius="6" Padding="18" Margin="0,22,0,0" MaxWidth="620" HorizontalAlignment="Left">
+          <StackPanel>
+            <TextBlock Text="{Binding MissingCoversHeading}" Style="{StaticResource Text.Row}" />
+            <TextBlock Style="{StaticResource Text.Copy}" Margin="0,8,0,0" TextWrapping="Wrap" Text="{Binding MissingCoversHow}" />
+            <WrapPanel Margin="0,14,0,0">
+              <ItemsControl ItemsSource="{Binding MissingCoversButtons}" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Button Style="{StaticResource Bt.Button.Primary}" Content="{Binding Label}" Margin="0,0,8,0"
+                            Command="{Binding DataContext.OpenMissingCoversCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                            CommandParameter="{Binding}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Button Content="Not now" Command="{Binding CoversLaterCommand}" />
+            </WrapPanel>
+          </StackPanel>
+        </Border>
         <!-- Folders added but nothing read yet: indexing progress. -->
         <c:EmptyState Title="Indexing your library." Visibility="{Binding HasBooks, Converter={StaticResource Bt.CollapsedWhenTrue}}"
                       Message="{Binding Activity.Summary, StringFormat='{}{0}. Books appear here and in the Library as they are read.'}"

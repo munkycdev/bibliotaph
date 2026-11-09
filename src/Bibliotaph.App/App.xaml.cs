@@ -195,6 +195,7 @@ public partial class App : Application
                 if (services.GetRequiredService<CoverCache>().MoveOldImported() is var moved and > 0)
                     Log.Information("Kept {Count} covers imported from online libraries with the user's data", moved);
                 await services.GetRequiredService<MetadataProjector>().ProjectAllAsync();
+                services.GetRequiredService<LostCovers>().Start();
                 // What the AI found in each chapter, kept in catalog.db, back into a rebuilt index.db.
                 await services.GetRequiredService<ChapterProjection>().RestoreAsync();
             }

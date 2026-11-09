@@ -48,6 +48,9 @@ public sealed record MissingBook(EntryId EntryId, string Title, string Link);
 /// </summary>
 public sealed record OnlineImportPlan(IOnlineLibraryReader Reader, IReadOnlyList<OnlineImportRow> Rows, int Shared, IReadOnlyList<MissingBook> Missing);
 
+/// <summary>The books imported from one online library that have no cover, which reading its page again gets back.</summary>
+public sealed record MissingCovers(IOnlineLibraryReader Reader, int Books);
+
 /// <summary>
 /// What an import did: how many books it added, how many cards it changed and how many books imported before got their
 /// cover back, and what Undo needs.
@@ -63,7 +66,7 @@ public sealed record OnlineImportResult(int Added, int Changed, ImportReceipt Un
 /// </summary>
 public sealed class OnlineImports(MetadataStore store, MetadataService metadata, EntryStore entries,
     MetadataProjector projector, IndexQueries queries, IImageCodec images, CoverCache covers, TimeProvider? clock = null,
-    ILogger<OnlineImports>? log = null)
+    ILogger<OnlineImports>? log = null, LostCovers? lost = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly ILogger _log = log ?? NullLogger<OnlineImports>.Instance;
@@ -79,6 +82,40 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
 #pragma warning disable CA1822 // The app reaches the services through the imports it is given.
     public IReadOnlyList<IOnlineLibraryReader> Readers => Services;
 #pragma warning restore CA1822
+
+    /// <summary>
+    /// The books owned elsewhere imported from each online library that have no cover, as on a device that got them
+    /// before covers travelled with the library, by service, for those that have any. Only reading the service's page
+    /// again gets them back, since Bibliotaph fetches nothing from a service by itself.
+    /// </summary>
+    public async Task<IReadOnlyList<MissingCovers>> MissingCoversAsync(CancellationToken ct = default)
+    {
+        var counted = new HashSet<EntryId>();
+        var missing = new List<MissingCovers>();
+        foreach (var reader in Services)
+        {
+            var linked = (await queries.GetLinkedCardsAsync(reader.LinkField.Key, reader.Key, ct)).Where(c => c.Elsewhere).Select(c => c.EntryId).Distinct().ToList();
+            var coverless = (await entries.GetCurrentAsync(linked, ct))
+                .Count(e => e.SyncId is { } syncId && covers.FindElsewhere(syncId) is null && counted.Add(e.EntryId));
+            if (coverless > 0) missing.Add(new MissingCovers(reader, coverless));
+        }
+        return missing;
+    }
+
+    /// <summary>
+    /// The books <see cref="MissingCoversAsync"/> finds, when there are more than when the user last said Not now:
+    /// what Home offers to get back.
+    /// </summary>
+    public async Task<IReadOnlyList<MissingCovers>> MissingCoversToOfferAsync(SettingsStore settings, CancellationToken ct = default)
+    {
+        var missing = await MissingCoversAsync(ct);
+        var dismissed = int.TryParse(await settings.GetAsync(SettingKeys.MissingCoversDismissed, ct), NumberStyles.None, CultureInfo.InvariantCulture, out var n) ? n : 0;
+        return missing.Sum(m => m.Books) > dismissed ? missing : [];
+    }
+
+    /// <summary>Not now: the offer comes back only when more books have lost their covers.</summary>
+    public async Task DismissMissingCoversAsync(SettingsStore settings, CancellationToken ct = default) =>
+        await settings.SetAsync(SettingKeys.MissingCoversDismissed, (await MissingCoversAsync(ct)).Sum(m => m.Books).ToString(CultureInfo.InvariantCulture), ct);
 
     /// <summary>
     /// The preview: each book on the page and what importing it does. A book whose link is already on a card was
@@ -174,6 +211,15 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
         // Covers: the new books', and those of books imported before that have none, as when one was lost.
         var wanted = receipt.Added.Zip(newRows, (a, r) => (a.SyncId, r.Book.CoverUrl)).ToList();
         var again = rows.Where(r => r.Outcome == OnlineOutcome.Update && r.Book.CoverUrl is not null).ToDictionary(r => r.EntryId!.Value, r => r.Book.CoverUrl);
+        // Each book owned elsewhere remembers where its cover is, so a device that loses it, or never had it, can get it back.
+        var elsewhere = (await entries.GetCurrentAsync([.. rows.Where(r => r.EntryId is not null).Select(r => r.EntryId!.Value)], ct))
+            .Where(e => e.Kind == EntryKind.Elsewhere).Select(e => e.EntryId).ToHashSet();
+        var addresses = receipt.Added.Zip(newRows, (a, r) => (a.EntryId, r.Book.CoverUrl))
+            .Concat(rows.Where(r => r.EntryId is { } id && elsewhere.Contains(id)).Select(r => (EntryId: r.EntryId!.Value, r.Book.CoverUrl)))
+            .Where(a => a.CoverUrl is not null && LostCovers.Allowed(a.CoverUrl) is not null)
+            .GroupBy(a => a.EntryId).ToDictionary(g => g.Key, g => g.First().CoverUrl!);
+        await entries.SetCoverUrlsAsync(addresses, ct);
+
         var back = new List<EntryId>();
         if (cover is not null)
         {
@@ -185,6 +231,13 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
         }
 
         if (addedTerms) await projector.ProjectVocabularyAsync(ct);
+        // A cover the page's own pictures didn't give comes from its address.
+        if (lost is not null && addresses.Count > 0)
+        {
+            var coverless = (await entries.GetCoverUrlsAsync([.. addresses.Keys], ct)).Where(e => covers.FindElsewhere(e.SyncId) is null).ToList();
+            if (coverless.Count > 0 && await lost.RestoreAsync([.. coverless.Select(e => e.EntryId)], ct) > 0)
+                back.AddRange(coverless.Where(e => again.ContainsKey(e.EntryId) && covers.FindElsewhere(e.SyncId) is not null).Select(e => e.EntryId));
+        }
         var changed = receipt.Changed.Select(c => c.EntryId).Distinct().ToList();
         await projector.ProjectAsync([.. receipt.Added.Select(a => a.EntryId), .. changed.Union(back)], ct);
         return new OnlineImportResult(receipt.Added.Count, changed.Count, receipt, back.Count(id => !changed.Contains(id)));

@@ -50,6 +50,8 @@ static partial class Composition
         services.AddSingleton<NotesService>();
         services.AddSingleton<ReadingService>();
         services.AddSingleton<DownloadCheck>();
+        services.AddSingleton(sp => new LostCovers(sp.GetRequiredService<EntryStore>(), sp.GetRequiredService<CoverCache>(), sp.GetRequiredService<IImageCodec>(),
+            sp.GetRequiredService<MetadataProjector>(), LostCovers.CreateClient(smokeTest ? new SmokeSiteIcons() : null), sp.GetRequiredService<ILogger<LostCovers>>()));
         services.AddSingleton<OnlineImports>();
         services.AddSingleton<OnlineBrowsers>();
         services.AddSingleton<EbookBrowser>();

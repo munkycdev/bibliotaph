@@ -19,7 +19,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
     PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, TourViewModel tour, LibrarySummaryService summaries,
-    ILogger<HomeViewModel> log)
+    OnlineImports onlineImports, OnlineLibrariesViewModel onlineLibraries, ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity), ICollectionChoices, ISessionChoices, IPinState
 {
     /// <summary>How many covers each row shows.</summary>
@@ -56,6 +56,17 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [ObservableProperty]
     public partial bool ShowAiStep { get; private set; }
 
+    /// <summary>"31 books from D&amp;D Beyond have no cover": books imported from online libraries with none; null when there are none to offer.</summary>
+    [ObservableProperty]
+    public partial string? MissingCoversHeading { get; private set; }
+
+    [ObservableProperty]
+    public partial string MissingCoversHow { get; private set; } = "";
+
+    /// <summary>"Open D&amp;D Beyond": a button for each service whose books have no cover.</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<MissingCoversButton> MissingCoversButtons { get; private set; } = [];
+
     /// <summary>The books opened most recently, newest first.</summary>
     public ObservableCollection<LibraryItemViewModel> RecentlyOpened { get; } = [];
 
@@ -82,6 +93,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     {
         await base.LoadAsync();
         ShowAiStep = HasFolders && ai.Setup.Endpoint is null && await settings.GetAsync(SettingKeys.AiAsked) is null;
+        await LoadMissingCoversAsync();
         Activity.Refreshed -= OnActivityRefreshed;
         Activity.Refreshed += OnActivityRefreshed;
         Collections.Directory.Changed -= OnActivityRefreshed;
@@ -283,6 +295,38 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
         else Collections.Dialog?.CancelCommand.Execute(null);
     }
 
+    async Task LoadMissingCoversAsync()
+    {
+        try
+        {
+            var missing = await Task.Run(() => onlineImports.MissingCoversToOfferAsync(settings));
+            MissingCoversHeading = missing.Count == 0 ? null : OnlineImportText.MissingCoversHeading(missing);
+            MissingCoversHow = missing.Count == 0 ? "" : OnlineImportText.MissingCoversHowWindows(missing);
+            MissingCoversButtons = [.. missing.Select(m => new MissingCoversButton($"Open {m.Reader.Name}", m.Reader))];
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            // Home shows without it; it is looked at again next time.
+            log.LogWarning(ex, "Couldn't count the books from online libraries that have no cover");
+        }
+    }
+
+    /// <summary>Opens the service's library page in Bibliotaph's browser, with Online libraries showing the preview.</summary>
+    [RelayCommand]
+    void OpenMissingCovers(MissingCoversButton? button)
+    {
+        if (button is null) return;
+        links.Open(SettingsSection.OnlineLibraries);
+        onlineLibraries.OpenBrowser(button.Reader);
+    }
+
+    [RelayCommand]
+    async Task CoversLaterAsync()
+    {
+        MissingCoversHeading = null;
+        await Task.Run(() => onlineImports.DismissMissingCoversAsync(settings));
+    }
+
     [RelayCommand]
     void SetUpAi() => links.Open(SettingsSection.Ai);
 
@@ -299,3 +343,6 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     [RelayCommand]
     void ManageFolders() => folders.Manage();
 }
+
+/// <summary>Home's button that opens a service whose books have no cover.</summary>
+public sealed record MissingCoversButton(string Label, IOnlineLibraryReader Reader);

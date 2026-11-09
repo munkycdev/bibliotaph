@@ -48,6 +48,14 @@ public static class LibraryApi
             return await HomeAsync(lease.Library, ct);
         });
 
+        // Home's note about books that have no cover answered Not now: it comes back only when more lose theirs.
+        api.MapPost("/home/covers-later", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            await lease.Library.Get<OnlineImports>().DismissMissingCoversAsync(lease.Library.Get<SettingsStore>(), ct);
+            return Results.NoContent();
+        });
+
         // Home's Fill in the catalog with AI? answered Not now.
         api.MapPost("/home/ai-later", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
@@ -87,7 +95,9 @@ public static class LibraryApi
         var status = await StorageApi.StatusAsync(library, ct);
         var askAboutAi = status.Folders > 0 && library.Get<AiService>().Setup.Endpoint is null
             && await library.Get<SettingsStore>().GetAsync(SettingKeys.AiAsked, ct) is null;
-        return new HomeShelves([.. opened.Select(Card)], [.. added.Select(Card)], status.Text, await BindersApi.PreparingAsync(library, ct), askAboutAi);
+        var missing = await library.Get<OnlineImports>().MissingCoversToOfferAsync(library.Get<SettingsStore>(), ct);
+        return new HomeShelves([.. opened.Select(Card)], [.. added.Select(Card)], status.Text, await BindersApi.PreparingAsync(library, ct), askAboutAi,
+            missing.Count == 0 ? null : new MissingCoversNote(OnlineImportText.MissingCoversHeading(missing), OnlineImportText.MissingCoversHowWeb(missing)));
     }
 
     /// <summary>The Library page's query string. Anything missing or unreadable is "any", never a refusal.</summary>

@@ -267,7 +267,10 @@ Bibliotaph shows what importing does before anything changes, as the Windows app
 elsewhere, opening on their service (or, from a store, books to get there); a book **Already in your library** gets the
 service and its link rather than a second card; one **Imported before** only has its empty fields filled, and its cover if it has lost one. Untick what
 you'd rather leave out and choose **Import**, with **Undo**. A page sent with the bookmark brings its covers; when some
-didn't come, the preview says how many did. Books imported before that the page no longer lists are offered under **No longer in this library**, where
+didn't come, the preview says how many did. Bibliotaph remembers where each cover came from, so a cover that goes
+missing later is downloaded again from the service's image site. When books imported by an earlier version have no
+cover, **Home** says how many and from which service; send that service's page once more and import, and each book
+showing **Gets its cover back** gets it. Books imported before that the page no longer lists are offered under **No longer in this library**, where
 **Remove from library** takes one out; nothing goes unless you say so.
 
 ### Check a download

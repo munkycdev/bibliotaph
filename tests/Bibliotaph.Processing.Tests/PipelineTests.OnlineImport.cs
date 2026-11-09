@@ -102,6 +102,67 @@ public abstract partial class PipelineTests
         }
 
         [Fact]
+        public async Task A_lost_cover_comes_back_from_the_address_it_was_imported_with_and_home_says_so_until_it_does()
+        {
+            await _service.StartAsync(Ct);
+            var search = new LibraryQueries(_index);
+            var asked = new List<Uri>();
+            using var http = new HttpClient(new Pictures(asked));
+            await using var lost = new LostCovers(_entries, new CoverCache(_paths), new FakeCodec(), _projector, http);
+            var import = new OnlineImports(_metadataStore, _metadata, _entries, _projector, _queries, new FakeCodec(), new CoverCache(_paths), lost: lost);
+            var saved = LibraryPage("dndbeyond-library.html");
+
+            // Only one picture came with the page: the other cover comes from its address on D&D Beyond.
+            var plan = await import.PlanAsync(saved.Reader, saved.Page, Ct);
+            await import.ImportAsync(plan, plan.Rows, SentCovers("639000000000000001.jpeg"), Ct);
+            Assert.Equal(["https://www.dndbeyond.com/avatars/900/902/639000000000000002.jpeg"], asked.Select(u => u.AbsoluteUri));
+            var cards = await search.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct);
+            Assert.All(cards, c => Assert.StartsWith("online-", c.Cover));
+            Assert.Equal(2, (await _entries.GetCoverUrlsAsync(ct: Ct)).Count);
+            Assert.Empty(await import.MissingCoversAsync(Ct));
+
+            // Both lost, as on a device that never had them: Home says so, and they come back without the page.
+            var covers = new CoverCache(_paths);
+            foreach (var (_, syncId, _) in await _entries.GetCoverUrlsAsync(ct: Ct)) covers.DeleteImported(syncId);
+            var missing = Assert.Single(await import.MissingCoversToOfferAsync(_settings, Ct));
+            Assert.Equal(("D&D Beyond", 2), (missing.Reader.Name, missing.Books));
+            Assert.Equal("2 books from D&D Beyond have no cover", OnlineImportText.MissingCoversHeading([missing]));
+            Assert.Equal(2, await lost.RestoreAsync(ct: Ct));
+            Assert.All(await search.ListAsync(new LibraryFilter(Kind: KindFilter.Elsewhere), ct: Ct), c => Assert.StartsWith("online-", c.Cover));
+            Assert.Empty(await import.MissingCoversAsync(Ct));
+
+            // Not now holds until more lose their covers.
+            foreach (var (_, syncId, _) in await _entries.GetCoverUrlsAsync(ct: Ct)) covers.DeleteImported(syncId);
+            await import.DismissMissingCoversAsync(_settings, Ct);
+            Assert.Empty(await import.MissingCoversToOfferAsync(_settings, Ct));
+        }
+
+        [Theory]
+        [InlineData("https://www.dndbeyond.com/avatars/1.jpeg", true)]
+        [InlineData("https://media.dndbeyond.com/covers/1.jpg", true)]
+        [InlineData("https://hb.imgix.net/a.png", true)]
+        [InlineData("http://www.dndbeyond.com/avatars/1.jpeg", false)]
+        [InlineData("https://dndbeyond.com.example.net/1.jpeg", false)]
+        [InlineData("https://evil-dndbeyond.com/1.jpeg", false)]
+        [InlineData("https://127.0.0.1/1.jpeg", false)]
+        [InlineData("https://www.dndbeyond.com:8443/1.jpeg", false)]
+        [InlineData("./Library_files/cover.jpg", false)]
+        public void Only_an_https_address_on_an_online_librarys_own_site_is_downloaded(string url, bool allowed) =>
+            Assert.Equal(allowed, LostCovers.Allowed(url) is not null);
+
+        /// <summary>A service's image server: a picture for every address, counted.</summary>
+        sealed class Pictures(List<Uri> asked) : HttpMessageHandler
+        {
+            protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                lock (asked) asked.Add(request.RequestUri!);
+                var content = new ByteArrayContent(FakeCodec.Png(200, 260));
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = content });
+            }
+        }
+
+        [Fact]
         public async Task A_cover_kept_by_an_earlier_version_in_the_cache_moves_to_the_users_covers_and_a_lost_one_comes_back_on_import()
         {
             await _service.StartAsync(Ct);

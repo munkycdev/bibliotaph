@@ -15,12 +15,12 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261102014956_CatalogNornisWorlds";
+    public override string LastMigrationId => "20261109044048_CatalogEntryCoverUrl";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
-        modelBuilder.HasAnnotation("ProductVersion", "11.0.0-rc.2.26504.105");
+        modelBuilder.HasAnnotation("ProductVersion", "11.0.0-rc.3.26522.148");
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.AskTurn", b =>
             {
@@ -531,6 +531,10 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                 b.Property<long?>("CoverEntryId")
                     .HasColumnType("INTEGER")
                     .HasColumnName("cover_entry_id");
+
+                b.Property<string>("CoverUrl")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("cover_url");
 
                 b.Property<DateTime>("CreatedUtc")
                     .HasColumnType("TEXT")

@@ -195,6 +195,34 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         return current;
     }
 
+    /// <summary>
+    /// The books owned elsewhere, with no file yet, that were imported with a cover's address, by entry, or only those of
+    /// <paramref name="entryIds"/>.
+    /// </summary>
+    public async Task<IReadOnlyList<(EntryId EntryId, Guid SyncId, string CoverUrl)>> GetCoverUrlsAsync(IReadOnlyCollection<EntryId>? entryIds = null,
+        CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var query = db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null && !e.Sources.Any() && e.CoverUrl != null);
+        if (entryIds is not null)
+        {
+            var ids = entryIds.Select(e => e.Value).ToList();
+            query = query.Where(e => ids.Contains(e.Id));
+        }
+        return [.. (await query.Select(e => new { e.Id, e.SyncId, e.CoverUrl }).ToListAsync(ct)).Select(e => (new EntryId(e.Id), e.SyncId, e.CoverUrl!))];
+    }
+
+    /// <summary>Keeps the address of the cover each book was imported with, in place of any before.</summary>
+    public async Task SetCoverUrlsAsync(IReadOnlyDictionary<EntryId, string> urls, CancellationToken ct = default)
+    {
+        if (urls.Count == 0) return;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var ids = urls.Keys.Select(e => e.Value).ToList();
+        foreach (var entry in await db.Entries.Where(e => ids.Contains(e.Id)).ToListAsync(ct))
+            if (urls[new EntryId(entry.Id)] is var url && entry.CoverUrl != url) entry.CoverUrl = url;
+        await db.SaveChangesAsync(ct);
+    }
+
     /// <summary>The books owned elsewhere that have no file yet.</summary>
     public async Task<IReadOnlyList<EntryId>> GetElsewhereIdsAsync(CancellationToken ct = default)
     {

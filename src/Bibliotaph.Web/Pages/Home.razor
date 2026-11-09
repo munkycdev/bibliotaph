@@ -54,6 +54,18 @@ else
             </div>
         </div>
     }
+    @if (_shelves is { MissingCovers: { } covers } && !_coversLater)
+    {
+        @* Books imported from an online library with no cover, as on a device that got them before covers travelled. *@
+        <div class="bt-aistep">
+            <div class="bt-row">@covers.Heading</div>
+            <p class="bt-copy">@covers.How</p>
+            <div class="bt-actions">
+                <a class="bt-button primary" href="settings#online">Online libraries</a>
+                <button class="bt-button" @onclick="CoversLaterAsync">Not now</button>
+            </div>
+        </div>
+    }
     @if (_note is not null)
     {
         <div class="bt-librarynote bt-pagenote">
@@ -121,6 +133,20 @@ else
     bool _wasBusy;
     DateTime _loaded;
     bool _aiLater;
+    bool _coversLater;
+
+    async Task CoversLaterAsync()
+    {
+        _coversLater = true;
+        try
+        {
+            await LibraryApi.CoversLaterAsync();
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // Hidden for now; it asks again next time.
+        }
+    }
 
     async Task AiLaterAsync()
     {

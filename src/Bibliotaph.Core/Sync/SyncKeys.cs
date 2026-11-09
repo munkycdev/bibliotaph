@@ -248,6 +248,9 @@ public static class SyncFields
     /// <summary>The cover a book owned elsewhere was imported with from its online library, as base64 JPEG at cover size.</summary>
     public const string ImportedPicture = "imported-picture";
 
+    /// <summary>The address of the cover a book owned elsewhere was imported with, on its online library's image server.</summary>
+    public const string CoverUrl = "cover-url";
+
     /// <summary>"Cataloged wrong…" left unanswered, so Needs review offers the editor again: always true.</summary>
     public const string Wrong = "wrong";
 

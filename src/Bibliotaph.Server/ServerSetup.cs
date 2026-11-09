@@ -43,7 +43,7 @@ public static class ServerSetup
             sp.GetRequiredService<UserDriveFactory>(), paths.Downloads, new WorkerPdfEngine(sp.GetRequiredService<PdfWorkerPool>()),
             new SkiaImageCodec(), sp.GetRequiredService<ICoverStore>(), sp.GetRequiredService<IDataProtectionProvider>(),
             sp.GetRequiredService<ModelClientFactory>(), sp.GetRequiredService<ForegroundActivity>(), sp.GetRequiredService<UploadMemory>(),
-            sp.GetRequiredService<IBookCatalogue>()));
+            sp.GetRequiredService<IBookCatalogue>(), LostCovers.CreateClient(PublicNetwork.Handler())));
         // One for every library and connected PC, so the catalogues' paces hold server-wide.
         services.AddSingleton<IBookCatalogue>(sp => BookCatalogues(configuration, sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton(sp => new UploadMemory(sp.GetRequiredService<TimeProvider>(), options.UploadMemoryBytes));

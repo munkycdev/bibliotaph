@@ -104,6 +104,9 @@ public static class SettingKeys
     /// <summary>"True" once the first-run AI step has been answered, either way.</summary>
     public const string AiAsked = "ai.asked";
 
+    /// <summary>How many books owned online had no cover when the user said Not now to getting them back: only more asks again.</summary>
+    public const string MissingCoversDismissed = "online.missing-covers-dismissed";
+
     /// <summary>
     /// How far the first-run tour has gone: absent before it, "folders" once its first chapter has been seen, "books"
     /// once the whole tour has been seen or skipped.
