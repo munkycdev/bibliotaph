@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.6 · 9 November 2026
+
 - **Fixed: D&D Beyond and Demiplane books kept coming back without covers.** A cover lost on one device could only
   come back by reading the service's page again. Bibliotaph now remembers where each imported cover came from, syncs
   that address, and downloads a missing cover from the service's own image site by itself. Books imported before this

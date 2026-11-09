@@ -32,7 +32,7 @@
       while slice N was built. The SDK appends the commit to the informational version (1.4.0+<sha>), which the About
       popup shows, so every build says exactly where it came from.
     -->
-    <Version>1.5.0</Version>
+    <Version>1.6.0</Version>
   </PropertyGroup>
   <!--
     WPF compiles a XAML project twice: a throwaway assembly so the markup compiler can see the project's own types, then
