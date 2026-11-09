@@ -304,7 +304,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
             MissingCoversHow = missing.Count == 0 ? "" : OnlineImportText.MissingCoversHowWindows(missing);
             MissingCoversButtons = [.. missing.Select(m => new MissingCoversButton($"Open {m.Reader.Name}", m.Reader))];
         }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or Microsoft.Data.Sqlite.SqliteException)
         {
             // Home shows without it; it is looked at again next time.
             log.LogWarning(ex, "Couldn't count the books from online libraries that have no cover");

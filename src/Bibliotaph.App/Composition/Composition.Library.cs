@@ -3,6 +3,7 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App;
 
