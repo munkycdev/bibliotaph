@@ -17,10 +17,12 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
     public string Name => web.HasKey ? _webCatalogues ?? direct.Name : direct.Name;
 
     /// <summary>
-    /// While connected, whether the web library asks AdventureLookup, as its catalogues' names say, so a book printing
-    /// no ISBN or code is sent with its title only where it can be found that way.
+    /// While connected, whether the web library asks AdventureLookup or RPGGeek, as its catalogues' names say, so a book
+    /// printing no ISBN or code is sent with its title only where it can be found that way.
     /// </summary>
-    public bool FindsByTitleAlone => web.HasKey ? Name.Split(" or ").Contains(AdventureLookupCatalogue.Source) : direct.FindsByTitleAlone;
+    public bool FindsByTitleAlone => web.HasKey
+        ? Name.Split(" or ").Any(n => n is AdventureLookupCatalogue.Source or RpgGeekCatalogue.Source)
+        : direct.FindsByTitleAlone;
 
     public event EventHandler? NameChanged;
 

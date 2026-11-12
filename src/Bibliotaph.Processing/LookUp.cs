@@ -36,6 +36,11 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     public static string NoRecordIn(string catalogues, bool byCode = false, bool byTitle = false) =>
         $"{(byTitle ? NoTitleRecordBefore : byCode ? NoCodeRecordBefore : NoRecordBefore)}{catalogues}.";
 
+    /// <summary>Whether a book was looked up and no catalogue had a record of it, by its ISBN, product code or title.</summary>
+    public static bool Missed(string? reason) =>
+        reason is not null && (reason.StartsWith(NoRecordBefore, StringComparison.Ordinal) || reason.StartsWith(NoCodeRecordBefore, StringComparison.Ordinal)
+            || reason.StartsWith(NoTitleRecordBefore, StringComparison.Ordinal));
+
     /// <summary>
     /// Whether a book was passed over for printing no ISBN, before product codes were looked up too: it's looked at
     /// again, and one printing neither is passed over again in words that say so.
@@ -49,11 +54,7 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     /// The words a lookup's reason is shown in. A miss is stored naming the catalogues asked, which <see cref="AskedOfFewer"/>
     /// needs, but the reader only needs to know nothing was found.
     /// </summary>
-    public static string Shown(string reason) =>
-        reason.StartsWith(NoRecordBefore, StringComparison.Ordinal) || reason.StartsWith(NoCodeRecordBefore, StringComparison.Ordinal)
-        || reason.StartsWith(NoTitleRecordBefore, StringComparison.Ordinal)
-            ? NotFoundOnline
-            : reason;
+    public static string Shown(string reason) => Missed(reason) ? NotFoundOnline : reason;
 
     /// <summary>
     /// The lines a book belongs to, for a catalogue searched by name that takes records only by ISBN or code: the folders
@@ -78,6 +79,54 @@ public sealed class BookLookups(IBookCatalogue catalogue)
 
     /// <summary>The shortest line name searched for: a shorter one finds too many books to read.</summary>
     const int MinLine = 4;
+
+    /// <summary>
+    /// The lines the records of the books beside one name (<paramref name="titles"/>, the records the other files in its
+    /// folder use): the part of each title before a colon, as RPGGeek names a line's books "Line: Book 2. Grimoire", so a
+    /// book whose file and folder don't name its line is searched for among its neighbours'.
+    /// </summary>
+    public static IReadOnlyList<string> LinesBeside(IEnumerable<string> titles) =>
+        [.. titles.Where(t => t.Contains(':', StringComparison.Ordinal)).Select(t => t.Split(':', 2)[0].Trim())
+            .Where(l => BookRecords.Simplify(l).Length >= MinLine).DistinctBy(BookRecords.Simplify, StringComparer.Ordinal)];
+
+    /// <summary>Lines on a cover read longer than this are a blurb, not a title.</summary>
+    const int LongestCoverLine = 80;
+
+    /// <summary>
+    /// What a book's cover (<paramref name="cover"/>, its first page's text) prints as its title: its first lines that
+    /// read as words, not a scan's noise ("TALES OF THE GULL ROCK SAGA / MONSTER TOME"). <c>Title</c> is the first two
+    /// together, for a search by title; <c>Lines</c> those of three words or more, for a search by line, since a cover
+    /// often prints its line above the book's name. Nothing for a page that reads as none.
+    /// </summary>
+    public static (string? Title, IReadOnlyList<string> Lines) Cover(string? cover)
+    {
+        if (string.IsNullOrWhiteSpace(cover)) return (null, []);
+        List<string> read = [.. cover.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(ReadsAsWords).Take(3)];
+        if (read.Count == 0) return (null, []);
+        var title = string.Join(" ", read.Take(2));
+        return (title.Length <= 300 ? title : null,
+            [.. read.Where(l => l.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length >= 3).DistinctBy(BookRecords.Simplify, StringComparer.Ordinal)]);
+    }
+
+    /// <summary>
+    /// Whether a line reads as words: no stray symbols, no lone letters but "a", "A" and "I", and half its words or
+    /// more of three letters, which a scan's noise ("ra | Meme lad im") seldom manages.
+    /// </summary>
+    static bool ReadsAsWords(string line)
+    {
+        if (line.Length is < MinLine or > LongestCoverLine) return false;
+        var words = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var letters = 0;
+        foreach (var raw in words)
+        {
+            if (raw is "-" or "\u2013" or "\u2014" or "&") continue;
+            var word = raw.Trim(',', '.', ':', ';', '!', '?', '\'', '"', '\u2018', '\u2019', '\u201C', '\u201D', '(', ')');
+            if (word.Length == 0 || !(word.All(c => char.IsLetter(c) || c is '\'' or '\u2019' or '-') || word.All(char.IsDigit))) return false;
+            if (word.Length == 1 && char.IsLetter(word[0]) && word is not ("a" or "A" or "I")) return false;
+            if (word.Count(char.IsLetter) >= 3) letters++;
+        }
+        return letters > 0 && letters * 2 >= words.Length;
+    }
 
     /// <summary>Where a book was looked up, at the end of how its lookup ended, so it is asked again where more can be asked.</summary>
     public static string AskedOf(string catalogues) => $"{AskedBefore}{catalogues}.";
@@ -143,6 +192,15 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         remove => lookups.Catalogue.NameChanged -= value;
     }
 
+    /// <summary>A book no catalogue found is asked again once its card has a new title, the AI's or the user's.</summary>
+    public event EventHandler<IReadOnlyCollection<long>>? RunAgainFor
+    {
+        add => projector.Retitled += value;
+        remove => projector.Retitled -= value;
+    }
+
+    public bool RunsAgainFor(string? reason) => BookLookups.Missed(reason);
+
     public async Task<Func<string?, bool>> RunAgainAsync(CancellationToken ct)
     {
         await lookups.Catalogue.RefreshAsync(ct);
@@ -156,7 +214,8 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
     {
         var isbns = await queries.GetIsbnsAsync(job.DocumentId, ct);
         var codes = await queries.GetProductCodesAsync(job.DocumentId, ct);
-        var front = await FrontPagesAsync(job.DocumentId, ct);
+        var pages = await queries.GetAllPageTextsAsync(job.DocumentId, ct);
+        List<string?> front = [.. pages.Where(t => !string.IsNullOrWhiteSpace(t)).Take(BookIdentifiers.FrontPages)];
         var byTitle = isbns.Count == 0 && codes.Count == 0;
         if (byTitle)
         {
@@ -170,8 +229,13 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         var title = await queries.GetTitleAsync(job.DocumentId, ct);
         var embedded = (await queries.GetEmbeddedInfoAsync(job.DocumentId, ct))?.Title;
         var shown = await queries.GetBookTitleAsync(job.DocumentId, ct);
-        IReadOnlyList<string> titles = [.. BookRecords.Searches(new[] { shown, title, embedded }.OfType<string>().Where(t => t.Trim().Length <= 300), 3)];
-        var lines = BookLookups.Lines(await queries.GetFolderHintAsync(job.DocumentId, ct), front);
+        var cover = BookLookups.Cover(pages.Count > 0 ? pages[0] : null);
+        IReadOnlyList<string> titles = [.. BookRecords.Searches(new[] { shown, title, embedded, cover.Title }.OfType<string>().Where(t => t.Trim().Length <= 300), 4)];
+        // The folders it's in, then what the books beside it were found as, then what its cover prints above its name.
+        IReadOnlyList<string> lines = [.. BookRecords.Searches([
+            .. BookLookups.Lines(await queries.GetFolderHintAsync(job.DocumentId, ct), front),
+            .. BookLookups.LinesBeside(await records.GetUsedTitlesAsync(await queries.GetHashesBesideAsync(job.DocumentId, MostBeside, ct), ct)),
+            .. cover.Lines], 4)];
         CatalogueAnswer answer;
         try
         {
@@ -193,10 +257,10 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         // A record found by an identifier must name the book where it names itself, and one found by title alone must
         // have its title printed in it, or it's dropped; it's used when something else agrees, and asked about if not.
         List<string?> places = [.. front, title, embedded];
-        var pages = await queries.GetPageCountAsync(job.DocumentId, ct);
-        List<BookRecord> found = [.. answer.Records.Where(r => !BookRecords.ByTitle(r) || BookRecords.IsNamedIn(r, front))];
+        var pageCount = await queries.GetPageCountAsync(job.DocumentId, ct);
+        List<BookRecord> found = [.. answer.Records.Where(r => !BookRecords.ByTitle(r) || BookRecords.IsNamedWholeIn(r, front))];
         var saved = await records.SaveAsync(job.ContentHash, found,
-            r => BookRecords.ByTitle(r) ? BookRecords.Agrees(r, front, pages) : BookRecords.IsNamedIn(r, places), ct);
+            r => BookRecords.ByTitle(r) ? BookRecords.Agrees(r, front, pageCount) : BookRecords.IsNamedIn(r, places), ct);
         var asked = BookLookups.AskedOf(answer.AskedOf);
         if (await entries.GetEntryAsync(job.DocumentId, ct) is { } entry)
         {
@@ -222,7 +286,6 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
             $"You said {refused.Source}'s record for its {BookRecords.FoundBy(refused)}, of “{refused.Title}”, is of another book. {asked}");
     }
 
-    /// <summary>The text of a book's front pages, where it prints its title, its authors and its publisher.</summary>
-    async Task<List<string?>> FrontPagesAsync(long documentId, CancellationToken ct) =>
-        [.. (await queries.GetAllPageTextsAsync(documentId, ct)).Where(t => !string.IsNullOrWhiteSpace(t)).Take(BookIdentifiers.FrontPages)];
+    /// <summary>The books beside one whose records are read for the line they name: enough for a folder of a line's books.</summary>
+    const int MostBeside = 200;
 }

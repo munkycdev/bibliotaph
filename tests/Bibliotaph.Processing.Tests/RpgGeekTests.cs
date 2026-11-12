@@ -243,4 +243,48 @@ public sealed class RpgGeekTests
             ? $"search:{query["query"]}"
             : $"thing:{query["id"]!.Split(',').Length}";
     }
+
+    const string Screens = """
+        <items total="4">
+          <item type="rpgitem" id="601"><name type="primary" value="Gull Rock Saga: Game Master's Screen"/></item>
+          <item type="rpgitem" id="602"><name type="primary" value="Owlbear Mill: Game Master's Screen"/></item>
+          <item type="rpgitem" id="603"><name type="primary" value="Gull Rock Saga: Book of Maps"/></item>
+          <item type="rpgitem" id="604"><name type="primary" value="Book of Maps"/><name type="alternate" value="Gull Rock Saga: Book of Maps"/></item>
+        </items>
+        """;
+
+    static Server ScreenServer() => new(r =>
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(r.RequestUri!.Query);
+        if (r.RequestUri.AbsolutePath.EndsWith("/search", StringComparison.Ordinal)) return (HttpStatusCode.OK, Screens);
+        var id = query["id"]!;
+        return (HttpStatusCode.OK, $"""
+            <items><item type="rpgitem" id="{id}"><name type="primary" value="Item {id}"/><yearpublished value="2021" />
+              <link type="rpgdesigner" id="3" value="A. Example" /><link type="rpgpublisher" id="2" value="Example Press" /></item></items>
+            """);
+    });
+
+    [Fact]
+    public async Task A_book_printing_no_isbn_is_found_by_the_one_item_named_as_it_is_and_never_by_its_line()
+    {
+        var server = ScreenServer();
+        var catalogue = Catalogue(server);
+
+        // Named as the title is, whole.
+        var whole = await catalogue.AskAsync([], ["Gull Rock Saga: Game Master's Screen"], [], ["Gull Rock Saga"], Ct);
+        // Named so after its line's name; two lines have a screen, so a screen alone is neither.
+        var screen = await catalogue.AskAsync([], ["Game Master's Screen"], [], ct: Ct);
+        // Two items are named so after their line's name, but one is named so whole.
+        var maps = await catalogue.AskAsync([], ["Book of Maps"], [], ct: Ct);
+
+        var record = Assert.Single(whole.Records);
+        Assert.Equal(("601", "", "Item 601", "2021"), (record.Key, record.Isbn, record.Title, record.Published));
+        Assert.Equal(["A. Example"], record.Authors);
+        Assert.Equal(["Example Press"], record.Publishers);
+        Assert.True(BookRecords.ByTitle(record));
+        Assert.Empty(screen.Records);
+        Assert.Equal("604", Assert.Single(maps.Records).Key);
+        Assert.DoesNotContain(server.Asked, a => a.RequestUri!.Query.Contains("query=Gull+Rock+Saga&", StringComparison.Ordinal));
+        Assert.True(catalogue.FindsByTitleAlone);
+    }
 }

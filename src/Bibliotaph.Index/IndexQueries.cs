@@ -552,6 +552,18 @@ public sealed class IndexQueries(IndexDatabase database)
             """, new { documentId }, cancellationToken: ct));
     }
 
+    /// <summary>The content hashes of the other documents in the same folders as this one, the first <paramref name="most"/> read.</summary>
+    public async Task<IReadOnlyList<string>> GetHashesBesideAsync(long documentId, int most, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<string>(new CommandDefinition(
+            """
+            SELECT o.content_hash FROM doc d JOIN doc o ON o.folder_hint = d.folder_hint AND o.document_id <> d.document_id
+            WHERE d.document_id = @documentId AND d.folder_hint IS NOT NULL AND d.folder_hint <> ''
+            ORDER BY o.document_id LIMIT @most
+            """, new { documentId, most }, cancellationToken: ct))];
+    }
+
     /// <summary>The folders above a document's file under its source root ("Coriolis / Adventures"), or null.</summary>
     public async Task<string?> GetFolderHintAsync(long documentId, CancellationToken ct = default)
     {

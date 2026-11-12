@@ -1,5 +1,6 @@
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host.Tests;
@@ -11,6 +12,25 @@ public abstract partial class PipelineTests
     /// <summary>Hearts, opens, collections, session packs and notes reach the Library through index.db, and come back after it is rebuilt.</summary>
     public sealed class PreparationTests(SyntheticPdfs synthetic) : PipelineTests(synthetic)
     {
+        [Fact]
+        public async Task A_card_given_a_new_title_says_its_document_was_retitled_and_one_given_its_own_title_again_does_not()
+        {
+            Copy(_pdfs.KnownText, "Adventures/owlbear_mill_v2.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+            var card = Assert.Single(await new LibraryQueries(_index).ListAsync(new LibraryFilter(), ct: Ct));
+            var retitled = new List<long>();
+            _projector.Retitled += (_, documents) => retitled.AddRange(documents);
+
+            Assert.Null(await _metadata.SetAsync(card.EntryId, MetadataFields.Title, "The Owlbear Mill", Ct));
+            Assert.Null(await _metadata.SetAsync(card.EntryId, MetadataFields.Title, "the owlbear mill.", Ct));
+            Assert.Null(await _metadata.SetAsync(card.EntryId, MetadataFields.Tags, "Friday game", Ct));
+
+            // Only the new title counts: the same words cased and punctuated otherwise, or a new tag, aren't one.
+            Assert.Equal([card.DocumentId], retitled);
+        }
+
         [Fact]
         public async Task Hearts_and_opens_are_projected_at_once_and_again_after_a_rebuild()
         {

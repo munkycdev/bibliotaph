@@ -43,20 +43,28 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     /// <summary>Raised after entries' metadata changed in index.db, on a background thread.</summary>
     public event EventHandler<IReadOnlyCollection<EntryId>>? Projected;
 
+    /// <summary>
+    /// Raised with the documents whose book's card has just changed its title, as when the AI or the user names a book
+    /// its file named badly, on a background thread: a book no catalogue found by its old title may be found by its new.
+    /// </summary>
+    public event EventHandler<IReadOnlyCollection<long>>? Retitled;
+
     public async Task ProjectAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
     {
         if (entryIds.Count == 0) return;
         await _gate.WaitAsync(ct);
         IReadOnlyCollection<EntryId> projected;
+        IReadOnlyCollection<long> retitled;
         try
         {
-            projected = await WriteAsync(entryIds, ct);
+            (projected, retitled) = await WriteAsync(entryIds, ct);
         }
         finally
         {
             _gate.Release();
         }
         Projected?.Invoke(this, projected);
+        if (retitled.Count > 0) Retitled?.Invoke(this, retitled);
     }
 
     /// <summary>
@@ -138,13 +146,16 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
 
     /// <summary>
     /// Projects these entries and the adventures marked in their files, whose cards show their file's title and take
-    /// its game system, publisher and the rest. Returns every entry projected.
+    /// its game system, publisher and the rest. Returns every entry projected, and the documents whose book's card has
+    /// a new title (<see cref="Retitled"/>).
     /// </summary>
-    async Task<IReadOnlyCollection<EntryId>> WriteAsync(IReadOnlyCollection<EntryId> requested, CancellationToken ct)
+    async Task<(IReadOnlyCollection<EntryId> Projected, IReadOnlyCollection<long> Retitled)> WriteAsync(IReadOnlyCollection<EntryId> requested,
+        CancellationToken ct)
     {
         IReadOnlyCollection<EntryId> entryIds = [.. requested.Union(await entries.GetPartIdsAsync(requested, ct))];
         var vocabulary = await vocabularies.GetAsync(ct);
         var reviewAll = await ReviewAllAsync(ct);
+        var before = await queries.GetCardTitlesAsync(entryIds, ct);
         var current = await entries.GetCurrentAsync(entryIds, ct);
         await index.SetEntriesAsync([.. current.Select(ToRow)], ct);
         // An entry with no file to show, such as one whose copy joined another card, leaves the library.
@@ -156,7 +167,14 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         await index.SetAiReadAsync(shown, await runs.GetReadByAsync(shown, ct), ct);
         if (lookups is not null) await index.SetFoundByAsync(shown, await lookups.GetFoundByAsync(shown, ct), ct);
         await WriteMarksAsync(shown, ct);
-        return entryIds;
+        var after = await queries.GetCardTitlesAsync(shown, ct);
+        // Only a file's own card, whose title is the one its lookups search for, and only a title that reads differently.
+        List<long> retitled = [.. current
+            .Where(e => e is { Kind: EntryKind.Whole, DocumentId: not null } && before.TryGetValue(e.EntryId, out var was) && after.TryGetValue(e.EntryId, out var now)
+                && BookRecords.Simplify(was.Title) != BookRecords.Simplify(now.Title))
+            .Select(e => e.DocumentId!.Value)
+            .Distinct()];
+        return (entryIds, retitled);
     }
 
     EntryDocRow ToRow(EntryDocument entry) => new(entry.EntryId, entry.DocumentId, entry.Kind, entry.Copies)
