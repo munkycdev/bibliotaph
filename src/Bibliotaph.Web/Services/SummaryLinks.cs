@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Search;
 
 namespace Bibliotaph.Web.Services;
 
@@ -25,7 +26,9 @@ public static class SummaryLinks
             Type = Value("type"),
             Own = Value("own"),
             Store = Value("store"),
-            Picked = Value("setting") is { } setting ? JsonSerializer.Serialize(new Dictionary<string, string[]> { ["setting"] = [setting] }) : null,
+            Picked = filter is { Picked: true, Field: { } field, Value: { } value }
+                ? JsonSerializer.Serialize(new Dictionary<string, string[]> { [field] = [value] }) : null,
+            Found = Value(FoundOnline.Field),
             Folder = filter.Folder,
             Level = filter.Level,
             Kind = filter.Kind,

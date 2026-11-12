@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Summary shows what the online lookups found.** **Where it came from** now lists your publishers and which online
+  catalogues found your books (RPGGeek, AdventureLookup, Open Library, Google Books), with how many none has found yet.
+  **What it is** adds themes, environments and what's included (pre-generated characters, handouts, battle maps, solo
+  play). Every bar opens the Library at those books, on Windows and the web, and the new `includes:` search field finds
+  them by what comes with them.
 - **Security: three code scanning findings closed.** The web server checks the user ID in a Nornis reading ticket or
   world update is one of its own before it reaches the log, and the Windows app keeps the reason saving a password
   failed apart from the password itself, so the log can't be made to carry either.

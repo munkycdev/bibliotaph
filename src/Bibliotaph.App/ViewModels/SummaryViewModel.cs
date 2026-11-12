@@ -1,6 +1,7 @@
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -111,7 +112,9 @@ public sealed partial class SummaryViewModel(LibrarySummaryService summaries, So
             Copies: filter.Copies,
             Own: Value("own"),
             Store: Value("store"),
-            Picked: Value("setting") is { } setting ? PickedValues.Of([KeyValuePair.Create("setting", (IReadOnlyList<string>)[setting])]) : null,
-            Adventures: filter.AdventureCards ? AdventureCards.Cards : AdventureCards.InBooks);
+            Picked: filter is { Picked: true, Field: { } field, Value: { } value }
+                ? PickedValues.Of([KeyValuePair.Create(field, (IReadOnlyList<string>)[value])]) : null,
+            Adventures: filter.AdventureCards ? AdventureCards.Cards : AdventureCards.InBooks,
+            Found: Value(FoundOnline.Field));
     }
 }

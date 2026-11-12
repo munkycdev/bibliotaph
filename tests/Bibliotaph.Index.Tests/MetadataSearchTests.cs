@@ -30,7 +30,7 @@ public sealed class MetadataSearchTests : IndexFixture
                 new("edition", "pf2e", "pathfinder-2e"), new("system", "pathfinder", "pathfinder"), new("type", "module", "adventure"),
                 new("style", "dungeon crawl", "dungeon-crawl"), new("style", "caper", "heist"), new("duration", "one shot", "one-shot"),
                 new("store", "dtrpg", "drivethrurpg"), new("store", "drivethrurpg", "drivethrurpg"), new("store", "kickstarter", "kickstarter"),
-                new("setting", "the marches", "the-marches"), new("setting", "marchlands", "the-marches"),
+                new("setting", "the marches", "the-marches"), new("setting", "marchlands", "the-marches"), new("includes", "pregens", "pregens"),
             ], Ct);
         await _store.SetMetadataAsync(
             [
@@ -49,7 +49,8 @@ public sealed class MetadataSearchTests : IndexFixture
                     PlayersMin = 4, PlayersMax = 4,
                     Facets = [new("system", "dnd", "Dungeons & Dragons", false), new("edition", "dnd-5e", "5th edition", false), new("type", "adventure", "Adventure", false),
                         new("style", "heist", "Heist", false), new("duration", "short", "Short (2–3 sessions)", false),
-                        new("store", "kickstarter", "Kickstarter", true), new("setting", "sunken-coast", "Sunken Coast", true)],
+                        new("store", "kickstarter", "Kickstarter", true), new("setting", "sunken-coast", "Sunken Coast", true),
+                        new("includes", "pregens", "Pre-generated characters", false)],
                 },
                 new EntryMetaRow
                 {
@@ -155,6 +156,8 @@ public sealed class MetadataSearchTests : IndexFixture
     [InlineData("duration:one-shot", new[] { Tomb })]
     [InlineData("duration:\"one shot\"", new[] { Tomb })]
     [InlineData("duration:short", new[] { Citadel })]
+    [InlineData("includes:pregens", new[] { Citadel })]
+    [InlineData("includes:\"pre-generated characters\"", new[] { Citadel })]
     [InlineData("-duration:unknown theme:horror", new[] { Tomb })]
     public async Task Style_and_duration_match_any_name_of_a_term(string query, long[] expected) =>
         Assert.Equal(expected, await FindAsync(query));

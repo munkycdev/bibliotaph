@@ -178,6 +178,10 @@
               <ColumnDefinition Width="40" />
               <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto" />
+              <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <StackPanel Visibility="{Binding Page.Folders, Converter={StaticResource Bt.VisibleWhenSet}}">
               <DockPanel Margin="0,0,0,8">
                 <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Manage folders" Command="{Binding ManageFoldersCommand}" />
@@ -199,6 +203,20 @@
                             AutomationProperties.Name="Online libraries and stores" />
               <TextBlock Text="{Binding Page.StoresText}" Style="{StaticResource Text.Small}" Margin="0,8,0,0"
                          Visibility="{Binding Page.StoresText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Margin="0,28,0,0" Visibility="{Binding Page.Publishers, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Page.Publishers.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.Publishers.Heading}" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <ItemsControl ItemsSource="{Binding Page.Publishers.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Publishers" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,28,0,0" Visibility="{Binding Page.FoundOnline, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Page.FoundOnline.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.FoundOnline.Heading}" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <ItemsControl ItemsSource="{Binding Page.FoundOnline.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Found online" />
             </StackPanel>
           </Grid>
         </StackPanel>
@@ -237,6 +255,29 @@
                 <TextBlock Text="{Binding Page.Settings.Heading}" Style="{StaticResource ListHeading}" />
               </DockPanel>
               <ItemsControl ItemsSource="{Binding Page.Settings.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Settings" />
+            </StackPanel>
+          </UniformGrid>
+          <UniformGrid Columns="3" Margin="0,28,0,0">
+            <StackPanel Margin="0,0,28,0" Visibility="{Binding Page.Themes, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Page.Themes.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.Themes.Heading}" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <ItemsControl ItemsSource="{Binding Page.Themes.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Themes" />
+            </StackPanel>
+            <StackPanel Margin="0,0,28,0" Visibility="{Binding Page.Environments, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Page.Environments.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.Environments.Heading}" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <ItemsControl ItemsSource="{Binding Page.Environments.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="Environments" />
+            </StackPanel>
+            <StackPanel Visibility="{Binding Page.Includes, Converter={StaticResource Bt.VisibleWhenSet}}">
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Page.Includes.Note}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Page.Includes.Heading}" Style="{StaticResource ListHeading}" />
+              </DockPanel>
+              <ItemsControl ItemsSource="{Binding Page.Includes.Bars}" ItemTemplate="{StaticResource Bar}" Focusable="False" AutomationProperties.Name="What's included" />
             </StackPanel>
           </UniformGrid>
 

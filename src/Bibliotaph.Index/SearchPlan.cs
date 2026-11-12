@@ -124,6 +124,7 @@ public sealed record SearchPlan
         SearchField.Theme => ["theme", ChapterFields.Inside(ChapterFields.Theme)],
         SearchField.Style => ["style"],
         SearchField.Duration => ["duration"],
+        SearchField.Includes => ["includes"],
         SearchField.Environment => ["environment", ChapterFields.Inside(ChapterFields.Environment)],
         SearchField.Creature => [ChapterFields.Inside(ChapterFields.Creature)],
         SearchField.Own => ["own"],
