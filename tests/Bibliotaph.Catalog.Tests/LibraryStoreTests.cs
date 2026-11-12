@@ -236,6 +236,44 @@ public sealed partial class LibraryStoreTests : IAsyncLifetime
         Assert.Equal([Path.Combine(_dir, "Kept", "shared.pdf")], locations.Select(l => l.FullPath));
     }
 
+    [Fact]
+    public async Task A_folder_inside_a_library_folder_shows_the_books_in_it_and_its_subfolders()
+    {
+        var root = await RootAsync();
+        var other = await RootAsync("Other");
+        await _library.ReconcileRootAsync(root, [File("Fantasy/Bundle/a.pdf"), File("Fantasy/Bundle/Deep/b.pdf"), File("Fantasy/c.pdf"), File("top.pdf"),
+            File("Packs/Maps.zip")], ct: Ct);
+        await _library.ReconcileRootAsync(other, [File("Fantasy/Bundle/d.pdf")], ct: Ct);
+        var ids = new Dictionary<string, long>();
+        var hash = 'a';
+        foreach (var file in await _library.NextUnhashedAsync(10, includeOnlineOnly: true, Ct))
+        {
+            if (file.IsArchive)
+            {
+                var member = Assert.Single((await _library.ReconcileArchiveAsync(file, [Member("Inner/Harbor.png", 1)], Ct))!);
+                ids["Harbor.png"] = (await _library.AttachHashAsync(member, Hash('9'), Ct))!.Value.DocumentId;
+                await _library.AttachArchiveHashAsync(file, Hash('8'), Ct);
+                continue;
+            }
+            ids[Path.GetFileName(file.FullPath)] = (await _library.AttachHashAsync(file, Hash(hash++), Ct))!.Value.DocumentId;
+        }
+        var entries = new EntryStore(_contexts);
+        async Task<EntryId> Entry(string name) => (await entries.GetEntryAsync(ids[name], Ct))!.EntryId;
+        async Task<long[]> In(long rootId, string folder) =>
+            [.. (await _library.GetVisibleEntryIdsAsync(new FolderKey(rootId, folder), Ct)).Select(e => e.Value).Order()];
+
+        Assert.Equal([(await Entry("a.pdf")).Value, (await Entry("b.pdf")).Value], await In(root, @"Fantasy\Bundle"));
+        Assert.Equal([(await Entry("b.pdf")).Value], await In(root, "fantasy/bundle/deep"));
+        Assert.Equal(3, (await In(root, "Fantasy")).Length);
+        Assert.Equal([(await Entry("d.pdf")).Value], await In(other, "Fantasy/Bundle"));
+        // A file inside a ZIP is in the ZIP's folder, and the library folder itself holds everything in it.
+        Assert.Equal([(await Entry("Harbor.png")).Value], await In(root, "Packs"));
+        Assert.Equal(5, (await In(root, "")).Length);
+
+        Assert.Equal([new FolderKey(root, "Fantasy"), new FolderKey(root, "Fantasy/Bundle"), new FolderKey(root, "Fantasy/Bundle/Deep"),
+            new FolderKey(root, "Packs"), new FolderKey(other, "Fantasy"), new FolderKey(other, "Fantasy/Bundle")], await _library.GetBookFoldersAsync(Ct));
+    }
+
     static ArchiveMember Member(string entry, uint crc, long size = 500, string? problem = null) => new(entry, size, Monday, crc, problem);
 
     [Fact]

@@ -67,6 +67,7 @@ internal sealed class LibraryWhere
         foreach (var opened in plan.Opened) _sql.Append($" AND e.entry_id {(opened.Opened ? "IN" : "NOT IN")} (SELECT entry_id FROM entry_opened)");
 
         if (filter.OnlyWithCopies) _sql.Append(" AND e.copies > 1");
+        if (filter.OnlyWithoutStore) _sql.Append(" AND e.entry_id NOT IN (SELECT entry_id FROM entry_facet WHERE field = 'store')");
         if (filter.HideParts) _sql.Append(" AND e.kind <> 'Part'");
         // Kept inside their books, adventures show only when a search finds them; browsing lists them in their files.
         else if (filter.PartsInBooks && plan.IsEmpty) _sql.Append(" AND e.kind <> 'Part'");

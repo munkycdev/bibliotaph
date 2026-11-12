@@ -1687,7 +1687,7 @@ static partial class SmokeTest
 
         var folder = page.Page!.Folders!.Bars[0];
         page.OpenCommand.Execute(folder.Link);
-        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel library && library.Filters.FolderChoice.Value == folder.Link!.Filter!.Folder
+        await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel library && library.Filters.FolderChoice.Value?.RootId == folder.Link!.Filter!.Folder
                 && library.Items.Count.ToString("N0", CultureInfo.InvariantCulture) == folder.Count.Split(' ')[0],
             () => $"The bar for {folder.Label} didn't open the Library at its {folder.Count}.");
         navigation.GoBack();

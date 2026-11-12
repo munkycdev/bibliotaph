@@ -111,7 +111,8 @@ public static class LibraryApi
             Q = Text("q"), Tab = Text("tab"), Sort = Text("sort"), EachFile = On("eachFile"), System = Text("system"), Type = Text("type"),
             Level = Number("level"), UnknownLevels = On("unknownLevels"), Players = Number("players"), Style = Text("style"), Duration = Text("duration"),
             Folder = long.TryParse(Text("folder"), NumberStyles.None, CultureInfo.InvariantCulture, out var folder) ? folder : null,
-            Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), Found = Text("found"), Adventures = Text("adventures"),
+            Subfolder = Text("subfolder"),
+            Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), NoSource = On("noSource"), Found = Text("found"), Adventures = Text("adventures"),
             Collections = Text("collections"), Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = On("addedHere"), Favorites = On("favorites"),
@@ -133,7 +134,7 @@ public static class LibraryApi
         var store = library.Get<LibraryStore>();
         var queries = library.Get<LibraryQueries>();
         var searching = query.IsSearching;
-        var scope = await store.GetVisibleEntryIdsAsync(query.Folder, ct);
+        var scope = await ScopeOfAsync(store, query, ct);
         var away = await store.GetUnavailableAsync(ct);
         var filter = Filter(query, scope);
         var scopeText = await ScopeAsync(library, query, ct);
@@ -216,7 +217,7 @@ public static class LibraryApi
             query.UnknownLevels, Parse<AiFilter>(query.Ai) ?? AiFilter.All, query.Copies, One(query.Own), Styles: One(query.Style),
             Durations: One(query.Duration), Players: query.Players, Stores: One(query.Store), HideParts: adventures == "Hidden",
             Collections: Parse<CollectionFilter>(query.Collections) ?? CollectionFilter.All, PartsInBooks: adventures.Length == 0,
-            PackFiles: query.EachFile, Picked: Picked(query.Picked), Found: One(query.Found),
+            PackFiles: query.EachFile, Picked: Picked(query.Picked), Found: One(query.Found), OnlyWithoutStore: query.NoSource,
             Group: query.Collection is { } collection ? query.AddedHere ? ScopeKeys.CollectionOwn(collection) : ScopeKeys.Collection(collection)
                 : query.Binder is { } binder ? ScopeKeys.Session(binder)
                 : query.Favorites ? ScopeKeys.Favorites : null);
@@ -224,7 +225,7 @@ public static class LibraryApi
 
     static bool IsFiltering(LibraryQuery q) =>
         !string.IsNullOrEmpty(q.Kind) || q.Folder is not null || !string.IsNullOrEmpty(q.System) || !string.IsNullOrEmpty(q.Type) || q.Level is not null
-        || !string.IsNullOrEmpty(q.Ai) || q.Copies || !string.IsNullOrEmpty(q.Own) || !string.IsNullOrEmpty(q.Style) || !string.IsNullOrEmpty(q.Duration)
+        || !string.IsNullOrEmpty(q.Ai) || q.Copies || q.NoSource || !string.IsNullOrEmpty(q.Own) || !string.IsNullOrEmpty(q.Style) || !string.IsNullOrEmpty(q.Duration)
         || q.Players is not null || !string.IsNullOrEmpty(q.Store) || !string.IsNullOrEmpty(q.Adventures) || !string.IsNullOrEmpty(q.Collections)
         || !string.IsNullOrEmpty(q.Found)
         || Picked(q.Picked) is not null;
@@ -270,7 +271,7 @@ public static class LibraryApi
             await Counted("system", filter with { Systems = null }, "All systems", query.System),
             await Counted("type", filter with { Types = null }, "All types", query.Type),
             styles, durations,
-            [new("", "All folders"), .. roots.Select(r => new FilterChoice(r.Id.ToString(CultureInfo.InvariantCulture), FolderText.Name(r.Path)))],
+            FolderChoices(roots, await library.Get<LibraryStore>().GetBookFoldersAsync(ct), query),
             owns, stores, Offered(styles, query.Style), Offered(durations, query.Duration), Offered(owns, query.Own), Offered(stores, query.Store),
             await queries.CountAiReadAsync(ct) > 0 || !string.IsNullOrEmpty(query.Ai),
             await queries.CountWithCopiesAsync(ct) > 0 || query.Copies,
@@ -278,6 +279,30 @@ public static class LibraryApi
             hasCollections || !string.IsNullOrEmpty(query.Collections),
             await BoxesAsync(queries, filter, plan, ct), found, Offered(found, query.Found));
     }
+
+    /// <summary>
+    /// The Source folder menu: each library folder, then each folder inside it that holds a book, by its path. The
+    /// folder chosen stays while no book is in it any more, so the menu never changes what was picked.
+    /// </summary>
+    static List<FilterChoice> FolderChoices(IReadOnlyList<Catalog.Entities.SourceRoot> roots, IReadOnlyList<FolderKey> folders, LibraryQuery query)
+    {
+        var inside = folders.ToLookup(f => f.RootId);
+        List<FilterChoice> choices = [new("", "All folders")];
+        foreach (var root in roots)
+        {
+            var name = FolderText.Name(root.Path);
+            choices.Add(new(new FolderKey(root.Id, "").Text, name));
+            choices.AddRange(inside[root.Id].Select(f => new FilterChoice(f.Text, f.Label(name, roots.Count > 1))));
+        }
+        if (FolderKey.Chosen(query.Folder, query.Subfolder) is { } chosen && choices.All(c => FolderKey.Parse(c.Value) != chosen)
+            && roots.FirstOrDefault(r => r.Id == chosen.RootId) is { } owner)
+            choices.Add(new(chosen.Text, chosen.Label(FolderText.Name(owner.Path), roots.Count > 1)));
+        return choices;
+    }
+
+    /// <summary>The books the query's folder holds, or the whole library.</summary>
+    internal static async Task<IReadOnlyList<EntryId>> ScopeOfAsync(LibraryStore store, LibraryQuery query, CancellationToken ct) =>
+        FolderKey.Chosen(query.Folder, query.Subfolder) is { } folder ? await store.GetVisibleEntryIdsAsync(folder, ct) : await store.GetVisibleEntryIdsAsync(ct: ct);
 
     /// <summary>
     /// The type-ahead filters, each shown once some book in view has a value for it, or while it has picks; a pick
@@ -301,7 +326,7 @@ public static class LibraryApi
     public static async Task<IReadOnlyList<ValueSuggestion>> SuggestAsync(UserLibrary library, string field, string text, LibraryQuery query,
         CancellationToken ct)
     {
-        var scope = await library.Get<LibraryStore>().GetVisibleEntryIdsAsync(query.Folder, ct);
+        var scope = await ScopeOfAsync(library.Get<LibraryStore>(), query, ct);
         var filter = Filter(query, scope);
         var plan = query.IsSearching ? SearchPlan.From(SearchQuery.Parse(query.Q!.Trim())) : null;
         var counts = await library.Get<LibraryQueries>().GetValueCountsAsync(field, filter with { Picked = filter.Picked?.Without(field) }, plan, ct);

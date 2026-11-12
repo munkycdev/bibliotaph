@@ -208,7 +208,8 @@
                 }
                 <span class="bt-eyebrow bt-eyebrow-block">WHERE IT LIVES</span>
                 <div class="bt-filterrow">
-                    <Menu Label="Source folder" Choices="menus.Folders" Value="@LibraryFilters.Text(_query.Folder)" Changed='v => Filter(_query with { Folder = long.TryParse(v, out var id) ? id : null })' />
+                    <Menu Label="Source folder" Choices="menus.Folders" Value="@LibraryFilters.FolderValue(_query)" Changed='v => Filter(LibraryFilters.WithFolder(_query, v))'
+                          Hint="A folder you added, or a folder inside it, with the folders inside that" />
                     @if (menus.ShowOwn)
                     {
                         <Menu Label="Also own" Choices="menus.Owns" Value="@_query.Own" Changed='v => Filter(_query with { Own = v })'
@@ -232,6 +233,8 @@
                         <Menu Label="Copies" Choices="LibraryChoices.Copies" Value='@(_query.Copies ? "true" : "")' Changed='v => Filter(_query with { Copies = v == "true" })'
                               Hint="Books that are in more than one file" />
                     }
+                    <Menu Label="Source" Choices="LibraryChoices.Source" Value='@(_query.NoSource ? "true" : "")' Changed='v => Filter(_query with { NoSource = v == "true" })'
+                          Hint="Books with nothing in Get it from: where you got them, or can get them again" />
                     @if (menus.ShowFound)
                     {
                         <Menu Label="Found online" Choices="menus.Found" Value="@_query.Found" Changed='v => Filter(_query with { Found = v })'
