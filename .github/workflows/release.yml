@@ -32,9 +32,8 @@ jobs:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       NUGET_PACKAGES: ${{ github.workspace }}\.nuget\packages
-      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK as in ci.yml; use '11.0.x'
-      # with dotnet-quality ga then.
-      DOTNET_SDK: '11.0.100-rc.3.26522.148'
+      # Pinned to the exact SDK global.json names, so the cached SDK and every run match.
+      DOTNET_SDK: '11.0.100'
       DOTNET_INSTALL_DIR: D:\dotnet
 
     steps:
@@ -78,11 +77,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      # .NET 11 is in release candidate until November 2026, pinned to the exact RC SDK as in ci.yml; use '11.0.x'
-      # with dotnet-quality ga then.
+      # Pinned to the exact SDK global.json names, so the cached SDK and every run match.
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '11.0.100-rc.3.26522.148'
+          dotnet-version: '11.0.100'
 
       - uses: actions/cache@v4
         with:

@@ -2,7 +2,7 @@
 #   docker build -f src/Bibliotaph.Server/Container/Dockerfile -t bibliotaph-server .
 # It sticks to what the classic builder understands, so az acr build can build it in Azure without Docker installed.
 
-FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 
 # Litestream (Apache-2.0) from its GitHub release rather than its Docker Hub image, so a build never meets Hub's
 # pull limits; the checksum pins the exact file.
@@ -26,7 +26,7 @@ RUN props="${VERSION:+-p:Version=$VERSION} ${COMMIT:+-p:SourceRevisionId=$COMMIT
  && install -m 755 src/Bibliotaph.Server/Container/start.sh /usr/local/bin/bibliotaph \
  && install -m 755 src/Bibliotaph.Server/Container/invite.sh /usr/local/bin/bibliotaph-invite
 
-FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0
 # Tesseract (Apache-2.0) and its English data, which the PDF worker loads to read scanned pages. One thread a page, so
 # OCR never takes the whole container from the people using it.
 RUN apt-get update \
