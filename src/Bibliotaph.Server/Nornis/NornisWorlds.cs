@@ -48,6 +48,7 @@ public sealed class NornisWorlds
     /// <summary>Writes a batch to the user's inbox, leaving out events it holds already, then applies it if the library is open.</summary>
     public async Task ReceiveAsync(string userId, IReadOnlyList<WorldEvent> events, CancellationToken ct)
     {
+        userId = UserIds.Require(userId);
         await using (var db = _accounts.CreateContext())
         {
             var ids = events.Select(e => Id(e.EventId)).Distinct().ToList();

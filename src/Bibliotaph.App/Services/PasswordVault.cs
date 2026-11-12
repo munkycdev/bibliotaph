@@ -46,10 +46,8 @@ public sealed class PasswordVault(ILogger<PasswordVault> log) : IPasswordVault
 
     public bool Remember(string contentHash, string password)
     {
-        var error = WindowsCredentials.Write(Target(contentHash), password, "A PDF password remembered by Bibliotaph");
-        if (error is null) return true;
-        log.LogWarning("Remembering a PDF password failed: {Error}", error);
-        return false;
+        return WindowsCredentials.Write(Target(contentHash), password, "A PDF password remembered by Bibliotaph",
+            error => log.LogWarning("Remembering a PDF password failed: {Error}", error));
     }
 
     public void Forget(string contentHash)
@@ -140,10 +138,8 @@ public sealed class ApiKeyVault(ILogger<ApiKeyVault> log) : IApiKeyStore
 
     public bool Remember(string endpoint, string key)
     {
-        var error = WindowsCredentials.Write(Target(endpoint), key, "A model endpoint's key, saved by Bibliotaph");
-        if (error is null) return true;
-        log.LogWarning("Saving an endpoint's key failed: {Error}", error);
-        return false;
+        return WindowsCredentials.Write(Target(endpoint), key, "A model endpoint's key, saved by Bibliotaph",
+            error => log.LogWarning("Saving an endpoint's key failed: {Error}", error));
     }
 
     public void Forget(string endpoint)
@@ -177,10 +173,8 @@ public sealed class WebLibraryKeyVault(ILogger<WebLibraryKeyVault> log) : IWebLi
 
     public bool Remember(string key)
     {
-        var error = WindowsCredentials.Write(Target, key, "This PC's key to your web library, saved by Bibliotaph");
-        if (error is null) return true;
-        log.LogWarning("Saving the web library key failed: {Error}", error);
-        return false;
+        return WindowsCredentials.Write(Target, key, "This PC's key to your web library, saved by Bibliotaph",
+            error => log.LogWarning("Saving the web library key failed: {Error}", error));
     }
 
     public void Forget()
@@ -229,11 +223,9 @@ public sealed class StorageSecretVault(ILogger<StorageSecretVault> log) : Biblio
         {
             var target = i == 0 ? Target(connectionId) : $"{Target(connectionId)}#{i}";
             var value = i == 0 ? $"{parts.Count}\n{parts[0]}" : parts[i];
-            if (WindowsCredentials.Write(target, value, "A storage sign-in kept by Bibliotaph") is { } error)
-            {
-                log.LogWarning("Keeping a storage sign-in failed: {Error}", error);
+            if (!WindowsCredentials.Write(target, value, "A storage sign-in kept by Bibliotaph",
+                    error => log.LogWarning("Keeping a storage sign-in failed: {Error}", error)))
                 return false;
-            }
         }
         return true;
     }
@@ -295,7 +287,11 @@ static class WindowsCredentials
         }
     }
 
-    public static string? Write(string target, string secret, string comment)
+    /// <summary>
+    /// Stores a secret. The reason for a failure goes to <paramref name="failed"/> rather than back with the result,
+    /// so nothing a caller logs comes out of the call that was handed the secret.
+    /// </summary>
+    public static bool Write(string target, string secret, string comment, Action<string> failed)
     {
         var bytes = Encoding.Unicode.GetBytes(secret);
         var blob = Marshal.AllocHGlobal(bytes.Length);
@@ -312,7 +308,9 @@ static class WindowsCredentials
                 Persist = PersistLocalMachine,
                 UserName = "Bibliotaph",
             };
-            return CredWrite(ref credential, 0) ? null : new Win32Exception(Marshal.GetLastWin32Error()).Message;
+            if (CredWrite(ref credential, 0)) return true;
+            failed(new Win32Exception(Marshal.GetLastWin32Error()).Message);
+            return false;
         }
         finally
         {

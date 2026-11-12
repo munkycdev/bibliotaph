@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Security: three code scanning findings closed.** The web server checks the user ID in a Nornis reading ticket or
+  world update is one of its own before it reaches the log, and the Windows app keeps the reason saving a password
+  failed apart from the password itself, so the log can't be made to carry either.
 - **Built on the released .NET 11.** Bibliotaph moves from the .NET 11 release candidate to the general release
   (SDK 11.0.100, runtime 11.0.0), along with EF Core and ASP.NET Core 11.0.0, on Windows and the web server.
 
