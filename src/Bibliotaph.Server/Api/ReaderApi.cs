@@ -128,10 +128,10 @@ public static partial class ReaderApi
         var part = opened is null && entry is { IsPart: true, Pages: { } pages } && entry.DocumentId == documentId ? new ReaderPart(pages.First, pages.Last) : null;
         var title = opened is { } named ? named.Heading : part is not null ? $"{entry.Title} · in {entry.ParentTitle ?? "its file"}" : entry.Title;
         var format = source.Format;
-        var readerKind = SourceFormats.IsImage(format) ? ReaderKinds.Image : SourceFormats.IsEbook(format) ? ReaderKinds.Ebook : ReaderKinds.Pdf;
-        // As the Windows reader's line: "PDF · 320 pages", "EPUB · 87 pages", "JPG image", and the pack it's in.
+        var readerKind = SourceFormats.IsPicture(format) ? ReaderKinds.Image : SourceFormats.IsEbook(format) ? ReaderKinds.Ebook : ReaderKinds.Pdf;
+        // As the Windows reader's line: "PDF · 320 pages", "EPUB · 87 pages", "JPG image", "WEBM video", and the pack it's in.
         var kind = readerKind == ReaderKinds.Image
-            ? $"{CardText.FormatName(format)} image"
+            ? $"{CardText.FormatName(format)} {(SourceFormats.IsVideo(format) ? "video" : "image")}"
             : $"{CardText.FormatName(format)} · {pageCount.ToString("N0", CultureInfo.CurrentCulture)} {(pageCount == 1 ? "page" : "pages")}";
         if (entry.IsPack) kind = $"{kind} in {entry.PackTitle ?? entry.Title}";
         // The game master's folders are theirs, not a guest's to see.
@@ -154,7 +154,7 @@ public static partial class ReaderApi
             Outline = await OutlineAsync(library, documentId, pageCount, labels, part, ct),
             KeepsPlace = !guest && (ordinary || keep),
             Kind = readerKind,
-            Pack = [.. pack.Select(p => new ReaderPackFile(p.DocumentId, p.Name, SourceFormats.IsImage(p.Format), p.MemberEntryId.Value))],
+            Pack = [.. pack.Select(p => new ReaderPackFile(p.DocumentId, p.Name, SourceFormats.IsPicture(p.Format), p.MemberEntryId.Value))],
             CoverPage = readerKind == ReaderKinds.Pdf && !guest ? await library.Get<CoverPages>().GetAsync(documentId, ct) : 0,
             Item = opened is { } open && open.Target.DocumentId == documentId ? ToItem(open, readerKind != ReaderKinds.Image) : null,
         };

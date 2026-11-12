@@ -291,6 +291,39 @@ class Reader {
     });
   }
 
+  async #image(title) {
+    const img = new Image();
+    img.alt = title;
+    img.src = this.url;
+    try {
+      await img.decode();
+      return img;
+    } catch {
+      return null;
+    }
+  }
+
+  async #video(title) {
+    const video = document.createElement('video');
+    video.setAttribute('aria-label', title);
+    Object.assign(video, { muted: true, loop: true, autoplay: true, playsInline: true, controls: true, preload: 'auto' });
+    const loaded = new Promise(resolve => {
+      video.addEventListener('loadedmetadata', () => resolve(true), { once: true });
+      video.addEventListener('error', () => resolve(false), { once: true });
+    });
+    video.src = this.url;
+    if (!await loaded || !video.videoWidth) return null;
+    video.play().catch(() => { });
+    return video;
+  }
+
+  // The picture's own size: an image's, or a video's frame.
+  get #natural() {
+    return this.img instanceof HTMLVideoElement
+      ? { width: this.img.videoWidth, height: this.img.videoHeight }
+      : { width: this.img.naturalWidth, height: this.img.naturalHeight };
+  }
+
   #listen(target, type, handler, options) {
     target.addEventListener(type, handler, options);
     this.listeners.push(() => target.removeEventListener(type, handler, options));
@@ -693,7 +726,9 @@ function display(index, labels) {
 /** Pops the reader out into a window of its own, as the Windows reader's Pop out does. */
 // A picture: fitted to the window or at a zoom step, the pack's next and previous on
 // the arrow keys. The whole file is read through the same cache as a PDF's pages.
-const ImageTypes = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+const ImageTypes = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', webm: 'video/webm' };
+// Videos (animated maps) show in the picture reader too, playing on a loop without sound, like the map on a table.
+const VideoFormats = new Set(['webm']);
 
 /**
  * @param {HTMLElement} stage .bt-pages, which scrolls the picture
@@ -731,16 +766,13 @@ class ImageReader {
     }
     if (this.closed) return;
     this.url = URL.createObjectURL(new Blob([bytes], { type: ImageTypes[this.book.format] ?? '' }));
-    const img = new Image();
-    img.alt = title;
-    img.src = this.url;
-    try {
-      await img.decode();
-    } catch {
-      if (!this.closed) this.page.invokeMethodAsync('Failed', 'image', '');
+    const video = VideoFormats.has(this.book.format);
+    const img = video ? await this.#video(title) : await this.#image(title);
+    if (this.closed) return;
+    if (!img) {
+      this.page.invokeMethodAsync('Failed', video ? 'video' : 'image', '');
       return;
     }
-    if (this.closed) return;
     this.img = img;
     this.host.replaceChildren(img);
     this.#apply();
@@ -755,6 +787,39 @@ class ImageReader {
     this.listeners.push(() => refit.disconnect());
     this.page.invokeMethodAsync('Opened', true);
     this.#offline();
+  }
+
+  async #image(title) {
+    const img = new Image();
+    img.alt = title;
+    img.src = this.url;
+    try {
+      await img.decode();
+      return img;
+    } catch {
+      return null;
+    }
+  }
+
+  async #video(title) {
+    const video = document.createElement('video');
+    video.setAttribute('aria-label', title);
+    Object.assign(video, { muted: true, loop: true, autoplay: true, playsInline: true, controls: true, preload: 'auto' });
+    const loaded = new Promise(resolve => {
+      video.addEventListener('loadedmetadata', () => resolve(true), { once: true });
+      video.addEventListener('error', () => resolve(false), { once: true });
+    });
+    video.src = this.url;
+    if (!await loaded || !video.videoWidth) return null;
+    video.play().catch(() => { });
+    return video;
+  }
+
+  // The picture's own size: an image's, or a video's frame.
+  get #natural() {
+    return this.img instanceof HTMLVideoElement
+      ? { width: this.img.videoWidth, height: this.img.videoHeight }
+      : { width: this.img.naturalWidth, height: this.img.naturalHeight };
   }
 
   #listen(target, type, handler, options) {
@@ -778,14 +843,16 @@ class ImageReader {
     if (!this.img) return 1;
     if (this.scale !== 'page-fit') return Number(this.scale) || 1;
     const room = 32;
-    return Math.min((this.stage.clientWidth - room) / this.img.naturalWidth, (this.stage.clientHeight - room) / this.img.naturalHeight);
+    const { width, height } = this.#natural;
+    return Math.min((this.stage.clientWidth - room) / width, (this.stage.clientHeight - room) / height);
   }
 
   #apply() {
     if (!this.img) return;
     const scale = Math.max(this.#shown, 0.01);
-    this.img.style.width = `${Math.round(this.img.naturalWidth * scale)}px`;
-    this.img.style.height = `${Math.round(this.img.naturalHeight * scale)}px`;
+    const { width, height } = this.#natural;
+    this.img.style.width = `${Math.round(width * scale)}px`;
+    this.img.style.height = `${Math.round(height * scale)}px`;
   }
 
   /** "page-fit", or a scale where 1 is 100%. */
@@ -815,6 +882,11 @@ class ImageReader {
     this.awake();
     for (const stop of this.listeners) stop();
     this.cache?.close();
+    if (this.img instanceof HTMLVideoElement) {
+      this.img.pause();
+      this.img.removeAttribute('src');
+      this.img.load();
+    }
     this.host.replaceChildren();
     if (this.url) URL.revokeObjectURL(this.url);
   }

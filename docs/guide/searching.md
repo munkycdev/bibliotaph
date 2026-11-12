@@ -68,7 +68,7 @@ guide at any time, and **Esc** closes it (press **Esc** again to clear the searc
 | `collection:` | Books in a collection (in quotes if it has spaces) | `collection:"Winter campaign"` |
 | `folder:` | Part of a folder's name | `folder:maps` |
 | `isbn:` | An ISBN printed in the book, with or without hyphens, ISBN-10 or ISBN-13 | `isbn:978-1-23-456789-7` |
-| `format:` | `pdf`, `epub`, `mobi`, `azw`, `azw3`, `kfx`, `jpg`, `png`, `webp`, `image` for any picture, `ebook` for any e-book, or `kindle` for any Kindle book | `format:epub` |
+| `format:` | `pdf`, `epub`, `mobi`, `azw`, `azw3`, `kfx`, `jpg`, `png`, `webp`, `webm`, `image` for any picture (videos too), `video` for any video, `ebook` for any e-book, or `kindle` for any Kindle book | `format:epub` |
 
 Any field also takes `unknown`, for books where nobody knows yet: `system:unknown` finds books still to be sorted out.
 `-isbn:unknown` finds the books that print an ISBN.

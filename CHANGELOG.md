@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **New: WebM videos, such as animated maps.** Bibliotaph now lists `.webm` files, in folders and in ZIPs, and
+  plays them on a loop without sound in the reader on Windows and on the web, with the player's own controls. They go
+  into packs with the images beside them, show under **Images** and `format:image`, and `format:video` finds them on
+  their own. A video's cover is the image in its folder whose name is most like its own, as map makers ship a still of
+  each animated map.
 - **Summary shows what the online lookups found.** **Where it came from** now lists your publishers and which online
   catalogues found your books (RPGGeek, AdventureLookup, Open Library, Google Books), with how many none has found yet.
   **What it is** adds themes, environments and what's included (pre-generated characters, handouts, battle maps, solo

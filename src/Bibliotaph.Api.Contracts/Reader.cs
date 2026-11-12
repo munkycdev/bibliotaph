@@ -62,6 +62,7 @@ public sealed record ReaderItemUsed(int FirstPage, int LastPage, string Message)
 public static class ReaderKinds
 {
     public const string Pdf = "pdf";
+    /// <summary>A picture, without pages: an image, or a video (an animated map), which plays on a loop.</summary>
     public const string Image = "image";
     public const string Ebook = "ebook";
 }
@@ -69,7 +70,7 @@ public static class ReaderKinds
 /// <summary>One file of a pack, as the reader steps through them.</summary>
 /// <param name="DocumentId">The file.</param>
 /// <param name="Name">Its name in the pack.</param>
-/// <param name="IsImage">Whether it's a picture; a pack with any other file steps by "file" rather than "image".</param>
+/// <param name="IsImage">Whether it's a picture, an image or a video; a pack with any other file steps by "file" rather than "image".</param>
 /// <param name="MemberEntryId">The file's own card in the pack, which Use this image as the pack's cover names.</param>
 public sealed record ReaderPackFile(long DocumentId, string Name, bool IsImage, long? MemberEntryId = null);
 

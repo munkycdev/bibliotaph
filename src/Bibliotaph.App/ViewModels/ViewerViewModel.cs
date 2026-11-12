@@ -23,9 +23,13 @@ public enum ViewerMode
     Opening,
     Pdf,
     Image,
+    Video,
     Ebook,
     Problem,
 }
+
+/// <summary>A video open in the reader (an animated map): its title, and a way to read its file, once for each part the player asks for.</summary>
+public sealed record OpenVideo(string Title, Func<System.IO.Stream> Open);
 
 /// <summary>
 /// An open PDF for the page surface: its renderer, what the worker said about it, where to start, the page there if it
@@ -136,6 +140,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     EbookContent? _ebook;
     /// <summary>The open PDF's file, held so a file extracted from a ZIP stays while the book is open.</summary>
     LocalFile? _file;
+    /// <summary>The open video's file, held as the PDF's is: the player reads it again as it loops and seeks.</summary>
+    LocalFile? _videoFile;
     IReadOnlyList<string?> _labels = [];
     /// <summary>The open PDF's bookmarks as it lists them, kept so a bookmark can be indexed as an adventure to the next one at its depth.</summary>
     IReadOnlyList<(int Page, int Depth)> _bookmarks = [];
@@ -343,7 +349,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     int PackIndex => _request?.Pack is { } pack ? pack.ToList().FindIndex(p => p.DocumentId == _request.DocumentId) : -1;
 
     /// <summary>What a pack's steps are: images, or files once a PDF is among them.</summary>
-    string PackNoun => _request?.Pack is { } pack && pack.Any(p => !p.IsImage) ? "file" : "image";
+    string PackNoun => _request?.Pack is { } pack && pack.Any(p => !p.IsPicture) ? "file" : "image";
 
     public string PreviousStepName => $"Previous {PackNoun}";
 
@@ -403,7 +409,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     public event EventHandler<PageTarget>? GoToRequested;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsEbook), nameof(HasPages), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices),
+    [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsVideo), nameof(IsPicture), nameof(IsEbook), nameof(HasPages), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices),
         nameof(OutlineVisible), nameof(StripVisible), nameof(CanUseAsPackCover), nameof(CanAddToBinder))]
     [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageToSessionCommand), nameof(MarkPagesCommand), nameof(UseAsCoverCommand))]
     public partial ViewerMode Mode { get; private set; }
@@ -411,6 +417,11 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     public bool IsPdf => Mode == ViewerMode.Pdf;
 
     public bool IsImage => Mode == ViewerMode.Image;
+
+    public bool IsVideo => Mode == ViewerMode.Video;
+
+    /// <summary>A file without pages is open, an image or a video: it's stepped through in its pack and added to binders whole.</summary>
+    public bool IsPicture => Mode is ViewerMode.Image or ViewerMode.Video;
 
     public bool IsEbook => Mode == ViewerMode.Ebook;
 
@@ -455,6 +466,10 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
 
     [ObservableProperty]
     public partial ImageSource? Image { get; private set; }
+
+    /// <summary>The video open, played by the view in the e-book reader's browser.</summary>
+    [ObservableProperty]
+    public partial OpenVideo? Video { get; private set; }
 
     /// <summary>The open e-book for its page surface.</summary>
     [ObservableProperty]
@@ -598,6 +613,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             PrioritizeAsync(request.DocumentId).FireAndForget();
             _coverPage = await _covers.GetAsync(request.DocumentId);
             if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
+            else if (SourceFormats.IsVideo(_source.Format)) await OpenVideoAsync(_source, version);
             else if (SourceFormats.IsEbook(_source.Format)) await OpenEbookAsync(_source, request, version);
             else await OpenPdfAsync(_source, request, version);
             // Coming Back to a session item's pages, which may have been moved meanwhile, as from a Needs review card.
@@ -712,6 +728,12 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         Ask.Detach();
         Pdf = null;
         Image = null;
+        Video = null;
+        if (_videoFile is { } video)
+        {
+            _videoFile = null;
+            _closing = Task.WhenAll(_closing, video.DisposeAsync().AsTask());
+        }
         Ebook = null;
         if (_ebook is { } ebook)
         {
@@ -753,7 +775,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             if (_windowClosed) return;
             var source = await _library.GetSourceAsync(request.DocumentId);
             // Only a PDF is drawn ahead; an e-book or an image opens quickly enough as it is.
-            if (source is null || SourceFormats.IsImage(source.Format) || SourceFormats.IsEbook(source.Format) || version != _standbyVersion) return;
+            if (source is null || SourceFormats.IsPicture(source.Format) || SourceFormats.IsEbook(source.Format) || version != _standbyVersion) return;
             file = await _sources.OpenToReadAsync(source);
             renderer = new PdfRenderer(Worker(), _dispatcher);
             var password = _opener.KnownPassword(source.ContentHash);
@@ -947,7 +969,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     [RelayCommand(CanExecute = nameof(CanPopOut))]
     Task PopOut() => _windows.PopOutAsync(this);
 
-    bool CanPopOut() => ShowsPopOut && Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Ebook;
+    bool CanPopOut() => ShowsPopOut && Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Video or ViewerMode.Ebook;
 
     /// <summary>Moves a pop-out's book back to the main window, at the same page and zoom, and closes the pop-out.</summary>
     [RelayCommand]
@@ -982,11 +1004,11 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     void AddPageTo(SessionMenuChoice? choice)
     {
         if (_request is not { } request) return;
-        if (Mode == ViewerMode.Image) Sessions.AddPage(request.DocumentId, 0, request.Title, choice, wholeFile: true);
+        if (IsPicture) Sessions.AddPage(request.DocumentId, 0, request.Title, choice, wholeFile: true);
         else if (HasPages) Sessions.AddPage(request.DocumentId, CurrentPageIndex, $"page {PageNumbers.Display(CurrentPageIndex, _labels)}", choice);
     }
 
-    bool CanAddPage() => Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Ebook;
+    bool CanAddPage() => Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Video or ViewerMode.Ebook;
 
     /// <summary>
     /// Add pages…: From and To start at the page with selected text on it, or the page in view, and are typed as the
@@ -996,7 +1018,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     async Task AddPages(int? selectionPage)
     {
         if (_request is not { } request) return;
-        if (Mode == ViewerMode.Image)
+        if (IsPicture)
         {
             AddPageTo(null);
             return;
@@ -1084,7 +1106,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     /// </summary>
     public async Task FollowAsync(ViewerRequest moved)
     {
-        if (_request is { } open && open.DocumentId == moved.DocumentId && Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Ebook) ShowPlace(moved);
+        if (_request is { } open && open.DocumentId == moved.DocumentId && Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Video or ViewerMode.Ebook) ShowPlace(moved);
         else await ShowAsync(moved);
     }
 
@@ -1352,6 +1374,36 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         Mode = ViewerMode.Image;
         ShowSessionBanner();
         await RecordOpenAsync(source.DocumentId);
+    }
+
+    /// <summary>
+    /// Opens a video: its file is held (a copy, for one in a ZIP or the web library) until the reader closes it, and the
+    /// view plays it on a loop without sound, like the animated map it usually is.
+    /// </summary>
+    async Task OpenVideoAsync(DocumentSource source, int version)
+    {
+        var file = await _sources.OpenToReadAsync(source);
+        if (version != _version)
+        {
+            await file.DisposeAsync();
+            return;
+        }
+        _videoFile = file;
+        Image = null;
+        Video = new OpenVideo(_request?.Title ?? DisplayTitle.FromFileName(source.FullPath), () => _files.OpenRead(file.Path));
+        var kind = $"{source.Format.ToUpperInvariant()} video";
+        Subtitle = DescribeSource(source, _request?.PackTitle is { } pack ? $"{kind} in {pack}" : kind);
+        Mode = ViewerMode.Video;
+        ShowSessionBanner();
+        await RecordOpenAsync(source.DocumentId);
+    }
+
+    /// <summary>The view couldn't play the video: why, with the user's own video app instead.</summary>
+    public void ShowVideoProblem(string message)
+    {
+        if (Mode != ViewerMode.Video) return;
+        CloseBook();
+        Problem("This video can't be played here.", message, "Open in another app", OpenElsewhereCommand);
     }
 
     async Task OpenPdfAsync(DocumentSource source, ViewerRequest request, int version)

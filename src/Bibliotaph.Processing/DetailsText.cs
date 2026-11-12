@@ -40,10 +40,10 @@ public static class DetailsText
     public static bool IsAdventure(LibraryEntry entry, EffectiveMetadata metadata) =>
         entry.IsPart || metadata[MetadataFields.Types].Values.Any(v => v.Value == PartStore.AdventureType);
 
-    /// <summary>The line over the details: "PACK", "OWNED ELSEWHERE", "ADVENTURE IN A FILE", the format, or "IMAGE".</summary>
+    /// <summary>The line over the details: "PACK", "OWNED ELSEWHERE", "ADVENTURE IN A FILE", the format, "VIDEO" or "IMAGE".</summary>
     public static string Eyebrow(LibraryEntry entry, bool packHasPdfs) =>
         entry.IsPack ? packHasPdfs ? "PACK" : "IMAGE PACK" : entry.IsElsewhere ? "OWNED ELSEWHERE" : entry.IsPart ? "ADVENTURE IN A FILE"
-        : SourceFormats.HasPages(entry.Format) ? CardText.FormatName(entry.Format) : "IMAGE";
+        : SourceFormats.HasPages(entry.Format) ? CardText.FormatName(entry.Format) : SourceFormats.IsVideo(entry.Format) ? "VIDEO" : "IMAGE";
 
     /// <summary>A book owned elsewhere has no file to say anything about.</summary>
     public static string FactsHeading(LibraryEntry entry) => entry.IsElsewhere ? "IN YOUR LIBRARY" : "ABOUT THE FILE";
@@ -181,7 +181,7 @@ public static class DetailsText
 
     static string Search(LibraryEntry entry, DocumentDetails details)
     {
-        if (entry.IsPack || SourceFormats.IsImage(entry.Format)) return "Found by its name";
+        if (entry.IsPack || SourceFormats.IsPicture(entry.Format)) return "Found by its name";
         switch (entry.TextAccess)
         {
             case TextAccess.Locked: return "Locked: open it to unlock, and its text becomes searchable";
