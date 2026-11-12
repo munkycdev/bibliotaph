@@ -141,7 +141,7 @@ public static class NornisApi
                 || viewer is { Length: > NornisTicketRequest.LongestViewerName })
                 return NornisProblems.Refuse(StatusCodes.Status400BadRequest, "malformed",
                     $"Send a documentId, a renew address on Nornis, an optional startPage of 0 or more and a viewerName of at most {NornisTicketRequest.LongestViewerName} characters.");
-            var userId = principal.UserId()!;
+            var userId = UserIds.Require(principal.UserId());
             var (lease, refusal) = await NornisReads.LeaseAsync(libraries, userId, context, ct);
             if (lease is null) return refusal!;
             await using (lease)
