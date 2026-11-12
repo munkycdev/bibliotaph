@@ -19,7 +19,7 @@ handouts spread over folders, and you keep thinking "I own something for this, b
   others, or a model file you already have), or use Ollama, LM Studio or another model server you already have. Without it, everything else still works.
 
 **Prefer a browser?** [bibliotaph.online](https://bibliotaph.online) is Bibliotaph on the web, for books kept in
-OneDrive, Google Drive, Dropbox, Box or a WebDAV server such as Nextcloud. It looks and works like the Windows app, and
+OneDrive, Google Drive, Dropbox or a WebDAV server such as Nextcloud. It looks and works like the Windows app, and
 keeps your catalog, never a copy of your books. It's invite-only for now. Connect the Windows app to it and your work
 is the same on every PC and browser. See [Bibliotaph on the web](docs/guide/web.md).
 

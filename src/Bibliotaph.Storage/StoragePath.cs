@@ -11,6 +11,7 @@ public readonly record struct StorageLocation(string Provider, string Account, s
 public static class StoragePath
 {
     /// <summary>The providers a path can name. Only these are read as storage, so a server's own folder never is.</summary>
+    // Box can't be connected any more, but a folder added from it before still names it and must never be read as a local path.
     public static readonly IReadOnlySet<string> Providers = new HashSet<string>(StringComparer.Ordinal) { "onedrive", "dropbox", "googledrive", "webdav", "box", "nornis" };
 
     public static string Of(string provider, string account, string pathInStorage)

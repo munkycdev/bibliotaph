@@ -8,11 +8,10 @@ namespace Bibliotaph.Storage.Desktop;
 
 /// <summary>
 /// The OAuth app the Windows app connects a provider through: a public client, so no secret but a value the provider
-/// gives desktop apps without keeping it secret (Google's), a loopback port when the provider matches redirects exactly
-/// (Dropbox, Box), and where its token requests go when they can't go to the provider directly (Box, through the web
-/// server, which holds its secret).
+/// gives desktop apps without keeping it secret (Google's), and a loopback port when the provider matches redirects
+/// exactly (Dropbox).
 /// </summary>
-public sealed record DesktopClient(string ClientId, string? ClientSecret = null, int? Port = null, Uri? TokenRelay = null)
+public sealed record DesktopClient(string ClientId, string? ClientSecret = null, int? Port = null)
 {
     public OAuthClient OAuth => new(ClientId, ClientSecret);
 }
@@ -61,7 +60,7 @@ public sealed class LoopbackSignIn(HttpClient http, Func<Uri, Task> openBrowser)
             throw new TimeoutException($"{kind.Owner} didn't answer in time. Try connecting again.");
         }
 
-        var grant = await OAuthGrants.RedeemAsync(http, kind, client.OAuth, code, redirect, verifier, ct, client.TokenRelay);
+        var grant = await OAuthGrants.RedeemAsync(http, kind, client.OAuth, code, redirect, verifier, ct);
         if (grant.RefreshToken is not { } refresh)
             throw new StorageException(HttpStatusCode.BadGateway, $"{kind.Name} didn't allow Bibliotaph to keep access. Try connecting again.");
         var identity = await kind.IdentifyAsync(http, grant.AccessToken, ct);

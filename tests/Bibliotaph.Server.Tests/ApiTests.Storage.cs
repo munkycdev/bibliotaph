@@ -219,49 +219,5 @@ public abstract partial class ApiTests
             Assert.Equal(HttpStatusCode.OK, signed.StatusCode);
             await WaitForFilesAsync(libraries, user.Id, 2, ct);
         }
-        [Fact]
-        public async Task Box_tokens_for_a_pc_are_relayed_with_the_secret_and_nothing_else_is()
-        {
-            var ct = TestContext.Current.CancellationToken;
-            using (var unset = _factory.CreateClient())
-            using (var answer = await unset.PostAsync("/storage/token/box", new FormUrlEncodedContent(new Dictionary<string, string> { ["client_id"] = "box-client" }), ct))
-                Assert.Equal(HttpStatusCode.NotFound, answer.StatusCode);
-
-            using var factory = _factory.WithWebHostBuilder(host =>
-            {
-                host.UseSetting("Storage:Box:ClientId", "box-client");
-                host.UseSetting("Storage:Box:ClientSecret", "box-secret");
-            });
-            var client = factory.CreateClient();
-            async Task<HttpStatusCode> PostAsync(Dictionary<string, string> form)
-            {
-                using var answer = await client.PostAsync("/storage/token/box", new FormUrlEncodedContent(form), ct);
-                return answer.StatusCode;
-            }
-
-            Assert.Equal(HttpStatusCode.Unauthorized, await PostAsync(new() { ["client_id"] = "another", ["grant_type"] = "refresh_token", ["refresh_token"] = "r" }));
-            // A code sent to the website's own callback is the server's to redeem, never a PC's.
-            Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(new()
-            {
-                ["client_id"] = "box-client", ["grant_type"] = "authorization_code", ["code"] = "c", ["redirect_uri"] = "https://bibliotaph.online/storage/callback/box",
-            }));
-            Assert.Equal(HttpStatusCode.BadRequest, await PostAsync(new() { ["client_id"] = "box-client", ["grant_type"] = "client_credentials" }));
-            Assert.Empty(_box.LastTokenRequest);
-
-            var relay = new Uri(client.BaseAddress!, "storage/token/box");
-            var kind = new Bibliotaph.Storage.Box.BoxKind();
-            var pc = new Bibliotaph.Storage.OAuthClient("box-client", null);
-            var redeemed = await Bibliotaph.Storage.OAuthGrants.RedeemAsync(client, kind, pc, "code-1", "http://127.0.0.1:41583", "verifier", ct, relay);
-            Assert.Equal("box-access", redeemed.AccessToken);
-            Assert.Equal(_box.LastRefreshToken, redeemed.RefreshToken);
-            Assert.Equal("box-secret", _box.LastTokenRequest["client_secret"]);
-            Assert.Equal("verifier", _box.LastTokenRequest["code_verifier"]);
-            Assert.Equal("http://127.0.0.1:41583", _box.LastTokenRequest["redirect_uri"]);
-
-            var refreshed = await Bibliotaph.Storage.OAuthGrants.RefreshAsync(client, kind, pc, redeemed.RefreshToken!, ct, relay);
-            Assert.Equal(_box.LastRefreshToken, refreshed.RefreshToken);
-            Assert.NotEqual(redeemed.RefreshToken, refreshed.RefreshToken);
-            Assert.Equal("box-secret", _box.LastTokenRequest["client_secret"]);
-        }
     }
 }

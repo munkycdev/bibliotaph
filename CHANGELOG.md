@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Box is no longer offered.** **Settings > Library** connects OneDrive, Dropbox, Google Drive and WebDAV, on Windows
+  and the web. A Box account connected earlier stays listed until you disconnect it, but its folders can't be read any
+  more.
 - **New: WebM videos, such as animated maps.** Bibliotaph now lists `.webm` files, in folders and in ZIPs, and
   plays them on a loop without sound in the reader on Windows and on the web, with the player's own controls. They go
   into packs with the images beside them, show under **Images** and `format:image`, and `format:video` finds them on
