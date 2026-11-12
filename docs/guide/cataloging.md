@@ -25,14 +25,19 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   system and edition, type, themes, setting and series, in your lists' own terms: its "Scenario / Adventure / Module"
   is your Adventure, its "Dungeons & Dragons (3.5 Edition)" your D&D 3.5. A system, theme or setting your lists don't
   have is treated as a new name from the AI (see [Vocabulary](#vocabulary)); a category none of the types stands for, and
-  genres nearly every book has, such as Fantasy, are left out. RPGGeek can only be searched by name, so it gets the title Open Library or Google
-  Books gives, or else the book's title in your library, and its record is used only when one of its versions lists an
-  ISBN the book prints, or a product code it prints (such as PZO1110), so a book with a code but no ISBN is found
-  there too. [AdventureLookup](https://adventurelookup.com), a catalogue of published adventures, is asked about
+  genres nearly every book has, such as Fantasy, are left out. RPGGeek can only be searched by name, and finds only
+  names holding every word searched for, so it gets the title Open Library or Google Books gives, the title the book's
+  card shows (yours or the AI's), and the one its file gives, and then the name of its line: the folder it's in, or the
+  one above, when the book prints that name on its first pages, as a publisher's credits page names its line. A file
+  called "Monster Tome Vol1" in a folder called Gull Rock Saga is found among RPGGeek's Gull Rock Saga books that way, and
+  a folder whose name the book doesn't print is never sent. Its record is used only when one of its versions lists an
+  ISBN the book prints, or a product code it prints (such as PZO1110), so a search as broad as a line's can't give a
+  book the wrong record, and a book with a code but no ISBN is found there too. [AdventureLookup](https://adventurelookup.com), a catalogue of published adventures, is asked about
   every book as well, by its title, even one another catalogue already found. It knows no ISBNs, so its record is used
   only when the book prints that title on its first pages and also one of its authors or its publisher, or has about
   as many pages (within two); a book printing the title but nothing else that agrees gets a **Same book?** card, and
-  one that doesn't print it is left alone. It fills in the levels an adventure is for, which no other catalogue has,
+  one that doesn't print it is left alone. It's searched by the book's titles only, never its line, since a line names
+  many books. It fills in the levels an adventure is for, which no other catalogue has,
   its monsters (bosses first) and magic items, which plain search finds, what it includes (pre-generated characters,
   handouts, battle maps, or that it plays solo), and its edition, setting, environments and series, in your lists' terms: its "Dungeon" and "Cave" are your
   Underground, its "Town/Village" your Urban. Because of it, books that print no ISBN or product code are looked up

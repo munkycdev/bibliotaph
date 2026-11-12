@@ -44,8 +44,9 @@ public static class Pipeline
         // printing neither an ISBN nor a product code is looked up by title, so one identified before is too.
         Stage.Identify => 3,
         // 2: every catalogue is asked and each field comes from the one preferred, RPGGeek first, so books looked up
-        // before are asked again. 3: RPGGeek's systems, categories, genres, settings and series are used too.
-        Stage.LookUp => 3,
+        // before are asked again. 3: RPGGeek's systems, categories, genres, settings and series are used too. 4: searched
+        // by name with the card's title and the line the book prints too, so books no catalogue found are asked again.
+        Stage.LookUp => 4,
         // Never bumped for a new prompt: a finished scan is kept until the file changes or the user asks again.
         Stage.ChapterScan => 1,
         _ => 1,

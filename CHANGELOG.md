@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **RPGGeek finds more of your books.** RPGGeek can only be searched by name, and was searched with a book's file
+  name, so a file such as "Monster Tome Vol1" never found RPGGeek's "Gull Rock Saga: Book 3. Monster Tome". It's now
+  also searched with the title the book's card shows (yours or the AI's) and with the book's line: the folder it's in,
+  or the one above, when the book prints that folder's name on its first pages, as a publisher's credits page does. Up
+  to 60 of the items a search finds are read, and an item holding the title's words in another order counts too. A
+  record is still used only when it lists an ISBN or product code the book prints, so a broad search can't give a book
+  the wrong details, and a folder name the book doesn't print is never sent. AdventureLookup gets the card's title
+  too, but not the line, since it matches by title alone. Every book is looked up again once after the update. On
+  Windows (connected to bibliotaph.online) and the web.
 - **Better titles from file names.** A book with no title of its own now gets a readable one from its file name:
   `CurseOfTheVault_v2 (1).pdf` becomes "Curse of the Vault". Words run together are split, copy markers such as "(1)"
   and "- Copy", tags such as "[PDF]", versions, dates and product codes are dropped, and the result is title-cased

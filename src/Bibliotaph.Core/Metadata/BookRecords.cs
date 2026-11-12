@@ -200,6 +200,14 @@ public static partial class BookRecords
     public static string? Year(string? published) =>
         published is not null && YearIn().Match(published) is { Success: true } year ? year.Value : null;
 
+    /// <summary>
+    /// The first <paramref name="most"/> of <paramref name="titles"/> worth searching for, once each however it's cased
+    /// or punctuated: "The Owlbear Mill" and "the owlbear mill." are one search.
+    /// </summary>
+    public static IEnumerable<string> Searches(IEnumerable<string> titles, int most) =>
+        titles.Select(t => (Title: t.Trim(), Simple: Simplify(t))).Where(t => t.Simple.Length > 0).DistinctBy(t => t.Simple, StringComparer.Ordinal)
+            .Take(most).Select(t => t.Title);
+
     /// <summary>Lower case letters and digits, each run of anything else one space: titles compared as a reader would.</summary>
     public static string Simplify(string text)
     {

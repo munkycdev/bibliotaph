@@ -23,10 +23,13 @@ public interface IBookCatalogue
     /// asked together give each one's record, so each field can come from the one preferred that has it.
     /// <paramref name="titles"/> are the book's own, for a catalogue that can only be searched by name, and
     /// <paramref name="codes"/> the product codes it prints, for one whose records list them; <paramref name="isbns"/>
-    /// may be empty when it prints only a code.
+    /// may be empty when it prints only a code. <paramref name="lines"/> name the line the book belongs to, as the
+    /// folders it's in do where the book prints the name ("Gull Rock Saga" for its monster book): a broader search, for a
+    /// catalogue whose records are then taken only by ISBN or code, since a line names many books.
     /// </summary>
     /// <exception cref="CatalogueUnavailableException">None of the catalogues could be asked right now.</exception>
-    async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes, CancellationToken ct = default) =>
+    async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
+        IReadOnlyList<string>? lines = null, CancellationToken ct = default) =>
         new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
 
     /// <summary>
@@ -100,10 +103,10 @@ public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : I
     public bool FindsByTitleAlone { get; } = catalogues.Any(c => c.FindsByTitleAlone);
 
     public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
-        (await AskAsync(isbns, [], [], ct)).Records is [var first, ..] ? first : null;
+        (await AskAsync(isbns, [], [], ct: ct)).Records is [var first, ..] ? first : null;
 
     public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        CancellationToken ct = default)
+        IReadOnlyList<string>? lines = null, CancellationToken ct = default)
     {
         CatalogueUnavailableException? unavailable = null;
         var found = new Dictionary<int, IReadOnlyList<BookRecord>>();
@@ -121,7 +124,7 @@ public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : I
                 IReadOnlyList<string> searched = catalogue.SearchesByTitle
                     ? [.. found.OrderBy(f => f.Key).SelectMany(f => f.Value).Select(r => r.Title).Concat(titles).Distinct(StringComparer.OrdinalIgnoreCase)]
                     : titles;
-                found[at] = (await catalogue.AskAsync(isbns, searched, codes, ct)).Records;
+                found[at] = (await catalogue.AskAsync(isbns, searched, codes, lines, ct)).Records;
             }
             catch (CatalogueUnavailableException ex)
             {

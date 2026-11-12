@@ -11,10 +11,13 @@ namespace Bibliotaph.Processing;
 /// <summary>
 /// RPGGeek, BoardGameGeek's catalogue of tabletop RPG products, asked only by the web server, which holds the token of
 /// the app registered with BoardGameGeek. It knows RPGs, small-press ones included, better than any library catalogue,
-/// so its records come first. Its XML API is searched by name only, so it is searched with the book's title, a record
-/// title from another catalogue first; an item is taken only when one of its versions lists an ISBN or product code
-/// the book prints, so a book is never named by a title alone. BoardGameGeek asks for about five seconds between requests (<see cref="Pace"/>,
-/// unless a test gives another) and for answers to be kept, so they're kept for a month.
+/// so its records come first. Its XML API is searched by name only, and finds only names holding every word searched
+/// for, so it is searched with the book's titles, a record title from another catalogue first, and then with the line
+/// the book belongs to ("Gull Rock Saga"), since a file's name often leaves the line out or runs its words together; an
+/// item is taken only when one of its versions lists an ISBN or product code the book prints, so a book is never named
+/// by a title alone, and a search as broad as a line's can't name the wrong book. BoardGameGeek asks for about five
+/// seconds between requests (<see cref="Pace"/>, unless a test gives another) and for answers to be kept, so they're
+/// kept for a month: a line's search and the items it finds are asked for once for every book in it.
 /// </summary>
 public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider? clock = null, TimeSpan? pace = null) : IBookCatalogue
 {
@@ -26,11 +29,20 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
     /// <summary>How long an answer is kept before it's asked for again.</summary>
     public static readonly TimeSpan KeepFor = TimeSpan.FromDays(30);
 
-    /// <summary>Titles searched for one book: two searches and two item reads is twenty seconds at the pace.</summary>
-    const int MostSearches = 2;
+    /// <summary>Titles searched for one book: another catalogue's record title or its card's, and what its file gives.</summary>
+    const int MostSearches = 3;
+
+    /// <summary>Lines searched for one book: the folder it's in, and the one above.</summary>
+    const int MostLineSearches = 2;
 
     /// <summary>Items read in one request, the most the API takes.</summary>
     const int MostItems = 20;
+
+    /// <summary>
+    /// Requests for items one book may make, however many searches find some: a line's search finds dozens. With every
+    /// search, a book asks at most eight times, forty seconds at the pace, and much less once its line's answers are kept.
+    /// </summary>
+    const int MostReads = 3;
 
     const int MostKept = 20_000;
 
@@ -61,35 +73,48 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
     public Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) => Task.FromResult<BookRecord?>(null);
 
     public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        CancellationToken ct = default)
+        IReadOnlyList<string>? lines = null, CancellationToken ct = default)
     {
-        foreach (var title in titles.Where(t => BookRecords.Simplify(t).Length > 0).Take(MostSearches))
+        var searches = BookRecords.Searches(titles, MostSearches).Concat(BookRecords.Searches(lines ?? [], MostLineSearches));
+        var reads = 0;
+        foreach (var search in BookRecords.Searches(searches, MostSearches + MostLineSearches))
         {
-            var query = Uri.EscapeDataString(title.Trim()).Replace("%20", "+", StringComparison.Ordinal);
-            var ids = Candidates(Parse(await GetAsync($"xmlapi2/search?query={query}&type=rpgitem", ct)), title);
-            if (ids.Count == 0) continue;
-            if (Read(Parse(await GetAsync($"xmlapi2/thing?id={string.Join(',', ids)}&type=rpgitem&versions=1", ct)), isbns, codes) is { } record)
-                return new CatalogueAnswer([record], Name);
+            var query = Uri.EscapeDataString(search).Replace("%20", "+", StringComparison.Ordinal);
+            // Read in the same batches whichever book asks, so a line's items, once read, are kept for the next.
+            foreach (var batch in Candidates(Parse(await GetAsync($"xmlapi2/search?query={query}&type=rpgitem", ct)), search).Chunk(MostItems))
+            {
+                if (reads++ == MostReads) return new CatalogueAnswer([], Name);
+                if (Read(Parse(await GetAsync($"xmlapi2/thing?id={string.Join(',', batch)}&type=rpgitem&versions=1", ct)), isbns, codes) is { } record)
+                    return new CatalogueAnswer([record], Name);
+            }
         }
         return new CatalogueAnswer([], Name);
     }
 
     /// <summary>
     /// The items a search found that may be the book, closest first: named exactly as the title, then starting with it,
-    /// then holding it, by any of their names.
+    /// then holding it, then holding all its words in another order ("Bestiary: Creatures" for "Creatures Bestiary"),
+    /// by any of their names; as many as <see cref="MostReads"/> requests read.
     /// </summary>
     internal static List<string> Candidates(XDocument search, string title)
     {
         var wanted = BookRecords.Simplify(title);
+        var words = wanted.Split(' ');
+        int Closeness(string name) =>
+            name == wanted ? 4
+            : name.StartsWith(wanted, StringComparison.Ordinal) ? 3
+            : name.Contains(wanted, StringComparison.Ordinal) ? 2
+            : words.All(name.Split(' ').Contains) ? 1
+            : 0;
         return [.. search.Root?.Elements("item")
             .Select(item => (Id: (string?)item.Attribute("id"), Names: item.Elements("name").Select(n => BookRecords.Simplify((string?)n.Attribute("value") ?? "")).ToList()))
             .Where(i => i.Id is { Length: > 0 } && i.Id.All(char.IsAsciiDigit))
-            .Select(i => (i.Id, Closeness: i.Names.Count == 0 ? 0 : i.Names.Max(n => n == wanted ? 3 : n.StartsWith(wanted, StringComparison.Ordinal) ? 2 : n.Contains(wanted, StringComparison.Ordinal) ? 1 : 0)))
+            .Select(i => (i.Id, Closeness: i.Names.Count == 0 ? 0 : i.Names.Max(Closeness)))
             .Where(i => i.Closeness > 0)
             .OrderByDescending(i => i.Closeness)
             .Select(i => i.Id!)
             .Distinct()
-            .Take(MostItems) ?? []];
+            .Take(MostItems * MostReads) ?? []];
     }
 
     /// <summary>What an item's links file it under, and who drew it and the mechanics it uses, by the field each fills; producers and the rest aren't used.</summary>

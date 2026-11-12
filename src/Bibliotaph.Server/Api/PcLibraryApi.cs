@@ -24,8 +24,11 @@ public static class PcLibraryApi
     /// <summary>More ISBNs than any book prints: a request with more is no book's.</summary>
     const int MostIsbns = 20;
 
-    /// <summary>A book's own titles: its title in the library, and the one its file gives.</summary>
-    const int MostTitles = 2;
+    /// <summary>A book's own titles: the one its file name gives, the one its file holds, and its card's.</summary>
+    const int MostTitles = 4;
+
+    /// <summary>The lines a book is filed under: the folders it's in, nearest first.</summary>
+    const int MostLines = 4;
 
     const int LongestTitle = 300;
 
@@ -58,7 +61,7 @@ public static class PcLibraryApi
         });
 
         // A PC's own books looked up where the server can ask: the catalogues it holds keys for, which no PC is given,
-        // at the pace every library's lookups keep. Only ISBNs, product codes and titles come, and nothing about them is kept;
+        // at the pace every library's lookups keep. Only ISBNs, product codes, titles and the names of lines the books print come, and nothing about them is kept;
         // a book printing neither an ISBN nor a code comes with its title alone.
         pc.MapGet("/lookups", (IBookCatalogue catalogue) => Results.Ok(new PcLookupAnswer(catalogue.Name)));
         pc.MapPost("/lookups", async (PcLookupRequest request, IBookCatalogue catalogue, CancellationToken ct) =>
@@ -70,11 +73,13 @@ public static class PcLibraryApi
                 return Results.BadRequest();
             if (request.Titles is { } given && (given.Count > MostTitles || given.Any(t => string.IsNullOrWhiteSpace(t) || t.Length > LongestTitle)))
                 return Results.BadRequest();
+            if (request.Lines is { } lines && (lines.Count > MostLines || lines.Any(l => string.IsNullOrWhiteSpace(l) || l.Length > LongestTitle)))
+                return Results.BadRequest();
             // A book printing no ISBN or code is looked up by its title alone.
             if (isbns.Count + codes.Count == 0 && request.Titles is not { Count: > 0 }) return Results.BadRequest();
             try
             {
-                var answer = await catalogue.AskAsync(isbns, request.Titles ?? [], [.. codes.Select(c => c.ToUpperInvariant())], ct);
+                var answer = await catalogue.AskAsync(isbns, request.Titles ?? [], [.. codes.Select(c => c.ToUpperInvariant())], request.Lines, ct);
                 List<PcBookRecord> records = [.. answer.Records.Select(r => new PcBookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
                     r.Values?.Select(v => new PcCatalogueValue(v.Field, v.Value)).ToList(), r.Pages))];
                 return Results.Ok(new PcLookupAnswer(catalogue.Name, records.FirstOrDefault(), Records: records, AskedOf: answer.AskedOf));

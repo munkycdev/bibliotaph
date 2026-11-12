@@ -55,6 +55,30 @@ public sealed class BookLookups(IBookCatalogue catalogue)
             ? NotFoundOnline
             : reason;
 
+    /// <summary>
+    /// The lines a book belongs to, for a catalogue searched by name that takes records only by ISBN or code: the folders
+    /// it's in (<paramref name="folderHint"/>, "Gull Rock Saga / Monsters"), nearest first, whose names its
+    /// <paramref name="front"/> pages print, as a publisher's credits page names its line. A file's name often leaves
+    /// the line out ("Monster Tome Vol1"), and a catalogue may name every book in it after the line. Only a name
+    /// the book prints is sent, so a folder named for the user's own reasons isn't.
+    /// </summary>
+    public static IReadOnlyList<string> Lines(string? folderHint, IEnumerable<string?> front)
+    {
+        if (string.IsNullOrWhiteSpace(folderHint)) return [];
+        var printed = $" {string.Join(" ", front.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => BookRecords.Simplify(p!)))} ";
+        if (printed.Length <= 2) return [];
+        bool Printed(string name) => BookRecords.Simplify(name) is { Length: >= MinLine } simple && printed.Contains($" {simple} ", StringComparison.Ordinal);
+        // As a title would read it ("Pathfinder_Society" as "Pathfinder Society"), or as written where that splits a
+        // name the book prints whole ("GullRock").
+        return [.. folderHint.Split(" / ", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Reverse()
+            .Select(folder => new[] { DisplayTitle.FromFolderName(folder), folder }.FirstOrDefault(Printed))
+            .OfType<string>()
+            .DistinctBy(BookRecords.Simplify, StringComparer.Ordinal)];
+    }
+
+    /// <summary>The shortest line name searched for: a shorter one finds too many books to read.</summary>
+    const int MinLine = 4;
+
     /// <summary>Where a book was looked up, at the end of how its lookup ended, so it is asked again where more can be asked.</summary>
     public static string AskedOf(string catalogues) => $"{AskedBefore}{catalogues}.";
 
@@ -141,15 +165,17 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
             if (!lookups.Catalogue.FindsByTitleAlone) return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NothingToLookUp);
         }
 
-        // For a catalogue searched only by name, when the others' records give no title to search for.
+        // For a catalogue searched only by name, when the others' records give no title to search for: the title its card
+        // shows first, which may be the user's or the AI's and read better than the run-together words of a file name.
         var title = await queries.GetTitleAsync(job.DocumentId, ct);
         var embedded = (await queries.GetEmbeddedInfoAsync(job.DocumentId, ct))?.Title;
-        IReadOnlyList<string> titles = [.. new[] { title, embedded }.OfType<string>().Select(t => t.Trim()).Where(t => t.Length is > 0 and <= 300)
-            .Distinct(StringComparer.OrdinalIgnoreCase)];
+        var shown = await queries.GetBookTitleAsync(job.DocumentId, ct);
+        IReadOnlyList<string> titles = [.. BookRecords.Searches(new[] { shown, title, embedded }.OfType<string>().Where(t => t.Trim().Length <= 300), 3)];
+        var lines = BookLookups.Lines(await queries.GetFolderHintAsync(job.DocumentId, ct), front);
         CatalogueAnswer answer;
         try
         {
-            answer = await lookups.Catalogue.AskAsync(isbns, titles, codes, ct);
+            answer = await lookups.Catalogue.AskAsync(isbns, titles, codes, lines, ct);
         }
         catch (CatalogueUnavailableException ex)
         {

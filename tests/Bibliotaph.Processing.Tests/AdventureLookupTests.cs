@@ -47,8 +47,8 @@ public sealed class AdventureLookupTests
         var server = Answering();
         var catalogue = Catalogue(server);
 
-        var answer = await catalogue.AskAsync([], ["the owlbear mill"], [], Ct);
-        var again = await catalogue.AskAsync(["9781234567897"], ["the owlbear mill"], [], Ct);
+        var answer = await catalogue.AskAsync([], ["the owlbear mill"], [], ct: Ct);
+        var again = await catalogue.AskAsync(["9781234567897"], ["the owlbear mill"], [], ct: Ct);
 
         var record = Assert.Single(answer.Records);
         Assert.Equal(("AdventureLookup", "902", "", "The Owlbear Mill", "2019", 32), (record.Source, record.Key, record.Isbn, record.Title, record.Published, record.Pages));
@@ -73,8 +73,8 @@ public sealed class AdventureLookupTests
     {
         var catalogue = Catalogue(Answering());
 
-        var longer = await catalogue.AskAsync([], ["Goblin Warrens (Revised PDF)"], [], Ct);
-        var unknown = await catalogue.AskAsync([], ["Lighthouse at the End"], [], Ct);
+        var longer = await catalogue.AskAsync([], ["Goblin Warrens (Revised PDF)"], [], ct: Ct);
+        var unknown = await catalogue.AskAsync([], ["Lighthouse at the End"], [], ct: Ct);
 
         var record = Assert.Single(longer.Records);
         Assert.Equal(("903", "Goblin Warrens"), (record.Key, record.Title));
@@ -89,7 +89,7 @@ public sealed class AdventureLookupTests
     {
         var server = Answering();
 
-        var answer = await Catalogue(server).AskAsync(["9781234567897"], [" "], [], Ct);
+        var answer = await Catalogue(server).AskAsync(["9781234567897"], [" "], [], ct: Ct);
 
         Assert.Empty(answer.Records);
         Assert.Empty(server.Asked);
@@ -103,7 +103,7 @@ public sealed class AdventureLookupTests
     {
         var catalogue = Catalogue(new Server(_ => (status, "")));
 
-        var ex = await Assert.ThrowsAsync<CatalogueUnavailableException>(() => catalogue.AskAsync([], ["The Owlbear Mill"], [], Ct));
+        var ex = await Assert.ThrowsAsync<CatalogueUnavailableException>(() => catalogue.AskAsync([], ["The Owlbear Mill"], [], ct: Ct));
 
         Assert.Equal(said, ex.Message);
     }
@@ -113,7 +113,7 @@ public sealed class AdventureLookupTests
     {
         var catalogue = Catalogue(Answering("<html>maintenance</html>"));
 
-        var ex = await Assert.ThrowsAsync<CatalogueUnavailableException>(() => catalogue.AskAsync([], ["The Owlbear Mill"], [], Ct));
+        var ex = await Assert.ThrowsAsync<CatalogueUnavailableException>(() => catalogue.AskAsync([], ["The Owlbear Mill"], [], ct: Ct));
 
         Assert.Equal("AdventureLookup's answer couldn't be read.", ex.Message);
     }
@@ -125,7 +125,7 @@ public sealed class AdventureLookupTests
         var isbnOnly = new IsbnOnly();
         var catalogues = new BookCatalogues([isbnOnly, Catalogue(server)]);
 
-        var answer = await catalogues.AskAsync([], ["The Owlbear Mill"], [], Ct);
+        var answer = await catalogues.AskAsync([], ["The Owlbear Mill"], [], ct: Ct);
 
         Assert.True(catalogues.FindsByTitleAlone);
         Assert.Equal(0, isbnOnly.Asked);

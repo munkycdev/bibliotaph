@@ -31,14 +31,14 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
     }
 
     public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
-        (await AskAsync(isbns, [], [], ct)).Records is [var first, ..] ? first : null;
+        (await AskAsync(isbns, [], [], ct: ct)).Records is [var first, ..] ? first : null;
 
     public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        CancellationToken ct = default)
+        IReadOnlyList<string>? lines = null, CancellationToken ct = default)
     {
-        if (!web.HasKey) return await direct.AskAsync(isbns, titles, codes, ct);
+        if (!web.HasKey) return await direct.AskAsync(isbns, titles, codes, lines, ct);
         await LoadAsync(ct);
-        var answer = await web.LookUpAsync(isbns, titles, codes, ct)
+        var answer = await web.LookUpAsync(isbns, titles, codes, lines ?? [], ct)
             ?? throw new CatalogueUnavailableException($"Waiting for {(await web.AddressAsync(ct)).Host}.");
         await LearnAsync(answer.Catalogues, ct);
         if (answer.Problem is { } problem) throw new CatalogueUnavailableException(problem);
