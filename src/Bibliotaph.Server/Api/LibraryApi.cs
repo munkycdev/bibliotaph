@@ -112,7 +112,7 @@ public static class LibraryApi
             Level = Number("level"), UnknownLevels = On("unknownLevels"), Players = Number("players"), Style = Text("style"), Duration = Text("duration"),
             Folder = long.TryParse(Text("folder"), NumberStyles.None, CultureInfo.InvariantCulture, out var folder) ? folder : null,
             Subfolder = Text("subfolder"),
-            Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), Found = Text("found"), Adventures = Text("adventures"),
+            Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), NoSource = On("noSource"), Found = Text("found"), Adventures = Text("adventures"),
             Collections = Text("collections"), Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = On("addedHere"), Favorites = On("favorites"),
@@ -217,7 +217,7 @@ public static class LibraryApi
             query.UnknownLevels, Parse<AiFilter>(query.Ai) ?? AiFilter.All, query.Copies, One(query.Own), Styles: One(query.Style),
             Durations: One(query.Duration), Players: query.Players, Stores: One(query.Store), HideParts: adventures == "Hidden",
             Collections: Parse<CollectionFilter>(query.Collections) ?? CollectionFilter.All, PartsInBooks: adventures.Length == 0,
-            PackFiles: query.EachFile, Picked: Picked(query.Picked), Found: One(query.Found),
+            PackFiles: query.EachFile, Picked: Picked(query.Picked), Found: One(query.Found), OnlyWithoutStore: query.NoSource,
             Group: query.Collection is { } collection ? query.AddedHere ? ScopeKeys.CollectionOwn(collection) : ScopeKeys.Collection(collection)
                 : query.Binder is { } binder ? ScopeKeys.Session(binder)
                 : query.Favorites ? ScopeKeys.Favorites : null);
@@ -225,7 +225,7 @@ public static class LibraryApi
 
     static bool IsFiltering(LibraryQuery q) =>
         !string.IsNullOrEmpty(q.Kind) || q.Folder is not null || !string.IsNullOrEmpty(q.System) || !string.IsNullOrEmpty(q.Type) || q.Level is not null
-        || !string.IsNullOrEmpty(q.Ai) || q.Copies || !string.IsNullOrEmpty(q.Own) || !string.IsNullOrEmpty(q.Style) || !string.IsNullOrEmpty(q.Duration)
+        || !string.IsNullOrEmpty(q.Ai) || q.Copies || q.NoSource || !string.IsNullOrEmpty(q.Own) || !string.IsNullOrEmpty(q.Style) || !string.IsNullOrEmpty(q.Duration)
         || q.Players is not null || !string.IsNullOrEmpty(q.Store) || !string.IsNullOrEmpty(q.Adventures) || !string.IsNullOrEmpty(q.Collections)
         || !string.IsNullOrEmpty(q.Found)
         || Picked(q.Picked) is not null;

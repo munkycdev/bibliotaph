@@ -155,7 +155,8 @@ four groups:
   shows the books in it and in the folders inside it. A book with files in two folders shows under both, a file in a
   ZIP counts as being in the ZIP's folder, and books owned elsewhere have no folder.
 - **Housekeeping**: **Kind** (books, images, packs, on this PC, or owned elsewhere), **AI** (whether a model has
-  read it), **Copies** (books in more than one file), **Adventures inside files** (**Inside their book**,
+  read it), **Copies** (books in more than one file), **Source** (**No source given** for the books with nothing in
+  **Get it from**, so you can fill in where they came from), **Adventures inside files** (**Inside their book**,
   **Show as cards** or **Hide**; see [Adventures inside a file](cataloging.md#adventures-inside-a-file)),
   **Collection** (**In a collection**, or **Not in a collection** for the books you haven't put in one yet) and
   **Found online**: the books each online catalogue found, such as RPGGeek or Open Library, or **Not found online** for
