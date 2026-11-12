@@ -284,13 +284,14 @@ public sealed class ProbeStage(StageServices s) : IStage
         if (s.Web is { } web && WebReadings.Serves(source) && await web.ProbeAsync(s, job, source, ct) is { } read) return read;
         var title = DisplayTitle.FromFileName(source.FullPath);
 
-        if (SourceFormats.IsImage(source.Format))
+        if (SourceFormats.IsPicture(source.Format))
         {
             (int Width, int Height)? size;
             var (file, unreadable) = await StageHelpers.OpenFileAsync(s, source, ct);
             if (file is null) return unreadable!;
             await using (file)
-            await using (var stream = s.Reader.OpenRead(file.Path)) size = s.Images.ReadSize(stream);
+            await using (var stream = s.Reader.OpenRead(file.Path))
+                size = SourceFormats.IsVideo(source.Format) ? WebmHeader.ReadSize(stream) : s.Images.ReadSize(stream);
             if (size is null) return new StageOutcome.Failed(Unreadable(source.Format), Retry: false);
             await StageHelpers.UpsertDocumentAsync(s, new DocRow
             {
@@ -392,9 +393,12 @@ public sealed class ProbeStage(StageServices s) : IStage
     /// Why an image couldn't be read. Windows reads WebP only with Microsoft's free WebP Image Extensions, which most
     /// installs have; without them every WebP lands here, so the reason says what to install.
     /// </summary>
-    internal static string Unreadable(string format) => format == SourceFormats.Webp
-        ? "Windows couldn't read this WebP image. If Microsoft's free WebP Image Extensions aren't installed, get them from the Microsoft Store, then retry."
-        : "This image could not be read; it may be damaged.";
+    internal static string Unreadable(string format) => format switch
+    {
+        SourceFormats.Webp => "Windows couldn't read this WebP image. If Microsoft's free WebP Image Extensions aren't installed, get them from the Microsoft Store, then retry.",
+        SourceFormats.Webm => "This video could not be read; it may be damaged, or not a WebM video.",
+        _ => "This image could not be read; it may be damaged.",
+    };
 }
 
 /// <summary>
@@ -420,6 +424,7 @@ public sealed class TextStage(StageServices s) : IStage
         var source = await s.Library.GetSourceAsync(job.DocumentId, ct);
         if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
         if (SourceFormats.IsImage(source.Format)) return new StageOutcome.Done(StageStatus.Skipped, [], "Images have no text layer.");
+        if (SourceFormats.IsVideo(source.Format)) return new StageOutcome.Done(StageStatus.Skipped, [], "Videos have no text layer.");
         if (s.Web is { } web && WebReadings.Serves(source) && await web.TextAsync(s, job, ct) is { } read) return read;
         if (EbookFiles.Is(source)) return await ReadEbookAsync(job, source, ct);
 
@@ -526,6 +531,18 @@ public sealed class CoversStage(StageServices s) : IStage
         if (SourceFormats.IsImage(source.Format))
         {
             var (file, unreadable) = await StageHelpers.OpenFileAsync(s, source, ct);
+            if (file is null) return unreadable!;
+            await using (file)
+            await using (var stream = s.Reader.OpenRead(file.Path)) jpeg = s.Images.Thumbnail(stream, CoverCache.Width);
+        }
+        else if (SourceFormats.IsVideo(source.Format))
+        {
+            // Nothing here decodes video, so a video's cover is drawn from the still beside it that's most like it by
+            // name: makers of animated maps ship a still of each one.
+            var stills = await s.Library.GetStillsBesideAsync(job.DocumentId, ct);
+            if (VideoStills.Pick(source.FullPath, stills) is not { } still || await s.Library.GetSourceAsync(still, ct) is not { } stillSource)
+                return new StageOutcome.Done(StageStatus.Skipped, [], "There's no image beside this video to make its cover from.");
+            var (file, unreadable) = await StageHelpers.OpenFileAsync(s, stillSource, ct);
             if (file is null) return unreadable!;
             await using (file)
             await using (var stream = s.Reader.OpenRead(file.Path)) jpeg = s.Images.Thumbnail(stream, CoverCache.Width);

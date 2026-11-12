@@ -103,8 +103,8 @@ public static partial class RuleHints
                     Add(proposal);
 
         // The file name is the most specific place a level range is written, so it is looked at last. Images are left
-        // out, and so are folder names: there "Level 2" is far more often a dungeon level than a character level.
-        if (!SourceFormats.IsImage(SourceFormats.FromFileName(fileName) ?? ""))
+        // out (videos too), and so are folder names: there "Level 2" is far more often a dungeon level than a character level.
+        if (!SourceFormats.IsPicture(SourceFormats.FromFileName(fileName) ?? ""))
             foreach (var text in new[] { source.EmbeddedSubject, source.EmbeddedTitle, Path.GetFileNameWithoutExtension(fileName) })
                 if (Clean(text) is { } t)
                 {

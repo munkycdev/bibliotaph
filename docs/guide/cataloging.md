@@ -192,6 +192,10 @@ image pack, named after the folder. A smaller set is offered in Needs review ins
 gives each image its own card again, and Bibliotaph remembers that. To make a pack by hand, tick images or packs in
 **Select** mode and click **Pack together**.
 
+WebM videos, such as the animated versions of a map, count as images here, so a folder of maps and their animated
+versions is one pack. A video's cover is the image beside it whose name is most like its own (map makers ship a still
+of each animated map); with no image beside it, its card shows the placeholder.
+
 Packs can hold PDFs too, such as a party's character sheets or a set of pregenerated characters with their
 portraits. Bibliotaph never puts a PDF in a pack by itself: tick the PDFs (and any images or packs to go with them) in
 **Select** mode and click **Pack together**. The card then says "Pack · 6 files" instead of "Image pack · 6 images",

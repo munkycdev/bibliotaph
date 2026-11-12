@@ -37,7 +37,7 @@ public static class SelectionRules
     /// </summary>
     public static bool CanPack(IReadOnlyCollection<LibraryEntry> cards) =>
         cards.Count >= 2 && cards.All(c => StandsForPack(c) || c is { IsElsewhere: false, IsPart: false, Parts: 0 }
-            && (SourceFormats.IsImage(c.Format) || c.Format == SourceFormats.Pdf));
+            && (SourceFormats.IsPicture(c.Format) || c.Format == SourceFormats.Pdf));
 
     /// <summary>Remove adventures fits ticked cards that are all adventures inside files.</summary>
     public static bool CanRemoveAdventures(IReadOnlyCollection<LibraryEntry> cards) => cards.Count > 0 && cards.All(c => c.IsPart);

@@ -189,7 +189,7 @@
               <Style.Triggers>
                 <MultiDataTrigger>
                   <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding IsImage}" Value="True" />
+                    <Condition Binding="{Binding IsPicture}" Value="True" />
                     <Condition Binding="{Binding IsInPack}" Value="True" />
                   </MultiDataTrigger.Conditions>
                   <Setter Property="Visibility" Value="Visible" />
@@ -213,12 +213,15 @@
           <Border Style="{StaticResource Divider}" />
         </StackPanel>
         <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Minus}" ToolTip="Zoom out (Ctrl+minus)"
-                  AutomationProperties.Name="Zoom out" Command="NavigationCommands.DecreaseZoom" Margin="0,0,4,0" />
-          <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding ZoomChoices}" SelectedValuePath="Value" SelectedValue="{Binding Zoom}"
-                    AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl+mouse wheel; Ctrl+0 fits the width again)" MinWidth="110" />
-          <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Plus}" ToolTip="Zoom in (Ctrl+plus)"
-                  AutomationProperties.Name="Zoom in" Command="NavigationCommands.IncreaseZoom" Margin="4,0,0,0" />
+          <!-- A video always fits the window, so it has no zoom. -->
+          <StackPanel Orientation="Horizontal" Visibility="{Binding IsVideo, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Minus}" ToolTip="Zoom out (Ctrl+minus)"
+                    AutomationProperties.Name="Zoom out" Command="NavigationCommands.DecreaseZoom" Margin="0,0,4,0" />
+            <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding ZoomChoices}" SelectedValuePath="Value" SelectedValue="{Binding Zoom}"
+                      AutomationProperties.Name="Zoom" ToolTip="Zoom (Ctrl+mouse wheel; Ctrl+0 fits the width again)" MinWidth="110" />
+            <Button Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Plus}" ToolTip="Zoom in (Ctrl+plus)"
+                    AutomationProperties.Name="Zoom in" Command="NavigationCommands.IncreaseZoom" Margin="4,0,0,0" />
+          </StackPanel>
           <!-- The heart and the pin: the book, or the pack an image is in, as a favorite and in the sidebar. -->
           <Border Style="{StaticResource Divider}" />
           <Button x:Name="FavoriteButton" Style="{StaticResource Bt.HeartButton}" c:Ui.IsActive="{Binding IsFavorite}"
@@ -534,6 +537,8 @@
           <v:EbookView x:Name="EbookSurface" Visibility="{Binding IsEbook, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <viewer:ImageView x:Name="ImageSurface" Source="{Binding Image}" Zoom="{Binding Zoom}"
                             Visibility="{Binding IsImage, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <!-- A video, such as an animated map: playing on a loop in the e-book reader's browser, fitted to the window. -->
+          <v:VideoView x:Name="VideoSurface" Video="{Binding Video}" Visibility="{Binding IsVideo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <TextBlock Text="{Binding OpeningText}" Style="{StaticResource Text.Small}" HorizontalAlignment="Center" VerticalAlignment="Center"
                      Visibility="{Binding IsOpening, Converter={StaticResource Bt.VisibleWhenTrue}}" />
           <!-- A session item's pages weren't where they were, and what Add page did, with Undo. -->

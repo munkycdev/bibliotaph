@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **New: WebM videos, such as animated maps.** Bibliotaph now lists `.webm` files, in folders and in ZIPs, and
+  plays them on a loop without sound in the reader on Windows and on the web, with the player's own controls. They go
+  into packs with the images beside them, show under **Images** and `format:image`, and `format:video` finds them on
+  their own. A video's cover is the image in its folder whose name is most like its own, as map makers ship a still of
+  each animated map.
 - **Security: three code scanning findings closed.** The web server checks the user ID in a Nornis reading ticket or
   world update is one of its own before it reaches the log, and the Windows app keeps the reason saving a password
   failed apart from the password itself, so the log can't be made to carry either.

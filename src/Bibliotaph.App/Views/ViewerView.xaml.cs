@@ -41,6 +41,7 @@ public partial class ViewerView
         EbookSurface.WebLinkClicked += (_, address) => _model?.FollowLink(new Bibliotaph.Viewer.PageLink(default, -1, null, address));
         EbookSurface.ZoomRequested += (_, step) => _model?.StepEbookZoom(step);
         EbookSurface.Failed += (_, message) => _model?.ShowEbookProblem(message);
+        VideoSurface.Failed += (_, message) => _model?.ShowVideoProblem(message);
         EbookSurface.KeyPressed += (_, key) =>
         {
             if (_model is not { IsEbook: true } model) return;
@@ -84,6 +85,7 @@ public partial class ViewerView
         model.EbookFind = EbookSurface.FindAsync;
         model.EbookTerms = EbookSurface.MarkTermsAsync;
         EbookSurface.Browser = model.EbookBrowser;
+        VideoSurface.Browser = model.EbookBrowser;
         _strip!.PropertyChanged += OnStripChanged;
         _find!.PropertyChanged += OnFindChanged;
         ShowPdf(model.Pdf);
@@ -114,7 +116,7 @@ public partial class ViewerView
                 // Opening Ask is for typing a question.
                 Dispatcher.BeginInvoke(DispatcherPriority.Input, () => AskBox.Focus());
                 break;
-            case nameof(ViewerViewModel.IsPdf) or nameof(ViewerViewModel.IsImage) or nameof(ViewerViewModel.IsEbook):
+            case nameof(ViewerViewModel.IsPdf) or nameof(ViewerViewModel.IsImage) or nameof(ViewerViewModel.IsVideo) or nameof(ViewerViewModel.IsEbook):
                 // The zoom buttons and keys follow what's open.
                 CommandManager.InvalidateRequerySuggested();
                 break;

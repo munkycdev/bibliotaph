@@ -1160,10 +1160,11 @@ else
             "unreachable" => (new ReaderProblem("The file couldn't be reached.",
                 "Its storage didn't answer, or didn't let this site read it. Check your connection and try again; if it keeps happening, let us know from Contact us."), "Try again"),
             "image" => (new ReaderProblem("This image could not be read.", "The file may be damaged, or still uploading."), "Try again"),
+            "video" => (new ReaderProblem("This video could not be played.", "The file may be damaged, or this browser can't play WebM videos."), "Try again"),
             _ => (new ReaderProblem("This book could not be opened.", SomethingWentWrong), "Try again"),
         };
         // What went wrong is for a bug report, not the page: it goes to the browser's console.
-        if (kind is not ("password" or "link" or "image") && message.Length > 0) Console.Error.WriteLine($"The reader couldn't open the book ({kind}): {message}");
+        if (kind is not ("password" or "link" or "image" or "video") && message.Length > 0) Console.Error.WriteLine($"The reader couldn't open the book ({kind}): {message}");
         await CloseAsync();
         StateHasChanged();
     }

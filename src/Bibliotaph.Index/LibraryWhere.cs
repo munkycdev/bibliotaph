@@ -49,7 +49,7 @@ internal sealed class LibraryWhere
                 Add("e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@bookFormats))", "bookFormats", JsonSerializer.Serialize(SourceFormats.Paged));
                 break;
             case KindFilter.Images:
-                Add("e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@imageFormats))", "imageFormats", JsonSerializer.Serialize(SourceFormats.Images));
+                Add("e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@imageFormats))", "imageFormats", JsonSerializer.Serialize(SourceFormats.Pictures));
                 break;
             case KindFilter.Packs:
                 // While each file has a card of its own, Packs keeps the files in packs.

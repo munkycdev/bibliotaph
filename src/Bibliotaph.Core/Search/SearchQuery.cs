@@ -8,7 +8,7 @@ public enum SearchField
     /// <summary><c>title:</c>, the document's title (its effective title, or the one from its file name).</summary>
     Title,
 
-    /// <summary><c>format:</c> pdf, epub, mobi, azw, azw3, kfx, jpg, png, webp, image for any image format, ebook for any e-book format, or kindle for any Kindle format.</summary>
+    /// <summary><c>format:</c> pdf, epub, mobi, azw, azw3, kfx, jpg, png, webp, webm, image for any picture format (videos too), video for any video format, ebook for any e-book format, or kindle for any Kindle format.</summary>
     Format,
 
     /// <summary><c>folder:</c>, part of a folder name between the source folder and the file.</summary>
@@ -404,7 +404,7 @@ sealed class QueryParser(string text)
         {
             if (value is not TermNode { Prefix: false } term || NormalizeFormat(term.Text) is not { } format)
             {
-                Issue("format: can be pdf, epub, mobi, azw3, jpg, png, webp, ebook, kindle or image.", Span(token, valueToken));
+                Issue("format: can be pdf, epub, mobi, azw3, jpg, png, webp, webm, ebook, kindle, image or video.", Span(token, valueToken));
                 return null;
             }
             value = new TermNode(format);
@@ -507,7 +507,7 @@ sealed class QueryParser(string text)
         _ => null,
     };
 
-    /// <summary>A file format, or image, ebook or kindle for every format of that kind.</summary>
+    /// <summary>A file format, or image, video, ebook or kindle for every format of that kind.</summary>
     static string? NormalizeFormat(string value) => value.ToLowerInvariant() switch
     {
         "pdf" => SourceFormats.Pdf,
@@ -521,7 +521,9 @@ sealed class QueryParser(string text)
         "jpg" or "jpeg" => SourceFormats.Jpeg,
         "png" => SourceFormats.Png,
         "webp" => SourceFormats.Webp,
+        "webm" => SourceFormats.Webm,
         "image" or "images" or "picture" or "pictures" => "image",
+        "video" or "videos" => "video",
         _ => null,
     };
 

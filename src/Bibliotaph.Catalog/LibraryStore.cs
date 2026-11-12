@@ -46,6 +46,9 @@ public sealed record DocumentSource(long DocumentId, string ContentHash, string 
     public bool InArchive => ArchivePath is not null;
 }
 
+/// <summary>An image in the same folder (or the same folder of a ZIP) as a video: its document, and its path there.</summary>
+public sealed record StillBeside(long DocumentId, string Path);
+
 /// <summary>
 /// File and document counts. The unhashed online-only files are those still to download; <see cref="Problems"/> are
 /// files inside ZIPs that can't be read; <see cref="OfflineFolders"/> are library folders that can't be reached.
@@ -680,6 +683,34 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
             .Select(ArchivePaths.FolderName);
         return new DocumentSource(document.Id, document.ContentHash, document.Format, paths[0], string.Join(" / ", folders), paths,
             first.Archive is null ? null : Path.Combine(first.Root, first.Archive), first.EntryPath);
+    }
+
+    /// <summary>
+    /// The images in the folder a document's file is in, beside it: in the folder of each present copy, in a library
+    /// folder that can be reached. A video's cover is drawn from one of them.
+    /// </summary>
+    public async Task<IReadOnlyList<StillBeside>> GetStillsBesideAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var places = await db.FileLocations.AsNoTracking()
+            .Where(f => f.DocumentId == documentId && f.State != FileLocationState.Missing && f.SourceRoot.Availability == SourceRootAvailability.Online)
+            .Select(f => new { f.SourceRootId, f.RelativePath })
+            .ToListAsync(ct);
+        var stills = new List<StillBeside>();
+        foreach (var place in places)
+        {
+            var folder = Path.GetDirectoryName(place.RelativePath) ?? "";
+            var prefix = folder.Length == 0 ? "" : folder + Path.DirectorySeparatorChar;
+            var found = await db.FileLocations.AsNoTracking()
+                .Where(f => f.SourceRootId == place.SourceRootId && f.DocumentId != null && f.DocumentId != documentId
+                    && f.State != FileLocationState.Missing && f.RelativePath.StartsWith(prefix))
+                .Select(f => new { DocumentId = f.DocumentId!.Value, f.RelativePath, f.Document!.Format })
+                .ToListAsync(ct);
+            stills.AddRange(found
+                .Where(f => SourceFormats.IsImage(f.Format) && string.Equals(Path.GetDirectoryName(f.RelativePath) ?? "", folder, StringComparison.OrdinalIgnoreCase))
+                .Select(f => new StillBeside(f.DocumentId, f.RelativePath)));
+        }
+        return [.. stills.DistinctBy(s => s.DocumentId)];
     }
 
     /// <summary>
