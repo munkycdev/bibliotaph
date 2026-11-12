@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Box is no longer offered.** **Settings > Library** connects OneDrive, Dropbox, Google Drive and WebDAV, on Windows
+  and the web. A Box account connected earlier stays listed until you disconnect it, but its folders can't be read any
+  more.
 - **Summary shows what the online lookups found.** **Where it came from** now lists your publishers and which online
   catalogues found your books (RPGGeek, AdventureLookup, Open Library, Google Books), with how many none has found yet.
   **What it is** adds themes, environments and what's included (pre-generated characters, handouts, battle maps, solo

@@ -13,7 +13,7 @@ namespace Bibliotaph.App;
 static partial class Composition
 {
     /// <summary>
-    /// Storage connected on this PC (OneDrive, Dropbox, Google Drive, Box, WebDAV), read through each provider's API as
+    /// Storage connected on this PC (OneDrive, Dropbox, Google Drive, WebDAV), read through each provider's API as
     /// the web library reads it. Its folders are library folders like any other: listed from the provider, each book
     /// downloaded to be read, and changes asked for every few minutes.
     /// </summary>

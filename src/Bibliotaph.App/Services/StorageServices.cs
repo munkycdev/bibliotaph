@@ -16,7 +16,7 @@ namespace Bibliotaph.App.Services;
 /// </summary>
 public sealed class DesktopStorageApps : IDesktopClients
 {
-    /// <summary>The loopback port Dropbox and Box redirect to: both match a redirect exactly, port and all.</summary>
+    /// <summary>The loopback port Dropbox redirects to: it matches a redirect exactly, port and all.</summary>
     public const int FixedPort = 41583;
 
     readonly Dictionary<string, DesktopClient> _clients;
@@ -26,15 +26,14 @@ public sealed class DesktopStorageApps : IDesktopClients
     public DesktopStorageApps(IReadOnlyDictionary<string, string> values)
     {
         var clients = new Dictionary<string, DesktopClient>(StringComparer.Ordinal);
-        void Add(string provider, int? port = null, Uri? relay = null)
+        void Add(string provider, int? port = null)
         {
             if (values.TryGetValue($"Storage.{provider}.ClientId", out var id) && id.Length > 0)
-                clients[provider] = new DesktopClient(id, values.GetValueOrDefault($"Storage.{provider}.ClientSecret") is { Length: > 0 } secret ? secret : null, port, relay);
+                clients[provider] = new DesktopClient(id, values.GetValueOrDefault($"Storage.{provider}.ClientSecret") is { Length: > 0 } secret ? secret : null, port);
         }
         Add("onedrive");
         Add("dropbox", FixedPort);
         Add("googledrive");
-        Add("box", FixedPort, new Uri(WebLibrary.DefaultAddress, "storage/token/box"));
         _clients = clients;
     }
 

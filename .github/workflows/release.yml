@@ -141,7 +141,6 @@ jobs:
           BIBLIOTAPH_DROPBOX_CLIENT_ID: ${{ vars.BIBLIOTAPH_DROPBOX_CLIENT_ID }}
           BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID: ${{ vars.BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID }}
           BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET: ${{ secrets.BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET }}
-          BIBLIOTAPH_BOX_CLIENT_ID: ${{ vars.BIBLIOTAPH_BOX_CLIENT_ID }}
         run: |
           dotnet publish src/Bibliotaph.App/Bibliotaph.App.csproj --configuration Release --runtime win-x64 --self-contained `
             -p:Version=$env:VERSION -p:ReleasesUrl=$env:REPO_URL --output publish
