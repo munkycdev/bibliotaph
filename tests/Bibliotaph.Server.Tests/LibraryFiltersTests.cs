@@ -47,4 +47,20 @@ public sealed class LibraryFiltersTests
         Assert.Equal(LibraryFilters.Comparable(saved), LibraryFilters.Comparable(typed));
         Assert.NotEqual(LibraryFilters.Comparable(saved), LibraryFilters.Comparable(typed with { Level = 2 }));
     }
+
+    [Fact]
+    public void A_folder_inside_a_library_folder_is_picked_shown_and_cleared_with_it()
+    {
+        var menus = Menus with { Folders = [new("", "All folders"), new("3", "Books"), new(@"3:Fantasy\Bundle", @"Fantasy\Bundle")] };
+
+        var picked = LibraryFilters.WithFolder(new LibraryQuery(), @"3:Fantasy\Bundle");
+        Assert.Equal((3L, @"Fantasy\Bundle"), (picked.Folder, picked.Subfolder));
+        Assert.Equal(@"3:Fantasy\Bundle", LibraryFilters.FolderValue(picked));
+        Assert.Equal((3L, null), (LibraryFilters.WithFolder(picked, "3").Folder, LibraryFilters.WithFolder(picked, "3").Subfolder));
+
+        var chip = Assert.Single(LibraryFilters.Chips(picked, menus));
+        Assert.Equal(@"Folder: Fantasy\Bundle", chip.Label);
+        Assert.Equal((null, null), (chip.Clear(picked).Folder, chip.Clear(picked).Subfolder));
+        Assert.Equal(picked, LibraryUrl.Parse("https://example.test/library?" + LibraryUrl.QueryString(picked, forApi: false)));
+    }
 }

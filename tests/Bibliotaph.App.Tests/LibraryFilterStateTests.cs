@@ -1,5 +1,6 @@
 using Bibliotaph.App.Services;
 using Bibliotaph.App.ViewModels;
+using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
@@ -20,7 +21,8 @@ public class LibraryFilterStateTests
         IReadOnlyList<string> setting = ["the-marches"];
         return new(Kind: KindFilter.Books, Folder: 7, System: "dnd5e", Type: "adventure", Level: 3, IncludeUnknownLevels: true, Ai: AiFilter.Read,
             Copies: true, Own: "print", Style: "heist", Duration: "one-shot", Players: 4, Store: "itch-io", Collections: CollectionFilter.InOne,
-            Picked: PickedValues.Of([KeyValuePair.Create(MetadataFields.Settings.Key, setting)]), Adventures: AdventureCards.Cards, Found: "RPGGeek");
+            Picked: PickedValues.Of([KeyValuePair.Create(MetadataFields.Settings.Key, setting)]), Adventures: AdventureCards.Cards, Found: "RPGGeek",
+            Subfolder: @"Adventures\One-shots");
     }
 
     [Fact]
@@ -29,10 +31,11 @@ public class LibraryFilterStateTests
         var view = Everything();
 
         _filters.Apply(view);
-        _filters.ShowFolders([new Choice<long?>(7, "Maps"), new Choice<long?>(9, "Handouts")]);
+        _filters.ShowFolders([new Choice<FolderKey?>(new FolderKey(7, ""), "Maps"), new Choice<FolderKey?>(new FolderKey(7, "Adventures"), "Adventures"),
+            new Choice<FolderKey?>(new FolderKey(7, @"Adventures\One-shots"), @"Adventures\One-shots"), new Choice<FolderKey?>(new FolderKey(9, ""), "Handouts")]);
 
         Assert.Equal(view, _filters.ToView());
-        Assert.Equal(7, _filters.FolderChoice.Value);
+        Assert.Equal(new FolderKey(7, @"Adventures\One-shots"), _filters.FolderChoice.Value);
         Assert.Equal(["the-marches"], _filters.ChipFilters.Single(b => b.Field == MetadataFields.Settings).Values);
     }
 
@@ -40,7 +43,7 @@ public class LibraryFilterStateTests
     public void Putting_a_saved_search_back_does_not_ask_for_a_refresh_for_each_filter()
     {
         _filters.Apply(Everything());
-        _filters.ShowFolders([new Choice<long?>(7, "Maps")]);
+        _filters.ShowFolders([new Choice<FolderKey?>(new FolderKey(7, ""), "Maps")]);
 
         Assert.Equal(0, _changes);
     }
@@ -94,7 +97,7 @@ public class LibraryFilterStateTests
     public void Clear_filters_turns_every_filter_off_and_asks_for_one_refresh()
     {
         _filters.Apply(Everything());
-        _filters.ShowFolders([new Choice<long?>(7, "Maps")]);
+        _filters.ShowFolders([new Choice<FolderKey?>(new FolderKey(7, ""), "Maps")]);
 
         _filters.ClearFiltersCommand.Execute(null);
 

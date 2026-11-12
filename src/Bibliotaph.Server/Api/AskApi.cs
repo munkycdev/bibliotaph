@@ -59,7 +59,7 @@ public static class AskApi
             if (question.Length == 0) return Results.BadRequest();
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var library = lease.Library;
-            var scope = await library.Get<LibraryStore>().GetVisibleEntryIdsAsync(asked.Scope.Folder, ct);
+            var scope = await LibraryApi.ScopeOfAsync(library.Get<LibraryStore>(), asked.Scope, ct);
             var plan = SearchPlan.From(SearchQuery.Parse(asked.Scope.Q?.Trim() ?? ""));
             AskFilter filter = new BookFilter(LibraryApi.Filter(asked.Scope, scope), plan);
             http.Response.ContentType = "application/x-ndjson";

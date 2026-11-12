@@ -177,7 +177,7 @@ app.
 
 **Filters** opens the Windows app's filter panel: game system, type, character level (with **Include unknown levels**)
 and players, then under **More filters** the style and length of an adventure, the book's setting, themes,
-environments, publisher and edition, the source folder, where else you own a book, where to get it, and housekeeping
+environments, publisher and edition, the source folder (a folder you added or any folder inside it), where else you own a book, where to get it, and housekeeping
 (kind, AI, copies, adventures inside files, collections). Each menu says how many books it would show. Setting, themes,
 environments, publisher and edition are boxes to type in: they list the matching values with how many books have each
 (the arrow keys move through them, **Enter** picks one), and a picked value becomes a chip under its box. Values picked

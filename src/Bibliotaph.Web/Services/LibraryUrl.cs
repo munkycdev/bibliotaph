@@ -33,6 +33,7 @@ public static class LibraryUrl
         Add("style", q.Style);
         Add("duration", q.Duration);
         Add("folder", q.Folder?.ToString(CultureInfo.InvariantCulture));
+        Add("subfolder", q.Folder is null ? null : q.Subfolder);
         Add("own", q.Own);
         Add("store", q.Store);
         Add("kind", q.Kind);
@@ -114,6 +115,7 @@ public static class LibraryUrl
             Style = Text("style"),
             Duration = Text("duration"),
             Folder = long.TryParse(Text("folder"), NumberStyles.None, CultureInfo.InvariantCulture, out var folder) ? folder : null,
+            Subfolder = Text("subfolder"),
             Own = Text("own"),
             Store = Text("store"),
             Kind = Text("kind"),

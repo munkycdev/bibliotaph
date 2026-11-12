@@ -36,7 +36,8 @@ public enum AdventureCards
 /// Stored as JSON with a version, so a later app can read an older view; one saved before a filter existed reads with
 /// that filter off, such as <see cref="Picked"/>, the type-ahead filters' chips. <see cref="Adventures"/> says where the
 /// adventures inside files show; <see cref="HideParts"/> is how a view from before there was a choice of three said
-/// so, and is read only from those.
+/// so, and is read only from those. <see cref="Subfolder"/> is a folder inside the library folder <see cref="Folder"/>
+/// ("D&amp;D 5e\Adventures"), or null for the whole library folder.
 /// </summary>
 public sealed record SmartViewDefinition(
     string Query = "",
@@ -62,7 +63,8 @@ public sealed record SmartViewDefinition(
     CollectionFilter Collections = CollectionFilter.All,
     PickedValues? Picked = null,
     AdventureCards Adventures = AdventureCards.InBooks,
-    string? Found = null)
+    string? Found = null,
+    string? Subfolder = null)
 {
     /// <summary>2: <see cref="Adventures"/>, which defaults to inside their books, took over from <see cref="HideParts"/>.</summary>
     public const int CurrentVersion = 2;

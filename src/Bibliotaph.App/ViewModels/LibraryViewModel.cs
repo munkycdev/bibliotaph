@@ -436,8 +436,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     {
         var roots = await _roots.ListAsync();
         FolderCount = roots.Count;
-        Filters.ShowFolders([.. roots.Select(r => new Choice<long?>(r.Id, _shelf.NameOf(r.Path)))]);
+        var folders = (await _library.GetBookFoldersAsync()).ToLookup(f => f.RootId);
+        Filters.ShowFolders([.. roots.SelectMany(r => FolderChoices(r.Id, _shelf.NameOf(r.Path), folders[r.Id], roots.Count > 1))]);
     }
+
+    /// <summary>A library folder, then each folder inside it that holds a book, by its path.</summary>
+    static IEnumerable<Choice<FolderKey?>> FolderChoices(long rootId, string rootName, IEnumerable<FolderKey> inside, bool withRoot) =>
+        [new(new FolderKey(rootId, ""), rootName), .. inside.Select(f => new Choice<FolderKey?>(f, f.Label(rootName, withRoot)))];
 
     /// <summary>Runs the current view's query. A newer refresh supersedes an older one still running.</summary>
     public async Task RefreshAsync()
@@ -448,7 +453,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         var version = ++_version;
         try
         {
-            var scope = await _library.GetVisibleEntryIdsAsync(Filters.FolderChoice.Value);
+            var scope = Filters.FolderChoice.Value is { } folder ? await _library.GetVisibleEntryIdsAsync(folder) : await _library.GetVisibleEntryIdsAsync();
             var away = await _library.GetUnavailableAsync();
             var filter = Filters.ToFilter(scope, SortChoice.Value, Group) with { PackFiles = ShowPackFiles };
             // A question to the library is about the books shown here.

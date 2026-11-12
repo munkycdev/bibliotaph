@@ -132,7 +132,8 @@ public static class SavedSearchesApi
         Collections: Parse<CollectionFilter>(q.Collections) ?? CollectionFilter.All,
         Picked: LibraryApi.Picked(q.Picked),
         Adventures: q.Adventures switch { "Hidden" => AdventureCards.Hidden, "Cards" => AdventureCards.Cards, _ => AdventureCards.InBooks },
-        Found: Text(q.Found));
+        Found: Text(q.Found),
+        Subfolder: q.Folder is null ? null : Text(q.Subfolder));
 
     /// <summary>A definition as the web's library query, its scope left for <see cref="OpenAsync"/> to check.</summary>
     internal static LibraryQuery ToQuery(SmartViewDefinition d) => new()
@@ -148,6 +149,7 @@ public static class SavedSearchesApi
         Style = d.Style,
         Duration = d.Duration,
         Folder = d.Folder,
+        Subfolder = d.Folder is null ? null : d.Subfolder,
         Own = d.Own,
         Store = d.Store,
         Kind = d.Kind == KindFilter.All ? null : d.Kind.ToString(),
