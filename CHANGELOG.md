@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Built on the released .NET 11.** Bibliotaph moves from the .NET 11 release candidate to the general release
+  (SDK 11.0.100, runtime 11.0.0), along with EF Core and ASP.NET Core 11.0.0, on Windows and the web server.
+
 ## 1.6 · 9 November 2026
 
 - **Fixed: D&D Beyond and Demiplane books kept coming back without covers.** A cover lost on one device could only
