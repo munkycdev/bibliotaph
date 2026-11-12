@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **The online lookups find more of your books.** RPGGeek can only be searched by name, and was searched with a
+  book's file name, so a file such as "Monster Tome Vol1" never found RPGGeek's "Gull Rock Saga: Book 3. Monster Tome".
+  - Books are now also searched with the title their card shows (yours or the AI's) and the title their cover prints,
+    on RPGGeek and AdventureLookup.
+  - RPGGeek is also searched by the book's line: the folder it's in, or the one above, when the book prints that
+    folder's name on its first pages, as a publisher's credits page does; the line RPGGeek named the other books in
+    its folder after ("Gull Rock Saga" from "Gull Rock Saga: Book 1"); and a line its cover prints above its name. Up
+    to 60 of the items a search finds are read, and an item holding the title's words in another order counts too. A
+    record found this way is used only when it lists an ISBN or product code the book prints, so a broad search can't
+    give a book the wrong details, and a folder name the book doesn't print is never sent.
+  - A book no catalogue found is looked up again as soon as its title changes, when the AI names it or you do.
+  - A book printing no ISBN or product code is now looked up on RPGGeek too, by title: an item is taken only when it's
+    the one RPGGeek names as the book is, the book prints its whole name (the line's name and the rest), and the book
+    also prints one of its designers or its publisher; with the name but nothing else that agrees, Needs review asks
+    **Same book?**.
+  - Every book is looked up again once after the update. On Windows (connected to bibliotaph.online) and the web.
 - **Better titles from file names.** A book with no title of its own now gets a readable one from its file name:
   `CurseOfTheVault_v2 (1).pdf` becomes "Curse of the Vault". Words run together are split, copy markers such as "(1)"
   and "- Copy", tags such as "[PDF]", versions, dates and product codes are dropped, and the result is title-cased

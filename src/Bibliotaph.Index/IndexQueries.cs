@@ -538,6 +538,41 @@ public sealed class IndexQueries(IndexDatabase database)
     }
 
     /// <summary>
+    /// The title the card of a document's book shows, the user's, a catalogue's or the AI's, which may read better than
+    /// the one its file name gives; null while it has none.
+    /// </summary>
+    public async Task<string?> GetBookTitleAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
+            """
+            SELECT m.title FROM entry_doc e JOIN entry_meta m ON m.entry_id = e.entry_id
+            WHERE e.document_id = @documentId AND e.kind = 'Whole' AND m.title IS NOT NULL
+            ORDER BY e.entry_id LIMIT 1
+            """, new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>The content hashes of the other documents in the same folders as this one, the first <paramref name="most"/> read.</summary>
+    public async Task<IReadOnlyList<string>> GetHashesBesideAsync(long documentId, int most, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<string>(new CommandDefinition(
+            """
+            SELECT o.content_hash FROM doc d JOIN doc o ON o.folder_hint = d.folder_hint AND o.document_id <> d.document_id
+            WHERE d.document_id = @documentId AND d.folder_hint IS NOT NULL AND d.folder_hint <> ''
+            ORDER BY o.document_id LIMIT @most
+            """, new { documentId, most }, cancellationToken: ct))];
+    }
+
+    /// <summary>The folders above a document's file under its source root ("Coriolis / Adventures"), or null.</summary>
+    public async Task<string?> GetFolderHintAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT folder_hint FROM doc WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>
     /// The title each of these content hashes is shown by: its card's title, or its file's name. Hashes the index
     /// doesn't have are left out. For Settings, Passwords, which knows its books only by hash.
     /// </summary>

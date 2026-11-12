@@ -139,6 +139,19 @@ public interface IRevisitedStage : IStage
 
     /// <summary>Raised when more finished books may be worth running again, from any thread.</summary>
     event EventHandler? RunAgainChanged;
+
+    /// <summary>
+    /// Raised with documents whose finished job may be worth running again now, from any thread, as a book whose title
+    /// has changed: those that finished for a reason <see cref="RunsAgainFor"/> accepts are run again.
+    /// </summary>
+    event EventHandler<IReadOnlyCollection<long>>? RunAgainFor
+    {
+        add { }
+        remove { }
+    }
+
+    /// <summary>Which of the documents <see cref="RunAgainFor"/> names to run again, by the reason each finished with.</summary>
+    bool RunsAgainFor(string? reason) => false;
 }
 
 /// <summary>

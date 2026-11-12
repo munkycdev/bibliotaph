@@ -465,11 +465,12 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
     /// <see cref="PcLookupAnswer.Problem"/> set when it couldn't ask; or null when it didn't answer.
     /// </summary>
     public async Task<PcLookupAnswer?> LookUpAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        CancellationToken ct)
+        IReadOnlyList<string> lines, CancellationToken ct)
     {
         try
         {
-            using var response = await SendAsync(HttpMethod.Post, "api/pc/lookups", new PcLookupRequest(isbns, titles, codes.Count > 0 ? codes : null),
+            using var response = await SendAsync(HttpMethod.Post, "api/pc/lookups",
+                new PcLookupRequest(isbns, titles, codes.Count > 0 ? codes : null, lines.Count > 0 ? lines : null),
                 withKey: true, ct,
                 patience: LookUpPatience);
             if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();

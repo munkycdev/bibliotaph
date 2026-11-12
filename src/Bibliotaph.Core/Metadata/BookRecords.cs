@@ -37,6 +37,19 @@ public static partial class BookRecords
     private static partial Regex YearIn();
 
     /// <summary>
+    /// Whether every part of the record's title, each side of a colon, is printed in <paramref name="places"/>: how a
+    /// record found by its title alone must name the book, since a line's name before the colon ("Line: Game Master's
+    /// Screen") is printed in every book of the line.
+    /// </summary>
+    public static bool IsNamedWholeIn(BookRecord record, IEnumerable<string?> places)
+    {
+        var parts = record.Title.Split(':').Select(Simplify).Where(p => p.Length > 0).ToList();
+        if (parts.Count == 0) return false;
+        var printed = $" {string.Join(" ", places.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => Simplify(p!)))} ";
+        return parts.All(p => printed.Contains($" {p} ", StringComparison.Ordinal));
+    }
+
+    /// <summary>
     /// Whether the record's title is printed in the book: in one of <paramref name="places"/>, the text of its front
     /// pages and the title its file gives, ignoring case, punctuation and spacing. Only the part before a colon has to
     /// be there, since a catalogue often adds a subtitle the cover doesn't print. An ISBN printed wrongly, or reused for
@@ -199,6 +212,14 @@ public static partial class BookRecords
     /// <summary>The year in a catalogue's date ("March 2019", "c1985"), or null when it has none.</summary>
     public static string? Year(string? published) =>
         published is not null && YearIn().Match(published) is { Success: true } year ? year.Value : null;
+
+    /// <summary>
+    /// The first <paramref name="most"/> of <paramref name="titles"/> worth searching for, once each however it's cased
+    /// or punctuated: "The Owlbear Mill" and "the owlbear mill." are one search.
+    /// </summary>
+    public static IEnumerable<string> Searches(IEnumerable<string> titles, int most) =>
+        titles.Select(t => (Title: t.Trim(), Simple: Simplify(t))).Where(t => t.Simple.Length > 0).DistinctBy(t => t.Simple, StringComparer.Ordinal)
+            .Take(most).Select(t => t.Title);
 
     /// <summary>Lower case letters and digits, each run of anything else one space: titles compared as a reader would.</summary>
     public static string Simplify(string text)

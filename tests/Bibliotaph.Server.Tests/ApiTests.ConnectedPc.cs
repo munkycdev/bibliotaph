@@ -221,6 +221,11 @@ public abstract partial class ApiTests
             using var byCode = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([], ["The Owlbear Mill"], ["pzo1110"]), ct);
             // And one printing neither, by its title alone.
             using var byTitle = await keyed.PostAsJsonAsync("/api/pc/lookups", new PcLookupRequest([], ["The Owlbear Mill"]), ct);
+            // The line a book prints the name of comes too, for a catalogue searched by name.
+            using var byLine = await keyed.PostAsJsonAsync("/api/pc/lookups",
+                new PcLookupRequest(["9781234567897"], ["Owlbear Mill Maps"], Lines: ["Gull Rock Saga"]), ct);
+            using var tooManyLines = await keyed.PostAsJsonAsync("/api/pc/lookups",
+                new PcLookupRequest(["9781234567897"], Lines: ["A Line", "B Line", "C Line", "D Line", "E Line"]), ct);
             using var signedIn = await web.GetAsync("/api/pc/lookups", ct);
 
             Assert.Equal(("Open Library or Google Books", 1), (catalogue.Name, changed));
@@ -232,6 +237,9 @@ public abstract partial class ApiTests
             Assert.Equal(HttpStatusCode.ServiceUnavailable, byCode.StatusCode);
             Assert.Equal(HttpStatusCode.ServiceUnavailable, byTitle.StatusCode);
             Assert.Equal(["PZO1110"], _catalogue.Codes);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, byLine.StatusCode);
+            Assert.Equal(["Gull Rock Saga"], _catalogue.Lines);
+            Assert.Equal(HttpStatusCode.BadRequest, tooManyLines.StatusCode);
             Assert.Equal(HttpStatusCode.Unauthorized, signedIn.StatusCode);
             Assert.Equal("Open Library or Google Books", await settings.GetAsync(SettingKeys.LookUpWebCatalogues, ct));
 
@@ -259,11 +267,11 @@ public abstract partial class ApiTests
             var changes = 0;
             pc.ReachabilityChanged += (_, _) => changes++;
 
-            Assert.Null(await pc.LookUpAsync(["9781234567897"], [], [], ct));
+            Assert.Null(await pc.LookUpAsync(["9781234567897"], [], [], [], ct));
             var down = pc.IsUnreachable;
             network.Down = false;
             // Any answer, a refused key included, means it can be reached.
-            await pc.LookUpAsync(["9781234567897"], [], [], ct);
+            await pc.LookUpAsync(["9781234567897"], [], [], [], ct);
 
             Assert.True(down);
             Assert.False(pc.IsUnreachable);

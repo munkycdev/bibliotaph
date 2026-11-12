@@ -152,6 +152,26 @@ public sealed class IndexStoreTests : IndexFixture
     }
 
     [Fact]
+    public async Task Of_the_books_named_only_the_finished_jobs_whose_reason_is_accepted_run_again()
+    {
+        foreach (var id in new long[] { 1, 2, 3 })
+        {
+            await _store.UpsertDocumentAsync(Doc(id), Pages(1), [], Ct);
+            await _queue.EnqueueAsync(id, $"hash{id}", Stage.LookUp, ct: Ct);
+        }
+        foreach (var reason in new[] { "No record.", "No record.", "Found." })
+            await _queue.CompleteAsync((await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct))!, StageStatus.Skipped, reason, ct: Ct);
+
+        // The first and third are named: the first missed, the third was found, and the second, which missed, isn't named.
+        var queued = await _queue.RerunAsync(Stage.LookUp, [1, 3], reason => reason == "No record.", Ct);
+        var none = await _queue.RerunAsync(Stage.LookUp, [], _ => true, Ct);
+
+        Assert.Equal((1, 0), (queued, none));
+        Assert.Equal(1, (await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct))!.DocumentId);
+        Assert.Null(await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct));
+    }
+
+    [Fact]
     public async Task A_book_the_ai_failed_for_good_needs_attention_and_one_waiting_for_it_does_not()
     {
         await _store.UpsertDocumentAsync(Doc(1) with { DisplayTitle = "Failed book" }, Pages(1), [], Ct);

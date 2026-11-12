@@ -116,6 +116,21 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
         return [.. found.Select(f => (new EntryId(f.EntryId), f.Source))];
     }
 
+    /// <summary>
+    /// The titles of the records the files with these content hashes use, printed in them or answered Same book: what
+    /// a catalogue calls the books beside one, whose line it may name ("Line: Book 2").
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetUsedTitlesAsync(IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
+    {
+        if (contentHashes.Count == 0) return [];
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var hashes = contentHashes.ToList();
+        var json = await db.LookupRecords.AsNoTracking()
+            .Where(r => hashes.Contains(r.ContentHash) && r.RecordJson != null && r.Answer != LookupAnswer.NotThisBook && (r.Printed || r.Answer == LookupAnswer.SameBook))
+            .OrderBy(r => r.Id).Select(r => r.RecordJson).ToListAsync(ct);
+        return [.. json.Select(Read).OfType<BookRecord>().Select(r => r.Title).Distinct(StringComparer.Ordinal)];
+    }
+
     async Task<(List<MetadataProposal> Proposals, bool Grew)> TermProposalsAsync(List<BookRecord> records, CancellationToken ct)
     {
         var proposals = new List<MetadataProposal>();

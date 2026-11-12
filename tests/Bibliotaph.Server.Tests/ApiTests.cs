@@ -129,6 +129,8 @@ public abstract partial class ApiTests : IDisposable
 
         public List<string> Codes { get; } = [];
 
+        public List<string> Lines { get; } = [];
+
         public Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default)
         {
             if (Busy) throw new CatalogueUnavailableException("Google Books is busy.");
@@ -137,9 +139,10 @@ public abstract partial class ApiTests : IDisposable
         }
 
         public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-            CancellationToken ct = default)
+            IReadOnlyList<string>? lines = null, CancellationToken ct = default)
         {
             Codes.AddRange(codes);
+            Lines.AddRange(lines ?? []);
             return new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
         }
     }

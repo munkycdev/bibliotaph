@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Bibliotaph.Core;
 using Dapper;
 using Microsoft.Data.Sqlite;
@@ -273,6 +274,30 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             var finished = c.Query<(long Id, long DocumentId, string? Reason)>(
                 "SELECT id, document_id, last_error FROM job WHERE stage = @stage AND stage_version = @version AND status = 'done'",
                 new { stage = stage.ToString(), version = Pipeline.Version(stage) }, t).Where(j => because(j.Reason)).ToList();
+            foreach (var (id, documentId, _) in finished)
+            {
+                c.Execute("UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL WHERE id = @id", new { id }, t);
+                SetStatus(c, t, documentId, stage, StageStatus.Pending, null, now);
+            }
+            return finished.Count;
+        }, ct);
+
+    /// <summary>
+    /// Runs <paramref name="stage"/> again for those of <paramref name="documentIds"/> that finished it at the current
+    /// version for a reason <paramref name="because"/> accepts, as when a book no catalogue knew has a new title. Returns
+    /// the number queued.
+    /// </summary>
+    public Task<int> RerunAsync(Stage stage, IReadOnlyCollection<long> documentIds, Func<string?, bool> because, CancellationToken ct = default) =>
+        documentIds.Count == 0 ? Task.FromResult(0) : writer.WriteAsync((c, t) =>
+        {
+            var now = Now();
+            var finished = c.Query<(long Id, long DocumentId, string? Reason)>(
+                """
+                SELECT id, document_id, last_error FROM job
+                WHERE stage = @stage AND stage_version = @version AND status = 'done' AND document_id IN (SELECT value FROM json_each(@ids))
+                """,
+                new { stage = stage.ToString(), version = Pipeline.Version(stage), ids = JsonSerializer.Serialize(documentIds) }, t)
+                .Where(j => because(j.Reason)).ToList();
             foreach (var (id, documentId, _) in finished)
             {
                 c.Execute("UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL WHERE id = @id", new { id }, t);

@@ -26,8 +26,11 @@ public sealed class AdventureLookupCatalogue(HttpClient http, TimeProvider? cloc
     /// <summary>How long an answer is kept before it's asked for again.</summary>
     public static readonly TimeSpan KeepFor = TimeSpan.FromDays(30);
 
-    /// <summary>Titles searched for one book.</summary>
-    const int MostSearches = 2;
+    /// <summary>
+    /// Titles searched for one book: another catalogue's record title or the title its card shows, then what its file
+    /// gives, which may be a file name's run-together words.
+    /// </summary>
+    const int MostSearches = 3;
 
     const int MostKept = 20_000;
 
@@ -60,12 +63,16 @@ public sealed class AdventureLookupCatalogue(HttpClient http, TimeProvider? cloc
     /// <summary>Nothing to search for without a title.</summary>
     public Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) => Task.FromResult<BookRecord?>(null);
 
+    /// <summary>
+    /// Searched with the book's titles only: its records are taken by title, and the line a book belongs to names many
+    /// books, so <paramref name="lines"/> would give every book in a folder the same adventure.
+    /// </summary>
     public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        CancellationToken ct = default)
+        IReadOnlyList<string>? lines = null, CancellationToken ct = default)
     {
-        foreach (var title in titles.Where(t => BookRecords.Simplify(t).Length > 0).Take(MostSearches))
+        foreach (var title in BookRecords.Searches(titles, MostSearches))
         {
-            var json = await GetAsync($"api/adventures?q={Uri.EscapeDataString(title.Trim())}", ct);
+            var json = await GetAsync($"api/adventures?q={Uri.EscapeDataString(title)}", ct);
             if (Read(Parse(json), title) is { } record) return new CatalogueAnswer([record], Name);
         }
         return new CatalogueAnswer([], Name);
