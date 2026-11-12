@@ -120,6 +120,7 @@ public static class SavedSearchesApi
         IncludeUnknownLevels: q.Level is not null && q.UnknownLevels,
         Ai: Parse<AiFilter>(q.Ai) ?? AiFilter.All,
         Copies: q.Copies,
+        NoSource: q.NoSource,
         Own: Text(q.Own),
         Sort: Parse<LibrarySort>(q.Sort) is { } sort && (q.IsSearching || sort != LibrarySort.Relevance) ? sort
             : q.IsSearching ? LibrarySort.Relevance : LibrarySort.RecentlyAdded,
@@ -155,6 +156,7 @@ public static class SavedSearchesApi
         Kind = d.Kind == KindFilter.All ? null : d.Kind.ToString(),
         Ai = d.Ai == AiFilter.All ? null : d.Ai.ToString(),
         Copies = d.Copies,
+        NoSource = d.NoSource,
         Found = d.Found,
         Adventures = d.Adventures switch { AdventureCards.Hidden => "Hidden", AdventureCards.Cards => "Cards", _ => null },
         Collections = d.Collections == CollectionFilter.All ? null : d.Collections.ToString(),

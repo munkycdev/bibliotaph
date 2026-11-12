@@ -39,6 +39,7 @@ public static class LibraryUrl
         Add("kind", q.Kind);
         Add("ai", q.Ai);
         Add("copies", q.Copies ? "true" : null);
+        Add("noSource", q.NoSource ? "true" : null);
         Add("found", q.Found);
         Add("adventures", q.Adventures);
         Add("collections", q.Collections);
@@ -121,6 +122,7 @@ public static class LibraryUrl
             Kind = Text("kind"),
             Ai = Text("ai"),
             Copies = Text("copies") == "true",
+            NoSource = Text("noSource") == "true",
             Found = Text("found"),
             Adventures = Text("adventures"),
             Collections = Text("collections"),

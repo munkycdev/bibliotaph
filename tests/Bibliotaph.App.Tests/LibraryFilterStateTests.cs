@@ -22,7 +22,7 @@ public class LibraryFilterStateTests
         return new(Kind: KindFilter.Books, Folder: 7, System: "dnd5e", Type: "adventure", Level: 3, IncludeUnknownLevels: true, Ai: AiFilter.Read,
             Copies: true, Own: "print", Style: "heist", Duration: "one-shot", Players: 4, Store: "itch-io", Collections: CollectionFilter.InOne,
             Picked: PickedValues.Of([KeyValuePair.Create(MetadataFields.Settings.Key, setting)]), Adventures: AdventureCards.Cards, Found: "RPGGeek",
-            Subfolder: @"Adventures\One-shots");
+            Subfolder: @"Adventures\One-shots", NoSource: true);
     }
 
     [Fact]

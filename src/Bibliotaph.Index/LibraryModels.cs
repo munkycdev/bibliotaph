@@ -173,6 +173,7 @@ public enum CollectionFilter
 /// place of its file's card when both are found. <see cref="PackFiles"/> shows each file in a pack on a card of its own
 /// instead of the pack's card; a file is filtered and found as its pack is, and by its own name. <see cref="Found"/>
 /// keeps books found by any of those catalogues (<see cref="FoundOnline"/>; unknown is found by none).
+/// <see cref="OnlyWithoutStore"/> keeps the books with nothing in Get it from, so no source is given for them.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -196,7 +197,8 @@ public sealed record LibraryFilter(
     PickedValues? Picked = null,
     bool PartsInBooks = false,
     bool PackFiles = false,
-    IReadOnlyCollection<string>? Found = null);
+    IReadOnlyCollection<string>? Found = null,
+    bool OnlyWithoutStore = false);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);

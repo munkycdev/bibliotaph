@@ -483,6 +483,11 @@
                   <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.CopiesChoices}" SelectedItem="{Binding Filters.CopiesChoice}"
                             AutomationProperties.Name="Copies" MinWidth="150" ToolTip="Books that are in more than one file" />
                 </StackPanel>
+                <StackPanel Margin="0,0,12,12">
+                  <TextBlock Text="Source" Style="{StaticResource FieldLabel}" />
+                  <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.SourceChoices}" SelectedItem="{Binding Filters.SourceChoice}"
+                            AutomationProperties.Name="Source" MinWidth="150" ToolTip="Books with nothing in Get it from: where you got them, or can get them again" />
+                </StackPanel>
                 <StackPanel Margin="0,0,12,12" Visibility="{Binding Filters.ShowFoundChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
                   <TextBlock Text="Found online" Style="{StaticResource FieldLabel}" />
                   <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.FoundChoices}" SelectedItem="{Binding Filters.FoundChoice}"

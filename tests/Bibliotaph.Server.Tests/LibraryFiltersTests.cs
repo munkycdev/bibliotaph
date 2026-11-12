@@ -49,6 +49,16 @@ public sealed class LibraryFiltersTests
     }
 
     [Fact]
+    public void No_source_shows_as_a_folded_chip_and_survives_the_address()
+    {
+        var query = new LibraryQuery { NoSource = true };
+        var chip = Assert.Single(LibraryFilters.Chips(query, Menus));
+        Assert.Equal(("No source given", true), (chip.Label, chip.Folded));
+        Assert.False(chip.Clear(query).NoSource);
+        Assert.Equal(query, LibraryUrl.Parse("https://example.test/library?" + LibraryUrl.QueryString(query, forApi: false)));
+    }
+
+    [Fact]
     public void A_folder_inside_a_library_folder_is_picked_shown_and_cleared_with_it()
     {
         var menus = Menus with { Folders = [new("", "All folders"), new("3", "Books"), new(@"3:Fantasy\Bundle", @"Fantasy\Bundle")] };
