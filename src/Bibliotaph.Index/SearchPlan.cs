@@ -179,7 +179,7 @@ public sealed record SearchPlan
                         players.Add(new PlayersCondition(value, negated));
                         break;
                     case SearchField.Format:
-                        (negated ? excludedFormats : formats).AddRange(value switch { "image" => SourceFormats.Images, "ebook" => SourceFormats.Ebooks, "kindle" => SourceFormats.Kindle, _ => [value] });
+                        (negated ? excludedFormats : formats).AddRange(value switch { "image" => SourceFormats.Pictures, "video" => SourceFormats.Videos, "ebook" => SourceFormats.Ebooks, "kindle" => SourceFormats.Kindle, _ => [value] });
                         break;
                     case SearchField.Folder:
                         (negated ? excludedFolders : folders).Add(value);

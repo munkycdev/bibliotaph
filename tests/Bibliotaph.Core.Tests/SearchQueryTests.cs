@@ -28,6 +28,8 @@ public class SearchQueryTests
     [InlineData("-title:dragon", "-title:dragon")]
     [InlineData("format:PDF", "format:pdf")]
     [InlineData("format:jpeg", "format:jpg")]
+    [InlineData("format:WebM", "format:webm")]
+    [InlineData("format:videos", "format:video")]
     [InlineData("format:images maps", "AND(format:image, maps)")]
     [InlineData("format:EPUB", "format:epub")]
     [InlineData("format:e-books", "format:ebook")]

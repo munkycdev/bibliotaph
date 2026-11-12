@@ -119,7 +119,7 @@ public static class SearchFields
         "a collection's whole name, in quotes if it has spaces", "collection:\"Winter campaign\"");
 
     public static readonly SearchFieldInfo Format = new(SearchField.Format, "format", [], SearchFieldKind.Format,
-        "pdf, epub, mobi, azw3, jpg, png, webp, image for any picture format, ebook for any e-book, or kindle for any Kindle book", "format:pdf");
+        "pdf, epub, mobi, azw3, jpg, png, webp, webm, image for any picture or video, video for any video, ebook for any e-book, or kindle for any Kindle book", "format:pdf");
 
     public static readonly SearchFieldInfo Folder = new(SearchField.Folder, "folder", [], SearchFieldKind.Text,
         "part of a folder's name", "folder:maps");

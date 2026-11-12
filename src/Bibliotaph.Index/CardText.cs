@@ -87,6 +87,7 @@ public static class CardText
         entry.IsPack ? entry.PdfMembers > 0 ? $"Pack · {Files(entry.Members)}" : $"Image pack · {Images(entry.Members)}"
         : entry.IsElsewhere ? entry.AlsoOwn is { } owned ? $"Owned elsewhere · {owned}" : "Owned elsewhere"
         : SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"
+        : SourceFormats.IsVideo(entry.Format) ? $"{entry.Format.ToUpperInvariant()} video"
         : entry.PageCount is { } pages ? $"{FormatName(entry.Format)} · {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}"
         : FormatName(entry.Format);
 

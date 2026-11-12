@@ -574,7 +574,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     async Task AddPage()
     {
         if (Viewer.Here() is not { } here) return;
-        var (pack, document, page, image) = (PackId, here.DocumentId, Viewer.CurrentPageIndex, Viewer.Mode == ViewerMode.Image);
+        var (pack, document, page, image) = (PackId, here.DocumentId, Viewer.CurrentPageIndex, Viewer.IsPicture);
         var after = Current?.Item;
         long? added = null;
         await RunAsync(async () =>
@@ -588,7 +588,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         if (Items.FirstOrDefault(i => i.Id == item) is { } row) Rename(row, row.Label);
     }
 
-    bool CanAddPage() => Pack is not null && Viewer.Mode is ViewerMode.Pdf or ViewerMode.Image;
+    bool CanAddPage() => Pack is not null && Viewer.Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Video;
 
     /// <summary>Edit binder: the list page, for sections, order, notes and the rest, in the main window.</summary>
     [RelayCommand]
