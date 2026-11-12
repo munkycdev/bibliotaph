@@ -99,6 +99,11 @@ skipped. The Test step ends with the fifteen slowest tests, which is where to lo
   to Core and expecting `RS0030`.
 - Package versions live only in `Directory.Packages.props`.
 - A new package must be permissive or GPL-3.0-compatible; verify's Licenses step fails on any other.
+- A package with a known vulnerability, direct or transitive and of any severity, fails the restore (NuGet audit,
+  set in `Directory.Build.props`).
+- Code scanning (CodeQL, GitHub's default setup) runs on every pull request, and the ruleset on main refuses to merge one
+  that adds an alert. A release refuses to start while main has any open alert (see "Releases"). Fix the code; dismiss
+  an alert only when it's a false positive, with the reason.
 - No fixture cut from a purchased book is ever committed. Test PDFs are generated with PDFsharp when the tests run, and
   the repository ignores `*.pdf`.
 
@@ -166,7 +171,8 @@ git push origin "v1.6.$n"
 
 Since CI checks only what each change touches, the release is the sanity check that nothing slipped through between
 them: its **Tests (Windows)** job runs every test project on the tagged commit, beside the build and pack, and the
-draft waits for it. A flaky test needs only **Re-run failed jobs** on the release run, not a new tag. Publish the draft keeping every file: Setup.exe, the
+draft waits for it. Before anything is built, the release job also checks that main has no open code scanning
+alert, and stops with the list if it has; fix or dismiss them, then **Re-run failed jobs**. A flaky test needs only **Re-run failed jobs** on the release run, not a new tag. Publish the draft keeping every file: Setup.exe, the
 full and delta packages and `releases.win.json`, or installed copies can't update.
 
 `Directory.Build.props` keeps `MAJOR.MINOR.0` for local builds. A new MINOR starts its own `## MAJOR.MINOR · date`

@@ -5,6 +5,8 @@
 - **Security: three code scanning findings closed.** The web server checks the user ID in a Nornis reading ticket or
   world update is one of its own before it reaches the log, and the Windows app keeps the reason saving a password
   failed apart from the password itself, so the log can't be made to carry either.
+- **Security scans now hold up merges and releases.** A pull request that adds a code scanning alert can't merge, a
+  release won't start while one is open, and a package with a known vulnerability fails the build.
 - **Built on the released .NET 11.** Bibliotaph moves from the .NET 11 release candidate to the general release
   (SDK 11.0.100, runtime 11.0.0), along with EF Core and ASP.NET Core 11.0.0, on Windows and the web server.
 

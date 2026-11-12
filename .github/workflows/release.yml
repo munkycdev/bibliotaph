@@ -9,10 +9,11 @@ on:
     tags: ['v*.*.*']
 
 # Only this workflow may write: it creates the draft release. CI keeps contents: read. actions: read lets the release
-# job see how the tests job did.
+# job see how the tests job did, and security-events: read lets it read main's code scanning alerts.
 permissions:
   contents: write
   actions: read
+  security-events: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -72,6 +73,23 @@ jobs:
       VPK_VERSION: 1.2.161
 
     steps:
+      # First, so a release that can't go out fails before the build: main must have no open code scanning alert.
+      # Pull requests are held to adding none by the ruleset on main; this catches any already there. Fix the code, or
+      # dismiss a false positive with a reason, then Re-run failed jobs.
+      - name: No open code scanning alerts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $alerts = gh api "repos/$env:GITHUB_REPOSITORY/code-scanning/alerts?state=open&ref=refs/heads/main&per_page=100" --paginate `
+            --jq '.[] | "#\(.number) \(.rule.security_severity_level // .rule.severity) \(.rule.id) at \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)"'
+          if ($LASTEXITCODE -ne 0) { throw 'Reading the code scanning alerts failed.' }
+          if ($alerts) {
+            $alerts | ForEach-Object { Write-Host "::error::Open code scanning alert $_" }
+            throw "main has $(@($alerts).Count) open code scanning alert(s). Fix or dismiss them, then re-run this job."
+          }
+          Write-Host 'main has no open code scanning alerts.'
+
       # The whole history, so the version step can count the commits behind the tag.
       - uses: actions/checkout@v4
         with:
