@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Better titles from file names.** A book with no title of its own now gets a readable one from its file name:
+  `CurseOfTheVault_v2 (1).pdf` becomes "Curse of the Vault". Words run together are split, copy markers such as "(1)"
+  and "- Copy", tags such as "[PDF]", versions, dates and product codes are dropped, and the result is title-cased
+  with acronyms and editions (D&D, OSR, 5e) kept. Books already in your library get the new title once after the
+  update; a title you typed or kept, or one from the book itself, a catalogue or the AI, still wins. On Windows and
+  the web.
 - **Box is no longer offered.** **Settings > Library** connects OneDrive, Dropbox, Google Drive and WebDAV, on Windows
   and the web. A Box account connected earlier stays listed until you disconnect it, but its folders can't be read any
   more.
