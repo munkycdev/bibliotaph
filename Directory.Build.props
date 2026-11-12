@@ -17,6 +17,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!--
+      NuGet audit, spelled out so a change to the SDK's defaults can't loosen it: every package, direct or transitive, at
+      any severity. With warnings as errors, a package with a known vulnerability fails the restore, and with it CI and
+      the release.
+    -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <!-- Needed for IDE0005 (unused usings) in the build; XML docs are not required on every member. -->
