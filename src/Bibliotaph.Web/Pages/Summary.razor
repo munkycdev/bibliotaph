@@ -65,6 +65,18 @@ else
                     }
                 </div>
             </div>
+            <div class="bt-sumcols two more">
+                @foreach (var list in new[] { sum.Publishers, sum.FoundOnline })
+                {
+                    @if (list is not null)
+                    {
+                        <div>
+                            <div class="bt-sumhead"><strong>@list.Heading</strong><span class="bt-small">@list.Note</span></div>
+                            @Bars(list)
+                        </div>
+                    }
+                }
+            </div>
         </section>
 
         <section class="bt-sumband" aria-labelledby="sum-what">
@@ -74,6 +86,18 @@ else
             </div>
             <div class="bt-sumcols three">
                 @foreach (var list in new[] { sum.Systems, sum.Types, sum.Settings })
+                {
+                    @if (list is not null)
+                    {
+                        <div>
+                            <div class="bt-sumhead"><strong>@list.Heading</strong><span class="bt-small">@list.Note</span></div>
+                            @Bars(list)
+                        </div>
+                    }
+                }
+            </div>
+            <div class="bt-sumcols three more">
+                @foreach (var list in new[] { sum.Themes, sum.Environments, sum.Includes })
                 {
                     @if (list is not null)
                     {

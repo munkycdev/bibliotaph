@@ -37,6 +37,7 @@ public static class LibraryFilters
         Add(query.Kind is not null, Label(LibraryChoices.Kinds, query.Kind), "kind", q => q with { Kind = null }, true);
         Add(query.Ai is not null, Label(LibraryChoices.Ai, query.Ai), "AI", q => q with { Ai = null }, true);
         Add(query.Copies, Label(LibraryChoices.Copies, "true"), "copies", q => q with { Copies = false }, true);
+        Add(query.NoSource, Label(LibraryChoices.Source, "true"), "source", q => q with { NoSource = false }, true);
         Add(query.Found is not null, query.Found == SearchQuery.Unknown ? FoundOnline.NotFound : $"Found in {Label(m.Found, query.Found)}", "found online",
             q => q with { Found = null }, true);
         Add(query.Adventures is not null, query.Adventures == "Hidden" ? "Adventures inside files hidden" : "Adventures as cards", "adventures inside files",

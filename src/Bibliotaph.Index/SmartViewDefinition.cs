@@ -37,7 +37,8 @@ public enum AdventureCards
 /// that filter off, such as <see cref="Picked"/>, the type-ahead filters' chips. <see cref="Adventures"/> says where the
 /// adventures inside files show; <see cref="HideParts"/> is how a view from before there was a choice of three said
 /// so, and is read only from those. <see cref="Subfolder"/> is a folder inside the library folder <see cref="Folder"/>
-/// ("D&amp;D 5e\Adventures"), or null for the whole library folder.
+/// ("D&amp;D 5e\Adventures"), or null for the whole library folder. <see cref="NoSource"/> keeps the books with nothing
+/// in Get it from.
 /// </summary>
 public sealed record SmartViewDefinition(
     string Query = "",
@@ -64,7 +65,8 @@ public sealed record SmartViewDefinition(
     PickedValues? Picked = null,
     AdventureCards Adventures = AdventureCards.InBooks,
     string? Found = null,
-    string? Subfolder = null)
+    string? Subfolder = null,
+    bool NoSource = false)
 {
     /// <summary>2: <see cref="Adventures"/>, which defaults to inside their books, took over from <see cref="HideParts"/>.</summary>
     public const int CurrentVersion = 2;

@@ -8,6 +8,13 @@
   with acronyms and editions (D&D, OSR, 5e) kept. Books already in your library get the new title once after the
   update; a title you typed or kept, or one from the book itself, a catalogue or the AI, still wins. On Windows and
   the web.
+- **Summary shows what the online lookups found.** **Where it came from** now lists your publishers and which online
+  catalogues found your books (RPGGeek, AdventureLookup, Open Library, Google Books), with how many none has found yet.
+  **What it is** adds themes, environments and what's included (pre-generated characters, handouts, battle maps, solo
+  play). Every bar opens the Library at those books, on Windows and the web, and the new `includes:` search field finds
+  them by what comes with them.
+- **New: find the books with no source.** **Source** under Housekeeping in More filters has **No source given**, for
+  the books with nothing in **Get it from**, so you can fill in where they came from. On Windows and the web.
 - **New: filter by a folder inside a library folder.** **Source folder** in More filters now lists every folder that
   has books, by its path (such as `Fantasy\Bundle`), under the folder you added, so you can see just the books in one
   subfolder and the folders inside it. Saved searches and web links keep the folder. On Windows and the web.
