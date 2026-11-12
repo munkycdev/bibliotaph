@@ -28,8 +28,17 @@ public static class SourceFormats
     /// <summary>Read through Windows' own decoder, which needs Microsoft's free WebP Image Extensions.</summary>
     public const string Webp = "webp";
 
-    /// <summary>Every image format, for "format:image" and the Images kind.</summary>
+    /// <summary>A WebM video, such as an animated battle map; it plays in the reader, and its cover is a still beside it.</summary>
+    public const string Webm = "webm";
+
+    /// <summary>Every still image format: the ones a cover can be drawn from.</summary>
     public static IReadOnlyList<string> Images { get; } = [Jpeg, Png, Webp];
+
+    /// <summary>Every video format, for "format:video".</summary>
+    public static IReadOnlyList<string> Videos { get; } = [Webm];
+
+    /// <summary>Every format that is looked at rather than read, images and videos, for "format:image" and the Images kind.</summary>
+    public static IReadOnlyList<string> Pictures { get; } = [.. Images, .. Videos];
 
     /// <summary>Every Kindle format, for "format:kindle".</summary>
     public static IReadOnlyList<string> Kindle { get; } = [Mobi, Azw, Azw3, Kfx];
@@ -52,10 +61,20 @@ public static class SourceFormats
         ".jpg" or ".jpeg" => Jpeg,
         ".png" => Png,
         ".webp" => Webp,
+        ".webm" => Webm,
         _ => null,
     };
 
+    /// <summary>Whether a format is a still image.</summary>
     public static bool IsImage(string format) => format is Jpeg or Png or Webp;
+
+    public static bool IsVideo(string format) => format is Webm;
+
+    /// <summary>
+    /// Whether a format is looked at rather than read: an image, or a video such as an animated map. Pictures have no
+    /// text, go into packs with the images beside them, and open in the reader without pages.
+    /// </summary>
+    public static bool IsPicture(string format) => IsImage(format) || IsVideo(format);
 
     public static bool IsEbook(string format) => format is Epub or Mobi or Azw or Azw3 or Kfx;
 

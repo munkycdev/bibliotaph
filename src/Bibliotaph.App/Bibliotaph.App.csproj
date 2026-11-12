@@ -35,7 +35,6 @@
     <AssemblyMetadata Include="Storage.dropbox.ClientId" Value="$(BIBLIOTAPH_DROPBOX_CLIENT_ID)" Condition="'$(BIBLIOTAPH_DROPBOX_CLIENT_ID)' != ''" />
     <AssemblyMetadata Include="Storage.googledrive.ClientId" Value="$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID)" Condition="'$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID)' != ''" />
     <AssemblyMetadata Include="Storage.googledrive.ClientSecret" Value="$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET)" Condition="'$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET)' != ''" />
-    <AssemblyMetadata Include="Storage.box.ClientId" Value="$(BIBLIOTAPH_BOX_CLIENT_ID)" Condition="'$(BIBLIOTAPH_BOX_CLIENT_ID)' != ''" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />

@@ -108,6 +108,7 @@ public class SourceFormatsTests
     [InlineData("map.JPG", "jpg")]
     [InlineData("handout.png", "png")]
     [InlineData("Harbor.WebP", "webp")]
+    [InlineData("Harbor_Night.WEBM", "webm")]
     [InlineData("Novel.EPUB", "epub")]
     [InlineData("Novel.mobi", "mobi")]
     [InlineData("Novel.prc", "mobi")]
@@ -126,5 +127,16 @@ public class SourceFormatsTests
         Assert.True(SourceFormats.HasPages(SourceFormats.Pdf));
         Assert.False(SourceFormats.HasPages(SourceFormats.Png));
         Assert.False(SourceFormats.IsArchive("Novel.epub"));
+    }
+
+    [Fact]
+    public void A_video_is_a_picture_but_not_an_image_a_cover_is_drawn_from()
+    {
+        Assert.True(SourceFormats.IsPicture(SourceFormats.Webm));
+        Assert.True(SourceFormats.IsVideo(SourceFormats.Webm));
+        Assert.False(SourceFormats.IsImage(SourceFormats.Webm));
+        Assert.False(SourceFormats.HasPages(SourceFormats.Webm));
+        Assert.Contains(SourceFormats.Webm, SourceFormats.Pictures);
+        Assert.DoesNotContain(SourceFormats.Webm, SourceFormats.Images);
     }
 }

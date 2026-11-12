@@ -19,7 +19,7 @@ The file's content, name, place and dates don't change. Files you already had on
 **Always keep on this device**, and a book you have open are left alone. To keep everything downloaded instead, untick
 **Return files to online-only after indexing** in **Settings > Processing**.
 
-Other cloud apps' folders work too, as ordinary folders. To read OneDrive, Dropbox, Google Drive, Box or WebDAV
+Other cloud apps' folders work too, as ordinary folders. To read OneDrive, Dropbox, Google Drive or WebDAV
 without their apps, see [Storage without its app](#storage-without-its-app).
 
 Bibliotaph's own catalog is kept in `%LOCALAPPDATA%\Bibliotaph` on your PC, never in OneDrive. Don't move it into a
@@ -27,18 +27,16 @@ synced folder: to use your library on two PCs, see [More than one PC](#more-than
 
 ## Storage without its app
 
-Bibliotaph can also read your books straight from OneDrive, Dropbox, Google Drive, Box or a WebDAV server (Nextcloud,
+Bibliotaph can also read your books straight from OneDrive, Dropbox, Google Drive or a WebDAV server (Nextcloud,
 ownCloud or a NAS), with no sync app on the PC and nothing downloaded to keep, the way [the web library](web.md#connecting-your-storage)
 does. It's the same storage and the same folders, connected on this PC.
 
-At the top of **Settings > Library**, under **Storage**, choose **Connect OneDrive**, **Connect Dropbox**,
-**Connect Google Drive** or **Connect Box**. Your browser opens at the provider's own page: sign in with the account
+At the top of **Settings > Library**, under **Storage**, choose **Connect OneDrive**, **Connect Dropbox** or
+**Connect Google Drive**. Your browser opens at the provider's own page: sign in with the account
 that holds your books and let Bibliotaph read your files. When the browser says you can close the tab, the account is
 listed in Settings with what it was allowed, such as "Allowed to read your files and keep access while you're signed
 out"; point at that line for the provider's own words. Bibliotaph asks for nothing that writes, so it can't change,
 move or delete your files. If you change your mind while the browser is open, **Cancel** stops waiting for it.
-Box only lets Bibliotaph in through bibliotaph.online, which adds Bibliotaph's Box key to the request and keeps nothing
-about it; you don't need an account there.
 
 **Connect WebDAV** asks for the folder's address, your user name and a password instead, as the web library does. Here
 the server can be on your own network too, such as a NAS at http://192.168.1.20/books/; an address that starts http://

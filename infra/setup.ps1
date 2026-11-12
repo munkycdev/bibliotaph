@@ -66,10 +66,6 @@ param(
     # in Key Vault. Once set, a later run without it keeps it.
     [string] $GoogleClientId,
 
-    # The Box app's Client ID, from its Configuration in Box's Developer Console. Its client secret is asked for once
-    # and kept in Key Vault. Once set, a later run without it keeps it.
-    [string] $BoxClientId,
-
     # Asks once for a Google Cloud API key restricted to the Books API, kept in Key Vault, so lookups ask Google Books
     # for a book Open Library doesn't know. Once set, a later run without it keeps it.
     [switch] $GoogleBooksKey,
@@ -90,8 +86,8 @@ param(
 
     # Asks again for these secrets and replaces them in Key Vault, rather than keeping the ones it has: Microsoft makes
     # the OneDrive app registration a new client secret; the rest ask for theirs, with the IDs the app already has
-    # unless they're given too. A new Dropbox, Google or Box ID, or Auth0 client ID, asks for its secret anyway.
-    [ValidateSet('Microsoft', 'Auth0', 'Dropbox', 'GoogleDrive', 'Box', 'GoogleBooks', 'RpgGeek')] [string[]] $Replace = @(),
+    # unless they're given too. A new Dropbox or Google ID, or Auth0 client ID, asks for its secret anyway.
+    [ValidateSet('Microsoft', 'Auth0', 'Dropbox', 'GoogleDrive', 'GoogleBooks', 'RpgGeek')] [string[]] $Replace = @(),
 
     # Adds the domain and www to the app and issues managed certificates. Needs the DNS records in place first.
     [switch] $BindDomain
@@ -303,13 +299,6 @@ if (-not (StorageApp 'GoogleDrive' 'GoogleDrive' $GoogleClientId "Client secret 
 Write-Host "  In Google Cloud: enable the Google Drive API; OAuth consent screen with the scope .../auth/drive.readonly, published"
 Write-Host "  (In production), since a Testing app's sign-ins lapse after 7 days. Web client redirect URI https://$Domain/storage/callback/googledrive"
 
-Step 'Box'
-if (-not (StorageApp 'Box' 'Box' $BoxClientId "Client secret for Box app $BoxClientId")) {
-    Write-Host '  Box can be connected once this runs with -BoxClientId.' -ForegroundColor Yellow
-}
-Write-Host "  In Box's Developer Console: a Platform App with User Authentication (OAuth 2.0); application scope"
-Write-Host "  'Read all files and folders stored in Box' only; Redirect URI https://$Domain/storage/callback/box"
-
 # The reader reads a Nornis book's byte ranges straight from Nornis's blob storage, from this site's origin: without a
 # CORS rule for it there, the browser blocks every read and the book can't be opened. Nornis's own provisioning adds the
 # rule only in one of its set-ups, so it's made sure of here. Only a rule for this origin is added; the account's other
@@ -428,10 +417,12 @@ if (-not (Find containerapp show -n $App -g $ResourceGroup --query id)) {
 else {
     az containerapp secret set -n $App -g $ResourceGroup --secrets @secrets -o none
     az containerapp update -n $App -g $ResourceGroup --set-env-vars @settings -o none
-    # Microsoft and Google signed people in directly before Auth0 did.
+    # Microsoft and Google signed people in directly before Auth0 did, and Box could be connected until it was dropped.
     $old = @(az containerapp show -n $App -g $ResourceGroup --query 'properties.template.containers[0].env[].name' -o json | ConvertFrom-Json |
-        Where-Object { $_ -like 'Auth__microsoft__*' -or $_ -like 'Auth__google__*' })
+        Where-Object { $_ -like 'Auth__microsoft__*' -or $_ -like 'Auth__google__*' -or $_ -like 'Storage__Box__*' })
     if ($old) { az containerapp update -n $App -g $ResourceGroup --remove-env-vars @old -o none }
+    $oldSecrets = @(az containerapp secret list -n $App -g $ResourceGroup --query '[].name' -o json | ConvertFrom-Json | Where-Object { $_ -eq 'storage-box' })
+    if ($oldSecrets) { az containerapp secret remove -n $App -g $ResourceGroup --secret-names @oldSecrets -o none }
     # A changed secret alone makes no new revision, so the running one reads its settings again.
     if ($written.Count) {
         $revision = az containerapp show -n $App -g $ResourceGroup --query properties.latestRevisionName -o tsv

@@ -35,7 +35,7 @@ public sealed record PackFolder(string FullPath, bool IsArchive, int Files);
 /// <summary>
 /// Packs in catalog.db: a folder or ZIP of many images becomes one card. Each file keeps its own entry, which points
 /// at the pack's while it is in it, so splitting gives every file its card back with anything set on it. The
-/// folders' decisions are remembered by path, so a rescan doesn't undo them. Only images are packed by folder; Pack
+/// folders' decisions are remembered by path, so a rescan doesn't undo them. Only images (and videos) are packed by folder; Pack
 /// together makes packs by hand of images and PDFs alike (character sheets, pregens), which have no folder, and merges
 /// packs: a merged pack keeps its entry, marked as merged, and its folder's new images join the pack it merged into.
 /// </summary>
@@ -159,7 +159,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         if (moves.Count == 0 || !await db.PackDecisions.AnyAsync(d => d.Answer != PackAnswer.Packed, ct)) return;
         // A ZIP moves as one file; a folder by the images that were directly in it.
         var places = moves.Where(m => SourceFormats.IsArchive(m.FromPath) && SourceFormats.IsArchive(m.ToPath)).Select(m => (Move: m, IsArchive: true)).ToList();
-        foreach (var folder in moves.Where(m => IsImage(m.FromPath) && IsImage(m.ToPath)).GroupBy(m => Key(m.FromRootId, Parent(m.FromPath))))
+        foreach (var folder in moves.Where(m => IsPicture(m.FromPath) && IsPicture(m.ToPath)).GroupBy(m => Key(m.FromRootId, Parent(m.FromPath))))
         {
             var to = folder.Select(m => (m.ToRootId, Folder: Parent(m.ToPath))).DistinctBy(t => Key(t.ToRootId, t.Folder)).ToList();
             if (to is not [var only] || only.Folder.Length == 0) continue;
@@ -181,7 +181,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         }
     }
 
-    static bool IsImage(string path) => SourceFormats.FromFileName(path) is { } format && SourceFormats.IsImage(format);
+    static bool IsPicture(string path) => SourceFormats.FromFileName(path) is { } format && SourceFormats.IsPicture(format);
 
     /// <summary>Whether a folder (the images directly in it) or ZIP still holds an image that isn't missing.</summary>
     static async Task<bool> HoldsImagesAsync(CatalogDbContext db, long rootId, string folder, bool isArchive, CancellationToken ct)
@@ -191,7 +191,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
             ? present.Where(f => f.Container != null && f.Container.RelativePath == folder)
             : present.Where(f => f.ContainerId == null);
         var paths = await present.Select(f => f.RelativePath).ToListAsync(ct);
-        return paths.Any(p => IsImage(p) && (isArchive || string.Equals(Parent(p), folder, StringComparison.OrdinalIgnoreCase)));
+        return paths.Any(p => IsPicture(p) && (isArchive || string.Equals(Parent(p), folder, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>A new pack entry for a folder or ZIP, and the decision that remembers it.</summary>
@@ -326,7 +326,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         var sources = await db.EntrySources.AsNoTracking().Where(s => fileIds.Contains(s.EntryId))
             .Select(s => new { s.EntryId, s.FirstPdfPage, s.Document.Format }).ToListAsync(ct);
         if (files.Any(i => i.Kind != EntryKind.Whole || sources.All(s => s.EntryId != i.Id))
-            || sources.Any(s => s.FirstPdfPage is not null || !SourceFormats.IsImage(s.Format) && s.Format != SourceFormats.Pdf)) return null;
+            || sources.Any(s => s.FirstPdfPage is not null || !SourceFormats.IsPicture(s.Format) && s.Format != SourceFormats.Pdf)) return null;
         // A file's adventures show as cards of their own that name it, so a file that has them keeps its own card.
         if (await db.Entries.AnyAsync(e => e.Kind == EntryKind.Part && e.MergedIntoEntryId == null && e.ParentEntryId != null
             && fileIds.Contains(e.ParentEntryId.Value), ct)) return null;
@@ -630,7 +630,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
             .ToDictionary(g => g.Key, g =>
             {
                 var (rootId, folder, isArchive, _, _, _) = g.First();
-                var images = g.Where(l => SourceFormats.IsImage(l.Format)).DistinctBy(l => l.DocumentId)
+                var images = g.Where(l => SourceFormats.IsPicture(l.Format)).DistinctBy(l => l.DocumentId)
                     .OrderBy(l => l.Name, NaturalOrder.Instance).Select(l => (l.DocumentId, l.Name)).ToList();
                 return new FolderGroup(rootId, folder, isArchive, images, g.Any(l => SourceFormats.HasPages(l.Format)));
             });

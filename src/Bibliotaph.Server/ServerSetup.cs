@@ -155,7 +155,7 @@ public static class ServerSetup
         // the file links of Nornis's blob storage for a book uploaded to a world.
         var connect = "'self' https://*.sharepoint.com https://*.1drv.com https://*.microsoftpersonalcontent.com";
         if (NornisBlobHost(app.Configuration) is { } blobHost) connect += $" https://{blobHost}";
-        var policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; " +
+        var policy = "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; " +
             $"font-src 'self'; connect-src {connect}; " +
             "worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
         app.Use(async (context, next) =>

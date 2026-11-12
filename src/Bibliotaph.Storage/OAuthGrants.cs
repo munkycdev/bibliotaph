@@ -22,28 +22,24 @@ public sealed class OAuthRefusedException(string message) : IOException(message)
 /// <summary>The token endpoint calls both apps make, by refresh token and, on a PC, by the code a sign-in in the browser sent back.</summary>
 public static class OAuthGrants
 {
-    /// <summary>
-    /// A new access token for a refresh token. A <c>relay</c> is where to send the request instead of the provider's
-    /// token endpoint: a server that adds the app's secret, for a provider whose desktop apps can't do without one.
-    /// </summary>
-    public static Task<OAuthGrant> RefreshAsync(HttpClient http, OAuthStorageKind kind, OAuthClient client, string refreshToken, CancellationToken ct,
-        Uri? relay = null)
+    /// <summary>A new access token for a refresh token.</summary>
+    public static Task<OAuthGrant> RefreshAsync(HttpClient http, OAuthStorageKind kind, OAuthClient client, string refreshToken, CancellationToken ct)
     {
         var form = Form(client, "refresh_token");
         form["refresh_token"] = refreshToken;
         if (kind.ScopesOnRefresh) form["scope"] = string.Join(' ', kind.Scopes);
-        return SendAsync(http, kind, form, relay, ct);
+        return SendAsync(http, kind, form, ct);
     }
 
     /// <summary>Redeems the code from a sign-in that asked with PKCE, sending the verifier its challenge was made from.</summary>
     public static Task<OAuthGrant> RedeemAsync(HttpClient http, OAuthStorageKind kind, OAuthClient client, string code, string redirectUri,
-        string codeVerifier, CancellationToken ct, Uri? relay = null)
+        string codeVerifier, CancellationToken ct)
     {
         var form = Form(client, "authorization_code");
         form["code"] = code;
         form["redirect_uri"] = redirectUri;
         form["code_verifier"] = codeVerifier;
-        return SendAsync(http, kind, form, relay, ct);
+        return SendAsync(http, kind, form, ct);
     }
 
     static Dictionary<string, string> Form(OAuthClient client, string grant)
@@ -53,10 +49,10 @@ public static class OAuthGrants
         return form;
     }
 
-    static async Task<OAuthGrant> SendAsync(HttpClient http, OAuthStorageKind kind, Dictionary<string, string> form, Uri? relay, CancellationToken ct)
+    static async Task<OAuthGrant> SendAsync(HttpClient http, OAuthStorageKind kind, Dictionary<string, string> form, CancellationToken ct)
     {
         using var request = new FormUrlEncodedContent(form);
-        using var response = await http.PostAsync(relay ?? new Uri(kind.TokenEndpoint), request, ct);
+        using var response = await http.PostAsync(new Uri(kind.TokenEndpoint), request, ct);
         using var json = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
         var root = json.RootElement;
         if (!response.IsSuccessStatusCode)

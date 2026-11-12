@@ -92,7 +92,7 @@ public abstract class OAuthStorageKind : StorageKind
 public static class StorageKinds
 {
     public static readonly IReadOnlyList<StorageKind> All =
-        [new OneDrive.OneDriveKind(), new Dropbox.DropboxKind(), new GoogleDrive.GoogleDriveKind(), new Box.BoxKind(), new WebDav.WebDavKind()];
+        [new OneDrive.OneDriveKind(), new Dropbox.DropboxKind(), new GoogleDrive.GoogleDriveKind(), new WebDav.WebDavKind()];
 
     public static StorageKind? Find(string id) => All.FirstOrDefault(k => k.Id == id);
 }

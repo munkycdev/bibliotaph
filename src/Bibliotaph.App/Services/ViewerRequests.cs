@@ -87,10 +87,10 @@ public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.P
 /// </summary>
 public sealed record PageNoteOpen(long NoteId, Bibliotaph.Processing.PagePlaceState State, string? Reason, int FirstPage, int LastPage);
 
-/// <summary>A file of a pack the viewer can step to: an image, or a PDF packed with them.</summary>
+/// <summary>A file of a pack the viewer can step to: an image or a video, or a PDF packed with them.</summary>
 public sealed record PackStep(long DocumentId, string Title, string Format = "", EntryId? MemberEntryId = null)
 {
-    public bool IsImage => SourceFormats.IsImage(Format);
+    public bool IsPicture => SourceFormats.IsPicture(Format);
 }
 
 /// <summary>

@@ -160,7 +160,7 @@ public sealed class PcTokens(HttpClient http, PcConnections connections, IDeskto
         OAuthGrant grant;
         try
         {
-            grant = await OAuthGrants.RefreshAsync(http, oauth, client.OAuth, secret, ct, client.TokenRelay);
+            grant = await OAuthGrants.RefreshAsync(http, oauth, client.OAuth, secret, ct);
         }
         catch (OAuthRefusedException)
         {
