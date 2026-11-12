@@ -66,6 +66,9 @@ public static class SearchFields
     public static readonly SearchFieldInfo Players = new(SearchField.Players, "players", ["player"], SearchFieldKind.Players,
         "how many players it is for: a number, a range, or unknown", "players:4", MetadataFields.Players);
 
+    public static readonly SearchFieldInfo Includes = new(SearchField.Includes, "includes", ["include"], SearchFieldKind.Term,
+        "what comes with it: pregens, handouts, battle maps, or that it plays solo", "includes:pregens", MetadataFields.Includes);
+
     public static readonly SearchFieldInfo Duration = new(SearchField.Duration, "duration", [], SearchFieldKind.Term,
         "how long it takes to play: one-shot, short, long or campaign", "duration:one-shot", MetadataFields.Duration);
 
@@ -130,7 +133,7 @@ public static class SearchFields
 
     /// <summary>Every field, in the order the field guide lists them: what it's about, the inspector's order, then the file's own.</summary>
     public static IReadOnlyList<SearchFieldInfo> All { get; } =
-        [About, Title, System, Edition, Type, Level, Players, Duration, Publisher, Author, Series, Setting, Style, Theme, Environment, Creature, Own, Store, Tag,
+        [About, Title, System, Edition, Type, Level, Players, Includes, Duration, Publisher, Author, Series, Setting, Style, Theme, Environment, Creature, Own, Store, Tag,
             Favorite, Opened, Where, Collection, Format, Folder, Isbn];
 
     /// <summary>Fields that arrive with later metadata. Typing one says so rather than searching for the word.</summary>

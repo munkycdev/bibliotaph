@@ -46,6 +46,15 @@ public sealed record LibrarySummary
     /// <summary>Books from a store in Get it from that are still only on the store.</summary>
     public long StoreWaiting { get; init; }
 
+    /// <summary>Publishers by name, as the Library's publisher filter has them, most first.</summary>
+    public IReadOnlyList<SummaryValue> Publishers { get; init; } = [];
+
+    /// <summary>The online catalogues whose records a book uses (RPGGeek, Open Library), most first; a book can have several.</summary>
+    public IReadOnlyList<SummaryValue> FoundOnline { get; init; } = [];
+
+    /// <summary>Books no online catalogue has found, including those not looked up yet, as the Found online filter counts them.</summary>
+    public long NotFoundOnline { get; init; }
+
     public IReadOnlyList<SummaryValue> Systems { get; init; } = [];
 
     /// <summary>Books with no game system yet.</summary>
@@ -54,6 +63,13 @@ public sealed record LibrarySummary
     public IReadOnlyList<SummaryValue> Types { get; init; } = [];
 
     public IReadOnlyList<SummaryValue> Settings { get; init; } = [];
+
+    public IReadOnlyList<SummaryValue> Themes { get; init; } = [];
+
+    public IReadOnlyList<SummaryValue> Environments { get; init; } = [];
+
+    /// <summary>What comes with books: pre-generated characters, handouts, battle maps, solo play.</summary>
+    public IReadOnlyList<SummaryValue> Includes { get; init; } = [];
 
     /// <summary>How many books and adventures inside files cover each character level, from 1 at index 0 to <see cref="SummaryText.TopLevel"/>.</summary>
     public IReadOnlyList<long> Levels { get; init; } = [];
@@ -108,8 +124,9 @@ public sealed record LibrarySummary
 
 /// <summary>
 /// One value of a vocabulary field with how many books have it, and how many of those the user has confirmed; the rest
-/// are suggestions. <see cref="Field"/> is the field's key (system, type, setting, own, store), which a client turns
-/// into the Library's filter for it.
+/// are suggestions. <see cref="Field"/> is the field's key (system, type, setting, own, store, publisher, found), which
+/// a client turns into the Library's filter for it. Publishers and catalogues aren't confirmed or suggested, so they
+/// come with <see cref="Confirmed"/> equal to <see cref="Count"/>.
 /// </summary>
 public sealed record SummaryValue(string Field, string Value, string Label, long Count, long Confirmed);
 

@@ -14,13 +14,14 @@ public enum SummaryGoal
 
 /// <summary>
 /// The Library filters a Summary figure opens the Library with, in terms both clients have: <see cref="Field"/> and
-/// <see cref="Value"/> for a vocabulary value (system, type, setting, own or store), <see cref="Kind"/> as the Library's
+/// <see cref="Value"/> for a value of a filtered field (system, type, own, store, or the catalogue in found), picked in
+/// the field's type-ahead box when <see cref="Picked"/> (setting, theme, environment, publisher), <see cref="Kind"/> as the Library's
 /// kind filter names it ("Packs", "Elsewhere"), and <see cref="AdventureCards"/> for the adventures inside files shown
 /// as cards of their own, as levels and adventures count them.
 /// </summary>
 public sealed record SummaryFilter(
     string? Field = null, string? Value = null, long? Folder = null, int? Level = null, string? Kind = null, bool Copies = false,
-    bool ReadByAi = false, bool AdventureCards = false);
+    bool ReadByAi = false, bool AdventureCards = false, bool Picked = false);
 
 /// <summary>Where a figure goes: the Library with <see cref="Query"/> in the search box and <see cref="Filter"/>, or another page.</summary>
 public sealed record SummaryLink(string Query = "", SummaryFilter? Filter = null, SummaryGoal Goal = SummaryGoal.Library);
@@ -68,10 +69,15 @@ public sealed record SummaryPage
     public string? OfflineText { get; init; }
     public SummaryList? Sources { get; init; }
     public string? StoresText { get; init; }
+    public SummaryList? Publishers { get; init; }
+    public SummaryList? FoundOnline { get; init; }
 
     public SummaryList? Systems { get; init; }
     public SummaryList? Types { get; init; }
     public SummaryList? Settings { get; init; }
+    public SummaryList? Themes { get; init; }
+    public SummaryList? Environments { get; init; }
+    public SummaryList? Includes { get; init; }
     public IReadOnlyList<SummaryColumn> Levels { get; init; } = [];
     public string? LevelsText { get; init; }
     public string? LevelsUnknownText { get; init; }
@@ -119,11 +125,20 @@ public sealed record SummaryPage
             OfflineText = SummaryText.Offline(summary.Folders),
             Sources = List("Online libraries and stores", summary.Sources),
             StoresText = SummaryText.Stores(summary),
+            Publishers = List("Publishers", summary.Publishers, link: Picked),
+            FoundOnline = List("Found online", summary.FoundOnline,
+                summary.NotFoundOnline > 0 && summary.FoundOnline.Count > 0
+                    ? new SummaryValue("", "", Search.FoundOnline.NotFound, summary.NotFoundOnline, 0) : null,
+                new SummaryLink(Filter: new SummaryFilter(Search.FoundOnline.Field, SearchQuery.Unknown))),
             Systems = List("Game systems", summary.Systems,
                 summary.SystemUnknown > 0 ? new SummaryValue("", "", "Not cataloged yet", summary.SystemUnknown, 0) : null,
                 new SummaryLink($"{SearchFields.System.Name}:{SearchQuery.Unknown}")),
             Types = List("Types", summary.Types),
-            Settings = List("Settings", summary.Settings),
+            Settings = List("Settings", summary.Settings, link: Picked),
+            Themes = List("Themes", summary.Themes, link: Picked),
+            Environments = List("Environments", summary.Environments, link: Picked),
+            // Nothing in the filter panel picks these, so the search box does.
+            Includes = List("What's included", summary.Includes, link: v => new SummaryLink($"{SearchFields.Includes.Name}:{v.Value}")),
             Levels = LevelColumns(summary.Levels),
             LevelsText = SummaryText.Levels(summary),
             LevelsUnknownText = summary.LevelsUnknown > 0 ? $"Levels unknown: {SummaryText.Count(summary.LevelsUnknown)}" : null,
@@ -143,6 +158,9 @@ public sealed record SummaryPage
             BiggestDayText = SummaryText.BiggestDay(summary.BiggestDay),
         };
     }
+
+    /// <summary>A value of a field the Library filters by typing, as if picked in its box.</summary>
+    static SummaryLink Picked(SummaryValue value) => new(Filter: new SummaryFilter(value.Field, value.Value, Picked: true));
 
     static string Month(DateOnly month, string format) => month.ToString(format, Culture);
 
@@ -200,12 +218,14 @@ public sealed record SummaryPage
     /// The most common values, each opening the Library filtered to it, then the rest as one line; <paramref name="extra"/>
     /// is a row after them all, such as the books with no system yet.
     /// </summary>
-    static SummaryList? List(string heading, IReadOnlyList<SummaryValue> values, SummaryValue? extra = null, SummaryLink? extraLink = null)
+    static SummaryList? List(string heading, IReadOnlyList<SummaryValue> values, SummaryValue? extra = null, SummaryLink? extraLink = null,
+        Func<SummaryValue, SummaryLink>? link = null)
     {
+        link ??= v => new SummaryLink(Filter: new SummaryFilter(v.Field, v.Value));
         if (values.Count == 0 && extra is null) return null;
         var shown = values.Count > SummaryText.ListLength ? values.Take(SummaryText.ListLength - 1).ToList() : [.. values];
         var rest = values.Skip(shown.Count).ToList();
-        var rows = shown.Select(v => (Value: v, Link: (SummaryLink?)new SummaryLink(Filter: new SummaryFilter(v.Field, v.Value)))).ToList();
+        var rows = shown.Select(v => (Value: v, Link: (SummaryLink?)link(v))).ToList();
         if (rest.Count > 0)
             rows.Add((new SummaryValue("", "", $"{SummaryText.Count(rest.Count)} others", rest.Sum(v => v.Count), rest.Sum(v => v.Confirmed)), null));
         if (extra is not null) rows.Add((extra, extraLink));
@@ -220,11 +240,14 @@ public sealed record SummaryPage
     static string BarTip(SummaryValue value)
     {
         var books = SummaryText.Plural(value.Count, "book", "books");
-        if (value.Field.Length == 0) return $"{value.Label}: {books}";
+        if (value.Field.Length == 0 || Unreviewed.Contains(value.Field)) return $"{value.Label}: {books}";
         return value.Confirmed >= value.Count
             ? $"{value.Label}: {books}, all confirmed"
             : $"{value.Label}: {books}, {SummaryText.Count(value.Confirmed)} confirmed and {SummaryText.Count(value.Count - value.Confirmed)} suggested";
     }
+
+    /// <summary>Fields whose values are counted, never confirmed or suggested.</summary>
+    static readonly HashSet<string> Unreviewed = [MetadataFields.Publisher.Key, Search.FoundOnline.Field];
 
     static IReadOnlyList<SummaryColumn> LevelColumns(IReadOnlyList<long> levels)
     {

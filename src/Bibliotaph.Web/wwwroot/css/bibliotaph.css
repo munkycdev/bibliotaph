@@ -1409,6 +1409,7 @@ a.bt-sumtile:hover{border-color:var(--bt-accent)}
 .bt-sumcols.two{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
 .bt-sumcols.three{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .bt-sumcols.strips{grid-template-columns:repeat(auto-fit,minmax(280px,1fr));margin-top:28px}
+.bt-sumcols.more{margin-top:28px}
 .bt-sumcols p.bt-small{margin-top:8px}
 .bt-sumhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:8px}
 .bt-sumhead strong{font-size:12px;font-weight:600}

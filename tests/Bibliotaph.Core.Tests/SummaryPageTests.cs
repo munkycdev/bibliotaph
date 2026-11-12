@@ -77,6 +77,42 @@ public sealed class SummaryPageTests
     }
 
     [Fact]
+    public void Values_from_online_lookups_open_the_filter_or_search_that_finds_them()
+    {
+        var page = Page(new LibrarySummary
+        {
+            Books = 40,
+            Publishers = [new("publisher", "Kobold Press", "Kobold Press", 12, 12)],
+            FoundOnline = [new("found", "RPGGeek", "RPGGeek", 20, 20), new("found", "Open Library", "Open Library", 8, 8)],
+            NotFoundOnline = 15,
+            Themes = [new("theme", "horror", "Horror", 6, 2)],
+            Environments = [new("environment", "urban", "Urban", 5, 5)],
+            Includes = [new("includes", "pregens", "Pre-generated characters", 4, 1)],
+        });
+
+        Assert.Equal(new SummaryFilter("publisher", "Kobold Press", Picked: true), page.Publishers!.Bars[0].Link!.Filter);
+        // Publishers and catalogues are counted, not confirmed or suggested.
+        Assert.Equal("Kobold Press: 12 books", page.Publishers.Bars[0].ToolTip);
+        Assert.Equal(["RPGGeek", "Open Library", "Not found online"], page.FoundOnline!.Bars.Select(b => b.Label));
+        Assert.Equal(new SummaryFilter("found", "RPGGeek"), page.FoundOnline.Bars[0].Link!.Filter);
+        Assert.Equal(new SummaryFilter("found", "unknown"), page.FoundOnline.Bars[^1].Link!.Filter);
+        Assert.Equal("RPGGeek: 20 books", page.FoundOnline.Bars[0].ToolTip);
+        Assert.Equal(new SummaryFilter("theme", "horror", Picked: true), page.Themes!.Bars[0].Link!.Filter);
+        Assert.Equal(new SummaryFilter("environment", "urban", Picked: true), page.Environments!.Bars[0].Link!.Filter);
+        Assert.Equal(("What's included", "includes:pregens"), (page.Includes!.Heading, page.Includes.Bars[0].Link!.Query));
+        Assert.Equal("Pre-generated characters: 4 books, 1 confirmed and 3 suggested", page.Includes.Bars[0].ToolTip);
+    }
+
+    [Fact]
+    public void Nothing_found_online_yet_says_nothing_about_it()
+    {
+        var page = Page(new LibrarySummary { Books = 10, NotFoundOnline = 10 });
+
+        Assert.Null(page.FoundOnline);
+        Assert.Null(page.Publishers);
+    }
+
+    [Fact]
     public void An_empty_library_has_no_lists()
     {
         var page = Page(new LibrarySummary());
