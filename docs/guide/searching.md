@@ -49,6 +49,7 @@ guide at any time, and **Esc** closes it (press **Esc** again to clear the searc
 | `type:` | What kind of book it is | `type:adventure` |
 | `level:` | A character level or range; `none` or `unknown` | `level:3`, `level:2-4` |
 | `players:` | Party size | `players:4`, `players:3-5` |
+| `includes:` | What comes with it: pre-generated characters, handouts, battle maps, or that it plays solo | `includes:pregens` |
 | `duration:` | One-shot, short, long or campaign | `duration:one-shot` |
 | `style:` | The kind of adventure: heist, dungeon crawl, hexcrawl… | `style:heist` |
 | `theme:` | A theme or tone, such as horror, in the book or one of its chapters | `theme:horror` |

@@ -11,9 +11,17 @@ public sealed class SummaryLinksTests
     [InlineData("type", "adventure", "library?type=adventure")]
     [InlineData("own", "print", "library?own=print")]
     [InlineData("store", "shop", "library?store=shop")]
-    [InlineData("setting", "isles", "library?picked=%7B%22setting%22%3A%5B%22isles%22%5D%7D")]
+    [InlineData("found", "RPGGeek", "library?found=RPGGeek")]
+    [InlineData("found", "unknown", "library?found=unknown")]
     public void A_value_opens_the_library_filtered_to_it(string field, string value, string href) =>
         Assert.Equal(href, SummaryLinks.Href(new SummaryLink(Filter: new SummaryFilter(field, value))));
+
+    [Theory]
+    [InlineData("setting", "isles", "library?picked=%7B%22setting%22%3A%5B%22isles%22%5D%7D")]
+    [InlineData("publisher", "Kobold Press", "library?picked=%7B%22publisher%22%3A%5B%22Kobold%20Press%22%5D%7D")]
+    [InlineData("theme", "horror", "library?picked=%7B%22theme%22%3A%5B%22horror%22%5D%7D")]
+    public void A_picked_value_opens_the_library_with_it_in_its_box(string field, string value, string href) =>
+        Assert.Equal(href, SummaryLinks.Href(new SummaryLink(Filter: new SummaryFilter(field, value, Picked: true))));
 
     [Fact]
     public void Other_figures_open_their_filters_their_search_or_their_page()

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Summary shows what the online lookups found.** **Where it came from** now lists your publishers and which online
+  catalogues found your books (RPGGeek, AdventureLookup, Open Library, Google Books), with how many none has found yet.
+  **What it is** adds themes, environments and what's included (pre-generated characters, handouts, battle maps, solo
+  play). Every bar opens the Library at those books, on Windows and the web, and the new `includes:` search field finds
+  them by what comes with them.
 - **New: find the books with no source.** **Source** under Housekeeping in More filters has **No source given**, for
   the books with nothing in **Get it from**, so you can fill in where they came from. On Windows and the web.
 - **New: filter by a folder inside a library folder.** **Source folder** in More filters now lists every folder that

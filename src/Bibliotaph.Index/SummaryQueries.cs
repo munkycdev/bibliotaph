@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Core.Search;
 using Dapper;
 
 namespace Bibliotaph.Index;
@@ -15,7 +16,10 @@ public sealed class SummaryQueries(IndexDatabase database)
 {
     /// <summary>The fields the page lists the values of.</summary>
     static readonly string[] ListedFields =
-        [MetadataFields.System.Key, MetadataFields.Types.Key, MetadataFields.Settings.Key, MetadataFields.AlsoOwn.Key, MetadataFields.GetItFrom.Key];
+    [
+        MetadataFields.System.Key, MetadataFields.Types.Key, MetadataFields.Settings.Key, MetadataFields.Themes.Key, MetadataFields.Environments.Key,
+        MetadataFields.Includes.Key, MetadataFields.AlsoOwn.Key, MetadataFields.GetItFrom.Key, FoundOnline.Field,
+    ];
 
     // The cards in scope, as the Library would list them.
     const string Shown = """
@@ -38,6 +42,7 @@ public sealed class SummaryQueries(IndexDatabase database)
         args.Add("fields", JsonSerializer.Serialize(ListedFields));
         args.Add("favorites", ScopeKeys.Favorites);
         args.Add("adventure", AdventureType);
+        args.Add("found", FoundOnline.Field);
         await using var connection = database.OpenRead();
         Task<T> One<T>(string sql) => connection.QuerySingleAsync<T>(new CommandDefinition(Shown + sql, args, cancellationToken: ct));
         Task<IEnumerable<T>> Many<T>(string sql) => connection.QueryAsync<T>(new CommandDefinition(Shown + sql, args, cancellationToken: ct));
@@ -88,9 +93,20 @@ public sealed class SummaryQueries(IndexDatabase database)
                 coalesce(sum(kind = 'Elsewhere' AND entry_id IN (SELECT entry_id FROM entry_facet WHERE field = 'store')), 0) AS StoreWaiting,
                 coalesce(sum(kind = 'Whole' AND entry_id IN (SELECT entry_id FROM entry_facet WHERE field = 'store')), 0) AS StoreDownloaded,
                 coalesce(sum(kind <> 'Pack' AND entry_id IN (SELECT entry_id FROM entry_facet WHERE field = 'type' AND value = @adventure)
-                    AND entry_id IN (SELECT entry_id FROM entry_meta WHERE level_state = 'unknown')), 0) AS LevelsUnknown
+                    AND entry_id IN (SELECT entry_id FROM entry_meta WHERE level_state = 'unknown')), 0) AS LevelsUnknown,
+                coalesce(sum(kind <> 'Part' AND entry_id NOT IN (SELECT entry_id FROM entry_facet WHERE field = @found)), 0) AS NotFoundOnline
             FROM shown
             """);
+
+        // By name, as the Library's publisher filter matches them.
+        var publishers = (await Many<ValueRow>(
+            """
+            SELECT m.publisher AS Value, m.publisher AS Label, count(*) AS Count
+            FROM shown e JOIN entry_meta m ON m.entry_id = e.entry_id
+            WHERE e.kind <> 'Part' AND m.publisher IS NOT NULL AND m.publisher <> ''
+            GROUP BY m.publisher
+            ORDER BY count(*) DESC, m.publisher COLLATE NOCASE
+            """)).Select(v => new SummaryValue(MetadataFields.Publisher.Key, v.Value, v.Label, v.Count, v.Count)).ToList();
 
         // Adventures inside files count here too: a level is what a game master looks for one by.
         var levels = new long[SummaryText.TopLevel];
@@ -140,6 +156,13 @@ public sealed class SummaryQueries(IndexDatabase database)
             Systems = [.. values.Where(v => v.Field == MetadataFields.System.Key)],
             Types = [.. values.Where(v => v.Field == MetadataFields.Types.Key)],
             Settings = [.. values.Where(v => v.Field == MetadataFields.Settings.Key)],
+            Themes = [.. values.Where(v => v.Field == MetadataFields.Themes.Key)],
+            Environments = [.. values.Where(v => v.Field == MetadataFields.Environments.Key)],
+            Includes = [.. values.Where(v => v.Field == MetadataFields.Includes.Key)],
+            Publishers = publishers,
+            // A catalogue found the book or it didn't: there's nothing to confirm.
+            FoundOnline = [.. values.Where(v => v.Field == FoundOnline.Field).Select(v => v with { Confirmed = v.Count })],
+            NotFoundOnline = other.NotFoundOnline,
             SystemUnknown = other.SystemUnknown,
             StoreDownloaded = other.StoreDownloaded,
             StoreWaiting = other.StoreWaiting,
@@ -213,5 +236,5 @@ public sealed class SummaryQueries(IndexDatabase database)
         public long Confirmed { get; init; }
     }
 
-    sealed record OtherRow(long SystemUnknown, long StoreWaiting, long StoreDownloaded, long LevelsUnknown);
+    sealed record OtherRow(long SystemUnknown, long StoreWaiting, long StoreDownloaded, long LevelsUnknown, long NotFoundOnline);
 }

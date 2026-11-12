@@ -88,6 +88,9 @@ public enum SearchField
     /// can't be left out.
     /// </summary>
     About,
+
+    /// <summary><c>includes:</c>, what comes with it: pregens, handouts, battle maps, solo.</summary>
+    Includes,
 }
 
 /// <summary>

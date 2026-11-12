@@ -44,16 +44,20 @@ public sealed class SummaryQueriesTests : IndexFixture
         [
             new EntryMetaRow
             {
-                EntryId = EntryOf(Rulebook), Year = 1985, LevelMin = 1, LevelMax = 3, Levels = LevelState.Known,
+                EntryId = EntryOf(Rulebook), Year = 1985, LevelMin = 1, LevelMax = 3, Levels = LevelState.Known, Publisher = "Big Games",
                 Facets = [new("system", "fantasy", "Fantasy RPG", true), new("type", "rulebook", "Rulebook", true), new("store", "shop", "A shop", true)],
             },
             new EntryMetaRow
             {
-                EntryId = EntryOf(Novel), Year = 2021,
-                Facets = [new("system", "fantasy", "Fantasy RPG", false), new("setting", "isles", "The Isles", false)],
+                EntryId = EntryOf(Novel), Year = 2021, Publisher = "Small Press",
+                Facets =
+                [
+                    new("system", "fantasy", "Fantasy RPG", false), new("setting", "isles", "The Isles", false), new("theme", "horror", "Horror", false),
+                    new("environment", "urban", "Urban", true), new("includes", "pregens", "Pre-generated characters", false),
+                ],
             },
             new EntryMetaRow { EntryId = Printed, Year = 1450, Facets = [new("own", "print", "Print", true), new("type", "adventure", "Adventure", true)] },
-            new EntryMetaRow { EntryId = Ordered, Facets = [new("store", "shop", "A shop", true), new("system", "space", "Space RPG", true)] },
+            new EntryMetaRow { EntryId = Ordered, Publisher = "Big Games", Facets = [new("store", "shop", "A shop", true), new("system", "space", "Space RPG", true)] },
             new EntryMetaRow
             {
                 EntryId = Chapter, LevelMin = 2, LevelMax = 25, Levels = LevelState.Known,
@@ -61,6 +65,7 @@ public sealed class SummaryQueriesTests : IndexFixture
             },
         ], Ct);
 
+        await _store.SetFoundByAsync(null, [new(EntryOf(Rulebook), "RPGGeek"), new(EntryOf(Rulebook), "Open Library"), new(Ordered, "RPGGeek"), new(Chapter, "RPGGeek")], Ct);
         await _store.SetOpenedAsync(null, new Dictionary<EntryId, DateTime> { [EntryOf(Novel)] = Clock.GetUtcNow().UtcDateTime }, Ct);
         await _store.SetScopesAsync(null, [(EntryOf(Map), ScopeKeys.Favorites)], Ct);
         await _store.SetAiReadAsync(null, new Dictionary<EntryId, string> { [EntryOf(Rulebook)] = "model" }, Ct);
@@ -130,6 +135,21 @@ public sealed class SummaryQueriesTests : IndexFixture
         // The map and the book in print have no system.
         Assert.Equal(2L, summary.SystemUnknown);
         Assert.Equal((1L, 1L), (summary.StoreDownloaded, summary.StoreWaiting));
+    }
+
+    [Fact]
+    public async Task Lookup_fields_are_counted_as_the_library_filters_them()
+    {
+        var summary = await SummaryAsync();
+
+        Assert.Equal([("Big Games", 2L, 2L), ("Small Press", 1L, 1L)], summary.Publishers.Select(v => (v.Value, v.Count, v.Confirmed)));
+        // Every card counts once per catalogue that found it; the adventure inside the rulebook isn't a card here.
+        Assert.Equal([("RPGGeek", 2L, 2L), ("Open Library", 1L, 1L)], summary.FoundOnline.Select(v => (v.Value, v.Count, v.Confirmed)));
+        // The novel, the map, the pack and the book in print.
+        Assert.Equal(4L, summary.NotFoundOnline);
+        Assert.Equal(("horror", 0L), (Assert.Single(summary.Themes).Value, summary.Themes[0].Confirmed));
+        Assert.Equal(("urban", 1L), (Assert.Single(summary.Environments).Value, summary.Environments[0].Confirmed));
+        Assert.Equal("Pre-generated characters", Assert.Single(summary.Includes).Label);
     }
 
     [Fact]

@@ -26,12 +26,21 @@ a duplicate), and a book owned in print or online counts as a book. Its pages co
 - **Online libraries and stores**: the places you own books online and in print (**Also own**) and where you got them
   (**Get it from**), with how many bought from stores are on your drive and how many are still waiting to be
   downloaded. **Import more** opens Settings › Online libraries.
+- **Publishers**: who published your books, most first, by the publisher's name as the Library's publisher filter has
+  it. A book's publisher can come from you, from an online lookup or from the AI.
+- **Found online**: how many books each online catalogue (RPGGeek, AdventureLookup, Open Library, Google Books) has a
+  record of that Bibliotaph uses, and **Not found online** for the rest, including books not looked up yet. A book found
+  by two catalogues counts under both. It shows once a catalogue has found a book, and opens the Library's **Found
+  online** filter.
 
 ## What it is
 
-Your game systems, types and settings, most first, with the rest folded into one line. Each bar has two shades: the
-dark part is what you've confirmed, the lighter part is suggestions not yet reviewed, so you can see how much of your
-catalogue is settled. **Not cataloged yet** is the books with no system so far.
+Your game systems, types and settings, then themes, environments and **What's included** (pre-generated characters,
+handouts, battle maps and adventures you can play solo), most first, with the rest folded into one line. Many of these
+come from the online lookups, AdventureLookup especially. Each bar has two shades: the dark part is what you've
+confirmed, the lighter part is suggestions not yet reviewed, so you can see how much of your catalogue is settled.
+**Not cataloged yet** is the books with no system so far. A setting, theme or environment opens the Library with it
+picked in its box under More filters; what's included opens a search such as `includes:pregens`.
 
 **By character level** counts every book and adventure that covers each level from 1 to 20, so a level 1–3 adventure
 counts at levels 1, 2 and 3. **Levels unknown** opens the adventures nobody has given levels yet. **Published, by
