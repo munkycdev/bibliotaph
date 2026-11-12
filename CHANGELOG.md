@@ -7,6 +7,11 @@
   **What it is** adds themes, environments and what's included (pre-generated characters, handouts, battle maps, solo
   play). Every bar opens the Library at those books, on Windows and the web, and the new `includes:` search field finds
   them by what comes with them.
+- **New: find the books with no source.** **Source** under Housekeeping in More filters has **No source given**, for
+  the books with nothing in **Get it from**, so you can fill in where they came from. On Windows and the web.
+- **New: filter by a folder inside a library folder.** **Source folder** in More filters now lists every folder that
+  has books, by its path (such as `Fantasy\Bundle`), under the folder you added, so you can see just the books in one
+  subfolder and the folders inside it. Saved searches and web links keep the folder. On Windows and the web.
 - **Security: three code scanning findings closed.** The web server checks the user ID in a Nornis reading ticket or
   world update is one of its own before it reaches the log, and the Windows app keeps the reason saving a password
   failed apart from the password itself, so the log can't be made to carry either.

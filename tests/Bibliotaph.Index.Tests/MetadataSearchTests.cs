@@ -181,6 +181,10 @@ public sealed class MetadataSearchTests : IndexFixture
     }
 
     [Fact]
+    public async Task No_source_keeps_the_books_with_nothing_in_get_it_from() =>
+        Assert.Equal([Bestiary, Map, Unknown], (await _library.ListAsync(new LibraryFilter(OnlyWithoutStore: true), ct: Ct)).Select(e => e.DocumentId).Order());
+
+    [Fact]
     public async Task Found_online_keeps_books_a_catalogue_found_counts_each_and_outlives_their_metadata()
     {
         await _store.SetFoundByAsync(null, [(EntryOf(Tomb), "RPGGeek"), (EntryOf(Tomb), "Open Library"), (EntryOf(Citadel), "Open Library")], Ct);

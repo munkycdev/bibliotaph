@@ -33,6 +33,9 @@ public sealed record LibraryQuery
 
     public long? Folder { get; init; }
 
+    /// <summary>A folder inside the library folder <see cref="Folder"/> ("D&amp;D 5e\Adventures"), with the folders inside it.</summary>
+    public string? Subfolder { get; init; }
+
     public string? Own { get; init; }
 
     public string? Store { get; init; }
@@ -42,6 +45,9 @@ public sealed record LibraryQuery
     public string? Ai { get; init; }
 
     public bool Copies { get; init; }
+
+    /// <summary>Only the books with nothing in Get it from.</summary>
+    public bool NoSource { get; init; }
 
     /// <summary>The catalogue that found the books online, by name ("RPGGeek"), or "unknown" for those none found.</summary>
     public string? Found { get; init; }
@@ -166,6 +172,8 @@ public static class LibraryChoices
     public static IReadOnlyList<FilterChoice> Ai { get; } = [new("", "All books"), new("Read", "Read by AI"), new("NotRead", "Not read by AI")];
 
     public static IReadOnlyList<FilterChoice> Copies { get; } = [new("", "All books"), new("true", "Books with copies")];
+
+    public static IReadOnlyList<FilterChoice> Source { get; } = [new("", "All books"), new("true", "No source given")];
 
     public static IReadOnlyList<FilterChoice> Adventures { get; } = [new("", "Inside their book"), new("Cards", "Show as cards"), new("Hidden", "Hide")];
 

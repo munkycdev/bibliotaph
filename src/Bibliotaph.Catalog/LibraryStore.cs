@@ -835,17 +835,62 @@ public sealed class LibraryStore(IDbContextFactory<CatalogDbContext> contexts, T
         await using var db = await contexts.CreateDbContextAsync(ct);
         var locations = db.FileLocations.Where(f => f.DocumentId != null && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser);
         if (rootId is { } id) locations = locations.Where(f => f.SourceRootId == id);
-        var documents = locations.Select(f => f.DocumentId!.Value);
-        var entries = await db.EntrySources.Where(s => documents.Contains(s.DocumentId)).Select(s => s.EntryId).Distinct().ToListAsync(ct);
-        // A pack has no file of its own: it shows while any of its images does.
-        var packs = await db.Entries
-            .Where(e => entries.Contains(e.Id) && e.ParentEntryId != null && e.ParentEntry!.Kind == EntryKind.Pack)
-            .Select(e => e.ParentEntryId!.Value).Distinct().ToListAsync(ct);
+        var entries = await db.EntrySources.Where(s => locations.Select(f => f.DocumentId!.Value).Contains(s.DocumentId)).Select(s => s.EntryId).Distinct().ToListAsync(ct);
         // A book owned elsewhere has no file, so no folder decides whether it shows; it isn't in any one folder.
         List<long> elsewhere = rootId is null
             ? await db.Entries.Where(e => e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null && !e.Sources.Any()).Select(e => e.Id).ToListAsync(ct)
             : [];
-        return [.. entries.Concat(packs).Concat(elsewhere).Select(e => new EntryId(e))];
+        return [.. (await WithPacksAsync(db, entries, ct)).Concat(elsewhere).Select(e => new EntryId(e))];
+    }
+
+    /// <summary>
+    /// The entries the library shows with a file in <paramref name="folder"/> or a folder inside it: a file inside a
+    /// ZIP is where its ZIP is. A book with files in several folders is in each.
+    /// </summary>
+    public async Task<IReadOnlyList<EntryId>> GetVisibleEntryIdsAsync(FolderKey folder, CancellationToken ct = default)
+    {
+        if (folder.Folder.Length == 0) return await GetVisibleEntryIdsAsync(folder.RootId, ct);
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var files = await LocatedFiles(db).Where(f => f.RootId == folder.RootId).ToListAsync(ct);
+        var documents = files.Where(f => folder.Holds(f.RootId, f.Path)).Select(f => f.DocumentId).Distinct().ToList();
+        var entries = await db.EntrySources.Where(s => documents.Contains(s.DocumentId)).Select(s => s.EntryId).Distinct().ToListAsync(ct);
+        return [.. (await WithPacksAsync(db, entries, ct)).Select(e => new EntryId(e))];
+    }
+
+    /// <summary>
+    /// The folders under the library folders that hold a file the library shows, with the folders above them, for the
+    /// Source folder filter; a file inside a ZIP is where its ZIP is. Library folder by library folder, in tree order.
+    /// </summary>
+    public async Task<IReadOnlyList<FolderKey>> GetBookFoldersAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var files = await LocatedFiles(db).Select(f => new { f.RootId, f.Path }).Distinct().ToListAsync(ct);
+        return FolderKey.Holding(files.Select(f => (f.RootId, f.Path)));
+    }
+
+    /// <summary>Each document's files in folders the user hasn't removed, by where they sit under their library folder.</summary>
+    static IQueryable<LocatedFile> LocatedFiles(CatalogDbContext db) =>
+        db.FileLocations.Where(f => f.DocumentId != null && f.SourceRoot.Availability != SourceRootAvailability.RemovedByUser)
+            .Select(f => new LocatedFile
+            {
+                DocumentId = f.DocumentId!.Value, RootId = f.SourceRootId, Path = f.Container != null ? f.Container.RelativePath : f.RelativePath,
+            });
+
+    /// <summary>Set by member, so a query can still filter and group on it.</summary>
+    sealed class LocatedFile
+    {
+        public long DocumentId { get; init; }
+        public long RootId { get; init; }
+        public required string Path { get; init; }
+    }
+
+    /// <summary><paramref name="entries"/> and the packs they are in: a pack has no file of its own, so it shows while any of its images does.</summary>
+    static async Task<IEnumerable<long>> WithPacksAsync(CatalogDbContext db, List<long> entries, CancellationToken ct)
+    {
+        var packs = await db.Entries
+            .Where(e => entries.Contains(e.Id) && e.ParentEntryId != null && e.ParentEntry!.Kind == EntryKind.Pack)
+            .Select(e => e.ParentEntryId!.Value).Distinct().ToListAsync(ct);
+        return entries.Concat(packs);
     }
 
     /// <summary>The documents with a file in a folder the user hasn't removed, present or not.</summary>

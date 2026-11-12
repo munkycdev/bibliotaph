@@ -1,5 +1,6 @@
 using System.Globalization;
 using Bibliotaph.Api.Contracts;
+using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 
 namespace Bibliotaph.Web.Services;
@@ -30,12 +31,13 @@ public static class LibraryFilters
                 var label = $"{box.Label}: {pick.Label}";
                 chips.Add(new FilterChip(label, $"Remove {label}", q => q with { Picked = PickedText.Remove(q.Picked, box.Key, pick.Value) }, true));
             }
-        Add(query.Folder is not null, $"Folder: {Label(m.Folders, Text(query.Folder))}", "source folder", q => q with { Folder = null }, true);
+        Add(query.Folder is not null, $"Folder: {Label(m.Folders, FolderValue(query))}", "source folder", q => q with { Folder = null, Subfolder = null }, true);
         Add(query.Own is not null, $"Also own: {Label(m.Owns, query.Own)}", "also own", q => q with { Own = null }, true);
         Add(query.Store is not null, $"Get it from: {Label(m.Stores, query.Store)}", "get it from", q => q with { Store = null }, true);
         Add(query.Kind is not null, Label(LibraryChoices.Kinds, query.Kind), "kind", q => q with { Kind = null }, true);
         Add(query.Ai is not null, Label(LibraryChoices.Ai, query.Ai), "AI", q => q with { Ai = null }, true);
         Add(query.Copies, Label(LibraryChoices.Copies, "true"), "copies", q => q with { Copies = false }, true);
+        Add(query.NoSource, Label(LibraryChoices.Source, "true"), "source", q => q with { NoSource = false }, true);
         Add(query.Found is not null, query.Found == SearchQuery.Unknown ? FoundOnline.NotFound : $"Found in {Label(m.Found, query.Found)}", "found online",
             q => q with { Found = null }, true);
         Add(query.Adventures is not null, query.Adventures == "Hidden" ? "Adventures inside files hidden" : "Adventures as cards", "adventures inside files",
@@ -43,6 +45,14 @@ public static class LibraryFilters
         Add(query.Collections is not null, Label(LibraryChoices.Collections, query.Collections), "collection", q => q with { Collections = null }, true);
         return chips;
     }
+
+    /// <summary>The Source folder menu's value for the query's folder: the library folder's id, then the folder inside it.</summary>
+    public static string FolderValue(LibraryQuery query) => FolderKey.Chosen(query.Folder, query.Subfolder)?.Text ?? "";
+
+    /// <summary>The query with the folder a Source folder menu value names, or none.</summary>
+    public static LibraryQuery WithFolder(LibraryQuery query, string? value) => FolderKey.Parse(value) is { } folder
+        ? query with { Folder = folder.RootId, Subfolder = folder.Folder.Length > 0 ? folder.Folder : null }
+        : query with { Folder = null, Subfolder = null };
 
     /// <summary>"Filters", or "Filters · 2" with two on.</summary>
     public static string FiltersLabel(IReadOnlyCollection<FilterChip> chips) => chips.Count > 0 ? $"Filters · {chips.Count}" : "Filters";

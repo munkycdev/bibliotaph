@@ -120,6 +120,7 @@ public static class SavedSearchesApi
         IncludeUnknownLevels: q.Level is not null && q.UnknownLevels,
         Ai: Parse<AiFilter>(q.Ai) ?? AiFilter.All,
         Copies: q.Copies,
+        NoSource: q.NoSource,
         Own: Text(q.Own),
         Sort: Parse<LibrarySort>(q.Sort) is { } sort && (q.IsSearching || sort != LibrarySort.Relevance) ? sort
             : q.IsSearching ? LibrarySort.Relevance : LibrarySort.RecentlyAdded,
@@ -132,7 +133,8 @@ public static class SavedSearchesApi
         Collections: Parse<CollectionFilter>(q.Collections) ?? CollectionFilter.All,
         Picked: LibraryApi.Picked(q.Picked),
         Adventures: q.Adventures switch { "Hidden" => AdventureCards.Hidden, "Cards" => AdventureCards.Cards, _ => AdventureCards.InBooks },
-        Found: Text(q.Found));
+        Found: Text(q.Found),
+        Subfolder: q.Folder is null ? null : Text(q.Subfolder));
 
     /// <summary>A definition as the web's library query, its scope left for <see cref="OpenAsync"/> to check.</summary>
     internal static LibraryQuery ToQuery(SmartViewDefinition d) => new()
@@ -148,11 +150,13 @@ public static class SavedSearchesApi
         Style = d.Style,
         Duration = d.Duration,
         Folder = d.Folder,
+        Subfolder = d.Folder is null ? null : d.Subfolder,
         Own = d.Own,
         Store = d.Store,
         Kind = d.Kind == KindFilter.All ? null : d.Kind.ToString(),
         Ai = d.Ai == AiFilter.All ? null : d.Ai.ToString(),
         Copies = d.Copies,
+        NoSource = d.NoSource,
         Found = d.Found,
         Adventures = d.Adventures switch { AdventureCards.Hidden => "Hidden", AdventureCards.Cards => "Cards", _ => null },
         Collections = d.Collections == CollectionFilter.All ? null : d.Collections.ToString(),
