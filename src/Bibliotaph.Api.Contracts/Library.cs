@@ -33,6 +33,9 @@ public sealed record LibraryQuery
 
     public long? Folder { get; init; }
 
+    /// <summary>A folder inside the library folder <see cref="Folder"/> ("D&amp;D 5e\Adventures"), with the folders inside it.</summary>
+    public string? Subfolder { get; init; }
+
     public string? Own { get; init; }
 
     public string? Store { get; init; }

@@ -30,7 +30,7 @@ public sealed partial class LibraryFilterState : ObservableObject
     static readonly Choice<bool> AnyCopies = new(false, "All books");
     static readonly Choice<AdventureCards> InBooks = new(AdventureCards.InBooks, "Inside their book");
     static readonly Choice<CollectionFilter> AnyCollection = new(CollectionFilter.All, "All books");
-    static readonly Choice<long?> AllFolders = new(null, "All folders");
+    static readonly Choice<FolderKey?> AllFolders = new(null, "All folders");
     static readonly Choice<string?> AllSystems = new(null, "All systems");
     static readonly Choice<string?> AllTypes = new(null, "All types");
     static readonly Choice<int?> AnyLevel = new(null, "Any level");
@@ -43,7 +43,7 @@ public sealed partial class LibraryFilterState : ObservableObject
 
     int _quiet;
     int _moreFiltersOn;
-    long? _folderOnLoad;
+    FolderKey? _folderOnLoad;
 
     public LibraryFilterState()
     {
@@ -62,9 +62,9 @@ public sealed partial class LibraryFilterState : ObservableObject
 
     public Choice<KindFilter> KindChoice { get; set => Choose(ref field, value, AllKinds); } = AllKinds;
 
-    public ObservableCollection<Choice<long?>> FolderChoices { get; } = [AllFolders];
+    public ObservableCollection<Choice<FolderKey?>> FolderChoices { get; } = [AllFolders];
 
-    public Choice<long?> FolderChoice { get; set => Choose(ref field, value, AllFolders); } = AllFolders;
+    public Choice<FolderKey?> FolderChoice { get; set => Choose(ref field, value, AllFolders); } = AllFolders;
 
     /// <summary>"All systems", then each game system with how many books have it, then Unknown.</summary>
     public ObservableCollection<Choice<string?>> SystemChoices { get; } = [AllSystems];
@@ -314,10 +314,11 @@ public sealed partial class LibraryFilterState : ObservableObject
             PartsInBooks: PartsChoice.Value == AdventureCards.InBooks, Found: Selected(FoundChoice));
 
     /// <summary>The filters as a saved search keeps them. Its search, scope, order, layout and tab are the page's to add.</summary>
-    public SmartViewDefinition ToView() => new(Kind: KindChoice.Value, Folder: FolderChoice.Value, System: SystemChoice.Value, Type: TypeChoice.Value,
+    public SmartViewDefinition ToView() => new(Kind: KindChoice.Value, Folder: FolderChoice.Value?.RootId, System: SystemChoice.Value, Type: TypeChoice.Value,
         Level: LevelChoice.Value, IncludeUnknownLevels: LevelChoice.Value is not null && IncludeUnknownLevels, Ai: AiChoice.Value, Copies: CopiesChoice.Value,
         Own: OwnChoice.Value, Style: StyleChoice.Value, Duration: DurationChoice.Value, Players: PlayersChoice.Value, Store: StoreChoice.Value,
-        Collections: CollectionChoice.Value, Picked: ChipPicks(), Adventures: PartsChoice.Value, Found: FoundChoice.Value);
+        Collections: CollectionChoice.Value, Picked: ChipPicks(), Adventures: PartsChoice.Value, Found: FoundChoice.Value,
+        Subfolder: FolderChoice.Value is { Folder.Length: > 0 } folder ? folder.Folder : null);
 
     /// <summary>
     /// Puts a saved search's filters back, without raising <see cref="Changed"/>: the page refreshes once it has put the
@@ -342,7 +343,7 @@ public sealed partial class LibraryFilterState : ObservableObject
         PlayersChoice = PlayersChoices.FirstOrDefault(c => c.Value == view.Players) ?? AnyPlayers;
         LevelChoice = LevelChoices.FirstOrDefault(c => c.Value == view.Level) ?? AnyLevel;
         IncludeUnknownLevels = view.IncludeUnknownLevels;
-        _folderOnLoad = view.Folder;
+        _folderOnLoad = FolderKey.Chosen(view.Folder, view.Subfolder);
     });
 
     /// <summary>A counted menu's choice for a saved value, added to the menu until the counts arrive.</summary>
@@ -359,7 +360,7 @@ public sealed partial class LibraryFilterState : ObservableObject
     /// The source folders to choose from, keeping the one chosen while it is still there, and then the folder of a
     /// saved search just put back.
     /// </summary>
-    public void ShowFolders(IReadOnlyList<Choice<long?>> folders) => Quietly(() =>
+    public void ShowFolders(IReadOnlyList<Choice<FolderKey?>> folders) => Quietly(() =>
     {
         if (!FolderChoices.Skip(1).SequenceEqual(folders))
         {

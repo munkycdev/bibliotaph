@@ -453,7 +453,7 @@
                 <StackPanel Margin="0,0,12,12">
                   <TextBlock Text="Source folder" Style="{StaticResource FieldLabel}" />
                   <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.FolderChoices}" SelectedItem="{Binding Filters.FolderChoice}"
-                            AutomationProperties.Name="Source folder" MinWidth="200" />
+                            AutomationProperties.Name="Source folder" MinWidth="200" ToolTip="A folder you added, or a folder inside it, with the folders inside that" />
                 </StackPanel>
                 <StackPanel Margin="0,0,12,12" Visibility="{Binding Filters.ShowOwnChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
                   <TextBlock Text="Also own" Style="{StaticResource FieldLabel}" />

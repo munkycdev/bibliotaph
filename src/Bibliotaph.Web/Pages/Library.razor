@@ -208,7 +208,8 @@
                 }
                 <span class="bt-eyebrow bt-eyebrow-block">WHERE IT LIVES</span>
                 <div class="bt-filterrow">
-                    <Menu Label="Source folder" Choices="menus.Folders" Value="@LibraryFilters.Text(_query.Folder)" Changed='v => Filter(_query with { Folder = long.TryParse(v, out var id) ? id : null })' />
+                    <Menu Label="Source folder" Choices="menus.Folders" Value="@LibraryFilters.FolderValue(_query)" Changed='v => Filter(LibraryFilters.WithFolder(_query, v))'
+                          Hint="A folder you added, or a folder inside it, with the folders inside that" />
                     @if (menus.ShowOwn)
                     {
                         <Menu Label="Also own" Choices="menus.Owns" Value="@_query.Own" Changed='v => Filter(_query with { Own = v })'
