@@ -8,6 +8,11 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
 ## Where suggestions come from
 
 - **Folder and file names**: a folder called "Adventures" or "D&D 5e" suggests the type or system of the books in it.
+  Until something better comes along, a book's title is read from its file name: `CurseOfTheVault_v2 (1).pdf` becomes
+  "Curse of the Vault". Words run together are split, underscores and dots become spaces, and copy markers like "(1)" or
+  "- Copy", tags like "[PDF]", version numbers, dates, product codes and words like "hi-res" or "print friendly" are
+  dropped. Acronyms and editions such as D&D, OSR and 5e stay as they are. The file's own title, an online catalogue's
+  and the AI's all beat it, and a title you typed or kept is never touched.
 - **The file itself**: the title, author and other details a PDF or e-book carries (an e-book's description and
   cover too), and party sizes and levels in the file name.
 - **Book catalogues**: Bibliotaph sends the ISBNs a book prints, and nothing else, to

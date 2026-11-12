@@ -32,8 +32,9 @@ public static class Pipeline
         Stage.Probe => 1,
         Stage.Text => 1,
         Stage.Covers => 1,
-        // 2: adventures are proposed only when the book says it is a collection of them.
-        Stage.RuleHints => 2,
+        // 2: adventures are proposed only when the book says it is a collection of them. 3: titles from file names split
+        // words run together and drop copy markers, tags and product codes.
+        Stage.RuleHints => 3,
         Stage.Ocr => 1,
         // Never bumped for a new prompt or model: those are recorded per run, and reclassifying is the user's call.
         Stage.Classify => 1,

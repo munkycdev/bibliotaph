@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Better titles from file names.** A book with no title of its own now gets a readable one from its file name:
+  `CurseOfTheVault_v2 (1).pdf` becomes "Curse of the Vault". Words run together are split, copy markers such as "(1)"
+  and "- Copy", tags such as "[PDF]", versions, dates and product codes are dropped, and the result is title-cased
+  with acronyms and editions (D&D, OSR, 5e) kept. Books already in your library get the new title once after the
+  update; a title you typed or kept, or one from the book itself, a catalogue or the AI, still wins. On Windows and
+  the web.
 - **New: filter by a folder inside a library folder.** **Source folder** in More filters now lists every folder that
   has books, by its path (such as `Fantasy\Bundle`), under the folder you added, so you can see just the books in one
   subfolder and the folders inside it. Saved searches and web links keep the folder. On Windows and the web.

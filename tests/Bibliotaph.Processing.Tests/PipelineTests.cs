@@ -462,6 +462,51 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         }
 
         [Fact]
+        public async Task A_title_read_from_a_file_name_by_older_rules_is_read_again_and_the_users_title_stays()
+        {
+            // Images, which carry no title of their own to win over their file's name.
+            foreach (var (folder, name, width) in new[] { ("Keeps", "SunkenKeep_v2 (1).png", 640), ("Harbors", "HarborQuests.png", 800) })
+            {
+                Directory.CreateDirectory(Path.Combine(_library, folder));
+                File.WriteAllBytes(Path.Combine(_library, folder, name), FakeCodec.Png(width, 480));
+            }
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+
+            var search = new LibraryQueries(_index);
+            async Task<string[]> TitlesAsync() => [.. (await search.ListAsync(new LibraryFilter(), ct: Ct)).Select(e => e.Title).Order(StringComparer.Ordinal)];
+            Assert.Equal(["Harbor Quests", "Sunken Keep"], await TitlesAsync());
+            var harbor = (await search.ListAsync(new LibraryFilter(), ct: Ct)).Single(e => e.Title == "Harbor Quests");
+            Assert.Null(await _metadata.SetAsync(harbor.EntryId, Core.Metadata.MetadataFields.Title, "Harbor Quests Deluxe", Ct));
+
+            // As a library read before this version: the file name's titles as the older rules made them.
+            await _service.StopAsync(Ct);
+            await using (var db = _catalog.CreateContext())
+            {
+                foreach (var (from, to) in new[] { ("Sunken Keep", "SunkenKeep v2 (1)"), ("Harbor Quests", "HarborQuests") })
+                {
+                    var (field, now, then) = (Core.Metadata.MetadataFields.Title.Key, System.Text.Json.JsonSerializer.Serialize(from), System.Text.Json.JsonSerializer.Serialize(to));
+                    var normalized = new Core.Metadata.MetadataProposal(Core.Metadata.MetadataFields.Title, to, AssertionOrigin.Filename).Normalized;
+                    Assert.Equal(1, await db.Assertions.Where(a => a.Origin == AssertionOrigin.Filename && a.Field == field && a.ValueJson == now)
+                        .ExecuteUpdateAsync(u => u.SetProperty(a => a.ValueJson, then).SetProperty(a => a.NormalizedValue, normalized), Ct));
+                }
+            }
+            await _writer.WriteAsync((c, t) => c.Execute(
+                """
+                UPDATE job SET stage_version = 2 WHERE stage = 'RuleHints';
+                UPDATE stage_status SET stage_version = 2 WHERE stage = 'RuleHints';
+                """, transaction: t), Ct);
+            await _projector.ProjectAllAsync(Ct);
+            Assert.Equal(["Harbor Quests Deluxe", "SunkenKeep v2 (1)"], await TitlesAsync());
+
+            await _service.StartAsync(Ct);
+            await SettleAsync();
+
+            Assert.Equal(["Harbor Quests Deluxe", "Sunken Keep"], await TitlesAsync());
+        }
+
+        [Fact]
         public async Task Party_size_style_and_duration_from_names_are_searchable_and_the_users_party_size_wins()
         {
             Copy(_pdfs.KnownText, "Heists/One-shots/Vault Job (for 4-6 players).pdf");

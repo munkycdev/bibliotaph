@@ -5,7 +5,7 @@ public class DisplayTitleTests
     [Theory]
     [InlineData("Gazetteer of the Marches.pdf", "Gazetteer of the Marches")]
     [InlineData("Gazetteer_of_the_Marches_v1.2_digital.pdf", "Gazetteer of the Marches")]
-    [InlineData("gazetteer_of_the_marches.pdf", "Gazetteer Of The Marches")]
+    [InlineData("gazetteer_of_the_marches.pdf", "Gazetteer of the Marches")]
     [InlineData("the-sunken-keep-hi-res.pdf", "The Sunken Keep")]
     [InlineData("Half-Elf Heroes.pdf", "Half-Elf Heroes")]
     [InlineData("Cities of Ruin 20240115.pdf", "Cities of Ruin")]
@@ -13,6 +13,57 @@ public class DisplayTitleTests
     [InlineData("2024.pdf", "2024")]
     [InlineData("___.pdf", "___")]
     public void Makes_a_readable_title_from_a_file_name(string fileName, string expected) =>
+        Assert.Equal(expected, DisplayTitle.FromFileName(fileName));
+
+    [Theory]
+    [InlineData("GazetteerOfTheMarches.pdf", "Gazetteer of the Marches")]
+    [InlineData("gazetteerOfTheMarches.pdf", "Gazetteer of the Marches")]
+    [InlineData("SunkenKeep_v2.pdf", "Sunken Keep")]
+    [InlineData("SunkenKeepV2.pdf", "Sunken Keep")]
+    [InlineData("DMGuideToTheMarches.pdf", "DM Guide to the Marches")]
+    [InlineData("OSRBestiary.pdf", "OSR Bestiary")]
+    [InlineData("ShadowOverAVillage.pdf", "Shadow Over a Village")]
+    [InlineData("DnD5eHarborQuests.pdf", "DnD 5e Harbor Quests")]
+    [InlineData("PF2eGoblinWarrens.pdf", "PF2e Goblin Warrens")]
+    [InlineData("13thHourOfTheOwl.pdf", "13th Hour of the Owl")]
+    [InlineData("Swords&SorcerySampler.pdf", "Swords & Sorcery Sampler")]
+    [InlineData("Vault:TheReturn.pdf", "Vault: The Return")]
+    [InlineData("McGuffinHunt.pdf", "McGuffin Hunt")]
+    [InlineData("DarkForest_Gridded.jpg", "Dark Forest Gridded")]
+    public void Splits_words_run_together(string fileName, string expected) =>
+        Assert.Equal(expected, DisplayTitle.FromFileName(fileName));
+
+    [Theory]
+    [InlineData("Gazetteer of the Marches (1).pdf", "Gazetteer of the Marches")]
+    [InlineData("Gazetteer of the Marches - Copy (2).pdf", "Gazetteer of the Marches")]
+    [InlineData("Copy of Gazetteer of the Marches.pdf", "Gazetteer of the Marches")]
+    [InlineData("[PDF] Gazetteer of the Marches [DTRPG].pdf", "Gazetteer of the Marches")]
+    [InlineData("Gazetteer of the Marches (hi-res).pdf", "Gazetteer of the Marches")]
+    [InlineData("Gazetteer of the Marches (Revised).pdf", "Gazetteer of the Marches (Revised)")]
+    [InlineData("Gazetteer of the Marches - v1.3 - Print Friendly.pdf", "Gazetteer of the Marches")]
+    [InlineData("Gazetteer_of_the_Marches_hi_res_no_bleed.pdf", "Gazetteer of the Marches")]
+    [InlineData("XYZ12345_Gazetteer_of_the_Marches.pdf", "Gazetteer of the Marches")]
+    [InlineData("Gazetteer_of_the_Marches_XYZ12345.pdf", "Gazetteer of the Marches")]
+    [InlineData("98765_Gazetteer_of_the_Marches.pdf", "Gazetteer of the Marches")]
+    [InlineData("Gazetteer of the Marches 2024-01-15.pdf", "Gazetteer of the Marches")]
+    [InlineData("Gazetteer.of.the.Marches.v1.2.pdf", "Gazetteer of the Marches")]
+    public void Drops_copy_markers_tags_and_codes(string fileName, string expected) =>
+        Assert.Equal(expected, DisplayTitle.FromFileName(fileName));
+
+    [Theory]
+    [InlineData("Harbor Quests 2024.pdf", "Harbor Quests 2024")]
+    [InlineData("Harbor Quests Part 2.pdf", "Harbor Quests Part 2")]
+    [InlineData("Harbor_Quests_3.5.pdf", "Harbor Quests 3.5")]
+    [InlineData("X1_Isle_of_Gulls.pdf", "X1 Isle of Gulls")]
+    [InlineData("d&d_harbor_quests.pdf", "D&D Harbor Quests")]
+    [InlineData("the_dm_guide_to_harbors.pdf", "The DM Guide to Harbors")]
+    [InlineData("HARBOR_QUESTS_FOR_OSR_GAMES.pdf", "Harbor Quests for OSR Games")]
+    [InlineData("Lord Of The Harbor.pdf", "Lord of the Harbor")]
+    [InlineData("Vault of Ash - The Return.pdf", "Vault of Ash - The Return")]
+    [InlineData("Something to Sail For.pdf", "Something to Sail For")]
+    [InlineData("half-elf-harbors.pdf", "Half Elf Harbors")]
+    [InlineData("3f9a8b7c6d5e4f30a1b2.pdf", "3f9a8b7c6d5e4f30a1b2")]
+    public void Keeps_what_belongs_to_the_title(string fileName, string expected) =>
         Assert.Equal(expected, DisplayTitle.FromFileName(fileName));
 }
 
