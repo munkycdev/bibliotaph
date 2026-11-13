@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6 · 9 November 2026
+
+New in 1.6.1218 (12 November 2026):
+
 - **The online lookups find more of your books.** RPGGeek can only be searched by name, and was searched with a
   book's file name, so a file such as "Monster Tome Vol1" never found RPGGeek's "Gull Rock Saga: Book 3. Monster Tome".
   - Books are now also searched with the title their card shows (yours or the AI's) and the title their cover prints,
@@ -49,8 +53,6 @@
   release won't start while one is open, and a package with a known vulnerability fails the build.
 - **Built on the released .NET 11.** Bibliotaph moves from the .NET 11 release candidate to the general release
   (SDK 11.0.100, runtime 11.0.0), along with EF Core and ASP.NET Core 11.0.0, on Windows and the web server.
-
-## 1.6 · 9 November 2026
 
 - **Fixed: D&D Beyond and Demiplane books kept coming back without covers.** A cover lost on one device could only
   come back by reading the service's page again. Bibliotaph now remembers where each imported cover came from, syncs
