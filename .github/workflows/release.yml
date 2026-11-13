@@ -25,12 +25,17 @@ jobs:
   # web server's tests are left out, as on main's Windows job: the server doesn't ship in the app, its tests run on
   # Linux before each deploy, and they are the slowest and least steady on a Windows runner. It runs beside the release
   # job, which waits for it before drafting.
+  #
+  # Main's Windows job runs that same whole set, so when it passed on a commit behind the tag and nothing since reaches
+  # the Windows app (as with a release-notes commit), the run it would repeat is taken instead: running the same tests
+  # on the same code again only gives a test that waits on timing another chance to fail the release.
   tests:
     name: Tests (Windows)
     runs-on: windows-latest
     timeout-minutes: 30
     permissions:
       contents: read
+      actions: read
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -40,17 +45,67 @@ jobs:
       DOTNET_INSTALL_DIR: D:\dotnet
 
     steps:
+      # The whole history, to find main's last Windows run behind the tag and what changed since.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The newest CI run on main, behind the tagged commit, whose Windows job (its latest attempt) passed. Only pushes
+      # to main count: a pull request's run tested its merge with an older main.
+      - name: Main's last passing Windows run
+        id: passed
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $runs = @(gh api "repos/$env:GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=completed&per_page=50" `
+            --jq '.workflow_runs[] | "\(.id) \(.head_sha) \(.html_url)"')
+          if ($LASTEXITCODE -ne 0) { throw "Reading main's CI runs failed." }
+          foreach ($run in $runs) {
+            $id, $sha, $url = $run -split ' '
+            git merge-base --is-ancestor $sha HEAD 2>$null
+            if ($LASTEXITCODE -ne 0) { continue }
+            $windows = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id/jobs?filter=latest&per_page=100" `
+              --jq '.jobs[] | select(.name == "Build and test (Windows)") | .conclusion'
+            if ($LASTEXITCODE -ne 0) { throw "Reading the jobs of CI run $id failed." }
+            if ($windows -eq 'success') {
+              Write-Host "Main's Windows job passed on $sha ($url)."
+              "sha=$sha" >> $env:GITHUB_OUTPUT
+              "url=$url" >> $env:GITHUB_OUTPUT
+              break
+            }
+          }
+          # The runner fails a pwsh step on the last native exit code, even one handled above.
+          exit 0
+
+      - name: What changed since
+        id: since
+        if: steps.passed.outputs.sha != ''
+        shell: pwsh
+        env:
+          BASE: ${{ steps.passed.outputs.sha }}
+        run: ./build/changes.ps1 -Base $env:BASE
+
+      - name: Tested already
+        if: steps.passed.outputs.sha != '' && steps.since.outputs.windows == 'false'
+        shell: pwsh
+        env:
+          SHA: ${{ steps.passed.outputs.sha }}
+          URL: ${{ steps.passed.outputs.url }}
+        run: Write-Host "The tests passed on $env:SHA ($env:URL), and nothing since reaches the Windows app, so they aren't run again."
 
       - uses: ./.github/actions/setup
+        if: steps.passed.outputs.sha == '' || steps.since.outputs.windows != 'false'
         with:
           github-token: ${{ github.token }}
 
       - name: Build (Debug, warnings as errors)
+        if: steps.passed.outputs.sha == '' || steps.since.outputs.windows != 'false'
         shell: pwsh
         run: ./build/verify.ps1 -Step Build
 
       - name: Test
+        if: steps.passed.outputs.sha == '' || steps.since.outputs.windows != 'false'
         shell: pwsh
         run: ./build/verify.ps1 -Step Test -SkipTests Server
 

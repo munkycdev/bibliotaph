@@ -172,7 +172,10 @@ git push origin "v1.6.$n"
 Since CI checks only what each change touches, the release is the sanity check that nothing slipped through between
 them: its **Tests (Windows)** job runs every test project the Windows app is built from on the tagged commit, beside the
 build and pack, and the draft waits for it. The web server's tests are left out there: the server doesn't ship in the
-app, and they run on Linux before each deploy. Before anything is built, the release job also checks that main has no open code scanning
+app, and they run on Linux before each deploy. When main's own **Build and test (Windows)** job, which runs that same
+set, passed on a commit behind the tag and `build/changes.ps1` finds nothing since that reaches the Windows app (as
+with the release-notes commit `build/release.ps1` pushes), the job takes that run and doesn't run them again, so a
+test that hangs or races now and then can't fail a release of code that has already passed. Before anything is built, the release job also checks that main has no open code scanning
 alert, and stops with the list if it has; fix or dismiss them, then **Re-run failed jobs**. A flaky test needs only **Re-run failed jobs** on the release run, not a new tag. Publish the draft keeping every file: Setup.exe, the
 full and delta packages and `releases.win.json`, or installed copies can't update.
 

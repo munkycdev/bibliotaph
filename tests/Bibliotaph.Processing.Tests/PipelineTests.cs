@@ -235,23 +235,52 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         File.Copy(source, target);
     }
 
-    /// <summary>Waits until nothing is waiting to be scanned, hashed, packed or processed.</summary>
+    /// <summary>
+    /// Waits until nothing is waiting to be scanned, hashed, packed or processed. One that never settles fails saying
+    /// what it was still waiting for, so a run that can't be repeated still names the part that stuck.
+    /// </summary>
     async Task<IndexProgress> SettleAsync()
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         timeout.CancelAfter(Patience);
-        while (true)
+        var waiting = "the first look";
+        try
         {
-            await Task.Delay(200, timeout.Token);
-            var summary = await _queries.GetQueueSummaryAsync(timeout.Token);
-            var progress = await _queries.GetProgressAsync(timeout.Token);
-            var counts = await _libraryStore.GetCountsAsync(timeout.Token);
-            // Hashing attaches a document in catalog.db before it queues the document's jobs in index.db, so idle
-            // also means every catalog document has reached index.db.
-            // Packs are made just after hashing, so idle also waits for the pack cards hashing called for.
-            if (!_service.IsScanning && counts.Files > 0 && counts.Unhashed == 0 && progress.Documents == counts.Documents
-                && summary.IsIdle && progress.Processing == 0 && !_service.PacksPending) return progress;
+            while (true)
+            {
+                await Task.Delay(200, timeout.Token);
+                var summary = await _queries.GetQueueSummaryAsync(timeout.Token);
+                var progress = await _queries.GetProgressAsync(timeout.Token);
+                var counts = await _libraryStore.GetCountsAsync(timeout.Token);
+                // Hashing attaches a document in catalog.db before it queues the document's jobs in index.db, so idle
+                // also means every catalog document has reached index.db.
+                // Packs are made just after hashing, so idle also waits for the pack cards hashing called for.
+                List<string> still = [];
+                if (_service.IsScanning) still.Add("a scan");
+                if (counts.Files == 0) still.Add("any file to be found");
+                if (counts.Unhashed > 0) still.Add($"{counts.Unhashed} files to be hashed");
+                if (progress.Documents != counts.Documents) still.Add($"index.db to know {counts.Documents} documents (it knows {progress.Documents})");
+                if (!summary.IsIdle) still.Add($"{summary.Pending} jobs ({summary.Failed} failed)");
+                if (progress.Processing > 0) still.Add($"{progress.Processing} documents processing");
+                if (_service.PacksPending) still.Add("packs");
+                if (still.Count == 0) return progress;
+                waiting = string.Join(", ", still);
+            }
         }
+        catch (OperationCanceledException) when (!Ct.IsCancellationRequested)
+        {
+            var stages = await PendingStagesAsync();
+            throw new TimeoutException($"The library didn't settle in {Patience.TotalSeconds:N0} s. It was waiting for {waiting}; jobs left: {stages}.");
+        }
+    }
+
+    /// <summary>The jobs not yet done, by stage and state, for a timeout to name.</summary>
+    async Task<string> PendingStagesAsync()
+    {
+        await using var c = _index.OpenRead();
+        var rows = c.Query<(string Stage, string Status, long Count)>(
+            "SELECT stage, status, count(*) FROM job WHERE status <> 'done' GROUP BY stage, status ORDER BY stage, status").ToList();
+        return rows.Count == 0 ? "none" : string.Join(", ", rows.Select(r => $"{r.Stage} {r.Status} {r.Count}"));
     }
 
     static string? StatusOf(SqliteConnection c, string title, Stage stage) => c.ExecuteScalar<string?>(
