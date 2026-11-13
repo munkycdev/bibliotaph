@@ -10,9 +10,9 @@ namespace Bibliotaph.App.ViewModels;
 /// Library, the page it belongs to.
 /// </summary>
 public sealed class LibrarySelectionFactory(MetadataService metadata, CopiesService copies, PackService packs, LibraryStore library, PartsService parts,
-    ExportService export, IFilePicker files, ILogger<LibraryViewModel> log)
+    ExportService export, IFilePicker files, ILogger<LibraryViewModel> log, SourceBooksService sourceBooks)
 {
     /// <summary>Select mode for <paramref name="page"/>, whose books it ticks.</summary>
     public LibrarySelectionViewModel Create(ILibrarySelectionPage page) =>
-        new(page, metadata, copies, packs, library, parts, export, files, log);
+        new(page, metadata, copies, packs, library, parts, export, files, log, sourceBooks);
 }

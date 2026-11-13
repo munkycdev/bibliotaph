@@ -5,7 +5,13 @@ namespace Bibliotaph.Api.Contracts;
 /// in it now.
 /// </summary>
 public sealed record BulkEditForm(string Eyebrow, string Heading, string ApplyLabel, string Intro, string ReviewIntro, int Books,
-    IReadOnlyList<BulkFieldForm> Fields);
+    IReadOnlyList<BulkFieldForm> Fields, BulkGoesWithForm? GoesWith = null);
+
+/// <summary>Goes with across the ticked cards: the book they share, "No book" or "Mixed", and the breakdown.</summary>
+public sealed record BulkGoesWithForm(string Label, string Hint, string Current, string Breakdown, bool IsKnown);
+
+/// <summary>The book every ticked card goes with, as picked (<see cref="Book"/> null for none).</summary>
+public sealed record BulkGoesWithEdit(long? Book, string? Title);
 
 /// <summary>
 /// A field across the ticked books. A single-value field has <see cref="Current"/> ("Mixed (3 values)"), its
@@ -46,7 +52,7 @@ public enum BulkEditAction
 /// <summary>One change: a value set, added or removed (as <see cref="BulkChipForm"/> gave it), or a field back to suggestions.</summary>
 public sealed record BulkFieldChange(string Field, BulkEditAction Action, string? Value = null, string? Text = null, string? Normalized = null, bool IsNew = false);
 
-public sealed record BulkEditRequest(IReadOnlyList<long> EntryIds, IReadOnlyList<BulkFieldChange> Changes);
+public sealed record BulkEditRequest(IReadOnlyList<long> EntryIds, IReadOnlyList<BulkFieldChange> Changes, BulkGoesWithEdit? GoesWith = null);
 
 /// <summary>A line of Review changes, with a warning when it overrides the user's own values.</summary>
 public sealed record BulkSummaryItem(string Field, string Text, string? Warning);

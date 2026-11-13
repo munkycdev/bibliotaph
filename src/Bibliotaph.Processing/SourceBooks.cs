@@ -119,6 +119,19 @@ public sealed class SourceBooksService(CompanionStore store, EntryStore entries,
     public async Task<SourceBookChange> AnswerAsync(EntryId companion, EntryId? book, CancellationToken ct = default) =>
         book is { } chosen ? await LinkAsync([companion], chosen, ct) : await UnlinkAsync([companion], refuse: true, ct);
 
+    /// <summary>Goes with in Select's Edit metadata: which books the ticked cards go with now.</summary>
+    public async Task<BulkGoesWith> GetBulkAsync(IReadOnlyList<EntryId> cards, CancellationToken ct = default)
+    {
+        var live = await store.GetLiveAsync(cards, ct);
+        var titles = await queries.GetCardTitlesAsync([.. live.Values.Select(l => l.Book).Distinct()], ct);
+        return new BulkGoesWith(cards.Count, [.. live.Values.GroupBy(l => l.Book).Select(g =>
+            new BulkGoesWith.Book(g.Key, titles.TryGetValue(g.Key, out var t) ? t.Title : "Untitled", g.Count(), g.Count(l => l.State == CompanionState.Confirmed)))]);
+    }
+
+    /// <summary>Applies Goes with from Select's Edit metadata: every card goes with <paramref name="book"/>, or with none.</summary>
+    public Task<SourceBookChange> SetManyAsync(IReadOnlyCollection<EntryId> cards, EntryId? book, CancellationToken ct = default) =>
+        book is { } chosen ? LinkAsync(cards, chosen, ct) : UnlinkAsync(cards, refuse: true, ct);
+
     /// <summary>Puts the links back as they were before a change.</summary>
     public async Task UndoAsync(CompanionUndo undo, CancellationToken ct = default)
     {
@@ -135,6 +148,52 @@ public sealed class SourceBooksService(CompanionStore store, EntryStore entries,
         touched.UnionWith(undo.Before.Where(b => b.InEffect).Select(b => b.Book));
         await projector.ProjectAsync(touched, ct);
         Changed?.Invoke(this, undo.Companions);
+    }
+}
+
+/// <summary>
+/// Goes with in Select's Edit metadata: the books the ticked cards go with now, and what giving them all one book,
+/// or none, will do.
+/// </summary>
+public sealed class BulkGoesWith(int cards, IReadOnlyList<BulkGoesWith.Book> books)
+{
+    /// <summary>A book some of the cards go with, on how many, and on how many the user chose it.</summary>
+    public sealed record Book(EntryId EntryId, string Title, int Cards, int Chosen);
+
+    public const string Label = "Goes with";
+
+    public const string Hint = "Maps, handouts and character sheets take the book's system, publisher, setting and tags.";
+
+    public IReadOnlyList<Book> Books { get; } = books;
+
+    /// <summary>"Drowned Abbey", "No book" or "Mixed".</summary>
+    public string Current => Books.Count == 0 ? "No book" : Books.Count == 1 && Books[0].Cards == cards ? Books[0].Title : "Mixed";
+
+    public bool IsKnown => Books.Count > 0;
+
+    /// <summary>"Drowned Abbey on 3 · no book on 9", when the cards differ.</summary>
+    public string Breakdown
+    {
+        get
+        {
+            var linked = Books.Sum(b => b.Cards);
+            if (Books.Count == 0 || (Books.Count == 1 && linked == cards)) return "";
+            var parts = Books.OrderByDescending(b => b.Cards).Select(b => $"{b.Title} on {b.Cards}").ToList();
+            if (linked < cards) parts.Add($"no book on {cards - linked}");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>"Will go with “Drowned Abbey” on every card", while it is pending.</summary>
+    public static string WillBe(string? title) => title is null ? "Will go with no book on every card" : $"Will go with “{title}” on every card";
+
+    /// <summary>What Review changes says it will do, warning where it replaces a book the user chose for a card.</summary>
+    public BulkSummaryLine Describe(EntryId? book, string? title)
+    {
+        var replaced = Books.Where(b => b.EntryId != book).Sum(b => b.Chosen);
+        var text = title is null ? $"No book on every card ({cards})" : $"“{title}” on every card ({cards})";
+        return new BulkSummaryLine(Label, text, replaced == 0 ? null
+            : replaced == 1 ? "Replaces the book you chose for 1 card." : $"Replaces the books you chose for {replaced} cards.");
     }
 }
 

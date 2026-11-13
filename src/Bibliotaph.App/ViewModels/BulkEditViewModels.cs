@@ -1,3 +1,4 @@
+using Bibliotaph.App.Services;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using Bibliotaph.Catalog;
@@ -9,8 +10,11 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Bibliotaph.App.ViewModels;
 
-/// <summary>What a bulk edit changed: the fields' snapshots from before, which undo it, and how many books changed.</summary>
-public sealed record BulkEditResult(IReadOnlyList<FieldSnapshot> Undo, int Books);
+/// <summary>
+/// What a bulk edit changed: the fields' snapshots from before, which undo it, the books they go with, and how many
+/// cards changed.
+/// </summary>
+public sealed record BulkEditResult(IReadOnlyList<FieldSnapshot> Undo, int Books, SourceBookChange? GoesWith = null);
 
 public enum BulkEditStep
 {
@@ -27,12 +31,15 @@ public enum BulkEditStep
 public sealed partial class BulkEditViewModel : ObservableObject
 {
     readonly MetadataService _metadata;
+    readonly SourceBooksService _sourceBooks;
     readonly IReadOnlyList<EntryId> _documents;
 
-    BulkEditViewModel(BulkEditPlan plan, MetadataService service)
+    BulkEditViewModel(BulkEditPlan plan, BulkGoesWith goesWith, MetadataService service, SourceBooksService sourceBooks)
     {
         _documents = plan.Books;
         _metadata = service;
+        _sourceBooks = sourceBooks;
+        GoesWith = new BulkGoesWithViewModel(goesWith, plan.Books, sourceBooks, OnFieldChanged);
         Heading = plan.Heading;
         ApplyLabel = plan.ApplyLabel;
         Fields = [.. plan.Fields.Select(field => field switch
@@ -45,8 +52,8 @@ public sealed partial class BulkEditViewModel : ObservableObject
     /// <summary>Raised when the dialog closes: with what was changed, or null when it was cancelled.</summary>
     public event EventHandler<BulkEditResult?>? Closed;
 
-    public static async Task<BulkEditViewModel> LoadAsync(IReadOnlyList<EntryId> documents, MetadataService metadata) =>
-        new(await Task.Run(() => BulkEditPlan.LoadAsync(metadata, documents)), metadata);
+    public static async Task<BulkEditViewModel> LoadAsync(IReadOnlyList<EntryId> documents, MetadataService metadata, SourceBooksService sourceBooks) =>
+        new(await Task.Run(() => BulkEditPlan.LoadAsync(metadata, documents)), await Task.Run(() => sourceBooks.GetBulkAsync(documents)), metadata, sourceBooks);
 
     public int BookCount => _documents.Count;
 
@@ -56,7 +63,10 @@ public sealed partial class BulkEditViewModel : ObservableObject
 
     public IReadOnlyList<BulkFieldViewModel> Fields { get; }
 
-    public bool HasChanges => Fields.Any(f => f.HasChange);
+    /// <summary>The book the cards go with, above the fields.</summary>
+    public BulkGoesWithViewModel GoesWith { get; }
+
+    public bool HasChanges => GoesWith.HasChange || Fields.Any(f => f.HasChange);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsEditingStep), nameof(IsSummaryStep), nameof(IsApplyingStep))]
@@ -92,7 +102,7 @@ public sealed partial class BulkEditViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanReview))]
     void Review()
     {
-        Summary = [.. Fields.SelectMany(f => f.Describe())];
+        Summary = [.. GoesWith.Describe(), .. Fields.SelectMany(f => f.Describe())];
         Problem = null;
         Step = BulkEditStep.Summary;
     }
@@ -110,14 +120,22 @@ public sealed partial class BulkEditViewModel : ObservableObject
         IReadOnlyList<BulkChange> changes = [.. Fields.SelectMany(f => f.Changes())];
         try
         {
-            var (problem, undo) = await Task.Run(() => _metadata.EditManyAsync(_documents, changes, progress));
-            if (problem is not null)
+            IReadOnlyList<FieldSnapshot> undo = [];
+            if (changes.Count > 0)
             {
-                Problem = problem.Message;
-                Step = BulkEditStep.Editing;
-                return;
+                var (problem, snapshots) = await Task.Run(() => _metadata.EditManyAsync(_documents, changes, progress));
+                if (problem is not null)
+                {
+                    Problem = problem.Message;
+                    Step = BulkEditStep.Editing;
+                    return;
+                }
+                undo = snapshots!;
             }
-            Closed?.Invoke(this, new BulkEditResult(undo!, undo!.Select(s => s.EntryId).Distinct().Count()));
+            // The book's values reach the cards after their own are set, so a value set here stays theirs.
+            var goesWith = GoesWith.Change is { } change ? await Task.Run(() => _sourceBooks.SetManyAsync(_documents, change.Book)) : null;
+            var cards = undo.Select(s => s.EntryId).Concat(goesWith?.Changed ?? []).Distinct().Count();
+            Closed?.Invoke(this, new BulkEditResult(undo, cards, goesWith));
         }
         catch (Exception ex)
         {
@@ -140,6 +158,101 @@ public sealed partial class BulkEditViewModel : ObservableObject
     }
 }
 
+
+/// <summary>A book picked for the ticked cards in the bulk editor, or none (<see cref="Book"/> null).</summary>
+public sealed record BulkGoesWithChange(EntryId? Book, string? Title);
+
+/// <summary>
+/// Goes with in the bulk editor: the books the ticked cards go with now, and a book to give them all, picked by typing
+/// part of its title, or No book.
+/// </summary>
+public sealed partial class BulkGoesWithViewModel(BulkGoesWith model, IReadOnlyList<EntryId> cards, SourceBooksService books, Action changed) : ObservableObject
+{
+    // Each search moves this on, so an older search's answer, arriving late, is dropped.
+    int _search;
+
+    public string Current => model.Current;
+
+    public string Breakdown => model.Breakdown;
+
+    public bool IsKnown => model.IsKnown;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasChange), nameof(PendingText))]
+    public partial BulkGoesWithChange? Change { get; private set; }
+
+    public bool HasChange => Change is not null;
+
+    public string PendingText => Change is { } change ? BulkGoesWith.WillBe(change.Title) : "";
+
+    [ObservableProperty]
+    public partial bool IsPicking { get; private set; }
+
+    [ObservableProperty]
+    public partial string Query { get; set; } = "";
+
+    [ObservableProperty]
+    public partial IReadOnlyList<SourceBookChoice> Choices { get; private set; } = [];
+
+    public IEnumerable<BulkSummaryLine> Describe()
+    {
+        if (Change is { } change) yield return model.Describe(change.Book, change.Title);
+    }
+
+    [RelayCommand]
+    async Task Choose()
+    {
+        IsPicking = true;
+        Query = "";
+        await FindAsync("");
+    }
+
+    [RelayCommand]
+    void CancelPicking()
+    {
+        _search++;
+        IsPicking = false;
+        Choices = [];
+    }
+
+    partial void OnQueryChanged(string value)
+    {
+        if (IsPicking) FindAsync(value).FireAndForget();
+    }
+
+    async Task FindAsync(string text)
+    {
+        var search = ++_search;
+        if (text.Length > 0) await Task.Delay(200);
+        if (search != _search) return;
+        var found = await Task.Run(() => books.FindBooksAsync(text, cards));
+        if (search == _search) Choices = found;
+    }
+
+    [RelayCommand]
+    void Pick(SourceBookChoice choice)
+    {
+        CancelPicking();
+        Change = new BulkGoesWithChange(choice.EntryId, choice.Title);
+        changed();
+    }
+
+    /// <summary>No book: none of the cards goes with a book, and the rules won't suggest the ones they did.</summary>
+    [RelayCommand]
+    void NoBook()
+    {
+        CancelPicking();
+        Change = new BulkGoesWithChange(null, null);
+        changed();
+    }
+
+    [RelayCommand]
+    void Undo()
+    {
+        Change = null;
+        changed();
+    }
+}
 
 /// <summary>A field in the bulk editor: what the selected books have in it, and the change to make.</summary>
 public abstract partial class BulkFieldViewModel(BulkField model, Vocabulary vocabulary, Action changed) : ObservableObject

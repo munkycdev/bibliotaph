@@ -42,6 +42,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
 {
     readonly ILibrarySelectionPage _page;
     readonly MetadataService _metadata;
+    readonly SourceBooksService _sourceBooks;
     readonly CopiesService _copies;
     readonly PackService _packs;
     readonly LibraryStore _library;
@@ -59,9 +60,11 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
     /// <param name="export">Writes the ticked books as CSV, for Export these.</param>
     /// <param name="files">Asks where the CSV goes.</param>
     /// <param name="log">Failures.</param>
+    /// <param name="sourceBooks">Gives the ticked cards the book they go with, in Edit metadata.</param>
     public LibrarySelectionViewModel(ILibrarySelectionPage page, MetadataService metadata, CopiesService copies, PackService packs, LibraryStore library,
-        PartsService parts, ExportService export, IFilePicker files, ILogger log)
+        PartsService parts, ExportService export, IFilePicker files, ILogger log, SourceBooksService sourceBooks)
     {
+        _sourceBooks = sourceBooks;
         _page = page;
         _metadata = metadata;
         _copies = copies;
@@ -147,7 +150,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
     {
         try
         {
-            var bulk = await BulkEditViewModel.LoadAsync(Books.EntryIds, _metadata);
+            var bulk = await BulkEditViewModel.LoadAsync(Books.EntryIds, _metadata, _sourceBooks);
             bulk.Closed += async (_, result) => await BulkEditClosedAsync(result);
             _page.CloseDetails();
             BulkEdit = bulk;
@@ -165,7 +168,11 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
         // Leaving the Library while it applied ends the Undo, as leaving afterwards would. Undo puts back exactly what
         // the fields held before.
         SayDone(SelectionRules.Edited(result.Books),
-            result.Books > 0 && _page.IsCurrent ? () => _metadata.UndoManyAsync(result.Undo) : null,
+            result.Books > 0 && _page.IsCurrent ? async () =>
+            {
+                if (result.GoesWith is { } goesWith) await _sourceBooks.UndoAsync(goesWith.Undo);
+                await _metadata.UndoManyAsync(result.Undo);
+            } : null,
             BulkEditText.UndoFailed);
         await _page.RefreshAsync();
     }

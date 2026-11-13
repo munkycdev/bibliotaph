@@ -59,7 +59,7 @@ public class LibrarySelectionViewModelTests
     {
         _page.Books.AddRange(new[] { "Mill Road", "The Sunken Bell", "Ashes of Varn" }.Select((title, i) => Book(title, i)));
         // Ticking, clearing and the note never reach the library's services, so these tests give none.
-        _selection = new LibrarySelectionViewModel(_page, null!, null!, null!, null!, null!, null!, new CancelledPicker(), NullLogger.Instance);
+        _selection = new LibrarySelectionViewModel(_page, null!, null!, null!, null!, null!, null!, new CancelledPicker(), NullLogger.Instance, null!);
     }
 
     static LibraryItemViewModel Book(string title, int index, EntryKind kind = EntryKind.Whole) =>
