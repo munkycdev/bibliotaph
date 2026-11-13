@@ -112,6 +112,7 @@ public sealed class CatalogExportTests : IAsyncLifetime
         var pages = new PageRef { DocumentId = book.Id, FirstPdfPage = 0, LastPdfPage = 1, FirstLabel = "i", LastLabel = "ii" };
         var notePages = new PageRef { DocumentId = book.Id, FirstPdfPage = 2, LastPdfPage = 2 };
         db.PageRefs.AddRange(pages, notePages);
+        db.CompanionLinks.Add(new CompanionLink { EntryId = pack.Id, BookEntryId = entry.Id, State = CompanionState.Confirmed, DecidedUtc = now });
         db.Favorites.Add(new Favorite { EntryId = entry.Id, CreatedUtc = now });
         db.ReadingStates.Add(new ReadingState { EntryId = entry.Id, DocumentId = book.Id, PageIndex = 2, OpenedUtc = now });
         var collection = new CollectionNode { Name = "Winter campaign", CreatedUtc = now, UsedUtc = now };

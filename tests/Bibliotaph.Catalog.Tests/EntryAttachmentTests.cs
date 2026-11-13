@@ -129,7 +129,7 @@ public sealed class EntryAttachmentTests : IAsyncLifetime
         await SeedCopyAsync(original.Value, copy.Value);
         await _entries.JoinAsCopyAsync(1, 2, Ct);
         var joined = await OnAsync(original.Value, copy.Value);
-        await RecordAsync(CopyJoinRecorded.Replace("{\"Sources\"", "{\"Version\":2,\"Sources\"", StringComparison.Ordinal));
+        await RecordAsync(CopyJoinRecorded.Replace("{\"Sources\"", "{\"Version\":3,\"Sources\"", StringComparison.Ordinal));
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => _entries.SplitCopyAsync(original, 2, ct: Ct));
 

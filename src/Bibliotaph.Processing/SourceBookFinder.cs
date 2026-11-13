@@ -60,16 +60,17 @@ public static class SourceBookRules
     /// <summary>
     /// What the rules find for the companions among <paramref name="cards"/>: <paramref name="shared"/> are the
     /// companions' pages found in other documents, and <paramref name="codes"/> each document's product codes. Cards in
-    /// <paramref name="skip"/> are neither companions nor books (they go with a book by the user's choice, or books go
-    /// with them). <paramref name="aiNames"/> are the titles and series the AI read in companions' pages, each with the
-    /// quote it gave. Returns the companions considered and what was found for them.
+    /// <paramref name="skip"/> aren't looked at as companions (the user chose their book, or books go with them), and
+    /// cards in <paramref name="linked"/> can't be books (they go with one). <paramref name="aiNames"/> are the titles
+    /// and series the AI read in companions' pages, each with the quote it gave. Returns the companions considered and
+    /// what was found for them.
     /// </summary>
     public static (IReadOnlyList<EntryId> Considered, IReadOnlyList<FoundSourceBook> Found) Find(IReadOnlyList<SourceCard> cards, IReadOnlyList<SharedPages> shared,
         IReadOnlyDictionary<long, IReadOnlyList<string>> codes, IReadOnlySet<EntryId> skip,
-        IReadOnlyDictionary<EntryId, IReadOnlyList<(string Value, string? Quote)>>? aiNames = null)
+        IReadOnlyDictionary<EntryId, IReadOnlyList<(string Value, string? Quote)>>? aiNames = null, IReadOnlySet<EntryId>? linked = null)
     {
         var companions = cards.Where(c => c.IsCompanion && !skip.Contains(c.EntryId)).ToList();
-        var books = cards.Where(c => c.IsBook && !skip.Contains(c.EntryId)).ToList();
+        var books = cards.Where(c => c.IsBook && linked?.Contains(c.EntryId) != true).ToList();
         var found = new Dictionary<(EntryId Companion, EntryId Book), FoundSourceBook>();
         void Add(SourceCard companion, SourceCard book, bool strong, SourceBookEvidence evidence)
         {
@@ -322,9 +323,11 @@ public sealed class SourceBookFinder(CompanionStore store, LibraryStore library,
             List<SourceCard> all = [.. listed.DistinctBy(e => e.EntryId).Select(e => new SourceCard(e.EntryId, e.EntryKind, e.Format, e.PageCount, e.Title,
                 types.GetValueOrDefault(e.EntryId) ?? [], e.DocumentId == 0 ? null : e.DocumentId, byCard.GetValueOrDefault(e.EntryId) ?? []))];
             var live = await store.GetLiveAsync(ct: ct);
-            // A card the user linked, or one others go with, keeps out of the rules either way.
+            // A card the user linked, or one others go with, isn't looked at as a companion; a book others go with is
+            // still their book on the next pass, and a card that goes with one is never a book.
             var skip = live.Values.Where(l => l.State == CompanionState.Confirmed).Select(l => l.Companion)
                 .Concat(live.Values.Select(l => l.Book)).ToHashSet();
+            var linked = live.Keys.ToHashSet();
             var companionDocuments = all.Where(c => c.IsCompanion && c.Kind == EntryKind.Whole && c.Format == SourceFormats.Pdf && c.DocumentId is not null)
                 .Select(c => c.DocumentId!.Value).ToList();
             var shared = await queries.GetSharedPagesAsync(companionDocuments, ct);
@@ -334,7 +337,7 @@ public sealed class SourceBookFinder(CompanionStore store, LibraryStore library,
             var aiNames = read.ToDictionary(r => r.Key, r => (IReadOnlyList<(string, string?)>)[.. r.Value.Claims
                 .Where(c => c.Origin == AssertionOrigin.Ai && c.State is AssertionState.Provisional or AssertionState.Confirmed && (c.Field == MetadataFields.Title.Key || c.Field == MetadataFields.Series.Key))
                 .Select(c => (c.Value, c.Quote))]);
-            var (considered, found) = SourceBookRules.Find(all, shared, codes, skip, aiNames);
+            var (considered, found) = SourceBookRules.Find(all, shared, codes, skip, aiNames, linked);
             var proposedBefore = (await store.GetProposedAsync(ct)).Select(p => (p.Companion, p.Book)).ToHashSet();
             var changed = await store.ReplaceFoundAsync(considered, found, ct);
             _seen = seen;
