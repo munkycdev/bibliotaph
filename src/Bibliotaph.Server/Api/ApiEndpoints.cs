@@ -7,6 +7,7 @@ using Bibliotaph.Server.Auth;
 using Bibliotaph.Server.Libraries;
 using Bibliotaph.Server.Nornis;
 using Bibliotaph.Server.Storage;
+using Bibliotaph.Storage.Nornis;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -58,7 +59,10 @@ public static class ApiEndpoints
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var summary = await lease.Library.Get<LibrarySummaryService>().GetAsync(ct);
             var drives = lease.Library.Drives;
-            return summary with { Folders = [.. summary.Folders.Select(f => f with { Path = FolderText.Location(f.Path, drives) })] };
+            return summary with
+            {
+                Folders = [.. summary.Folders.Select(f => f with { Path = FolderText.Location(f.Path, drives), Group = NornisKind.Keeps(f.Path) ? NornisKind.Title : null })],
+            };
         });
 
         api.MapStorageApi();

@@ -200,16 +200,30 @@ public sealed record SummaryPage
     static SummaryList? FolderList(IReadOnlyList<SummaryFolder> list, Func<SummaryFolder, (string Name, string Where)> folder)
     {
         if (list.Count == 0) return null;
-        var longest = Math.Max(1, list.Max(f => f.Books));
-        return new SummaryList("Folders and drives", null,
-        [
-            .. list.Select(f =>
+        var rows = list.Where(f => f.Group is null)
+            .Select(f =>
             {
                 var (name, where) = folder(f);
-                var share = (double)f.Books / longest;
-                return new SummaryBar(f.Offline ? $"{name} (offline)" : name, $"{SummaryText.Count(f.Books)} · {SummaryText.Size(f.Bytes)}", share, share,
-                    $"{where}: {SummaryText.Plural(f.Books, "book", "books")}, {SummaryText.Size(f.Bytes)}",
-                    new SummaryLink(Filter: new SummaryFilter(Folder: f.Id)), f.Offline);
+                return (Name: name, Where: where, f.Books, f.Bytes, f.Offline, Link: new SummaryLink(Filter: new SummaryFilter(Folder: f.Id)));
+            })
+            .Concat(list.Where(f => f.Group is not null).GroupBy(f => f.Group!, StringComparer.Ordinal).Select(g =>
+            {
+                var members = g.ToList();
+                // The Library filters by one folder at a time; its collections are where several such folders show together.
+                var link = members.Count == 1 ? new SummaryLink(Filter: new SummaryFilter(Folder: members[0].Id)) : new SummaryLink(Goal: SummaryGoal.Collections);
+                var where = members.Count == 1 ? g.Key : $"{g.Key}, {SummaryText.Plural(members.Count, "folder", "folders")}";
+                return (Name: g.Key, Where: where, Books: members.Sum(f => f.Books), Bytes: members.Sum(f => f.Bytes), Offline: members.All(f => f.Offline), Link: link);
+            }))
+            .OrderByDescending(r => r.Books)
+            .ToList();
+        var longest = Math.Max(1, rows.Max(r => r.Books));
+        return new SummaryList("Folders and drives", null,
+        [
+            .. rows.Select(r =>
+            {
+                var share = (double)r.Books / longest;
+                return new SummaryBar(r.Offline ? $"{r.Name} (offline)" : r.Name, $"{SummaryText.Count(r.Books)} · {SummaryText.Size(r.Bytes)}", share, share,
+                    $"{r.Where}: {SummaryText.Plural(r.Books, "book", "books")}, {SummaryText.Size(r.Bytes)}", r.Link, r.Offline);
             }),
         ]);
     }

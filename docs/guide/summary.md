@@ -22,7 +22,9 @@ a duplicate), and a book owned in print or online counts as a book. Its pages co
 ## Where it came from
 
 - **Folders and drives**: each library folder, with its books and their size. A folder that can't be reached, such as an
-  unplugged drive, says so; its books stay searchable. **Manage folders** opens Settings.
+  unplugged drive, says so; its books stay searchable. Your Nornis worlds share one row, **Nornis**, which opens
+  Collections, where each world is a collection of its own (with a single world, it opens the Library at its books).
+  **Manage folders** opens Settings.
 - **Online libraries and stores**: the places you own books online and in print (**Also own**) and where you got them
   (**Get it from**), with how many bought from stores are on your drive and how many are still waiting to be
   downloaded. **Import more** opens Settings › Online libraries.

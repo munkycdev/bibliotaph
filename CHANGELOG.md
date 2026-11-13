@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Nornis worlds share one row on the Summary page.** Under **Folders and drives**, each Nornis world showed as a
+  folder named by a long ID. They now count together as one row, **Nornis**, with their books and size, which opens
+  Collections, where each world is a collection of its own. On Windows and the web.
 - **Look a book up from its RPGGeek page.** When no lookup finds a book, find it on rpggeek.com yourself, open the
   book's details and click **Look up from an RPGGeek link…** under its fields, then paste the address of its page
   there (such as `https://rpggeek.com/rpgitem/12345/its-name`) and click **Look up**. The book takes that record at
