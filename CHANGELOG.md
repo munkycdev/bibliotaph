@@ -6,13 +6,16 @@
   searches, but books printing no ISBN or product code, the ones looked up by title, were left out, and
   the button at the end of **Looking up online** couldn't reach them either, so its count stopped short of the start. They're
   now looked up again the next time the app starts, as every step's new version is for every book it ran for.
+
+## 1.6 · 9 November 2026
+
+New in 1.6.1223 (12 November 2026):
+
 - **Clearer Summary legend.** The lighter part of the Summary page's bars is now labelled **Suggested by AI or
   lookups** instead of "Suggested, not yet reviewed", since those values don't wait in Needs review unless **What waits
   for review** is set to **All suggestions**.
 - **Releases no longer run the web server's tests on Windows.** They test the Windows app's projects only; the
   server's tests run on Linux before each deploy, as before. A slow Windows runner had timed out one of them.
-
-## 1.6 · 9 November 2026
 
 New in 1.6.1218 (12 November 2026):
 
