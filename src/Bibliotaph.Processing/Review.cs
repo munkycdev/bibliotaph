@@ -23,11 +23,13 @@ public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<P
     IReadOnlyList<PackProposal> Packs, IReadOnlyList<ElsewhereItem>? Elsewhere = null, IReadOnlyList<RevisionItem>? Revisions = null,
     IReadOnlyList<CorrectionItem>? Corrections = null, IReadOnlyList<FolderRuleInfo>? Rules = null, IReadOnlyList<UnplacedPart>? Parts = null,
     IReadOnlyList<PartProposalItem>? Proposals = null, IReadOnlyList<FolderCollectionProposal>? Folders = null,
-    IReadOnlyList<CollectionSuggestion>? Suggestions = null, IReadOnlyList<OverlapProposal>? Overlaps = null, IReadOnlyList<LookupMatchItem>? Records = null)
+    IReadOnlyList<CollectionSuggestion>? Suggestions = null, IReadOnlyList<OverlapProposal>? Overlaps = null, IReadOnlyList<LookupMatchItem>? Records = null,
+    IReadOnlyList<SourceBookProposal>? SourceBooks = null)
 {
     public int Count => Items.Count + Terms.Count + Versions.Count + Packs.Count + (Elsewhere?.Count ?? 0) + (Revisions?.Count ?? 0)
         + (Corrections?.Count ?? 0) + (Rules?.Count ?? 0) + (Parts?.Count ?? 0)
-        + (Proposals?.Count ?? 0) + (Folders?.Count ?? 0) + (Suggestions?.Count ?? 0) + (Overlaps?.Count ?? 0) + (Records?.Count ?? 0);
+        + (Proposals?.Count ?? 0) + (Folders?.Count ?? 0) + (Suggestions?.Count ?? 0) + (Overlaps?.Count ?? 0) + (Records?.Count ?? 0)
+        + (SourceBooks?.Count ?? 0);
 }
 
 /// <summary>
@@ -47,7 +49,8 @@ public sealed record ReviewCards(
     FolderCollections Folders,
     CollectionSuggestions Suggestions,
     LibraryStore Library,
-    LookupMatches? Records = null);
+    LookupMatches? Records = null,
+    SourceBooksService? SourceBooks = null);
 
 /// <summary>
 /// Needs review's metadata suggestions: which cards there are, and the user's decisions about them. Every
@@ -95,7 +98,8 @@ public sealed class ReviewService(
             + await cards.Folders.CountAsync(ct)
             + await cards.Suggestions.CountAsync(ct)
             + (await vocabulary.FindAllOverlapsAsync(ct)).Count
-            + (cards.Records is { } records ? await records.CountPendingAsync(ct) : 0);
+            + (cards.Records is { } records ? await records.CountPendingAsync(ct) : 0)
+            + (cards.SourceBooks is { } sourceBooks ? (await sourceBooks.GetProposalsAsync(ct)).Count : 0);
     }
 
     /// <summary>
@@ -136,7 +140,8 @@ public sealed class ReviewService(
             await cards.Corrections.GetWaitingAsync(ct), await cards.Rules.GetProposedAsync(ct),
             await cards.Parts.GetUnplacedAsync(ct), await cards.Proposals.GetPendingAsync(ct),
             await cards.Folders.GetProposalsAsync(ct), await cards.Suggestions.GetSuggestionsAsync(ct), await vocabulary.FindAllOverlapsAsync(ct),
-            cards.Records is { } records ? await records.GetPendingAsync(ct) : []);
+            cards.Records is { } records ? await records.GetPendingAsync(ct) : [],
+            cards.SourceBooks is { } sourceBooks ? await sourceBooks.GetProposalsAsync(ct) : []);
 
     /// <summary>One entry's card for a field, as the queue would make it now; null when it isn't waiting any more.</summary>
     public async Task<ReviewIssue?> FindAsync(EntryId entryId, string fieldKey, ReviewKind kind, CancellationToken ct = default)
@@ -193,6 +198,17 @@ public sealed class ReviewService(
     {
         if (cards.Records is not { } records || await records.AnswerAsync(match, answer, ct) is not { } decision) return null;
         return () => records.UndoAsync(decision);
+    }
+
+    /// <summary>
+    /// Answers "Goes with a book?": every file on the card goes with <paramref name="book"/>, or with none of the books
+    /// proposed. Returns what undoes it, or null when nothing changed.
+    /// </summary>
+    public async Task<Func<Task>?> AnswerSourceBookAsync(SourceBookProposal proposal, EntryId? book, CancellationToken ct = default)
+    {
+        if (cards.SourceBooks is not { } sourceBooks) return null;
+        var change = await sourceBooks.AnswerAsync(proposal, book, ct);
+        return change.Changed.Count == 0 ? null : () => sourceBooks.UndoAsync(change.Undo);
     }
 
     /// <summary>

@@ -28,6 +28,16 @@ public sealed record SourceBookDetails(SourceBookLink? GoesWith, IReadOnlyList<S
     public static SourceBookDetails None { get; } = new(null, [], [], false);
 }
 
+/// <summary>
+/// "Goes with a book?" in Needs review: companions in one folder with the same books proposed for them, their titles,
+/// the folder, and the books, best first, each with why it was proposed.
+/// </summary>
+public sealed record SourceBookProposal(IReadOnlyList<EntryId> Companions, IReadOnlyList<string> Titles, string? Path, IReadOnlyList<SourceBookChoice> Books)
+{
+    /// <summary>Names the card while its companions and books stay the same.</summary>
+    public string Key => $"{string.Join(',', Companions.Select(c => c.Value).Order())}>{string.Join(',', Books.Select(b => b.EntryId.Value).Order())}";
+}
+
 /// <summary>What linking or unlinking did, in words, with what undoes it and the cards that couldn't take part.</summary>
 public sealed record SourceBookChange(string Message, IReadOnlyList<EntryId> Changed, IReadOnlyList<EntryId> Refused, CompanionUndo Undo);
 
@@ -38,7 +48,7 @@ public sealed record SourceBookChange(string Message, IReadOnlyList<EntryId> Cha
 /// them.
 /// </summary>
 public sealed class SourceBooksService(CompanionStore store, EntryStore entries, LibraryQueries library, IndexQueries queries, MetadataProjector projector,
-    ILogger<SourceBooksService>? log = null)
+    LibraryStore files, ILogger<SourceBooksService>? log = null)
 {
     readonly ILogger _log = log ?? NullLogger<SourceBooksService>.Instance;
 
@@ -118,6 +128,38 @@ public sealed class SourceBooksService(CompanionStore store, EntryStore entries,
     /// </summary>
     public async Task<SourceBookChange> AnswerAsync(EntryId companion, EntryId? book, CancellationToken ct = default) =>
         book is { } chosen ? await LinkAsync([companion], chosen, ct) : await UnlinkAsync([companion], refuse: true, ct);
+
+    /// <summary>
+    /// The "Goes with a book?" cards: the companions the library shows that have books proposed, one card for each
+    /// folder and set of books, so a folder of forty maps asks once.
+    /// </summary>
+    public async Task<IReadOnlyList<SourceBookProposal>> GetProposalsAsync(CancellationToken ct = default)
+    {
+        var proposed = await store.GetProposedAsync(ct);
+        if (proposed.Count == 0) return [];
+        var shown = (await files.GetVisibleEntryIdsAsync(ct: ct)).ToHashSet();
+        var byCompanion = proposed.Where(p => shown.Contains(p.Companion) && shown.Contains(p.Book)).GroupBy(p => p.Companion).ToList();
+        if (byCompanion.Count == 0) return [];
+        var companions = byCompanion.Select(g => g.Key).ToList();
+        var folders = (await store.GetCardFoldersAsync(companions, ct)).GroupBy(f => f.Card).ToDictionary(g => g.Key, g => g.First().FullPath);
+        var titles = await queries.GetCardTitlesAsync([.. companions, .. byCompanion.SelectMany(g => g.Select(p => p.Book)).Distinct()], ct);
+        string Title(EntryId id) => titles.TryGetValue(id, out var t) ? t.Title : "Untitled";
+        return [.. byCompanion
+            .GroupBy(g => (Path: folders.GetValueOrDefault(g.Key), Books: string.Join(',', g.Select(p => p.Book.Value).Order())))
+            .Select(group =>
+            {
+                var rows = group.SelectMany(g => g).ToList();
+                var books = rows.GroupBy(r => r.Book).Select(b => b.MaxBy(r => r.Evidence?.Score ?? 0)!).OrderByDescending(r => r.Evidence?.Score ?? 0)
+                    .Select(r => new SourceBookChoice(r.Book, Title(r.Book), r.Evidence?.Describe() ?? "")).ToList();
+                var members = group.Select(g => g.Key).OrderBy(Title, StringComparer.CurrentCultureIgnoreCase).ToList();
+                return new SourceBookProposal(members, [.. members.Select(Title)], group.Key.Path, books);
+            })
+            .OrderBy(p => p.Path, StringComparer.CurrentCultureIgnoreCase).ThenBy(p => p.Titles[0], StringComparer.CurrentCultureIgnoreCase)];
+    }
+
+    /// <summary>The answer to a "Goes with a book?" card: every companion on it goes with <paramref name="book"/>, or with none of its books.</summary>
+    public Task<SourceBookChange> AnswerAsync(SourceBookProposal proposal, EntryId? book, CancellationToken ct = default) =>
+        SetManyAsync(proposal.Companions, book, ct);
 
     /// <summary>Goes with in Select's Edit metadata: which books the ticked cards go with now.</summary>
     public async Task<BulkGoesWith> GetBulkAsync(IReadOnlyList<EntryId> cards, CancellationToken ct = default)

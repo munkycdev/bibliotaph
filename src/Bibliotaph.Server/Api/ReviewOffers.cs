@@ -45,6 +45,9 @@ static class ReviewOffers
                 (ElsewhereItem e, _) => (await reviews.AnswerElsewhereAsync(e.Match, ElsewhereAnswer.SeparateBook, ct), new ElsewhereCardText(e).KeptSeparate),
                 (LookupMatchItem l, "same") => (await reviews.AnswerLookupAsync(l.Match, LookupAnswer.SameBook, ct), new LookupMatchCardText(l).SameBook),
                 (LookupMatchItem l, _) => (await reviews.AnswerLookupAsync(l.Match, LookupAnswer.NotThisBook, ct), new LookupMatchCardText(l).NotThisBook),
+                (SourceBookProposal b, var choice) => SourceBookCardText.Book(choice) is { } book
+                    ? (await reviews.AnswerSourceBookAsync(b, book, ct), new SourceBookCardText(b).Linked(book))
+                    : (await reviews.AnswerSourceBookAsync(b, null, ct), new SourceBookCardText(b).NotFromThese),
                 (CorrectionItem c, "fine") => (await reviews.DismissCorrectionAsync(c, ct), new CorrectionCardText(c).LeftAsIs),
                 (PartProposalItem p, "notsplit") => (await library.Get<PartProposalService>().NotSplitAsync(p, ct), new PartProposalCardText(p, []).NotSplit),
                 (UnplacedPart u, "remove") => await RemoveAsync(library.Get<PartsService>(), u, ct),
@@ -158,6 +161,15 @@ static class ReviewOffers
             var record = item.Match.Record;
             offers.Add(Make(item, $"records:{item.Match.EntryId.Value}:{record.Source}:{record.Key}", "records", item.BookTitle, LookupMatchCardText.Chip, text.Heading,
                 Where(item.Path), text.Evidence, text.Detail, LookupMatchCardText.Choices, null, new ReviewLink(item.Match.EntryId.Value, item.BookTitle, "Open this book"), []));
+        }
+        foreach (var proposal in list.SourceBooks ?? [])
+        {
+            var text = new SourceBookCardText(proposal);
+            var detail = text.Named.Length == 0 ? SourceBookCardText.Detail : $"{text.Named}. {SourceBookCardText.Detail}";
+            offers.Add(Make(proposal, $"sourcebooks:{proposal.Key}", "sourcebooks", text.Title, SourceBookCardText.Chip, text.Heading, Where(proposal.Path),
+                text.Evidence, detail, text.Choices, SourceBookCardText.None,
+                proposal.Companions.Count == 1 ? new ReviewLink(proposal.Companions[0].Value, proposal.Titles[0], "Open this file") : null,
+                [.. proposal.Books.Select(b => new ReviewLink(b.EntryId.Value, b.Title, "Open the book"))]));
         }
         foreach (var item in list.Revisions ?? [])
         {

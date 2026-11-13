@@ -11,6 +11,13 @@ public sealed record CompanionLinkInfo(EntryId Companion, EntryId Book, Companio
     public bool InEffect => State is CompanionState.Suggested or CompanionState.Confirmed;
 }
 
+/// <summary>A folder a card's files are in, and the path of the library folder it is under.</summary>
+public sealed record CardFolder(EntryId Card, FolderKey Folder, string RootPath)
+{
+    /// <summary>The folder's full path, as File Explorer shows it.</summary>
+    public string FullPath => Folder.Folder.Length == 0 ? RootPath : Path.Combine(RootPath, Folder.Folder);
+}
+
 /// <summary>A link a rules pass found: the book, whether it is strong enough to stand without asking, and why.</summary>
 public sealed record FoundSourceBook(EntryId Companion, EntryId Book, bool Strong, SourceBookEvidence Evidence);
 
@@ -81,6 +88,33 @@ public sealed class CompanionStore(IDbContextFactory<CatalogDbContext> contexts,
                 .Where(l => ids.Contains(l.BookEntryId) && (l.State == CompanionState.Suggested || l.State == CompanionState.Confirmed))
                 .Select(l => l.EntryId).Distinct().ToListAsync(ct))
             .Select(id => new EntryId(id))];
+    }
+
+    /// <summary>
+    /// The folders each card's files are in, for the rules and for Needs review: a file's card by every present file of
+    /// its copies, a pack by its files', with the path of the library folder each is in. A file inside a ZIP is in the
+    /// ZIP as if it were a folder ("Maps\Harbor.zip"). Removed library folders don't count. Every card's when
+    /// <paramref name="cards"/> is null.
+    /// </summary>
+    public async Task<IReadOnlyList<CardFolder>> GetCardFoldersAsync(IReadOnlyCollection<EntryId>? cards = null, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var sources = db.EntrySources.AsNoTracking().Where(s => s.FirstPdfPage == null && s.Entry.MergedIntoEntryId == null);
+        if (cards is not null)
+        {
+            if (cards.Count == 0) return [];
+            var ids = cards.Select(c => c.Value).Distinct().ToList();
+            sources = sources.Where(s => ids.Contains(s.EntryId) || (s.Entry.ParentEntryId != null && ids.Contains(s.Entry.ParentEntryId.Value)));
+        }
+        var rows = await sources
+            .SelectMany(s => s.Document.Locations.Where(l => l.State != FileLocationState.Missing && l.SourceRoot.Availability != SourceRootAvailability.RemovedByUser),
+                (s, l) => new { s.EntryId, Parent = s.Entry.ParentEntryId, ParentKind = (EntryKind?)s.Entry.ParentEntry!.Kind, l.SourceRootId, RootPath = l.SourceRoot.Path,
+                    l.RelativePath })
+            .ToListAsync(ct);
+        return [.. rows
+            .Select(r => new CardFolder(new EntryId(r.ParentKind == EntryKind.Pack && r.Parent is { } pack ? pack : r.EntryId),
+                FolderKey.Of(r.SourceRootId, r.RelativePath), r.RootPath))
+            .Distinct()];
     }
 
     /// <summary>The proposals waiting for an answer, each companion's candidates best first.</summary>

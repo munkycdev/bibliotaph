@@ -256,3 +256,9 @@ public sealed record DocumentDetails(
 /// its page number from 1), or null when it came from an e-book's package.
 /// </summary>
 public sealed record PrintedIdentifier(IdentifierKind Kind, string Printed, string? Page);
+
+/// <summary>
+/// Pages of one document found in another (<see cref="OtherDocumentId"/>): <see cref="Shared"/> of its <see
+/// cref="Pages"/> pages with fingerprints.
+/// </summary>
+public sealed record SharedPages(long DocumentId, long OtherDocumentId, long Shared, long Pages);

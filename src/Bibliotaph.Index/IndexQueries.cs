@@ -621,6 +621,44 @@ public sealed class IndexQueries(IndexDatabase database)
             new { ids = JsonSerializer.Serialize(entryIds) }, cancellationToken: ct));
     }
 
+    /// <summary>
+    /// For each of <paramref name="documentIds"/>, the other documents that have some of its pages, word for word by
+    /// their fingerprints: how many of its pages are there, and how many of its pages have a fingerprint at all. A
+    /// handout printed from a book has its pages in the book.
+    /// </summary>
+    public async Task<IReadOnlyList<SharedPages>> GetSharedPagesAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
+    {
+        if (documentIds.Count == 0) return [];
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<SharedPages>(new CommandDefinition(
+            """
+            SELECT c.document_id AS DocumentId, b.document_id AS OtherDocumentId, count(DISTINCT c.pdf_page) AS Shared,
+                   (SELECT count(*) FROM page p WHERE p.document_id = c.document_id AND p.fingerprint IS NOT NULL) AS Pages
+            FROM page c JOIN page b ON b.fingerprint = c.fingerprint AND b.document_id <> c.document_id
+            WHERE c.fingerprint IS NOT NULL AND c.document_id IN (SELECT value FROM json_each(@ids))
+            GROUP BY c.document_id, b.document_id
+            """, new { ids = JsonSerializer.Serialize(documentIds) }, cancellationToken: ct));
+        return [.. rows];
+    }
+
+    /// <summary>Every card's values of one field as projected (type keys, for "type"), by card.</summary>
+    public async Task<IReadOnlyDictionary<EntryId, IReadOnlyList<string>>> GetFacetValuesAsync(string field, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long EntryId, string Value)>(new CommandDefinition(
+            "SELECT entry_id, value FROM entry_facet WHERE field = @field", new { field }, cancellationToken: ct));
+        return rows.GroupBy(r => r.EntryId).ToDictionary(g => new EntryId(g.Key), g => (IReadOnlyList<string>)[.. g.Select(r => r.Value)]);
+    }
+
+    /// <summary>The product codes each document prints about itself (PZO1110), by document.</summary>
+    public async Task<IReadOnlyDictionary<long, IReadOnlyList<string>>> GetProductCodesAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long DocumentId, string Value)>(new CommandDefinition(
+            "SELECT document_id, value FROM doc_identifier WHERE kind = @kind", new { kind = nameof(IdentifierKind.ProductCode) }, cancellationToken: ct));
+        return rows.GroupBy(r => r.DocumentId).ToDictionary(g => g.Key, g => (IReadOnlyList<string>)[.. g.Select(r => r.Value).Distinct()]);
+    }
+
     /// <summary>The title each of these cards shows, and the document it opens (null for a book owned elsewhere).</summary>
     public async Task<IReadOnlyDictionary<EntryId, (string Title, long? DocumentId)>> GetCardTitlesAsync(IReadOnlyCollection<EntryId> entryIds,
         CancellationToken ct = default)

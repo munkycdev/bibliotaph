@@ -25,6 +25,7 @@ public interface IReviewActions
     Task<Func<Task>> AnswerPackAsync(PackProposal proposal, PackAnswer answer);
     Task<Func<Task>> AnswerElsewhereAsync(ElsewhereItem item, ElsewhereAnswer answer);
     Task<Func<Task>> AnswerLookupAsync(LookupMatchItem item, LookupAnswer answer);
+    Task<Func<Task>> AnswerSourceBookAsync(SourceBookProposal proposal, EntryId? book);
     Task<Func<Task>?> UsePlaceAsync(RevisionPlace place);
     Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId);
     Task<(string? Problem, Func<Task>? Undo)> SetPartPagesAsync(UnplacedPart part, PartPages pages);
@@ -515,6 +516,46 @@ public sealed partial class LookupMatchCardViewModel(LookupMatchItem item, IRevi
 
     [RelayCommand]
     Task OpenFileInWindow() => Actions.OpenDocumentInWindowAsync(Item.Match.DocumentId, Title);
+}
+
+/// <summary>
+/// "Goes with a book?": maps, handouts, character sheets or packs in one folder with books proposed for them. Each
+/// book's button links them all to it, as the user's choice; Not from these books refuses them, so they aren't
+/// suggested again.
+/// </summary>
+public sealed partial class SourceBookCardViewModel(SourceBookProposal proposal, IReviewActions actions) : DecidedCardViewModel(actions)
+{
+    public SourceBookProposal Proposal { get; } = proposal;
+
+    SourceBookCardText Text => new(Proposal);
+
+    public string Title => Text.Title;
+
+    public string Heading => Text.Heading;
+
+    public string Named => Text.Named;
+
+    public string Evidence => Text.Evidence;
+
+    public static string Detail => SourceBookCardText.Detail;
+
+    public string Path => Proposal.Path ?? "";
+
+    public IReadOnlyList<SourceBookChoice> Books => Proposal.Books;
+
+    public string NoneLabel => Text.Choices[^1].Label;
+
+    [RelayCommand]
+    Task GoesWith(SourceBookChoice book) => DecideAsync(() => Actions.AnswerSourceBookAsync(Proposal, book.EntryId), Text.Linked(book.EntryId));
+
+    [RelayCommand]
+    Task NotFromThese() => DecideAsync(() => Actions.AnswerSourceBookAsync(Proposal, null), Text.NotFromThese);
+
+    [RelayCommand]
+    void ShowFolder()
+    {
+        if (Proposal.Path is { } path) Actions.ShowFolder(path);
+    }
 }
 
 /// <summary>
