@@ -1102,6 +1102,113 @@
                            AutomationProperties.LiveSetting="Polite" />
               </DockPanel>
 
+              <!--
+                Goes with: the book a map, handout, character sheet or pack came from, whose system, publisher, setting and tags
+                it takes; or, on a book, the cards that go with it.
+              -->
+              <c:DetailSection x:Name="GoesWith" Header="GOES WITH" IsOpen="{Binding Pane.GoesWith}" Visibility="{Binding ShowsGoesWith, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <c:DetailSection.Actions>
+                  <Button x:Name="ChooseSourceBook" Style="{StaticResource Bt.Link}" Content="{Binding ChangeGoesWithLabel}" c:Ui.Icon="{StaticResource Icon.Pencil}"
+                          Command="{Binding ChooseSourceBookCommand}" AutomationProperties.Name="Choose the book this goes with" />
+                </c:DetailSection.Actions>
+                <StackPanel>
+                  <TextBlock Text="A map, handout or character sheet can go with the book it came from, and take its system, publisher, setting and tags."
+                             Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,0,0,8"
+                             Visibility="{Binding ShowsGoesWithIntro, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8" Visibility="{Binding HasGoesWith, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                    <StackPanel>
+                      <Button x:Name="ShowSourceBook" Style="{StaticResource TitleLink}" Content="{Binding GoesWithTitle}" HorizontalAlignment="Left"
+                              Command="{Binding ShowSourceBookCommand}" AutomationProperties.Name="{Binding GoesWithTitle, StringFormat='Details for {0}'}" />
+                      <TextBlock x:Name="GoesWithHow" Text="{Binding GoesWithHow}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      <TextBlock Text="Its system, publisher, setting and tags come from the book unless it has its own."
+                                 Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                      <WrapPanel Margin="0,10,0,0">
+                        <Button x:Name="KeepSourceBook" Content="Keep" c:Ui.Icon="{StaticResource Icon.Check}" Margin="0,0,8,8"
+                                Command="{Binding KeepSourceBookCommand}" AutomationProperties.Name="Keep the book this goes with"
+                                Visibility="{Binding CanKeepGoesWith, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                        <Button x:Name="RefuseSourceBook" Content="Not from this book" c:Ui.Icon="{StaticResource Icon.X}" Margin="0,0,8,8"
+                                ToolTip="It won't be suggested for this book again" Command="{Binding RefuseSourceBookCommand}" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </Border>
+                  <StackPanel Visibility="{Binding HasProposedBooks, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,0,0,8">
+                    <TextBlock Text="It may go with one of these:" Style="{StaticResource Text.Small}" Margin="0,0,0,4" />
+                    <ItemsControl x:Name="ProposedBooks" ItemsSource="{Binding ProposedBooks}" Focusable="False" AutomationProperties.Name="Books it may go with">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type p:SourceBookChoice}">
+                          <DockPanel Margin="0,0,0,6">
+                            <Button DockPanel.Dock="Right" Content="Goes with this" Margin="8,0,0,0" AutomationProperties.Name="{Binding Title, StringFormat='Goes with {0}'}"
+                                    Command="{Binding DataContext.PickSourceBookCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                            <StackPanel>
+                              <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
+                              <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+                            </StackPanel>
+                          </DockPanel>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="12" Margin="0,0,0,8" Visibility="{Binding IsPickingBook, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                    <StackPanel>
+                      <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                                ToolTip="Close" AutomationProperties.Name="Close the book picker" Command="{Binding CancelPickingBookCommand}" />
+                        <TextBox x:Name="SourceBookQuery" Style="{StaticResource Bt.TextBox}" Text="{Binding BookQuery, UpdateSourceTrigger=PropertyChanged}"
+                                 AutomationProperties.Name="Type part of the book's title" ToolTip="Type part of the book's title" />
+                      </DockPanel>
+                      <ItemsControl x:Name="SourceBookChoices" ItemsSource="{Binding BookChoices}" Focusable="False" Margin="0,8,0,0" AutomationProperties.Name="Books to choose from">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate DataType="{x:Type p:SourceBookChoice}">
+                            <Button Style="{StaticResource Bt.Link}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,0,0,6"
+                                    AutomationProperties.Name="{Binding Title, StringFormat='Goes with {0}'}"
+                                    Command="{Binding DataContext.PickSourceBookCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
+                              <StackPanel>
+                                <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+                              </StackPanel>
+                            </Button>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </c:DetailSection>
+
+              <c:DetailSection x:Name="BookCompanions" Header="{Binding CompanionsHeading}" IsOpen="{Binding Pane.GoesWith}" Visibility="{Binding HasCompanions, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <StackPanel>
+                  <TextBlock Text="These take the book's system, publisher, setting and tags unless they have their own." Style="{StaticResource Text.Small}"
+                             TextWrapping="Wrap" Margin="0,0,0,8" />
+                  <ItemsControl ItemsSource="{Binding Companions}" Focusable="False" AutomationProperties.Name="Maps and handouts that go with this book">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type p:CompanionView}">
+                        <DockPanel Margin="0,0,0,6">
+                          <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                                  ToolTip="Not from this book" AutomationProperties.Name="{Binding Title, StringFormat='{}{0} is not from this book'}"
+                                  Command="{Binding DataContext.RemoveCompanionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                          <StackPanel>
+                            <Button Style="{StaticResource TitleLink}" Content="{Binding Title}" HorizontalAlignment="Left"
+                                    AutomationProperties.Name="{Binding Title, StringFormat='Details for {0}'}"
+                                    Command="{Binding DataContext.ShowCompanionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                            <TextBlock Text="{Binding How}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </DockPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </c:DetailSection>
+
+              <DockPanel Margin="0,0,0,8" Visibility="{Binding SourceUndo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
+                <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                        ToolTip="Dismiss" AutomationProperties.Name="Dismiss" Command="{Binding DismissSourceMessageCommand}" />
+                <Button x:Name="UndoSourceBook" DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Undo" c:Ui.Icon="{StaticResource Icon.Undo2}"
+                        Command="{Binding SourceUndo.UndoCommand}" AutomationProperties.Name="Undo the change to the book this goes with"
+                        Visibility="{Binding SourceUndo.HasUndo, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <TextBlock x:Name="SourceBookMessage" Text="{Binding SourceUndo.Message}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" VerticalAlignment="Center"
+                           AutomationProperties.LiveSetting="Polite" />
+              </DockPanel>
+
               <c:DetailSection Header="{Binding PackImagesHeading}" IsOpen="{Binding Pane.Pack}" Visibility="{Binding IsPack, Converter={StaticResource Bt.VisibleWhenTrue}}">
                 <c:DetailSection.Actions>
                   <StackPanel Orientation="Horizontal">

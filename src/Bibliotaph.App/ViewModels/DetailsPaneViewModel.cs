@@ -23,6 +23,7 @@ public sealed partial class DetailsPaneViewModel(SettingsStore store, ILogger<De
 
     [ObservableProperty] public partial bool Adventures { get; set; } = true;
     [ObservableProperty] public partial bool InFile { get; set; } = true;
+    [ObservableProperty] public partial bool GoesWith { get; set; } = true;
     [ObservableProperty] public partial bool Pack { get; set; } = true;
     [ObservableProperty] public partial bool Found { get; set; } = true;
     [ObservableProperty] public partial bool Collections { get; set; } = true;
@@ -53,6 +54,7 @@ public sealed partial class DetailsPaneViewModel(SettingsStore store, ILogger<De
         if (double.TryParse(width, NumberStyles.Float, CultureInfo.InvariantCulture, out var wide)) Width = Math.Clamp(wide, NarrowestWidth, WidestWidth);
         Adventures = !shut.Contains(DetailSections.Adventures);
         InFile = !shut.Contains(DetailSections.InFile);
+        GoesWith = !shut.Contains(DetailSections.GoesWith);
         Pack = !shut.Contains(DetailSections.Pack);
         Found = !shut.Contains(DetailSections.Found);
         Collections = !shut.Contains(DetailSections.Collections);
@@ -71,6 +73,7 @@ public sealed partial class DetailsPaneViewModel(SettingsStore store, ILogger<De
     {
         if (!Adventures) yield return DetailSections.Adventures;
         if (!InFile) yield return DetailSections.InFile;
+        if (!GoesWith) yield return DetailSections.GoesWith;
         if (!Pack) yield return DetailSections.Pack;
         if (!Found) yield return DetailSections.Found;
         if (!Collections) yield return DetailSections.Collections;

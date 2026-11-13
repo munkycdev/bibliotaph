@@ -69,6 +69,7 @@ public static class ApiEndpoints
         api.MapLibraryApi();
         api.MapDetailsApi();
         api.MapEditApi();
+        api.MapSourceBooksApi();
         api.MapCollectionsApi();
         api.MapSavedSearchesApi();
         api.MapPinsApi();

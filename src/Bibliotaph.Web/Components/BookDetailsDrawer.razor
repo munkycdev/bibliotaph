@@ -163,6 +163,7 @@
             @* What the book holds first: a compilation's adventures or the file an adventure is in, a pack's files, and what the AI found inside. *@
             @* Blazor needs sibling keys to differ whatever the component, so each section pairs its own name with the book: another book starts every section afresh. *@
             <AdventuresSection @key="(nameof(AdventuresSection), book.Card.EntryId)" Book="book" Host="this" Note="_arrived" />
+            <GoesWithSection @key="(nameof(GoesWithSection), book.Card.EntryId)" Book="book" Host="this" />
             @if (book.PackFiles.Count > 0)
             {
                 <PackSection @key="(nameof(PackSection), book.Card.EntryId)" Book="book" Host="this" />

@@ -13,13 +13,13 @@ namespace Bibliotaph.App.ViewModels;
 public sealed class InspectorFactory(LibraryQueries queries, LibraryStore library, MetadataService metadata, IJobControl indexing, IStageCatalog stages,
     CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers, PartsService parts, CorrectionService corrections, ChosenCovers chosenCovers,
     NotesService notes, DetailsPaneViewModel pane, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, WebShelfCache shelf, WebLibraryCopies webCopies, TimeProvider time, ILogger<LibraryViewModel> log,
-    LookupLinks links)
+    LookupLinks links, SourceBooksService sourceBooks)
 {
     /// <summary>The book's details, read from the library, with its own note and page notes loaded.</summary>
     public async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item)
     {
         var inspector = await InspectorViewModel.LoadAsync(item, queries, library, metadata, indexing, stages, copies, packs, elsewhere, covers,
-            parts, files, prompts, shell, log, corrections, chosenCovers, shelf, webCopies, links);
+            parts, files, prompts, shell, log, corrections, chosenCovers, shelf, webCopies, links, sourceBooks);
         await pane.LoadAsync();
         inspector.Pane = pane;
         inspector.Notes = new EntryNotesViewModel(item.EntryId, notes, time, log);
