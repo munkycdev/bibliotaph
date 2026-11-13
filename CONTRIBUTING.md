@@ -170,8 +170,9 @@ git push origin "v1.6.$n"
 ```
 
 Since CI checks only what each change touches, the release is the sanity check that nothing slipped through between
-them: its **Tests (Windows)** job runs every test project on the tagged commit, beside the build and pack, and the
-draft waits for it. Before anything is built, the release job also checks that main has no open code scanning
+them: its **Tests (Windows)** job runs every test project the Windows app is built from on the tagged commit, beside the
+build and pack, and the draft waits for it. The web server's tests are left out there: the server doesn't ship in the
+app, and they run on Linux before each deploy. Before anything is built, the release job also checks that main has no open code scanning
 alert, and stops with the list if it has; fix or dismiss them, then **Re-run failed jobs**. A flaky test needs only **Re-run failed jobs** on the release run, not a new tag. Publish the draft keeping every file: Setup.exe, the
 full and delta packages and `releases.win.json`, or installed copies can't update.
 

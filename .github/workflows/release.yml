@@ -21,8 +21,10 @@ concurrency:
 
 jobs:
   # CI checks each pull request and each push to main for only the parts it changed, so this is the sanity check that
-  # nothing slipped through between them: every test project, the web server's included, on the tagged commit. It runs
-  # beside the release job, which waits for it before drafting.
+  # nothing slipped through between them: every test project the Windows app is built from, on the tagged commit. The
+  # web server's tests are left out, as on main's Windows job: the server doesn't ship in the app, its tests run on
+  # Linux before each deploy, and they are the slowest and least steady on a Windows runner. It runs beside the release
+  # job, which waits for it before drafting.
   tests:
     name: Tests (Windows)
     runs-on: windows-latest
@@ -50,7 +52,7 @@ jobs:
 
       - name: Test
         shell: pwsh
-        run: ./build/verify.ps1 -Step Test
+        run: ./build/verify.ps1 -Step Test -SkipTests Server
 
       - name: Upload test results
         if: failure()
