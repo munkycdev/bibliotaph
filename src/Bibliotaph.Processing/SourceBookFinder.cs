@@ -30,8 +30,9 @@ public sealed record SourceCard(EntryId EntryId, EntryKind Kind, string Format, 
 /// The rules that find which book a companion goes with, from what the library already knows, strongest first: its
 /// pages are pages of the book; it came in a ZIP with the book, the only book in it; it sits beside the book, the only
 /// book in its folder, or in a folder of extras ("Maps", "Handouts") under it; its name carries the book's title,
-/// product code or initials. The first three name one book and link without asking; a name, or a folder of two or
-/// three books, only proposes, and a companion with more than one candidate is asked about.
+/// product code or initials; the AI, reading its pages, quoted a title or series that is the book's. The first three
+/// name one book and link without asking; a name, the AI, or a folder of two or three books only propose, and a
+/// companion with more than one candidate is asked about.
 /// </summary>
 public static class SourceBookRules
 {
@@ -60,10 +61,12 @@ public static class SourceBookRules
     /// What the rules find for the companions among <paramref name="cards"/>: <paramref name="shared"/> are the
     /// companions' pages found in other documents, and <paramref name="codes"/> each document's product codes. Cards in
     /// <paramref name="skip"/> are neither companions nor books (they go with a book by the user's choice, or books go
-    /// with them). Returns the companions considered and what was found for them.
+    /// with them). <paramref name="aiNames"/> are the titles and series the AI read in companions' pages, each with the
+    /// quote it gave. Returns the companions considered and what was found for them.
     /// </summary>
     public static (IReadOnlyList<EntryId> Considered, IReadOnlyList<FoundSourceBook> Found) Find(IReadOnlyList<SourceCard> cards, IReadOnlyList<SharedPages> shared,
-        IReadOnlyDictionary<long, IReadOnlyList<string>> codes, IReadOnlySet<EntryId> skip)
+        IReadOnlyDictionary<long, IReadOnlyList<string>> codes, IReadOnlySet<EntryId> skip,
+        IReadOnlyDictionary<EntryId, IReadOnlyList<(string Value, string? Quote)>>? aiNames = null)
     {
         var companions = cards.Where(c => c.IsCompanion && !skip.Contains(c.EntryId)).ToList();
         var books = cards.Where(c => c.IsBook && !skip.Contains(c.EntryId)).ToList();
@@ -141,19 +144,31 @@ public static class SourceBookRules
             .GroupBy(x => x.Code, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Select(x => x.Book).DistinctBy(b => b.EntryId).ToList(), StringComparer.Ordinal);
         var byInitials = books.SelectMany(b => Initials(b.Title).Select(i => (Initials: i, Book: b)))
             .GroupBy(x => x.Initials, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Select(x => x.Book).DistinctBy(b => b.EntryId).ToList(), StringComparer.Ordinal);
-        foreach (var companion in companions)
+        // The books whose title a name carries, with the longest title found.
+        IEnumerable<(SourceCard Book, string Title)> Carried(string text)
         {
-            var name = BookRecords.Simplify(companion.Title);
-            if (name.Length == 0) continue;
+            var name = BookRecords.Simplify(text);
+            if (name.Length == 0) yield break;
             var padded = $" {name} ";
-            var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var word in words.Distinct())
+            var seen = new HashSet<EntryId>();
+            foreach (var word in name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Distinct())
             {
                 if (!byWord.TryGetValue(word, out var candidates)) continue;
                 foreach (var (book, titles) in candidates)
-                    if (titles.FirstOrDefault(t => padded.Contains($" {t} ", StringComparison.Ordinal)) is { } title)
-                        Add(companion, book, false, new SourceBookEvidence(SourceBookSignal.Name, book.Title, 0.6 + Math.Min(title.Length, 40) / 400.0));
+                    if (titles.Where(t => padded.Contains($" {t} ", StringComparison.Ordinal)).MaxBy(t => t.Length) is { } title && seen.Add(book.EntryId))
+                        yield return (book, title);
             }
+        }
+        foreach (var companion in companions)
+        {
+            foreach (var (value, quote) in aiNames?.GetValueOrDefault(companion.EntryId) ?? [])
+                foreach (var (book, title) in Carried(value))
+                    Add(companion, book, false, new SourceBookEvidence(SourceBookSignal.Ai, quote is { Length: > 0 } q ? q : value, 0.55 + Math.Min(title.Length, 40) / 400.0));
+            var name = BookRecords.Simplify(companion.Title);
+            if (name.Length == 0) continue;
+            var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var (book, title) in Carried(companion.Title))
+                Add(companion, book, false, new SourceBookEvidence(SourceBookSignal.Name, book.Title, 0.6 + Math.Min(title.Length, 40) / 400.0));
             var squeezed = new string([.. companion.Title.Where(char.IsLetterOrDigit)]).ToUpperInvariant();
             foreach (var (code, coded) in byCode)
                 if (squeezed.Contains(code, StringComparison.Ordinal))
@@ -168,7 +183,7 @@ public static class SourceBookRules
         {
             var strong = g.Where(f => f.Strong).ToList();
             if (strong.Count == 0) return g;
-            return g.Where(f => f.Strong || (f.Evidence.Signal == SourceBookSignal.Name && f.Evidence.Score >= 0.6));
+            return g.Where(f => f.Strong || (f.Evidence.Signal is SourceBookSignal.Name or SourceBookSignal.Ai && f.Evidence.Score >= 0.6));
         });
         return ([.. companions.Select(c => c.EntryId)], [.. kept]);
     }
@@ -220,7 +235,7 @@ public static class SourceBookRules
 /// companion takes its book's values, and the rest wait in Needs review.
 /// </summary>
 public sealed class SourceBookFinder(CompanionStore store, LibraryStore library, LibraryQueries cards, IndexQueries queries, MetadataProjector projector,
-    TimeProvider? clock = null, ILogger<SourceBookFinder>? log = null) : IHostedService, IDisposable
+    MetadataStore metadata, TimeProvider? clock = null, ILogger<SourceBookFinder>? log = null) : IHostedService, IDisposable
 {
     /// <summary>How long after starting it waits, so the app's own start-up work goes first.</summary>
     public static readonly TimeSpan StartDelay = TimeSpan.FromMinutes(2);
@@ -314,7 +329,12 @@ public sealed class SourceBookFinder(CompanionStore store, LibraryStore library,
                 .Select(c => c.DocumentId!.Value).ToList();
             var shared = await queries.GetSharedPagesAsync(companionDocuments, ct);
             var codes = await queries.GetProductCodesAsync(ct);
-            var (considered, found) = SourceBookRules.Find(all, shared, codes, skip);
+            // What the AI read in a companion's pages: a title or series that may be its book's.
+            var read = await metadata.GetManyAsync([.. all.Where(c => c.IsCompanion && c.Format == SourceFormats.Pdf).Select(c => c.EntryId)], ct);
+            var aiNames = read.ToDictionary(r => r.Key, r => (IReadOnlyList<(string, string?)>)[.. r.Value.Claims
+                .Where(c => c.Origin == AssertionOrigin.Ai && c.State is AssertionState.Provisional or AssertionState.Confirmed && (c.Field == MetadataFields.Title.Key || c.Field == MetadataFields.Series.Key))
+                .Select(c => (c.Value, c.Quote))]);
+            var (considered, found) = SourceBookRules.Find(all, shared, codes, skip, aiNames);
             var proposedBefore = (await store.GetProposedAsync(ct)).Select(p => (p.Companion, p.Book)).ToHashSet();
             var changed = await store.ReplaceFoundAsync(considered, found, ct);
             _seen = seen;
