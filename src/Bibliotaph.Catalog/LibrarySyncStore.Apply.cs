@@ -81,6 +81,7 @@ public sealed partial class LibrarySyncStore
             }
         }
         changed |= await ApplyPacksAsync(upserts, Card, notApplied, follow.Packed, ct);
+        changed |= await ApplySourceBooksAsync(upserts, Card, notApplied, ct);
         // A collection's parent may have been made after it, so parents are set once every collection is there.
         foreach (var change in upserts.Where(c => c.Key.StartsWith(SyncKeys.Collection, StringComparison.Ordinal) && !notApplied.Contains(c.Key)))
             changed |= await SetParentAsync(change.Key, change.Wanted!, ct);
@@ -140,6 +141,38 @@ public sealed partial class LibrarySyncStore
             }
             pack.CoverEntryId = fileId;
             changed |= await SaveAsync(db, ct);
+        }
+        return changed;
+    }
+
+    /// <summary>
+    /// The books companions go with, once every card is in place, since a companion's book may arrive in the same
+    /// pass. A record whose book isn't here yet waits; a refused book that isn't here is simply nothing to refuse.
+    /// </summary>
+    async Task<bool> ApplySourceBooksAsync(IReadOnlyList<SyncChange> upserts, Func<string, long?> card, HashSet<string> notApplied, CancellationToken ct)
+    {
+        static IEnumerable<string> Names(IReadOnlyDictionary<string, string>? fields) =>
+            fields?.Keys.Where(k => k == SyncFields.Source || k.StartsWith(SyncFields.NotSourcePrefix, StringComparison.Ordinal)) ?? [];
+        var store = new CompanionStore(contexts, _clock);
+        var changed = false;
+        foreach (var change in upserts.Where(c => SyncKeys.IsCard(c.Key) && !notApplied.Contains(c.Key)))
+        {
+            var names = Names(change.Wanted).Union(Names(change.Current)).ToList();
+            if (!names.Any(n => change.Current?.GetValueOrDefault(n) != change.Wanted!.GetValueOrDefault(n))) continue;
+            if (card(change.Key) is not { } companion) continue;
+            EntryId? book = null;
+            if (ReadOrDefault<string>(change.Wanted, SyncFields.Source) is { Length: > 0 } bookKey)
+            {
+                if (card(bookKey) is not { } bookId)
+                {
+                    notApplied.Add(change.Key);
+                    continue;
+                }
+                book = new EntryId(bookId);
+            }
+            List<EntryId> refused = [.. Names(change.Wanted).Where(n => n != SyncFields.Source)
+                .Select(n => card(n[SyncFields.NotSourcePrefix.Length..])).OfType<long>().Select(id => new EntryId(id))];
+            changed |= await store.ApplySyncedAsync(new EntryId(companion), book, refused, ct);
         }
         return changed;
     }

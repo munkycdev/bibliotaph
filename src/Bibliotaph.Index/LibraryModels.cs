@@ -101,6 +101,18 @@ public sealed record LibraryEntry(
     /// <summary>How many players it is written for, as cards show it ("4–6 players"), when someone has said.</summary>
     public string? Players { get; init; }
 
+    /// <summary>For a companion (a map, handout or pack that goes with a book), the book.</summary>
+    public EntryId? SourceEntryId { get; init; }
+
+    /// <summary>For a companion, the title of the book it goes with.</summary>
+    public string? SourceTitle { get; init; }
+
+    /// <summary>For a book, how many companions go with it: "12 maps and handouts".</summary>
+    public int Companions { get; init; }
+
+    /// <summary>"goes with The Big Adventure", for a companion's card; null for any other.</summary>
+    public string? SourceLine => SourceEntryId is null ? null : $"goes with {SourceTitle ?? "a book"}";
+
     /// <summary>"in The Big Compilation · pp. 34–52", for an adventure's card; null for any other.</summary>
     public string? PartLine => Pages is { } pages ? $"in {ParentTitle ?? "its file"} · {pages.Describe(FirstLabel, LastLabel)}" : null;
 }
@@ -174,6 +186,9 @@ public enum CollectionFilter
 /// instead of the pack's card; a file is filtered and found as its pack is, and by its own name. <see cref="Found"/>
 /// keeps books found by any of those catalogues (<see cref="FoundOnline"/>; unknown is found by none).
 /// <see cref="OnlyWithoutStore"/> keeps the books with nothing in Get it from, so no source is given for them.
+/// <see cref="CompanionsInBooks"/> keeps the maps, handouts and packs that go with a book inside it, as adventures are:
+/// the library without a search leaves them out, as the book's card counts them and its details list them, while a
+/// search shows those it finds; <see cref="HideCompanions"/> leaves them out altogether.
 /// </summary>
 public sealed record LibraryFilter(
     IReadOnlyCollection<EntryId>? Scope = null,
@@ -198,7 +213,9 @@ public sealed record LibraryFilter(
     bool PartsInBooks = false,
     bool PackFiles = false,
     IReadOnlyCollection<string>? Found = null,
-    bool OnlyWithoutStore = false);
+    bool OnlyWithoutStore = false,
+    bool CompanionsInBooks = false,
+    bool HideCompanions = false);
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);

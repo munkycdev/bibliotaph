@@ -92,6 +92,25 @@ public enum AssertionOrigin
     /// lookup filled (<see cref="Metadata.EffectiveMetadata"/>). Still only a suggestion.
     /// </summary>
     Lookup,
+    /// <summary>
+    /// The book a map, handout or other companion file goes with (<see cref="Metadata.SourceBookMetadata"/>). Never
+    /// stored: the companion shows the book's values as its own suggestions while the link stands, ranked above
+    /// lookups and the AI, since the book was catalogued as a whole and the companion usually says little about itself.
+    /// </summary>
+    SourceBook,
+}
+
+/// <summary>Where a companion's link to the book it goes with stands.</summary>
+public enum CompanionState
+{
+    /// <summary>Made by rules from strong evidence, and in effect until the user says otherwise.</summary>
+    Suggested,
+    /// <summary>Weaker evidence: offered on a Needs review card, not in effect.</summary>
+    Proposed,
+    /// <summary>The user linked it, or kept a suggested link.</summary>
+    Confirmed,
+    /// <summary>The user said the companion doesn't go with this book, so nothing proposes the pair again.</summary>
+    Rejected,
 }
 
 public enum AssertionState

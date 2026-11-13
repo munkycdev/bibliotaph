@@ -34,6 +34,12 @@ public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind 
 
     /// <summary>A book owned elsewhere's <see cref="Entities.Entry.SyncId"/>, which names its cover from an online library.</summary>
     public Guid? SyncId { get; init; }
+
+    /// <summary>For a companion, the book it goes with by a link in effect.</summary>
+    public EntryId? SourceEntryId { get; init; }
+
+    /// <summary>For a book, how many companions go with it.</summary>
+    public int Companions { get; init; }
 }
 
 /// <summary>A file in a pack, an image or a PDF: its own entry, the document it shows, and its file name.</summary>
@@ -67,7 +73,7 @@ public sealed record BookJoin(EntryId EntryId, IReadOnlyList<EntryId> Joined, lo
 public sealed record RemovedEntry(EntryId EntryId, DateTime CreatedUtc, IReadOnlyList<Assertion> Assertions, IReadOnlyList<Rejection> Rejections,
     bool Favorite = false, IReadOnlyList<long>? Collections = null, IReadOnlyList<SessionItemInfo>? SessionItems = null, string? Note = null,
     int? PinPosition = null, Guid? SyncId = null, IReadOnlyList<PageNoteInfo>? PageNotes = null, ReadingState? Reading = null,
-    IReadOnlyList<AskTurn>? AskTurns = null, IReadOnlyList<ClassificationRun>? Runs = null);
+    IReadOnlyList<AskTurn>? AskTurns = null, IReadOnlyList<ClassificationRun>? Runs = null, IReadOnlyList<CompanionLink>? CompanionLinks = null);
 
 /// <summary>
 /// Entries in catalog.db: which document each library card shows, and which card a document belongs to. Processing
@@ -136,6 +142,17 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
             .Select(e => e.Id).ToListAsync(ct)).Select(id => new EntryId(id))];
     }
 
+    /// <summary>The cards that go with any of <paramref name="entryIds"/> by a link in effect, whose values follow their book's.</summary>
+    public async Task<IReadOnlyList<EntryId>> GetCompanionIdsAsync(IReadOnlyCollection<EntryId> entryIds, CancellationToken ct = default)
+    {
+        if (entryIds.Count == 0) return [];
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var ids = entryIds.Select(e => e.Value).Distinct().ToList();
+        return [.. (await db.CompanionLinks.AsNoTracking()
+            .Where(l => ids.Contains(l.BookEntryId) && (l.State == CompanionState.Suggested || l.State == CompanionState.Confirmed))
+            .Select(l => l.EntryId).Distinct().ToListAsync(ct)).Select(id => new EntryId(id))];
+    }
+
     /// <summary>The kind of <paramref name="entryId"/>, or null for an entry the catalog doesn't have.</summary>
     public async Task<EntryKind?> GetKindAsync(EntryId entryId, CancellationToken ct = default)
     {
@@ -192,7 +209,27 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
         if (ids is not null) elsewhere = elsewhere.Where(e => ids.Contains(e.Id));
         current.AddRange((await elsewhere.Select(e => new { e.Id, e.CreatedUtc, e.SyncId }).ToListAsync(ct))
             .Select(e => new EntryDocument(new EntryId(e.Id), null, EntryKind.Elsewhere, Copies: 0) { AddedUtc = e.CreatedUtc, SyncId = e.SyncId }));
-        return current;
+        return await WithCompanionsAsync(db, current, ct);
+    }
+
+    /// <summary>The book each card goes with, and how many go with each, by the links in effect.</summary>
+    static async Task<List<EntryDocument>> WithCompanionsAsync(CatalogDbContext db, List<EntryDocument> current, CancellationToken ct)
+    {
+        if (current.Count == 0) return current;
+        var live = db.CompanionLinks.AsNoTracking().Where(l => l.State == CompanionState.Suggested || l.State == CompanionState.Confirmed);
+        List<(long EntryId, long BookEntryId)> links = [];
+        var ids = current.Select(c => c.EntryId.Value).ToList();
+        foreach (var chunk in ids.Chunk(500))
+            links.AddRange((await live.Where(l => chunk.Contains(l.EntryId) || chunk.Contains(l.BookEntryId))
+                .Select(l => new { l.EntryId, l.BookEntryId }).ToListAsync(ct)).Select(l => (l.EntryId, l.BookEntryId)));
+        if (links.Count == 0) return current;
+        var sources = links.DistinctBy(l => l.EntryId).ToDictionary(l => l.EntryId, l => l.BookEntryId);
+        var counts = links.Distinct().GroupBy(l => l.BookEntryId).ToDictionary(g => g.Key, g => g.Count());
+        return [.. current.Select(c => c with
+        {
+            SourceEntryId = sources.TryGetValue(c.EntryId.Value, out var book) ? new EntryId(book) : null,
+            Companions = counts.GetValueOrDefault(c.EntryId.Value),
+        })];
     }
 
     /// <summary>

@@ -500,6 +500,12 @@
                             AutomationProperties.Name="Adventures inside files" MinWidth="150"
                             ToolTip="Adventures marked inside a compilation: inside their book, where a search still finds them; as cards of their own; or hidden" />
                 </StackPanel>
+                <StackPanel Margin="0,0,12,12" Visibility="{Binding Filters.ShowCompanionsChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="Maps and handouts" Style="{StaticResource FieldLabel}" />
+                  <ComboBox x:Name="CompanionsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.CompanionsChoices}" SelectedItem="{Binding Filters.CompanionsChoice}"
+                            AutomationProperties.Name="Maps and handouts" MinWidth="150"
+                            ToolTip="Maps, handouts and packs that go with a book: inside the book, where a search still finds them; as cards of their own; or hidden" />
+                </StackPanel>
                 <StackPanel Margin="0,0,12,12" Visibility="{Binding Filters.ShowCollectionChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
                   <TextBlock Text="Collection" Style="{StaticResource FieldLabel}" />
                   <ComboBox x:Name="CollectionsFilter" Style="{StaticResource Bt.Select}" ItemsSource="{Binding Filters.CollectionChoices}"

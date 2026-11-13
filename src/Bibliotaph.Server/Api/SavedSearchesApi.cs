@@ -133,6 +133,7 @@ public static class SavedSearchesApi
         Collections: Parse<CollectionFilter>(q.Collections) ?? CollectionFilter.All,
         Picked: LibraryApi.Picked(q.Picked),
         Adventures: q.Adventures switch { "Hidden" => AdventureCards.Hidden, "Cards" => AdventureCards.Cards, _ => AdventureCards.InBooks },
+        Companions: q.Companions switch { "Hidden" => AdventureCards.Hidden, "Cards" => AdventureCards.Cards, _ => AdventureCards.InBooks },
         Found: Text(q.Found),
         Subfolder: q.Folder is null ? null : Text(q.Subfolder));
 
@@ -159,6 +160,7 @@ public static class SavedSearchesApi
         NoSource = d.NoSource,
         Found = d.Found,
         Adventures = d.Adventures switch { AdventureCards.Hidden => "Hidden", AdventureCards.Cards => "Cards", _ => null },
+        Companions = d.Companions switch { AdventureCards.Hidden => "Hidden", AdventureCards.Cards => "Cards", _ => null },
         Collections = d.Collections == CollectionFilter.All ? null : d.Collections.ToString(),
         Picked = d.Picked is { IsEmpty: false } picked ? JsonSerializer.Serialize(picked) : null,
         Favorites = d.Scope == ScopeKeys.Favorites,

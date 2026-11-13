@@ -71,6 +71,12 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
 
     /// <summary>For a pack, the file in <see cref="Members"/> whose cover its card shows in place of the mosaic.</summary>
     public EntryId? CoverMember { get; init; }
+
+    /// <summary>For a companion, the book it goes with.</summary>
+    public EntryId? SourceEntryId { get; init; }
+
+    /// <summary>For a book, how many companions go with it.</summary>
+    public int Companions { get; init; }
 }
 
 /// <summary>A file in a pack, an image or a PDF: the document it shows, its own entry and its file name.</summary>
@@ -353,12 +359,13 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 var entryId = entry.EntryId.Value;
                 c.Execute(
                     """
-                    INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members, added_utc, parent_id, first_page, last_page, parts, cover, cover_member)
-                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members, @added, @parent, @first, @last, @parts, @cover, @coverMember)
+                    INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members, added_utc, parent_id, first_page, last_page, parts, cover, cover_member,
+                        source_id, companions)
+                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members, @added, @parent, @first, @last, @parts, @cover, @coverMember, @source, @companions)
                     ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind, copies = excluded.copies,
                         name = excluded.name, members = excluded.members, added_utc = excluded.added_utc, parent_id = excluded.parent_id,
                         first_page = excluded.first_page, last_page = excluded.last_page, parts = excluded.parts, cover = excluded.cover,
-                        cover_member = excluded.cover_member
+                        cover_member = excluded.cover_member, source_id = excluded.source_id, companions = excluded.companions
                     """,
                     new
                     {
@@ -375,6 +382,8 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         parts = entry.Parts,
                         cover = entry.Cover,
                         coverMember = entry.CoverMember?.Value,
+                        source = entry.SourceEntryId?.Value,
+                        companions = entry.Companions,
                     }, t);
                 RemoveMembers(c, t, entryId);
                 c.Execute("INSERT INTO entry_member (entry_id, ord, document_id, member_entry_id, name) VALUES (@entryId, @ord, @DocumentId, @member, @Name)",

@@ -71,6 +71,7 @@ internal sealed class LibraryWhere
         if (filter.HideParts) _sql.Append(" AND e.kind <> 'Part'");
         // Kept inside their books, adventures show only when a search finds them; browsing lists them in their files.
         else if (filter.PartsInBooks && plan.IsEmpty) _sql.Append(" AND e.kind <> 'Part'");
+        if (filter.HideCompanions || (filter.CompanionsInBooks && plan.IsEmpty)) _sql.Append(" AND e.source_id IS NULL");
 
         // A collection's whole scope is "collection:<id>"; its own-books scope ("collection-own:") is the same books or fewer.
         if (filter.Collections != CollectionFilter.All)

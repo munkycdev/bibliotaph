@@ -126,11 +126,14 @@ CREATE TABLE entry_doc (
     last_page    INTEGER,
     parts        INTEGER NOT NULL DEFAULT 0,     -- a file's adventures: "5 adventures"
     cover        TEXT,                           -- a book owned elsewhere's cover, from its online library (cache/covers)
-    cover_member INTEGER                         -- a pack's file whose cover its card shows instead of the mosaic (entry_member.member_entry_id)
+    cover_member INTEGER,                        -- a pack's file whose cover its card shows instead of the mosaic (entry_member.member_entry_id)
+    source_id    INTEGER,                        -- a companion (a map, handout or pack): the book it goes with
+    companions   INTEGER NOT NULL DEFAULT 0      -- a book's companions: "12 maps and handouts"
 );
 
 CREATE INDEX entry_doc_document ON entry_doc (document_id);
 CREATE INDEX entry_doc_parent ON entry_doc (parent_id) WHERE parent_id IS NOT NULL;
+CREATE INDEX entry_doc_source ON entry_doc (source_id) WHERE source_id IS NOT NULL;
 
 -- Each card's vector of what it is about, for search by meaning: made in the background from its title, details, notes
 -- and what the AI found in its chapters, by the embedding model named, and made again when that text changes.
@@ -374,4 +377,4 @@ CREATE TABLE shared_state (
     value           TEXT    NOT NULL
 );
 
-PRAGMA user_version = 24;
+PRAGMA user_version = 25;

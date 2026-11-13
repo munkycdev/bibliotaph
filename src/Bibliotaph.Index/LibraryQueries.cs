@@ -238,6 +238,13 @@ public sealed class LibraryQueries(IndexDatabase database)
         return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT count(*) FROM entry_doc WHERE kind = 'Part'", cancellationToken: ct));
     }
 
+    /// <summary>How many cards go with a book, so the filter for where they show is offered only when some do.</summary>
+    public async Task<long> CountCompanionsAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT count(*) FROM entry_doc WHERE source_id IS NOT NULL", cancellationToken: ct));
+    }
+
     /// <summary>
     /// The Inside documents tab: pages whose text matches, grouped by book with the best books first, at most <paramref
     /// name="pagesPerDocument"/> pages each. Only pages of the document each entry shows count, so other copies of a

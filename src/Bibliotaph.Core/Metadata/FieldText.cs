@@ -107,8 +107,11 @@ public static class FieldText
             AssertionOrigin.Lookup => "Found online" + (string.IsNullOrWhiteSpace(claim.Quote) ? "" : $", in {claim.Quote}"),
             AssertionOrigin.UserTag => "Your words for this tag are on its pages" + quote
                 + (pages && claim.Pages.Count > 0 ? $", page {string.Join(", ", claim.Pages.Select(p => p + 1))}" : ""),
+            AssertionOrigin.SourceBook => "From the book it goes with" + quote,
             _ => claim.Origin.ToString(),
         };
+        // A value shown because the book has it is the book's to keep, not this card's.
+        if (claim.Origin == AssertionOrigin.SourceBook) return claim.State == AssertionState.Confirmed ? $"{source}, where you set it" : source;
         return claim.Origin != AssertionOrigin.User && claim.State == AssertionState.Confirmed ? $"You kept this. {source}" : source;
     }
 }

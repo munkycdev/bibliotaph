@@ -257,6 +257,15 @@ public static class SyncFields
     /// <summary>Never adding a card to a collection Needs review suggested, by the collection's sync id: "never.3f2…".</summary>
     public const string DeclinedPrefix = "never.";
 
+    /// <summary>
+    /// The book a companion goes with, as the user linked it: the book's own key ("h:…", "e:…" or "a:…"). Absent when
+    /// the user linked it to none; a link the rules suggested isn't sent, since each device finds it for itself.
+    /// </summary>
+    public const string Source = "source";
+
+    /// <summary>A book the user said a companion doesn't go with, by the book's key: "notsource.h:…".</summary>
+    public const string NotSourcePrefix = "notsource.";
+
     public const string Question = "question";
 
     /// <summary>A follow-up question as the model rewrote it to stand on its own.</summary>

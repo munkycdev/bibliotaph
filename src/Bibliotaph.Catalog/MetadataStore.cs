@@ -34,26 +34,56 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     /// <summary>
     /// Metadata for <paramref name="entryIds"/>, or for every entry with any when it is null. An adventure inside a
     /// file has its file's game system, edition, publisher, series, year and setting as well as its own values, unless
-    /// it has confirmed its own (<see cref="PartMetadata"/>).
+    /// it has confirmed its own (<see cref="PartMetadata"/>); a companion has the values of the book it goes with
+    /// (<see cref="SourceBookMetadata"/>).
     /// </summary>
-    public async Task<IReadOnlyDictionary<EntryId, EntryMetadata>> GetManyAsync(IReadOnlyCollection<EntryId>? entryIds, CancellationToken ct = default)
+    public Task<IReadOnlyDictionary<EntryId, EntryMetadata>> GetManyAsync(IReadOnlyCollection<EntryId>? entryIds, CancellationToken ct = default) =>
+        GetManyAsync(entryIds, withBooks: true, ct);
+
+    async Task<IReadOnlyDictionary<EntryId, EntryMetadata>> GetManyAsync(IReadOnlyCollection<EntryId>? entryIds, bool withBooks, CancellationToken ct)
     {
         if (entryIds is { Count: 0 }) return new Dictionary<EntryId, EntryMetadata>();
-        await using var db = await contexts.CreateDbContextAsync(ct);
-        var ids = entryIds is null ? null : Raw(entryIds);
-        var (claims, rejected) = await LoadAsync(db, ids, ct);
-        var result = claims.Select(g => g.Key).Union(rejected.Select(g => g.Key))
-            .ToDictionary(id => new EntryId(id), id => new EntryMetadata(new EntryId(id), [.. claims[id]], [.. rejected[id]]));
-
-        var parts = db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Part && e.ParentEntryId != null);
-        if (ids is not null) parts = parts.Where(e => ids.Contains(e.Id));
-        var partRows = await parts.Select(e => new { e.Id, Parent = e.ParentEntryId!.Value }).ToListAsync(ct);
-        if (partRows.Count == 0) return result;
-        var (fileClaims, fileRejections) = ids is null ? (claims, rejected) : await LoadAsync(db, [.. partRows.Select(p => p.Parent).Distinct()], ct);
-        foreach (var part in partRows)
+        Dictionary<EntryId, EntryMetadata> result;
+        List<(long Companion, long Book, bool Confirmed, DateTime Linked)> links;
+        await using (var db = await contexts.CreateDbContextAsync(ct))
         {
-            var file = EffectiveMetadata.Compute(fileClaims[part.Parent], fileRejections[part.Parent]);
-            result[new EntryId(part.Id)] = new EntryMetadata(new EntryId(part.Id), PartMetadata.Inherit([.. claims[part.Id]], file), [.. rejected[part.Id]]);
+            var ids = entryIds is null ? null : Raw(entryIds);
+            var (claims, rejected) = await LoadAsync(db, ids, ct);
+            result = claims.Select(g => g.Key).Union(rejected.Select(g => g.Key))
+                .ToDictionary(id => new EntryId(id), id => new EntryMetadata(new EntryId(id), [.. claims[id]], [.. rejected[id]]));
+
+            var parts = db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Part && e.ParentEntryId != null);
+            if (ids is not null) parts = parts.Where(e => ids.Contains(e.Id));
+            var partRows = await parts.Select(e => new { e.Id, Parent = e.ParentEntryId!.Value }).ToListAsync(ct);
+            if (partRows.Count > 0)
+            {
+                var (fileClaims, fileRejections) = ids is null ? (claims, rejected) : await LoadAsync(db, [.. partRows.Select(p => p.Parent).Distinct()], ct);
+                foreach (var part in partRows)
+                {
+                    var file = EffectiveMetadata.Compute(fileClaims[part.Parent], fileRejections[part.Parent]);
+                    result[new EntryId(part.Id)] = new EntryMetadata(new EntryId(part.Id), PartMetadata.Inherit([.. claims[part.Id]], file), [.. rejected[part.Id]]);
+                }
+            }
+            if (!withBooks) return result;
+
+            var live = db.CompanionLinks.AsNoTracking().Where(l => l.State == CompanionState.Suggested || l.State == CompanionState.Confirmed);
+            if (ids is not null) live = live.Where(l => ids.Contains(l.EntryId));
+            links = [.. (await live.Select(l => new { l.EntryId, l.BookEntryId, l.State, l.DecidedUtc }).ToListAsync(ct))
+                .Select(l => (l.EntryId, l.BookEntryId, l.State == CompanionState.Confirmed, l.DecidedUtc))];
+        }
+        if (links.Count == 0) return result;
+
+        // A book is never a companion itself, so its own values are all it has to give.
+        var books = await GetManyAsync([.. links.Select(l => new EntryId(l.Book)).Distinct()], withBooks: false, ct);
+        foreach (var (companion, book, confirmed, linked) in links)
+        {
+            if (!books.TryGetValue(new EntryId(book), out var bookMetadata)) continue;
+            var effective = bookMetadata.Compute();
+            var title = effective[MetadataFields.Title].First?.Value ?? "the book";
+            var own = result.TryGetValue(new EntryId(companion), out var mine) ? mine : new EntryMetadata(new EntryId(companion), [], []);
+            // Below any negative id an adventure's inherited values already use.
+            var first = Math.Min(-1, own.Claims.Select(c => c.Id).DefaultIfEmpty(0).Min() - 1);
+            result[own.EntryId] = own with { Claims = SourceBookMetadata.Inherit(own.Claims, effective, title, confirmed, linked, first) };
         }
         return result;
     }
@@ -408,11 +438,11 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
 
     /// <summary>
     /// "Keep this": confirms the values a field shows now, so no later suggestion replaces them. A value an adventure
-    /// shows only because its file suggests it becomes the adventure's own.
+    /// shows only because its file suggests it, or a companion because its book does, becomes the card's own.
     /// </summary>
     public async Task ConfirmAsync(EntryId entryId, MetadataField field, CancellationToken ct = default)
     {
-        var inherited = PartMetadata.Inherited.Contains(field)
+        var inherited = PartMetadata.Inherited.Contains(field) || SourceBookMetadata.Inherited.Contains(field)
             ? [.. (await GetAsync(entryId, ct)).Compute()[field].Values.Where(v => !v.Confirmed && PartMetadata.IsInherited(v.Source))]
             : new List<EffectiveValue>();
         await using var db = await contexts.CreateDbContextAsync(ct);

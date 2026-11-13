@@ -35,6 +35,9 @@ internal static class LibraryRows
             Players = r.PlayersMin is { } fewest && r.PlayersMax is { } most ? new PlayerRange((int)fewest, (int)most).Describe() : null,
             PackFile = r.PackFile is { } file ? new EntryId(file) : null,
             PackTitle = r.PackTitle,
+            SourceEntryId = r.SourceId is { } source ? new EntryId(source) : null,
+            SourceTitle = r.SourceTitle,
+            Companions = (int)r.Companions,
         })];
 
     /// <summary>
@@ -117,6 +120,9 @@ internal static class LibraryRows
         public string? FileCover { get; init; }
         public long? PackFile { get; init; }
         public string? PackTitle { get; init; }
+        public long? SourceId { get; init; }
+        public long Companions { get; init; }
+        public string? SourceTitle { get; init; }
     }
 
     public sealed class HitRow
