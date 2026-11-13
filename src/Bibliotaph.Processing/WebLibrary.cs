@@ -486,6 +486,30 @@ public sealed class WebLibrary(HttpClient http, IWebLibraryKey key, SettingsStor
         return null;
     }
 
+    /// <summary>
+    /// Asks the web library for the record a catalogue keeps under its own id for it, as RPGGeek's of the item whose
+    /// page the user gave: its answer, with <see cref="PcLookupAnswer.Record"/> null when the catalogue has none and
+    /// <see cref="PcLookupAnswer.Problem"/> set when it couldn't ask; or null when it didn't answer.
+    /// </summary>
+    public async Task<PcLookupAnswer?> ReadRecordAsync(string source, string recordKey, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get,
+                $"api/pc/lookups/records?source={Uri.EscapeDataString(source)}&key={Uri.EscapeDataString(recordKey)}", null, withKey: true, ct,
+                patience: LookUpPatience);
+            if (response.StatusCode == HttpStatusCode.Unauthorized) key.Forget();
+            if ((response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.ServiceUnavailable)
+                && await response.Content.ReadFromJsonAsync<PcLookupAnswer>(ct) is { } answer) return answer;
+            log.LogWarning("Asking the web library for a catalogue's record got {Status}", (int)response.StatusCode);
+        }
+        catch (Exception ex) when (Unreachable(ex, ct) || ex is System.Text.Json.JsonException)
+        {
+            log.LogInformation(ex, "Couldn't reach the web library for a catalogue's record");
+        }
+        return null;
+    }
+
     public async Task<Stream> OpenFileAsync(string contentHash, CancellationToken ct)
     {
         HttpResponseMessage response;

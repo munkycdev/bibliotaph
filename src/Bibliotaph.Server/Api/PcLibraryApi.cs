@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Processing;
 using Bibliotaph.Server.Accounts;
 using Bibliotaph.Server.Auth;
@@ -80,9 +81,25 @@ public static class PcLibraryApi
             try
             {
                 var answer = await catalogue.AskAsync(isbns, request.Titles ?? [], [.. codes.Select(c => c.ToUpperInvariant())], request.Lines, ct);
-                List<PcBookRecord> records = [.. answer.Records.Select(r => new PcBookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
-                    r.Values?.Select(v => new PcCatalogueValue(v.Field, v.Value)).ToList(), r.Pages))];
+                List<PcBookRecord> records = [.. answer.Records.Select(ToPc)];
                 return Results.Ok(new PcLookupAnswer(catalogue.Name, records.FirstOrDefault(), Records: records, AskedOf: answer.AskedOf));
+            }
+            catch (CatalogueUnavailableException ex)
+            {
+                return Results.Json(new PcLookupAnswer(catalogue.Name, Problem: ex.Message), statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+        });
+
+        // The record a catalogue keeps under its own id for it, for a book whose page there the user gave on the PC: only
+        // the catalogue's name and that id come. No record when the catalogue has none, or isn't one read by id.
+        pc.MapGet("/lookups/records", async (string? source, string? key, IBookCatalogue catalogue, CancellationToken ct) =>
+        {
+            if (source is not { Length: > 0 and <= LongestCode } || key is not { Length: > 0 and <= LongestCode } || !key.All(char.IsAsciiLetterOrDigit))
+                return Results.BadRequest();
+            try
+            {
+                var record = await catalogue.ReadAsync(source, key, ct);
+                return Results.Ok(new PcLookupAnswer(catalogue.Name, record is null ? null : ToPc(record)));
             }
             catch (CatalogueUnavailableException ex)
             {
@@ -169,6 +186,9 @@ public static class PcLibraryApi
             return Results.NotFound();
         });
     }
+
+    static PcBookRecord ToPc(BookRecord r) => new(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
+        r.Values?.Select(v => new PcCatalogueValue(v.Field, v.Value)).ToList(), r.Pages);
 
     static bool IsActivity(PcActivity activity) =>
         (activity.Step is null || AiSteps.Contains(activity.Step))

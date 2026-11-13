@@ -74,9 +74,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     InspectorViewModel(LibraryItemViewModel item, DocumentDetails? details, IReadOnlyList<InspectorLocation> locations, IReadOnlyList<CopyDetails> copies,
         IReadOnlyList<PackImageViewModel> images, MetadataService metadata, LibraryQueries queries, IJobControl indexing, IStageCatalog stages,
         CopiesService copiesService, PackService packs, ElsewhereService elsewhere, IFilePicker files, IUserPrompts prompts, IDesktopShell shell,
-        CorrectionService? corrections, ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log, WebShelfCache? shelf)
+        CorrectionService? corrections, ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log, WebShelfCache? shelf, LookupLinks? links)
     {
         PartUndo = new UndoSlot(log);
+        _links = links;
         _files = files;
         _prompts = prompts;
         _shell = shell;
@@ -291,6 +292,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             MarksGuesses = IsCorrecting,
         })];
         FromRpgGeek = metadata.Fields.Any(f => BookRecords.Shows(f, RpgGeekCatalogue.Source));
+        // The record it uses fills the fields, so the two are read together.
+        await ShowRpgGeekAsync();
         if (changed) MetadataChanged?.Invoke(this, EventArgs.Empty);
     }
 
@@ -501,7 +504,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
         IJobControl indexing, IStageCatalog stages, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers,
         PartsService parts, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log,
-        CorrectionService? corrections = null, ChosenCovers? chosen = null, WebShelfCache? shelf = null, WebLibraryCopies? webCopies = null)
+        CorrectionService? corrections = null, ChosenCovers? chosen = null, WebShelfCache? shelf = null, WebLibraryCopies? webCopies = null,
+        LookupLinks? links = null)
     {
         DocumentSource? webSource = null;
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
@@ -535,7 +539,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
                 webSource = source;
         }
         var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, stages, copies, packs, elsewhere,
-            files, prompts, shell, corrections, chosen, log, shelf);
+            files, prompts, shell, corrections, chosen, log, shelf, links);
         if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
         if (webSource is not null) await inspector.LoadOfflineAsync(webCopies!, webSource);
         await inspector.ReloadMetadataAsync(changed: false);

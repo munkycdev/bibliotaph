@@ -48,6 +48,14 @@ public sealed class BooksClient(ApiHttp http)
     public Task<EditResult> ScanAgainAsync(long entryId, CancellationToken ct = default) =>
         http.SendAsync<EditResult>(HttpMethod.Post, $"{Book(entryId)}/scan-again", null, ct);
 
+    /// <summary>Look up from an RPGGeek link: the book takes the record of the item whose page address this is, or what's wrong with it.</summary>
+    public Task<EditResult> LinkRpgGeekAsync(long entryId, string link, CancellationToken ct = default) =>
+        http.SendAsync<EditResult>(HttpMethod.Post, $"{Book(entryId)}/rpggeek", new FieldEdit(link), ct);
+
+    /// <summary>Not this book, on the RPGGeek record the details show.</summary>
+    public Task<EditResult> UnlinkRpgGeekAsync(long entryId, CancellationToken ct = default) =>
+        http.SendAsync<EditResult>(HttpMethod.Delete, $"{Book(entryId)}/rpggeek", null, ct);
+
     public Task<EditResult> AddPartAsync(long entryId, PartEdit part, CancellationToken ct = default) =>
         http.SendAsync<EditResult>(HttpMethod.Post, $"{Book(entryId)}/parts", part, ct);
 

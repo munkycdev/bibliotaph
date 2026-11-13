@@ -190,6 +190,45 @@ public abstract partial class ApiTests
         }
 
         [Fact]
+        public async Task A_connected_PC_reads_a_catalogues_record_by_its_id_where_the_server_can()
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var web = Client(await AddUserAsync(admin: false));
+            web.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+            var (pc, key) = await ConnectPcAsync(web, ct);
+            var path = Path.Combine(_folder.Path, "pc-records.db");
+            await using (var db = new CatalogDatabase(path, Path.Combine(_folder.Path, "pc-backups")).CreateContext())
+                await Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions.MigrateAsync(db.Database, ct);
+            var catalogue = new WebLibraryCatalogue(pc, new ScriptedCatalogue { Name = "Open Library" }, new SettingsStore(new CatalogFile(path)));
+            _catalogue.Items[("RPGGeek", "7310")] = new BookRecord("RPGGeek", "7310", "", "Gull Rock Saga: Book 2. Spells", ["Ada Quill"], ["Gull Rock Games"], "2021",
+                [new CatalogueValue("series", "Gull Rock Saga")], 96);
+
+            var record = await catalogue.ReadAsync("RPGGeek", "7310", ct);
+            var none = await catalogue.ReadAsync("RPGGeek", "999", ct);
+            _catalogue.Busy = true;
+            var busy = await Assert.ThrowsAsync<CatalogueUnavailableException>(() => catalogue.ReadAsync("RPGGeek", "7310", ct));
+            _catalogue.Busy = false;
+            var keyed = new HttpClient(_factory.Server.CreateHandler()) { BaseAddress = new Uri("http://localhost") };
+            keyed.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", key);
+            keyed.DefaultRequestHeaders.Add(ApiHeaders.Client, "windows");
+            using var notAnId = await keyed.GetAsync("/api/pc/lookups/records?source=RPGGeek&key=7310%2F..", ct);
+            using var noSource = await keyed.GetAsync("/api/pc/lookups/records?key=7310", ct);
+            using var signedIn = await web.GetAsync("/api/pc/lookups/records?source=RPGGeek&key=7310", ct);
+
+            Assert.Equal(("RPGGeek", "7310", "", "Gull Rock Saga: Book 2. Spells", 96), (record!.Source, record.Key, record.Isbn, record.Title, record.Pages));
+            Assert.Equal([("series", "Gull Rock Saga")], record.Values!.Select(v => (v.Field, v.Value)));
+            Assert.Null(none);
+            Assert.StartsWith("RPGGeek is busy.", busy.Message, StringComparison.Ordinal);
+            Assert.Equal(HttpStatusCode.BadRequest, notAnId.StatusCode);
+            Assert.Equal(HttpStatusCode.BadRequest, noSource.StatusCode);
+            Assert.Equal(HttpStatusCode.Unauthorized, signedIn.StatusCode);
+
+            // Disconnected, the PC asks Open Library itself, which keeps nothing by RPGGeek's ids.
+            await pc.DisconnectAsync(ct);
+            Assert.Null(await catalogue.ReadAsync("RPGGeek", "7310", ct));
+        }
+
+        [Fact]
         public async Task A_connected_PC_looks_its_books_up_where_the_server_can_and_falls_back_to_its_own_catalogue_once_disconnected()
         {
             var ct = TestContext.Current.CancellationToken;

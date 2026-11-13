@@ -214,6 +214,108 @@ public abstract partial class ApiTests
         }
 
         [Fact]
+        public async Task A_book_takes_the_RPGGeek_record_whose_page_is_pasted_into_its_details_until_it_is_said_to_be_another_books()
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var user = await AddUserAsync(admin: false);
+            var connections = _factory.Services.GetRequiredService<StorageConnections>();
+            var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+            _graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(_pdfs.KnownText, ct));
+            var client = Client(user);
+            client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+            using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+            var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is [var one] ? one : null, ct);
+            var url = $"/api/library/books/{book.EntryId}";
+            Task<BookDetails?> DetailsAsync() => client.GetFromJsonAsync<BookDetails>(url, ct);
+            Task<BookDetails> LookedUpAsync(string ended) =>
+                WaitAsync(async () => await DetailsAsync() is { } details && details.Stages.Any(s => s.Label == "Looking it up online" && s.Value == ended) ? details : null, ct);
+            // It prints no ISBN, and nothing asked here finds a book by its title, so no lookup finds it.
+            var notLookedUp = await LookedUpAsync(BookLookups.NothingToLookUp);
+            using var notAsked = await client.PostAsJsonAsync($"{url}/rpggeek", new FieldEdit("https://rpggeek.com/rpgitem/7310"), ct);
+            var notHere = (await notAsked.Content.ReadFromJsonAsync<EditResult>(ct))!;
+
+            // RPGGeek is asked only where the server holds its token.
+            _catalogue.Name = "RPGGeek or Open Library";
+            _catalogue.Items[("RPGGeek", "7310")] = new BookRecord("RPGGeek", "7310", "", "Gull Rock Saga: Book 2. Spells", ["Ada Quill"], ["Gull Rock Games"], "2021");
+            var offered = (await DetailsAsync())!;
+            var elsewhere = await LinkAsync("https://example.com/rpgitem/7310");
+            var aGame = await LinkAsync("https://rpggeek.com/rpg/55/example-system");
+            var noSuch = await LinkAsync("https://rpggeek.com/rpgitem/999/nothing-here");
+            _catalogue.Busy = true;
+            var busy = await LinkAsync("rpggeek.com/rpgitem/7310");
+            _catalogue.Busy = false;
+            var linked = await LinkAsync("https://rpggeek.com/rpgitem/7310/gull-rock-saga-book-2-spells");
+            var card = (await client.GetFromJsonAsync<LibraryResults>("/api/library?found=RPGGeek", ct))!.Books.Single();
+            // Its lookup is run again and says it has a record, though it still prints nothing to look up; and again without it.
+            await LookedUpAsync("Done");
+            using var removed = await client.DeleteAsync($"{url}/rpggeek", ct);
+            var refused = (await removed.Content.ReadFromJsonAsync<EditResult>(ct))!;
+            await LookedUpAsync(BookLookups.NothingToLookUp);
+            using var tooLong = await client.PostAsJsonAsync($"{url}/rpggeek", new FieldEdit(new string('7', 501)), ct);
+            using var noBook = await client.PostAsJsonAsync("/api/library/books/999999/rpggeek", new FieldEdit("7310"), ct);
+
+            Assert.Equal((null, null), (notLookedUp.RpgGeek, notLookedUp.RpgGeekOffer));
+            Assert.Equal(LookupLinks.NotHere, notHere.Problem);
+            Assert.Equal((null, "Look up from an RPGGeek link…"), (offered.RpgGeek, offered.RpgGeekOffer));
+            Assert.StartsWith("Paste the address of the book's page on RPGGeek", offered.RpgGeekHint, StringComparison.Ordinal);
+            Assert.Equal((null, RpgGeekCatalogue.NotRpgGeek), (elsewhere.Details, elsewhere.Problem));
+            Assert.Equal(RpgGeekCatalogue.NotABook, aGame.Problem);
+            Assert.Equal(RpgGeekCatalogue.NoSuchBook, noSuch.Problem);
+            Assert.Equal("RPGGeek is busy. Try again in a little while.", busy.Problem);
+            Assert.Null(linked.Problem);
+            Assert.Equal(new DetailRpgGeek("On RPGGeek as Gull Rock Saga: Book 2. Spells", "https://rpggeek.com/rpgitem/7310"), linked.Details!.RpgGeek);
+            Assert.Equal(("Use another RPGGeek link…", true), (linked.Details.RpgGeekOffer, linked.Details.FromRpgGeek));
+            Assert.Equal(("Gull Rock Saga: Book 2. Spells", "Gull Rock Games"), (linked.Details.Card.Title, linked.Details.Publisher));
+            Assert.Equal(book.EntryId, card.EntryId);
+            Assert.Equal((null, "Look up from an RPGGeek link…", notLookedUp.Card.Title), (refused.Details!.RpgGeek, refused.Details.RpgGeekOffer, refused.Details.Card.Title));
+            Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
+            Assert.Equal(HttpStatusCode.NotFound, noBook.StatusCode);
+
+            async Task<EditResult> LinkAsync(string link)
+            {
+                using var response = await client.PostAsJsonAsync($"{url}/rpggeek", new FieldEdit(link), ct);
+                response.EnsureSuccessStatusCode();
+                return (await response.Content.ReadFromJsonAsync<EditResult>(ct))!;
+            }
+        }
+
+        [Fact]
+        public async Task A_record_given_on_another_PC_is_read_by_its_id_when_the_answer_arrives_and_fills_the_book_in()
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var user = await AddUserAsync(admin: false);
+            var connections = _factory.Services.GetRequiredService<StorageConnections>();
+            var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+            _graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(_pdfs.KnownText, ct));
+            _catalogue.Name = "RPGGeek or Open Library";
+            _catalogue.FindsByTitleAlone = true;
+            var client = Client(user);
+            client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+            using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+            var book = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is [var one] ? one : null, ct);
+            Task<BookDetails> LookedUpAsync(string ended) => WaitAsync(async () =>
+                await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{book.EntryId}", ct) is { } details
+                    && details.Stages.Any(s => s.Label == "Looking it up online" && s.Value == ended) ? details : null, ct);
+            // Asked about by its title, and no catalogue has it.
+            var missed = await LookedUpAsync(BookLookups.NotFoundOnline);
+
+            // No search finds the record: only its id comes from the other PC, as an answer to Same book? does.
+            _catalogue.Items[("RPGGeek", "7310")] = new BookRecord("RPGGeek", "7310", "", "Gull Rock Saga: Book 2. Spells", ["Ada Quill"], ["Gull Rock Games"], "2021");
+            await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
+            {
+                string hash;
+                await using (var db = lease.Library.Catalog.CreateContext())
+                    hash = db.EntrySources.Where(s => s.EntryId == book.EntryId).Select(s => s.Document.ContentHash).First();
+                await lease.Library.Get<LookupRecordStore>().ApplySyncedAsync(hash, "RPGGeek", "7310", LookupAnswer.SameBook, ct);
+            }
+            var filled = await LookedUpAsync("Done");
+
+            Assert.Null(missed.RpgGeek);
+            Assert.Equal(new DetailRpgGeek("On RPGGeek as Gull Rock Saga: Book 2. Spells", "https://rpggeek.com/rpgitem/7310"), filled.RpgGeek);
+            Assert.Equal(("Gull Rock Saga: Book 2. Spells", "Gull Rock Games"), (filled.Card.Title, filled.Publisher));
+        }
+
+        [Fact]
         public async Task Needs_review_asks_whether_a_record_whose_title_isnt_printed_is_the_books_and_same_book_fills_it_in_as_the_catalogues()
         {
             var ct = TestContext.Current.CancellationToken;

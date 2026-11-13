@@ -6,6 +6,7 @@
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              xmlns:v="clr-namespace:Bibliotaph.App.Views"
+             xmlns:p="clr-namespace:Bibliotaph.Processing;assembly=Bibliotaph.Processing"
              xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LibraryViewModel}">
@@ -1439,6 +1440,36 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
+                  <!-- The book's record on RPGGeek, and the box that gives it one by its page's address. -->
+                  <StackPanel Margin="0,12,0,0" AutomationProperties.Name="RPGGeek"
+                              Visibility="{Binding ShowsRpgGeek, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                    <DockPanel Visibility="{Binding HasRpgGeekRecord, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                      <Button DockPanel.Dock="Right" Style="{StaticResource Bt.Link}" Content="Not this book" Padding="10,0,0,0" VerticalAlignment="Top"
+                              AutomationProperties.Name="The RPGGeek record is not this book" Command="{Binding NotOnRpgGeekCommand}" />
+                      <Button Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Padding="0" HorizontalAlignment="Left"
+                              Content="{Binding RpgGeekText}" ToolTip="{Binding RpgGeekUrl}" Command="{Binding OpenRpgGeekCommand}" />
+                    </DockPanel>
+                    <Button Style="{StaticResource Bt.Link}" c:Ui.Icon="{StaticResource Icon.Search}" Padding="0" Margin="0,6,0,0" HorizontalAlignment="Left"
+                            Content="{Binding RpgGeekOffer}" Command="{Binding StartRpgGeekLinkCommand}"
+                            Visibility="{Binding OffersRpgGeekLink, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                    <StackPanel Margin="0,8,0,0" Visibility="{Binding IsLinkingRpgGeek, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                      <TextBox Style="{StaticResource Bt.TextBox}" Text="{Binding RpgGeekLink, UpdateSourceTrigger=PropertyChanged}"
+                               AutomationProperties.Name="RPGGeek page address" c:Ui.FocusWhenVisible="True">
+                        <TextBox.InputBindings>
+                          <KeyBinding Key="Enter" Command="{Binding LinkRpgGeekCommand}" />
+                          <KeyBinding Key="Escape" Command="{Binding CancelRpgGeekLinkCommand}" />
+                        </TextBox.InputBindings>
+                      </TextBox>
+                      <TextBlock Text="{x:Static p:LookupLinks.Hint}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="0,5,0,0" />
+                      <TextBlock Text="{Binding RpgGeekProblem}" FontSize="11" Foreground="{DynamicResource Bt.Accent}" TextWrapping="Wrap" Margin="0,8,0,0"
+                                 Visibility="{Binding RpgGeekProblem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                      <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Style="{StaticResource Bt.Button.Primary}" Content="{Binding RpgGeekLookUpLabel}" c:Ui.Icon="{StaticResource Icon.Search}"
+                                Command="{Binding LinkRpgGeekCommand}" Margin="0,0,8,0" />
+                        <Button Content="Cancel" Command="{Binding CancelRpgGeekLinkCommand}" />
+                      </StackPanel>
+                    </StackPanel>
+                  </StackPanel>
                   <!-- RPGGeek's data is credited to BoardGameGeek wherever it shows, as their terms ask. -->
                   <Button Style="{StaticResource Bt.PoweredByBgg}" Margin="0,14,0,0"
                           Visibility="{Binding FromRpgGeek, Converter={StaticResource Bt.VisibleWhenTrue}}" />

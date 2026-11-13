@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Look a book up from its RPGGeek page.** When no lookup finds a book, find it on rpggeek.com yourself, open the
+  book's details and click **Look up from an RPGGeek link…** under its fields, then paste the address of its page
+  there (such as `https://rpggeek.com/rpgitem/12345/its-name`) and click **Look up**. The book takes that record at
+  once: its title, designers, publisher, year, game system, series and the rest, as suggestions above the AI's and
+  below your own values.
+  - The record stays the book's whatever later lookups find, and goes to your other PCs and your web library with
+    sync.
+  - It shows under the fields as **On RPGGeek as …**, which opens the page. **Not this book** beside it takes the
+    record away, for one a lookup found too, and **Use another RPGGeek link…** replaces it.
+  - On Windows and the web, wherever RPGGeek is asked: a PC has to be connected to its web library.
 - **Releases no longer test the same code twice.** When the Windows tests already passed on main and the release only
   adds its notes, the release takes that run instead of running them all again, so a test that stalls now and then
   can't hold up a release of code that passed. A pipeline test that stalls now says what it was waiting for.

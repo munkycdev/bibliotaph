@@ -433,6 +433,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         {
             revisited.RunAgainChanged += (_, _) => _ = RevisitAsync(revisited);
             revisited.RunAgainFor += (_, documents) => _ = RevisitAsync(revisited, documents);
+            revisited.RunAgainForFiles += (_, files) => _ = RevisitAsync(revisited, files: files);
         }
         _parts.Marked += (_, documentId) => _ = ClassifyPartsAsync(documentId);
         _returns.SettingChanged += (_, _) => _hashing.WakeReturns();
@@ -440,14 +441,15 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
 
     /// <summary>
     /// Runs a stage again for the finished books it says are worth another go: of <paramref name="documents"/> when it
-    /// names some, by <see cref="IRevisitedStage.RunsAgainFor"/>, else of every book.
+    /// names some, by <see cref="IRevisitedStage.RunsAgainFor"/>, else of every book; or for <paramref name="files"/>,
+    /// however they finished.
     /// </summary>
-    async Task RevisitAsync(IRevisitedStage stage, IReadOnlyCollection<long>? documents = null)
+    async Task RevisitAsync(IRevisitedStage stage, IReadOnlyCollection<long>? documents = null, IReadOnlyCollection<string>? files = null)
     {
         try
         {
-            var queued = documents is null
-                ? await _queue.RerunAsync(stage.Stage, await stage.RunAgainAsync(_stopping), _stopping)
+            var queued = files is not null ? await _queue.RerunFilesAsync(stage.Stage, files, _stopping)
+                : documents is null ? await _queue.RerunAsync(stage.Stage, await stage.RunAgainAsync(_stopping), _stopping)
                 : await _queue.RerunAsync(stage.Stage, documents, stage.RunsAgainFor, _stopping);
             if (queued == 0) return;
             _log.LogInformation("Queued {Stage} again for {Count} documents", stage.Stage, queued);

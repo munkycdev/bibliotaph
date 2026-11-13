@@ -16,7 +16,8 @@ namespace Bibliotaph.Processing;
 /// the book belongs to ("Gull Rock Saga"), since a file's name often leaves the line out or runs its words together; an
 /// item is taken only when one of its versions lists an ISBN or product code the book prints, so a search as broad as
 /// a line's can't name the wrong book. A book printing neither is searched for by its titles alone and takes only the
-/// one item named as it is (<see cref="AskByTitleAsync"/>), which Look up keeps only when the book prints its whole name. BoardGameGeek asks for about five
+/// one item named as it is (<see cref="AskByTitleAsync"/>), which Look up keeps only when the book prints its whole name. A
+/// book the user gives the item's page of is read by the item's id (<see cref="ReadAsync"/>). BoardGameGeek asks for about five
 /// seconds between requests (<see cref="Pace"/>, unless a test gives another) and for answers to be kept, so they're
 /// kept for a month: a line's search and the items it finds are asked for once for every book in it.
 /// </summary>
@@ -115,6 +116,61 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
         }
         return new CatalogueAnswer([], Name);
     }
+
+    /// <summary>
+    /// The record of the item with this id, whatever the book prints, as a record found by its title alone is (its
+    /// <see cref="BookRecord.Isbn"/> empty): for a book the user gives the item's page of. Null for another catalogue's
+    /// record, or when RPGGeek has no such item.
+    /// </summary>
+    public async Task<BookRecord?> ReadAsync(string source, string key, CancellationToken ct = default)
+    {
+        if (source != Source || key.Length is 0 or > MostDigits || !key.All(char.IsAsciiDigit)) return null;
+        // Asked for as a search's items are, so one already read for the book's line isn't asked for again.
+        var item = Parse(await GetAsync($"xmlapi2/thing?id={key}&type=rpgitem&versions=1", ct)).Root?.Elements("item")
+            .FirstOrDefault(i => (string?)i.Attribute("id") == key);
+        return item is null ? null : Record(item, null, "");
+    }
+
+    /// <summary>The longest id read from an address: RPGGeek's have six digits or so.</summary>
+    const int MostDigits = 12;
+
+    /// <summary>What an empty box is answered with.</summary>
+    public const string NoLink = "Paste the address of the book's page on RPGGeek.";
+
+    /// <summary>What an address anywhere else is answered with.</summary>
+    public const string NotRpgGeek = "That isn't an RPGGeek address. A book's page there looks like https://rpggeek.com/rpgitem/12345/its-name.";
+
+    /// <summary>What the page of a game, a series, a publisher or a search is answered with.</summary>
+    public const string NotABook = "That RPGGeek page isn't a book's. A book's page has /rpgitem/ in its address, like https://rpggeek.com/rpgitem/12345/its-name.";
+
+    /// <summary>What an address RPGGeek has no item at is answered with.</summary>
+    public const string NoSuchBook = "RPGGeek has no book at that address.";
+
+    /// <summary>
+    /// The id of the item whose page <paramref name="link"/> is ("https://rpggeek.com/rpgitem/12345/its-name", with or
+    /// without the https, on boardgamegeek.com too, or the number alone), or why it names none: a game's, series' or
+    /// publisher's page isn't a book's.
+    /// </summary>
+    public static (string? Item, string? Problem) ItemIn(string? link)
+    {
+        var text = link?.Trim() ?? "";
+        if (text.Length == 0) return (null, NoLink);
+        if (text.All(char.IsAsciiDigit)) return Id(text) is { } number ? (number, null) : (null, NotRpgGeek);
+        if (!text.Contains("://", StringComparison.Ordinal)) text = "https://" + text;
+        if (!Uri.TryCreate(text, UriKind.Absolute, out var address) || address.Scheme is not ("http" or "https")) return (null, NotRpgGeek);
+        var host = address.Host.StartsWith("www.", StringComparison.Ordinal) ? address.Host[4..] : address.Host;
+        if (host is not ("rpggeek.com" or "boardgamegeek.com" or "videogamegeek.com")) return (null, NotRpgGeek);
+        return address.AbsolutePath.Split('/', StringSplitOptions.RemoveEmptyEntries) is [var kind, var digits, ..]
+            && kind.Equals("rpgitem", StringComparison.OrdinalIgnoreCase) && Id(digits) is { } id
+            ? (id, null) : (null, NotABook);
+    }
+
+    /// <summary>An item's id as RPGGeek writes it, without zeros in front, or null for what isn't one.</summary>
+    static string? Id(string digits) =>
+        digits.All(char.IsAsciiDigit) && digits.TrimStart('0') is { Length: > 0 and <= MostDigits } id ? id : null;
+
+    /// <summary>An item's page, for the details to link to.</summary>
+    public static string PageOf(string key) => $"https://rpggeek.com/rpgitem/{key}";
 
     /// <summary>The id of the one item named as <paramref name="title"/> is, by its whole name or the part after a colon.</summary>
     static string? Named(XDocument search, string title)

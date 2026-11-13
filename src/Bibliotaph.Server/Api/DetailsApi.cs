@@ -33,7 +33,32 @@ public static class DetailsApi
             await chapters.RescanAsync(details.Entry.DocumentId, ct);
             return Results.Ok(new EditResult(await DetailsAsync(library, details.Entry.EntryId, ct), Message: DetailsText.ScanAgain(chapters.IsOn)));
         });
+
+        // Look up from an RPGGeek link: the book takes the record of the item whose page address was pasted.
+        api.MapPost("/library/books/{entryId:long}/rpggeek", async (long entryId, FieldEdit link, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            if (link.Text is { Length: > LongestLink }) return Results.BadRequest();
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var library = lease.Library;
+            if (await library.Get<LibraryQueries>().GetDetailsAsync(new EntryId(entryId), ct) is not { } details) return Results.NotFound();
+            return Results.Ok(await library.Get<LookupLinks>().LinkAsync(details.Entry, link.Text, ct) is { } problem
+                ? new EditResult(null, problem)
+                : new EditResult(await DetailsAsync(library, details.Entry.EntryId, ct)));
+        });
+
+        // Not this book, on the RPGGeek record the details show.
+        api.MapDelete("/library/books/{entryId:long}/rpggeek", async (long entryId, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            var library = lease.Library;
+            if (await library.Get<LibraryQueries>().GetDetailsAsync(new EntryId(entryId), ct) is not { } details) return Results.NotFound();
+            await library.Get<LookupLinks>().RefuseAsync(details.Entry, ct);
+            return Results.Ok(new EditResult(await DetailsAsync(library, details.Entry.EntryId, ct)));
+        });
     }
+
+    /// <summary>The longest address read: a page's is far shorter.</summary>
+    const int LongestLink = 500;
 
     /// <summary>
     /// Everything the details show: the card, its fields and their
@@ -99,6 +124,8 @@ public static class DetailsApi
         var notes = library.Get<NotesService>();
         var noted = (string.IsNullOrWhiteSpace(await notes.GetEntryNoteAsync(entryId, ct)) ? 0 : 1) + (await notes.GetPageNotesAsync(entryId, ct)).Count;
         var hasPdfs = entry.PdfMembers > 0 || packFiles.Any(f => f.IsPdf);
+        var links = library.Get<LookupLinks>();
+        var onRpgGeek = await links.GetAsync(entry, ct);
         var collections = await CollectionsApi.AllAsync(library, ct);
         var chips = (await library.Get<CollectionsService>().GetForEntryAsync(entryId, ct))
             .Select(collections.GetValueOrDefault).OfType<CollectionInfo>()
@@ -141,7 +168,10 @@ public static class DetailsApi
             // Asked before every page is read by OCR, so a long book's wait is known; only for a file with pages.
             !entry.IsElsewhere && !entry.IsPack && entry.PageCount is int pages and > 0
                 ? DetailsText.OcrEveryPageQuestion(entry.Title, pages) + " " + DetailsText.OcrEveryPageNote : null,
-            metadata.Fields.Any(f => BookRecords.Shows(f, RpgGeekCatalogue.Source)));
+            metadata.Fields.Any(f => BookRecords.Shows(f, RpgGeekCatalogue.Source)),
+            onRpgGeek is null ? null : new DetailRpgGeek(LookupLinks.Shown(onRpgGeek), onRpgGeek.Url),
+            !links.CanLink(entry) ? null : onRpgGeek is null ? LookupLinks.Offer : LookupLinks.OfferAnother,
+            LookupLinks.Hint);
     }
 
     /// <summary>What the AI found reading the book chapter by chapter; an adventure inside a file shows only its own chapters.</summary>

@@ -298,6 +298,9 @@ a{color:var(--bt-accent)}
 .bt-poweredby{display:inline-block;vertical-align:middle;width:95px;height:22px;background:var(--bt-muted);-webkit-mask:url(/brand/powered-by-bgg.png) center/contain no-repeat;mask:url(/brand/powered-by-bgg.png) center/contain no-repeat}
 .bt-poweredby:hover{background:var(--bt-text)}
 .bt-detailsbgg{display:block;margin-top:14px}
+.bt-rpggeek{margin-top:12px;font-size:11px}
+.bt-rpggeek .bt-storelink{margin-top:0}
+.bt-rpggeek>.bt-link{display:inline-flex;align-items:center;gap:4px;padding:0;margin-top:6px}
 @media(forced-colors:active){.bt-poweredby{forced-color-adjust:none;background:LinkText}}
 .bt-tagline{font-family:'Libre Caslon Display',Georgia,serif;font-style:italic;font-size:14px;color:var(--bt-text)}
 #bt-main:has(.bt-reader,.bt-binderreader)+.bt-appfoot{display:none}

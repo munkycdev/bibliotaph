@@ -33,6 +33,13 @@ public interface IBookCatalogue
         new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
 
     /// <summary>
+    /// The record <paramref name="source"/> ("RPGGeek") keeps under <paramref name="key"/>, its own id for it, for a
+    /// book the user says it is: null when this isn't that catalogue, it can't be read by its id, or it has none.
+    /// </summary>
+    /// <exception cref="CatalogueUnavailableException">The catalogue can't be asked right now.</exception>
+    Task<BookRecord?> ReadAsync(string source, string key, CancellationToken ct = default) => Task.FromResult<BookRecord?>(null);
+
+    /// <summary>
     /// Whether it's searched by name, a record then taken only when it lists one of the ISBNs or codes, as RPGGeek's is: asked
     /// after the others, with the titles their records give before the book's own.
     /// </summary>
@@ -104,6 +111,9 @@ public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : I
 
     public async Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) =>
         (await AskAsync(isbns, [], [], ct: ct)).Records is [var first, ..] ? first : null;
+
+    public Task<BookRecord?> ReadAsync(string source, string key, CancellationToken ct = default) =>
+        catalogues.FirstOrDefault(c => c.Name == source) is { } catalogue ? catalogue.ReadAsync(source, key, ct) : Task.FromResult<BookRecord?>(null);
 
     public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
         IReadOnlyList<string>? lines = null, CancellationToken ct = default)
