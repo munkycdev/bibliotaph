@@ -13,8 +13,11 @@ namespace Bibliotaph.Catalog;
 /// </summary>
 public sealed record PendingLookup(IReadOnlyList<long> Ids, IReadOnlyList<string> Hashes, EntryId EntryId, long DocumentId, BookRecord Record, DateTime CreatedUtc);
 
-/// <summary>An answer to a "Same book?" card, with what undoing it needs.</summary>
-public sealed record LookupDecision(PendingLookup Match, LookupAnswer Answer);
+/// <summary>
+/// An answer to a "Same book?" card, with what undoing it needs: <see cref="Others"/> are the rows of the catalogue's
+/// other records for the book that Same book answered too, as another book's.
+/// </summary>
+public sealed record LookupDecision(PendingLookup Match, LookupAnswer Answer, IReadOnlyList<long>? Others = null);
 
 /// <summary>
 /// What a lookup got for a file: the records it uses (their titles printed in the book, or said to be the book's), those
@@ -175,10 +178,33 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
         return hashes;
     }
 
-    /// <summary>The content hashes of the files that are the whole of a book, not an adventure inside one.</summary>
-    static Task<List<string>> WholeFilesAsync(CatalogDbContext db, EntryId entryId, CancellationToken ct) =>
-        db.EntrySources.AsNoTracking().Where(s => s.EntryId == entryId.Value && s.FirstPdfPage == null && s.Entry.MergedIntoEntryId == null)
+    /// <summary>
+    /// What a book's records are kept by: the content hashes of the files that are the whole of it, not an adventure
+    /// inside one, or for a book owned elsewhere, which has no file, the name it has on every PC (<see cref="KeyOf"/>).
+    /// </summary>
+    static async Task<List<string>> WholeFilesAsync(CatalogDbContext db, EntryId entryId, CancellationToken ct)
+    {
+        var hashes = await db.EntrySources.AsNoTracking().Where(s => s.EntryId == entryId.Value && s.FirstPdfPage == null && s.Entry.MergedIntoEntryId == null)
             .Select(s => s.Document.ContentHash).Distinct().ToListAsync(ct);
+        if (hashes.Count > 0) return hashes;
+        var elsewhere = await db.Entries.AsNoTracking().Where(e => e.Id == entryId.Value && e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null)
+            .Select(e => (Guid?)e.SyncId).FirstOrDefaultAsync(ct);
+        return elsewhere is { } id ? [KeyOf(id)] : [];
+    }
+
+    /// <summary>What the records of a book owned elsewhere are kept by, in a file's content hash's place: its sync id, the same on every PC.</summary>
+    public static string KeyOf(Guid syncId) => syncId.ToString("N");
+
+    /// <summary>The books owned elsewhere, each with what its records are kept by.</summary>
+    public async Task<IReadOnlyList<(EntryId EntryId, string Key)>> GetFilelessAsync(CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await FilelessAsync(db, ct);
+    }
+
+    static async Task<List<(EntryId EntryId, string Key)>> FilelessAsync(CatalogDbContext db, CancellationToken ct) =>
+        [.. (await db.Entries.AsNoTracking().Where(e => e.Kind == EntryKind.Elsewhere && e.MergedIntoEntryId == null).OrderBy(e => e.Id)
+            .Select(e => new { e.Id, e.SyncId }).ToListAsync(ct)).Select(e => (new EntryId(e.Id), KeyOf(e.SyncId)))];
 
     /// <summary>
     /// The record of <paramref name="source"/>'s the book uses, the first of its files', for its details to name and
@@ -208,6 +234,15 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
         return [.. rows.Select(r => (r.Source, r.RecordKey, r.Read))];
     }
 
+    /// <summary>The records the user said aren't the file's, each by its catalogue and its id there: not worth reading again.</summary>
+    public async Task<IReadOnlyList<(string Source, string Key)>> GetRefusedAsync(string contentHash, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var rows = await db.LookupRecords.AsNoTracking().Where(r => r.ContentHash == contentHash && r.Answer == LookupAnswer.NotThisBook)
+            .Select(r => new { r.Source, r.RecordKey }).ToListAsync(ct);
+        return [.. rows.Select(r => (r.Source, r.RecordKey))];
+    }
+
     /// <summary>
     /// The catalogues that found each of <paramref name="entryIds"/> (every entry's when null): those with a record one
     /// of its files uses, for the Library's Found online filter. An adventure inside a file is found as its file is.
@@ -225,14 +260,23 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
             .Where(r => r.RecordJson != null && r.Answer != LookupAnswer.NotThisBook && (r.Printed || r.Answer == LookupAnswer.SameBook));
         var found = await sources.Join(used, s => s.Document.ContentHash, r => r.ContentHash, (s, r) => new { s.EntryId, r.Source })
             .Distinct().ToListAsync(ct);
-        return [.. found.Select(f => (new EntryId(f.EntryId), f.Source))];
+        List<(EntryId, string)> all = [.. found.Select(f => (new EntryId(f.EntryId), f.Source))];
+        // A book owned elsewhere is found as a file is, by the records kept under its own name.
+        var fileless = (await FilelessAsync(db, ct)).Where(f => entryIds is null || entryIds.Contains(f.EntryId)).ToList();
+        if (fileless.Count > 0)
+        {
+            var keys = fileless.Select(f => f.Key).ToList();
+            var theirs = await used.Where(r => keys.Contains(r.ContentHash)).Select(r => new { r.ContentHash, r.Source }).Distinct().ToListAsync(ct);
+            all.AddRange(theirs.Select(r => (fileless.First(f => f.Key == r.ContentHash).EntryId, r.Source)));
+        }
+        return all;
     }
 
     /// <summary>
-    /// The titles of the records the files with these content hashes use, printed in them or answered Same book: what
-    /// a catalogue calls the books beside one, whose line it may name ("Line: Book 2").
+    /// The records the files with these content hashes use, printed in them or answered Same book: what a catalogue
+    /// calls the books beside one, whose line it may name ("Line: Book 2"), and the games it files them under.
     /// </summary>
-    public async Task<IReadOnlyList<string>> GetUsedTitlesAsync(IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
+    public async Task<IReadOnlyList<BookRecord>> GetUsedAsync(IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
     {
         if (contentHashes.Count == 0) return [];
         await using var db = await contexts.CreateDbContextAsync(ct);
@@ -240,7 +284,7 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
         var json = await db.LookupRecords.AsNoTracking()
             .Where(r => hashes.Contains(r.ContentHash) && r.RecordJson != null && r.Answer != LookupAnswer.NotThisBook && (r.Printed || r.Answer == LookupAnswer.SameBook))
             .OrderBy(r => r.Id).Select(r => r.RecordJson).ToListAsync(ct);
-        return [.. json.Select(Read).OfType<BookRecord>().Select(r => r.Title).Distinct(StringComparer.Ordinal)];
+        return [.. json.Select(Read).OfType<BookRecord>()];
     }
 
     async Task<(List<MetadataProposal> Proposals, bool Grew)> TermProposalsAsync(List<BookRecord> records, CancellationToken ct)
@@ -281,6 +325,8 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
                 .Where(s => s.FirstPdfPage == null && s.Entry.MergedIntoEntryId == null && chunk.Contains(s.Document.ContentHash))
                 .Select(s => new { s.Document.ContentHash, s.DocumentId, s.EntryId }).ToListAsync(ct))
                 files[file.ContentHash] = (file.DocumentId, file.EntryId);
+        // A book owned elsewhere has no file to open: its card shows the record alone.
+        foreach (var (entryId, key) in await FilelessAsync(db, ct)) files.TryAdd(key, (0, entryId.Value));
         return [.. rows.Where(r => files.ContainsKey(r.ContentHash))
             .GroupBy(r => (files[r.ContentHash].EntryId, r.Source, r.RecordKey))
             .Select(g => (Rows: g.ToList(), Record: Read(g.First().RecordJson)))
@@ -290,8 +336,10 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
     }
 
     /// <summary>
-    /// Answers a card, for each of the book's files the record came for. Returns what undoes it, or null when the card
-    /// isn't waiting any more. The caller applies the files' records again (<see cref="ApplyAsync"/>).
+    /// Answers a card, for each of the book's files the record came for. Same book also says the catalogue's other
+    /// records still waiting for those files are another book's, as when Needs review asks which of two or three items
+    /// a book is. Returns what undoes it, or null when the card isn't waiting any more. The caller applies the files'
+    /// records again (<see cref="ApplyAsync"/>).
     /// </summary>
     public async Task<LookupDecision?> AnswerAsync(PendingLookup match, LookupAnswer answer, CancellationToken ct = default)
     {
@@ -299,15 +347,25 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
         var rows = await db.LookupRecords.Where(r => match.Ids.Contains(r.Id) && r.Answer == null).ToListAsync(ct);
         if (rows.Count == 0) return null;
         foreach (var row in rows) row.Answer = answer;
+        List<LookupRecord> others = [];
+        if (answer == LookupAnswer.SameBook)
+        {
+            var hashes = rows.Select(r => r.ContentHash).ToList();
+            others = await db.LookupRecords
+                .Where(r => hashes.Contains(r.ContentHash) && r.Source == match.Record.Source && r.RecordKey != match.Record.Key && r.Answer == null && !r.Printed)
+                .ToListAsync(ct);
+            foreach (var other in others) other.Answer = LookupAnswer.NotThisBook;
+        }
         await db.SaveChangesAsync(ct);
-        return new LookupDecision(match with { Ids = [.. rows.Select(r => r.Id)], Hashes = [.. rows.Select(r => r.ContentHash)] }, answer);
+        return new LookupDecision(match with { Ids = [.. rows.Select(r => r.Id)], Hashes = [.. rows.Select(r => r.ContentHash)] }, answer, [.. others.Select(r => r.Id)]);
     }
 
-    /// <summary>Undoes an answer: the card waits again.</summary>
+    /// <summary>Undoes an answer: the card waits again, and so do the cards it answered with it.</summary>
     public async Task UndoAsync(LookupDecision decision, CancellationToken ct = default)
     {
         await using var db = await contexts.CreateDbContextAsync(ct);
-        await db.LookupRecords.Where(r => decision.Match.Ids.Contains(r.Id)).ExecuteUpdateAsync(s => s.SetProperty(r => r.Answer, (LookupAnswer?)null), ct);
+        List<long> ids = [.. decision.Match.Ids, .. decision.Others ?? []];
+        await db.LookupRecords.Where(r => ids.Contains(r.Id)).ExecuteUpdateAsync(s => s.SetProperty(r => r.Answer, (LookupAnswer?)null), ct);
     }
 
     /// <summary>
@@ -341,7 +399,8 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
                 return true;
             }
             entryId = await db.EntrySources.Where(s => s.FirstPdfPage == null && s.Entry.MergedIntoEntryId == null && s.Document.ContentHash == contentHash)
-                .Select(s => (long?)s.EntryId).FirstOrDefaultAsync(ct);
+                .Select(s => (long?)s.EntryId).FirstOrDefaultAsync(ct)
+                ?? (await FilelessAsync(db, ct)).Where(f => f.Key == contentHash).Select(f => (long?)f.EntryId.Value).FirstOrDefault();
         }
         if (entryId is { } id) await ApplyAsync(new EntryId(id), contentHash, ct);
         return true;

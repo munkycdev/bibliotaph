@@ -150,6 +150,20 @@
                     }
                 </div>
             }
+            @if (Book.Lookup is { Count: > 0 } lookup)
+            {
+                @* What the last online lookup searched for and what came of it. *@
+                <div class="bt-lookup" aria-label="@Book.LookupHeading">
+                    <strong>@Book.LookupHeading</strong>
+                    <dl>
+                        @foreach (var line in lookup)
+                        {
+                            <dt>@line.Label</dt>
+                            <dd>@line.Value</dd>
+                        }
+                    </dl>
+                </div>
+            }
             @if (Book.FromRpgGeek)
             {
                 @* BoardGameGeek's terms ask for its logo where its data is shown. *@

@@ -62,6 +62,10 @@
                 </div>
                 <div class="bt-actions">
                     <button class="bt-button primary" disabled="@_saving" @onclick="() => RunAgainAsync(asking, asked: true)">@asking.Confirm</button>
+                    @if (asking.Narrower is { } narrower)
+                    {
+                        <button class="bt-button" disabled="@_saving" title="@narrower.Hint" @onclick="() => RunAgainAsync(narrower, asked: true)">@narrower.Confirm</button>
+                    }
                     <button class="bt-button" @onclick="() => _asking = null">Cancel</button>
                 </div>
             </div>

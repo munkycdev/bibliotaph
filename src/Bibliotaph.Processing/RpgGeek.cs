@@ -78,43 +78,111 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
     public Task<BookRecord?> FindAsync(IReadOnlyList<string> isbns, CancellationToken ct = default) => Task.FromResult<BookRecord?>(null);
 
     public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        IReadOnlyList<string>? lines = null, CancellationToken ct = default)
+        IReadOnlyList<string>? lines = null, IReadOnlyList<string>? families = null, CancellationToken ct = default)
     {
-        if (isbns.Count == 0 && codes.Count == 0) return await AskByTitleAsync(titles, ct);
-        var searches = BookRecords.Searches(titles, MostSearches).Concat(BookRecords.Searches(lines ?? [], MostLineSearches));
+        if ((isbns.Count > 0 || codes.Count > 0) && await AskByIdentifierAsync(isbns, titles, codes, lines ?? [], ct) is { } listed)
+            return new CatalogueAnswer([listed], Name);
+        // Few of RPGGeek's versions list an ISBN, so a book whose ISBN it doesn't know is searched for as one printing none is.
+        if (await AskByTitleAsync(titles, ct) is { } named) return new CatalogueAnswer([named], Name);
+        return new CatalogueAnswer([], Name, await CandidatesAsync(titles, lines ?? [], families ?? [], ct));
+    }
+
+    /// <summary>The first item a search by title or line finds one of whose versions lists an ISBN or code the book prints.</summary>
+    async Task<BookRecord?> AskByIdentifierAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
+        IReadOnlyList<string> lines, CancellationToken ct)
+    {
+        var searches = BookRecords.Searches(titles, MostSearches).Concat(BookRecords.Searches(lines, MostLineSearches));
         var reads = 0;
         foreach (var search in BookRecords.Searches(searches, MostSearches + MostLineSearches))
         {
-            var query = Uri.EscapeDataString(search).Replace("%20", "+", StringComparison.Ordinal);
             // Read in the same batches whichever book asks, so a line's items, once read, are kept for the next.
-            foreach (var batch in Candidates(Parse(await GetAsync($"xmlapi2/search?query={query}&type=rpgitem", ct)), search).Chunk(MostItems))
+            foreach (var batch in Candidates(Parse(await GetAsync(SearchFor(search), ct)), search).Chunk(MostItems))
             {
-                if (reads++ == MostReads) return new CatalogueAnswer([], Name);
+                if (reads++ == MostReads) return null;
                 if (Read(Parse(await GetAsync($"xmlapi2/thing?id={string.Join(',', batch)}&type=rpgitem&versions=1", ct)), isbns, codes) is { } record)
-                    return new CatalogueAnswer([record], Name);
+                    return record;
             }
         }
-        return new CatalogueAnswer([], Name);
+        return null;
     }
 
+    static string SearchFor(string search) =>
+        $"xmlapi2/search?query={Uri.EscapeDataString(search).Replace("%20", "+", StringComparison.Ordinal)}&type=rpgitem";
+
     /// <summary>
-    /// For a book printing no ISBN or product code, the one item a search names exactly as one of its titles, or else
-    /// the one whose name after its line's ("Line: Game Master's Screen") is the title, as a record found by title alone
-    /// (its <see cref="BookRecord.Isbn"/> empty): two items of the name, as lines' screens often are, and it's neither.
-    /// Never by a line: a line names many books. Look up then uses it only when the book prints the whole name and its
-    /// designers or publisher too.
+    /// The one item a search names exactly as one of the book's titles, or else the one whose name after its line's
+    /// ("Line: Game Master's Screen") is the title, as a record found by title alone (its <see cref="BookRecord.Isbn"/>
+    /// empty). Never by a line: a line names many books. Look up then uses it only when the book prints the whole name
+    /// and its designers or publisher too.
     /// </summary>
-    async Task<CatalogueAnswer> AskByTitleAsync(IReadOnlyList<string> titles, CancellationToken ct)
+    async Task<BookRecord?> AskByTitleAsync(IReadOnlyList<string> titles, CancellationToken ct)
     {
         foreach (var search in BookRecords.Searches(titles, MostSearches))
         {
-            var query = Uri.EscapeDataString(search).Replace("%20", "+", StringComparison.Ordinal);
-            if (Named(Parse(await GetAsync($"xmlapi2/search?query={query}&type=rpgitem", ct)), search) is not { } id) continue;
+            if (Named(Parse(await GetAsync(SearchFor(search), ct)), search) is not [var id]) continue;
             var item = Parse(await GetAsync($"xmlapi2/thing?id={id}&type=rpgitem&versions=1", ct)).Root?.Elements("item")
                 .FirstOrDefault(i => (string?)i.Attribute("id") == id);
-            if (item is not null && Record(item, null, "") is { } record) return new CatalogueAnswer([record], Name);
+            if (item is not null && Record(item, null, "") is { } record) return record;
         }
-        return new CatalogueAnswer([], Name);
+        return null;
+    }
+
+    /// <summary>The most items given back to be checked against what a book prints.</summary>
+    public const int MostCandidates = 300;
+
+    /// <summary>The most members of a game read from its listing: the largest have thousands.</summary>
+    const int MostMembers = 5000;
+
+    /// <summary>Games whose members are listed for one book: those most of the books beside it belong to.</summary>
+    const int MostFamilies = 2;
+
+    /// <summary>
+    /// What its searches found that may be a book no item was taken for, by name only, for Look up to check against
+    /// what the book prints, which never leaves the user's library: the items several of which are named exactly as one
+    /// of its titles, as lines' screens are; the members of the games the books beside it belong to
+    /// (<paramref name="families"/>), which a search by name can't list since a game's books needn't hold its name; and
+    /// the items named for its lines. Those sharing most words with the book's titles come first, so the likeliest stay
+    /// when a line has more than are given back.
+    /// </summary>
+    async Task<IReadOnlyList<CatalogueItem>> CandidatesAsync(IReadOnlyList<string> titles, IReadOnlyList<string> lines, IReadOnlyList<string> families,
+        CancellationToken ct)
+    {
+        var found = new List<CatalogueItem>();
+        foreach (var search in BookRecords.Searches(titles, MostSearches))
+        {
+            var answer = Parse(await GetAsync(SearchFor(search), ct));
+            var named = Named(answer, search);
+            if (named.Count > 1) found.AddRange(Items(answer).Where(i => named.Contains(i.Key)));
+        }
+        foreach (var family in families.Where(f => f.Length is > 0 and <= MostDigits && f.All(char.IsAsciiDigit)).Distinct().Take(MostFamilies))
+            found.AddRange(Members(await GetOptionalAsync($"xmlapi2/family?id={family}&type=rpg", ct)));
+        foreach (var line in BookRecords.Searches(lines, MostLineSearches))
+            found.AddRange(Items(Parse(await GetAsync(SearchFor(line), ct))));
+
+        var words = titles.SelectMany(t => BookRecords.Simplify(t).Split(' ')).Where(w => w.Length >= 4).ToHashSet(StringComparer.Ordinal);
+        return [.. found.DistinctBy(i => i.Key)
+            .Select((item, at) => (item, at, Shared: BookRecords.Simplify(item.Name).Split(' ').Count(words.Contains)))
+            .OrderByDescending(i => i.Shared).ThenBy(i => i.at).Take(MostCandidates).Select(i => i.item)];
+    }
+
+    /// <summary>The items a search found, each by its primary name.</summary>
+    static IEnumerable<CatalogueItem> Items(XDocument search) =>
+        (search.Root?.Elements("item") ?? []).Select(item => (Id: (string?)item.Attribute("id"), Name: PrimaryName(item)))
+            .Where(i => i.Id is { Length: > 0 } && i.Id.All(char.IsAsciiDigit) && i.Name is not null)
+            .Select(i => new CatalogueItem(Source, i.Id!, i.Name!));
+
+    /// <summary>
+    /// The items a game's listing links to it: the links that come in from its items, or every link to an item where
+    /// the listing doesn't say which way they run. Nothing from an answer that isn't a listing.
+    /// </summary>
+    internal static IEnumerable<CatalogueItem> Members(XDocument? family)
+    {
+        var links = family?.Root?.Elements("item").Elements("link")
+            .Where(l => (string?)l.Attribute("id") is { Length: > 0 } id && id.All(char.IsAsciiDigit) && !string.IsNullOrWhiteSpace((string?)l.Attribute("value")))
+            .ToList() ?? [];
+        var inbound = links.Where(l => (string?)l.Attribute("inbound") == "true").ToList();
+        return (inbound.Count > 0 ? inbound : links.Where(l => (string?)l.Attribute("type") is "rpg" or "rpgitem")).Take(MostMembers)
+            .Select(l => new CatalogueItem(Source, (string)l.Attribute("id")!, ((string)l.Attribute("value")!).Trim()));
     }
 
     /// <summary>
@@ -172,17 +240,20 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
     /// <summary>An item's page, for the details to link to.</summary>
     public static string PageOf(string key) => $"https://rpggeek.com/rpgitem/{key}";
 
-    /// <summary>The id of the one item named as <paramref name="title"/> is, by its whole name or the part after a colon.</summary>
-    static string? Named(XDocument search, string title)
+    /// <summary>
+    /// The ids of the items named as <paramref name="title"/> is, by their whole name or else by the part after a
+    /// colon: one is the book's, and several are asked about.
+    /// </summary>
+    static List<string> Named(XDocument search, string title)
     {
         var wanted = BookRecords.Simplify(title);
         var items = search.Root?.Elements("item")
             .Select(item => (Id: (string?)item.Attribute("id"), Names: item.Elements("name").Select(n => (string?)n.Attribute("value") ?? "").ToList()))
             .Where(i => i.Id is { Length: > 0 } && i.Id.All(char.IsAsciiDigit))
             .ToList() ?? [];
-        string? One(Func<string, bool> named) => items.Where(i => i.Names.Any(named)).Select(i => i.Id).Distinct().ToList() is [var only] ? only : null;
-        return One(n => BookRecords.Simplify(n) == wanted)
-            ?? One(n => n.Contains(':', StringComparison.Ordinal) && BookRecords.Simplify(n[(n.LastIndexOf(':') + 1)..]) == wanted);
+        List<string> All(Func<string, bool> named) => [.. items.Where(i => i.Names.Any(named)).Select(i => i.Id!).Distinct()];
+        return All(n => BookRecords.Simplify(n) == wanted) is { Count: > 0 } whole ? whole
+            : All(n => n.Contains(':', StringComparison.Ordinal) && BookRecords.Simplify(n[(n.LastIndexOf(':') + 1)..]) == wanted);
     }
 
     /// <summary>
@@ -257,9 +328,11 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
     {
         if (PrimaryName(item) is not { } title || (string?)item.Attribute("id") is not { Length: > 0 } id) return null;
         var publishers = version is null ? [] : Links(version, "rpgpublisher");
+        List<string> games = [.. item.Elements("link").Where(l => (string?)l.Attribute("type") == "rpg").Select(l => (string?)l.Attribute("id"))
+            .OfType<string>().Where(g => g.Length is > 0 and <= MostDigits && g.All(char.IsAsciiDigit)).Distinct()];
         return new BookRecord(Source, id, found, title, Links(item, "rpgdesigner"),
             publishers.Count > 0 ? publishers : Links(item, "rpgpublisher"), (version is null ? null : Year(version)) ?? Year(item),
-            [.. Filed.SelectMany(f => Links(item, f.Link).Select(v => new CatalogueValue(f.Field.Key, v)))]);
+            [.. Filed.SelectMany(f => Links(item, f.Link).Select(v => new CatalogueValue(f.Field.Key, v)))], Families: games.Count > 0 ? games : null);
     }
 
     static string? PrimaryName(XElement item) =>
@@ -289,8 +362,25 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
         }
     }
 
+    /// <summary>
+    /// An answer the lookup can do without, as a game's listing is: null when RPGGeek turns the request down or its
+    /// answer can't be read, remembered as any answer is so it isn't asked for with every book. A busy or unreachable
+    /// RPGGeek still makes the book wait, as for any request.
+    /// </summary>
+    async Task<XDocument?> GetOptionalAsync(string path, CancellationToken ct)
+    {
+        try
+        {
+            return XDocument.Parse(await GetAsync(path, ct, optional: true));
+        }
+        catch (XmlException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>An answer, kept for a month: RPGGeek asks that answers be cached rather than asked for again.</summary>
-    async Task<string> GetAsync(string path, CancellationToken ct)
+    async Task<string> GetAsync(string path, CancellationToken ct, bool optional = false)
     {
         var now = _clock.GetUtcNow();
         if (_kept.TryGetValue(path, out var kept) && now - kept.Asked < KeepFor) return kept.Xml;
@@ -305,9 +395,9 @@ public sealed class RpgGeekCatalogue(HttpClient http, string token, TimeProvider
             // It throttles with 429, 500 or 503, and queues some requests with 202.
             if (response.StatusCode is HttpStatusCode.TooManyRequests or HttpStatusCode.Accepted || (int)response.StatusCode >= 500)
                 throw new CatalogueUnavailableException("RPGGeek is busy. Books will be looked up when it answers again.");
-            if (!response.IsSuccessStatusCode)
+            if (!response.IsSuccessStatusCode && !(optional && response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.NotFound))
                 throw new CatalogueUnavailableException($"RPGGeek turned the request down ({(int)response.StatusCode}). Its token may need checking.");
-            xml = await response.Content.ReadAsStringAsync(ct);
+            xml = response.IsSuccessStatusCode ? await response.Content.ReadAsStringAsync(ct) : "";
         }
         catch (Exception ex) when (ex is HttpRequestException || (ex is TaskCanceledException && !ct.IsCancellationRequested))
         {

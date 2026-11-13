@@ -12,11 +12,31 @@ namespace Bibliotaph.Core.Metadata;
 /// writes it ("1985", "March 2019"). <paramref name="Values"/> are what the catalogue files it under, in its own words,
 /// for a catalogue that knows games (RPGGeek's systems, categories, genres, settings and series, AdventureLookup's
 /// editions, environments and levels), and who drew it and the mechanics it uses. <paramref name="Pages"/> is its page
-/// count, where the catalogue gives one, to tell a record found by title alone is this book's.
+/// count, where the catalogue gives one, to tell a record found by title alone is this book's. <paramref name="Families"/>
+/// are the catalogue's own ids of the games it belongs to (RPGGeek's), by which the books beside it can be found.
 /// </summary>
 public sealed record BookRecord(
     string Source, string Key, string Isbn, string Title, IReadOnlyList<string> Authors, IReadOnlyList<string> Publishers, string? Published,
-    IReadOnlyList<CatalogueValue>? Values = null, int? Pages = null);
+    IReadOnlyList<CatalogueValue>? Values = null, int? Pages = null, IReadOnlyList<string>? Families = null);
+
+/// <summary>
+/// Something a catalogue's search found that may be the book, by its id there and what the catalogue calls it: not a
+/// record yet, since only the book's own pages can say whether the name is its own (<see cref="BookRecords.Pick"/>).
+/// </summary>
+public sealed record CatalogueItem(string Source, string Key, string Name);
+
+/// <summary>How well a catalogue's name for an item fits a book (<see cref="BookRecords.Fit"/>).</summary>
+public enum NameFit
+{
+    /// <summary>The book doesn't print the name.</summary>
+    None,
+
+    /// <summary>The book prints the name's words, or prints the name somewhere past its cover: worth asking about.</summary>
+    Partly,
+
+    /// <summary>The book goes by the name: its title or its cover prints every part of it.</summary>
+    Named,
+}
 
 /// <summary>
 /// Something a catalogue files a book under, in its own words ("Fantasy (High Fantasy)"), by the key of the field it
@@ -47,6 +67,76 @@ public static partial class BookRecords
         if (parts.Count == 0) return false;
         var printed = $" {string.Join(" ", places.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => Simplify(p!)))} ";
         return parts.All(p => printed.Contains($" {p} ", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The parts of a catalogue's name for an item that are the book's own, each side of a colon, as compared: without
+    /// the parts that only name one of <paramref name="lines"/> ("Gull Rock Saga" in "Gull Rock Saga: Book 2. Spells"),
+    /// which every book of the line prints. None for an item named as its line is.
+    /// </summary>
+    public static IReadOnlyList<string> OwnParts(string name, IEnumerable<string> lines)
+    {
+        var known = lines.Select(Simplify).Where(l => l.Length > 0).ToHashSet(StringComparer.Ordinal);
+        return [.. name.Split(':').Select(Simplify).Where(p => p.Length > 0 && !known.Contains(p))];
+    }
+
+    /// <summary>Words that say nothing of which book a name is.</summary>
+    static readonly HashSet<string> Small = new(StringComparer.Ordinal) { "the", "of", "and", "a", "an", "to", "in", "for", "on", "at", "by", "with" };
+
+    /// <summary>
+    /// How well <paramref name="name"/>, a catalogue's for an item of one of the book's <paramref name="lines"/>, fits
+    /// the book: <see cref="NameFit.Named"/> when each of its own parts (<see cref="OwnParts"/>) is printed whole in
+    /// one of <paramref name="titles"/> (its card's, its file's) or on its <paramref name="cover"/>;
+    /// <see cref="NameFit.Partly"/> when they're printed whole only further into its <paramref name="front"/> pages,
+    /// where a book also names the others of its line, or when the titles and cover print every word of them but not
+    /// together ("SPELLS" over "BOOK 2").
+    /// </summary>
+    public static NameFit Fit(string name, IEnumerable<string> lines, IEnumerable<string?> titles, string? cover, IEnumerable<string?> front)
+    {
+        var parts = OwnParts(name, lines);
+        if (parts.Count == 0) return NameFit.None;
+        var named = $" {string.Join(" | ", titles.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => Simplify(p!)))} ";
+        // A cover's lines apart, so words from two of them don't make a name; a name of one word must be a line of its
+        // own there, since a blurb holds many a word.
+        var coverLines = (cover ?? "").Split('\n').Select(Simplify).Where(l => l.Length > 0).ToList();
+        var near = $"{named}| {string.Join(" | ", coverLines)} ";
+        bool OnCover(string part) => part.Contains(' ', StringComparison.Ordinal) ? coverLines.Any(l => $" {l} ".Contains($" {part} ", StringComparison.Ordinal)) : coverLines.Contains(part);
+        if (parts.All(p => named.Contains($" {p} ", StringComparison.Ordinal) || OnCover(p))) return NameFit.Named;
+        var far = $" {string.Join(" | ", front.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => Simplify(p!)))} ";
+        var words = parts.SelectMany(p => p.Split(' ')).Where(w => !Small.Contains(w)).Distinct(StringComparer.Ordinal).ToList();
+        // One word is too little to go on past the cover: "Bestiary" is in many a book's contents.
+        if (words.Count < 2 || !words.Any(w => w.Length >= MinNameLength && w.Any(char.IsLetter))) return NameFit.None;
+        if (parts.All(p => far.Contains($" {p} ", StringComparison.Ordinal))) return NameFit.Partly;
+        var printed = near.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToHashSet(StringComparer.Ordinal);
+        return words.All(printed.Contains) ? NameFit.Partly : NameFit.None;
+    }
+
+    /// <summary>The most items asked about for one book: more than that fit and the name says too little to ask.</summary>
+    public const int MostAsked = 3;
+
+    /// <summary>
+    /// Which of <paramref name="items"/>, what a catalogue's searches of the book's lines found, are worth reading as
+    /// its record. <c>Sure</c> is the one item the book goes by the name of; <c>Ask</c>, with none, are the two or
+    /// three it might be, for Needs review to ask about: several it goes by the name of, or else those it prints only
+    /// in part. An item whose own name is held whole in a longer one's that fits as well gives way to it ("Bestiary"
+    /// to "Bestiary 2"). More than <see cref="MostAsked"/> and none is asked about.
+    /// </summary>
+    public static (CatalogueItem? Sure, IReadOnlyList<CatalogueItem> Ask) Pick(IEnumerable<CatalogueItem> items, IReadOnlyList<string> lines,
+        IReadOnlyList<string?> titles, string? cover, IReadOnlyList<string?> front)
+    {
+        var fits = items.DistinctBy(i => (i.Source, i.Key))
+            .Select(i => (Item: i, Fit: Fit(i.Name, lines, titles, cover, front), Own: string.Join(" ", OwnParts(i.Name, lines))))
+            .Where(i => i.Fit != NameFit.None).ToList();
+        foreach (var fit in new[] { NameFit.Named, NameFit.Partly })
+        {
+            var same = fits.Where(i => i.Fit == fit).ToList();
+            List<CatalogueItem> best = [.. same.Where(i => !same.Any(o => o.Own.Length > i.Own.Length && $" {o.Own} ".Contains($" {i.Own} ", StringComparison.Ordinal)))
+                .Select(i => i.Item)];
+            if (best.Count == 0) continue;
+            if (best.Count == 1 && fit == NameFit.Named) return (best[0], []);
+            return (null, best.Count <= MostAsked ? best : []);
+        }
+        return (null, []);
     }
 
     /// <summary>

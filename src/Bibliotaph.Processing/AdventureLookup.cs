@@ -68,7 +68,7 @@ public sealed class AdventureLookupCatalogue(HttpClient http, TimeProvider? cloc
     /// books, so <paramref name="lines"/> would give every book in a folder the same adventure.
     /// </summary>
     public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        IReadOnlyList<string>? lines = null, CancellationToken ct = default)
+        IReadOnlyList<string>? lines = null, IReadOnlyList<string>? families = null, CancellationToken ct = default)
     {
         foreach (var title in BookRecords.Searches(titles, MostSearches))
         {

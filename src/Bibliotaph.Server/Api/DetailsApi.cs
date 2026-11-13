@@ -171,7 +171,8 @@ public static class DetailsApi
             metadata.Fields.Any(f => BookRecords.Shows(f, RpgGeekCatalogue.Source)),
             onRpgGeek is null ? null : new DetailRpgGeek(LookupLinks.Shown(onRpgGeek), onRpgGeek.Url),
             !links.CanLink(entry) ? null : onRpgGeek is null ? LookupLinks.Offer : LookupLinks.OfferAnother,
-            LookupLinks.Hint);
+            LookupLinks.Hint,
+            [.. (await links.SearchedAsync(entry, ct)).Select(l => new DetailFact(l.Label, l.Value))], LookupSearch.Heading);
     }
 
     /// <summary>What the AI found reading the book chapter by chapter; an adventure inside a file shows only its own chapters.</summary>

@@ -8,6 +8,8 @@ namespace Bibliotaph.Api.Contracts;
 /// <see cref="FromRpgGeek"/> is a book some of whose details came from RPGGeek, which the details credit to BoardGameGeek.
 /// <see cref="RpgGeek"/> is the record there the book uses, and <see cref="RpgGeekOffer"/> the label of the action that
 /// gives it one by its page's address ("Look up from an RPGGeek link…"), null where it can't be given one.
+/// <see cref="Lookup"/> is what its last online lookup searched for and what came of it, under
+/// <see cref="LookupHeading"/>; none for a book not looked up.
 /// </summary>
 public sealed record BookDetails(
     BookCard Card, string Eyebrow, string Publisher, string Pages, bool CanOpen, IReadOnlyList<DetailField> Fields, IReadOnlyList<DetailPart> Parts,
@@ -16,7 +18,8 @@ public sealed record BookDetails(
     string CopiesHeading, IReadOnlyList<DetailFact> Stages, bool Reprocessing, string NotesLabel, string FirstPage, string PartFrom, string PartTo,
     string SplitPackLabel, string SplitPackTip, IReadOnlyList<CollectionChip> Collections, IReadOnlyList<DetailChapter> Chapters,
     bool CanAsk, bool HasChosenCover = false, string? OcrEveryPageQuestion = null, bool FromRpgGeek = false,
-    DetailRpgGeek? RpgGeek = null, string? RpgGeekOffer = null, string RpgGeekHint = "");
+    DetailRpgGeek? RpgGeek = null, string? RpgGeekOffer = null, string RpgGeekHint = "", IReadOnlyList<DetailFact>? Lookup = null,
+    string LookupHeading = "");
 
 /// <summary>The book's record on RPGGeek: <see cref="Text"/> says what it's called there, and <see cref="Url"/> is its page.</summary>
 public sealed record DetailRpgGeek(string Text, string Url);

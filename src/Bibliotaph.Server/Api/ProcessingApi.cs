@@ -42,7 +42,7 @@ public static class ProcessingApi
             var library = lease.Library;
             // Only a step the page offers now: the AI's steps need the server's own AI, not a PC's.
             var offers = await library.Get<RunAgainService>().OffersAsync(await library.Get<IndexQueries>().GetProgressAsync(ct), library.Get<AiSettings>().Setup.IsReady, ct);
-            if (offers.All(o => o.Step != step) || await library.Get<RunAgainService>().RunAsync(step, ct) is not { } note) return Results.NotFound();
+            if (offers.All(o => o.Step != step && o.Narrower?.Step != step) || await library.Get<RunAgainService>().RunAsync(step, ct) is not { } note) return Results.NotFound();
             return Results.Ok(new RunAgainDone(note));
         });
 

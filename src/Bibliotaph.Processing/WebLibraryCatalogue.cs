@@ -37,16 +37,17 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
         (await AskAsync(isbns, [], [], ct: ct)).Records is [var first, ..] ? first : null;
 
     public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        IReadOnlyList<string>? lines = null, CancellationToken ct = default)
+        IReadOnlyList<string>? lines = null, IReadOnlyList<string>? families = null, CancellationToken ct = default)
     {
-        if (!web.HasKey) return await direct.AskAsync(isbns, titles, codes, lines, ct);
+        if (!web.HasKey) return await direct.AskAsync(isbns, titles, codes, lines, families, ct);
         await LoadAsync(ct);
-        var answer = await web.LookUpAsync(isbns, titles, codes, lines ?? [], ct)
+        var answer = await web.LookUpAsync(isbns, titles, codes, lines ?? [], families ?? [], ct)
             ?? throw new CatalogueUnavailableException($"Waiting for {(await web.AddressAsync(ct)).Host}.");
         await LearnAsync(answer.Catalogues, ct);
         if (answer.Problem is { } problem) throw new CatalogueUnavailableException(problem);
         var records = answer.Records ?? (answer.Record is { } first ? [first] : []);
-        return new CatalogueAnswer([.. records.Select(Read)], answer.AskedOf ?? answer.Catalogues);
+        return new CatalogueAnswer([.. records.Select(Read)], answer.AskedOf ?? answer.Catalogues,
+            [.. (answer.Candidates ?? []).Select(c => new CatalogueItem(c.Source, c.Key, c.Name))]);
     }
 
     /// <summary>
@@ -65,7 +66,7 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
     }
 
     static BookRecord Read(PcBookRecord r) => new(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
-        r.Values?.Select(v => new CatalogueValue(v.Field, v.Value)).ToList(), r.Pages);
+        r.Values?.Select(v => new CatalogueValue(v.Field, v.Value)).ToList(), r.Pages, r.Families);
 
     async Task LoadAsync(CancellationToken ct)
     {

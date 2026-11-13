@@ -24,12 +24,13 @@ public sealed record QueueSummary(long Pending, long Failed)
 /// being read. Reading whole books chapter by chapter is counted apart too (<see cref="ToScanWhole"/>,
 /// <see cref="ScannedWhole"/>): it comes after everything else and never holds up a book. Looking books up online is
 /// counted apart as well (<see cref="ToLookUp"/>, <see cref="LookedUp"/>): it is optional too, and waits for as long as
-/// it is switched off.
+/// it is switched off. <see cref="NotFoundOnline"/> are those of them no catalogue's record is used for, though there
+/// was something to look up: the ones worth looking up again.
 /// </summary>
 public sealed record IndexProgress(
     long Documents, long Searchable, long Processing, long NeedAttention, long PagesAwaitingOcr, long Indexing, long Queued = 0, long OcrPagesDone = 0,
     long ToClassify = 0, long Classified = 0, long ClassifyFailed = 0, long Withheld = 0, long ToScanWhole = 0, long ScannedWhole = 0,
-    long ToLookUp = 0, long LookedUp = 0)
+    long ToLookUp = 0, long LookedUp = 0, long NotFoundOnline = 0)
 {
     /// <summary>Queued documents with no text, cover or other index-lane stage left to run.</summary>
     public long Indexed => Math.Max(0, Queued - Indexing);
@@ -97,8 +98,10 @@ public sealed class IndexQueries(IndexDatabase database)
                 (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Pending', 'Running')) AS ToScanWhole,
                 (SELECT count(*) FROM stage_status WHERE stage = 'ChapterScan' AND status IN ('Complete', 'Partial')) AS ScannedWhole,
                 (SELECT count(*) FROM stage_status WHERE stage = 'LookUp' AND status IN ('Pending', 'Running')) AS ToLookUp,
-                (SELECT count(*) FROM stage_status WHERE stage = 'LookUp' AND status IN ('Complete', 'Partial', 'Skipped')) AS LookedUp
-            """, new { locked = TextAccessReasons.Locked, @protected = TextAccessReasons.Protected, protectedEbook = TextAccessReasons.ProtectedEbook, forgotten = TextAccessReasons.Forgotten },
+                (SELECT count(*) FROM stage_status WHERE stage = 'LookUp' AND status IN ('Complete', 'Partial', 'Skipped')) AS LookedUp,
+                (SELECT count(*) FROM stage_status WHERE stage = 'LookUp' AND status = 'Skipped'
+                    AND coalesce(reason, '') NOT IN (@nothingToFind, @notABook)) AS NotFoundOnline
+            """, new { nothingToFind = LookupReasons.NothingAtAll, notABook = LookupReasons.NotABook, locked = TextAccessReasons.Locked, @protected = TextAccessReasons.Protected, protectedEbook = TextAccessReasons.ProtectedEbook, forgotten = TextAccessReasons.Forgotten },
             cancellationToken: ct));
     }
 
@@ -550,6 +553,14 @@ public sealed class IndexQueries(IndexDatabase database)
             WHERE e.document_id = @documentId AND e.kind = 'Whole' AND m.title IS NOT NULL
             ORDER BY e.entry_id LIMIT 1
             """, new { documentId }, cancellationToken: ct));
+    }
+
+    /// <summary>What a document's last lookup searched for, as the JSON it kept, or null before it has one.</summary>
+    public async Task<string?> GetLookupSearchAsync(long documentId, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return await connection.ExecuteScalarAsync<string?>(new CommandDefinition(
+            "SELECT searched FROM lookup_search WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
     }
 
     /// <summary>The content hashes of the other documents in the same folders as this one, the first <paramref name="most"/> read.</summary>

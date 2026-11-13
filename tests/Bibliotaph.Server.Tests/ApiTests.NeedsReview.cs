@@ -316,6 +316,77 @@ public abstract partial class ApiTests
         }
 
         [Fact]
+        public async Task A_book_found_by_name_takes_the_item_it_prints_and_only_the_books_not_found_are_looked_up_again()
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var user = await AddUserAsync(admin: false);
+            var connections = _factory.Services.GetRequiredService<StorageConnections>();
+            var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+            _graph.Add("RPG/known.pdf", await File.ReadAllBytesAsync(_pdfs.KnownText, ct));
+            _graph.Add("RPG/crown.pdf", await File.ReadAllBytesAsync(_pdfs.ChapterBook, ct));
+            _catalogue.Name = "RPGGeek or Open Library";
+            _catalogue.FindsByTitleAlone = true;
+            // The searches by name find two items: one is named as the second book's cover names it, by the author it prints;
+            // the other is no book here.
+            _catalogue.Candidates = [new("RPGGeek", "7311", SyntheticPdfs.ChapterBookTitle), new("RPGGeek", "7312", "Gull Rock Saga: Book 9. Tides")];
+            _catalogue.Items[("RPGGeek", "7311")] = new BookRecord("RPGGeek", "7311", "", SyntheticPdfs.ChapterBookTitle, ["Ana Ruiz"], ["Gull Rock Games"], "2021");
+            var client = Client(user);
+            client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+            using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+            var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
+            Task<BookDetails[]> LookedUpAsync() => WaitAsync(async () =>
+            {
+                var all = new List<BookDetails>();
+                foreach (var book in books) all.Add((await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{book.EntryId}", ct))!);
+                // The record shows once the book is filled in from it, a moment after the search is written down.
+                return all.All(d => d.Lookup is { Count: > 0 }) && all.Any(d => d.RpgGeek is not null) ? all.ToArray() : null;
+            }, ct);
+            var details = await LookedUpAsync();
+            var found = details.Single(d => d.RpgGeek is not null);
+            var missed = details.Single(d => d.RpgGeek is null);
+            var offer = await WaitAsync(async () =>
+                (await client.GetFromJsonAsync<ProcessingState>("/api/processing", ct))!.RunAgain?.SingleOrDefault(o => o.Step == "lookup") is { Narrower: not null } o ? o : null, ct);
+
+            var asked = _catalogue.Titles.Count;
+            using var again = await client.PostAsync("/api/processing/run-again/lookup-missed", null, ct);
+            var note = (await again.Content.ReadFromJsonAsync<RunAgainDone>(ct))!;
+            await WaitAsync(() => Task.FromResult(_catalogue.Titles.Count > asked ? "asked" : null), ct);
+
+            Assert.Equal(LookupSearch.Heading, found.LookupHeading);
+            Assert.Contains(found.Lookup!, f => f.Label == "Found by name" && f.Value.StartsWith("2 items", StringComparison.Ordinal));
+            Assert.Contains(found.Lookup!, f => f.Label == "Uses" && f.Value.Contains(SyntheticPdfs.ChapterBookTitle, StringComparison.Ordinal));
+            Assert.Equal(("Gull Rock Games", true), (found.Publisher, found.FromRpgGeek));
+            Assert.Contains(missed.Lookup!, f => f.Label == "Result" && f.Value == BookLookups.NotFoundOnline);
+            Assert.Equal(("lookup-missed", "Only the 1 not found"), (offer.Narrower!.Step, offer.Narrower.Confirm));
+            Assert.Equal("1 book not found online goes back to be looked up, in the background.", note.Note);
+            // The book already found isn't asked about again.
+            Assert.DoesNotContain(SyntheticPdfs.ChapterBookTitle, _catalogue.Titles.Skip(asked));
+        }
+
+        [Fact]
+        public async Task A_book_owned_elsewhere_is_looked_up_by_its_title_and_takes_the_record_of_its_publisher()
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var user = await AddUserAsync(admin: false);
+            _catalogue.Name = "RPGGeek or Open Library";
+            _catalogue.FindsByTitleAlone = true;
+            _catalogue.Record = new BookRecord("RPGGeek", "7320", "", "Tomb of the Test", ["Ada Quill"], ["Example Press"], "2019");
+            var client = Client(user);
+            client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+
+            // It has no file, so nothing reads it: its title is all there is to search by, and its publisher to check by.
+            using var add = await client.PostAsJsonAsync("/api/library/elsewhere", new ElsewhereAdd("Tomb of the Test", "", "", "Example Press", [], "", null), ct);
+            var entryId = (await add.Content.ReadFromJsonAsync<ElsewhereAdded>(ct))!.EntryId!.Value;
+            var found = await WaitAsync(async () =>
+                await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{entryId}", ct) is { RpgGeek: not null } details ? details : null, ct);
+            var card = (await client.GetFromJsonAsync<LibraryResults>("/api/library?found=RPGGeek", ct))!.Books.Single();
+
+            Assert.Contains("Tomb of the Test", _catalogue.Titles);
+            Assert.Equal(new DetailRpgGeek("On RPGGeek as Tomb of the Test", "https://rpggeek.com/rpgitem/7320"), found.RpgGeek);
+            Assert.Equal(entryId, card.EntryId);
+        }
+
+        [Fact]
         public async Task Needs_review_asks_whether_a_record_whose_title_isnt_printed_is_the_books_and_same_book_fills_it_in_as_the_catalogues()
         {
             var ct = TestContext.Current.CancellationToken;

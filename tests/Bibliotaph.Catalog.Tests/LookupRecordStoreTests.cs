@@ -291,6 +291,69 @@ public sealed class LookupRecordStoreTests : IAsyncLifetime
         Assert.Single(await store.GetPendingAsync(Ct));
     }
 
+    static readonly BookRecord Sailors = new("RPGGeek", "7309", "", "Gull Rock Saga: Book 1. Sailors", ["Ada Quill"], ["Gull Rock Games"], "2020", Families: ["55"]);
+
+    [Fact]
+    public async Task Same_book_for_one_of_several_records_says_the_catalogues_others_are_another_books_until_it_is_undone()
+    {
+        var book = await TestEntries.AddAsync(_first, 'a');
+        var store = Store(_first);
+        await store.SaveAsync(Hash('a'), [Given, Sailors, Other], _ => false, Ct);
+        var cards = await store.GetPendingAsync(Ct);
+
+        var decision = await store.AnswerAsync(cards.Single(c => c.Record.Key == Given.Key), LookupAnswer.SameBook, Ct);
+        await store.ApplyAsync(book, Hash('a'), Ct);
+        var left = await store.GetPendingAsync(Ct);
+        var refused = await store.GetRefusedAsync(Hash('a'), Ct);
+        await store.UndoAsync(decision!, Ct);
+
+        Assert.Equal(3, cards.Count);
+        // The other catalogue's record is still asked about: it may be the same book under another name.
+        Assert.Equal(Other.Key, Assert.Single(left).Record.Key);
+        Assert.Equal([("RPGGeek", Sailors.Key)], refused);
+        Assert.Equal([MetadataText.Normalize(Given.Title)], await LookedUpAsync(_first, book, "title"));
+        Assert.Equal(3, (await store.GetPendingAsync(Ct)).Count);
+        Assert.Empty(await store.GetRefusedAsync(Hash('a'), Ct));
+    }
+
+    [Fact]
+    public async Task The_records_the_books_beside_one_use_come_with_the_games_they_belong_to()
+    {
+        var store = Store(_first);
+        await store.SaveAsync(Hash('a'), [Sailors], _ => true, Ct);
+        await store.SaveAsync(Hash('b'), [Given], _ => false, Ct);
+
+        var used = await store.GetUsedAsync([Hash('a'), Hash('b'), Hash('c')], Ct);
+
+        var record = Assert.Single(used);
+        Assert.Equal((Sailors.Key, "55"), (record.Key, Assert.Single(record.Families!)));
+    }
+
+    [Fact]
+    public async Task A_book_owned_elsewhere_keeps_records_under_its_own_name_as_a_file_does_under_its_contents()
+    {
+        var contexts = new Factory(_first);
+        var printed = await new EntryStore(contexts).AddElsewhereAsync(Ct);
+        var store = Store(_first);
+        var (entryId, key) = Assert.Single(await store.GetFilelessAsync(Ct));
+
+        var saved = await store.SaveAsync(key, [Given, Sailors], r => r.Key == Sailors.Key, Ct);
+        await store.ApplyAsync(printed, key, Ct);
+        var card = Assert.Single(await store.GetPendingAsync(Ct));
+        var foundBy = await store.GetFoundByAsync([printed], Ct);
+        // Its page given by hand, as for a file.
+        var linked = await store.LinkAsync(printed, Given, Ct);
+
+        Assert.Equal(printed, entryId);
+        Assert.Equal(32, key.Length);
+        Assert.Equal([Sailors], saved.Used);
+        Assert.Equal((printed, 0L, Given.Key), (card.EntryId, card.DocumentId, card.Record.Key));
+        Assert.Equal([(printed, "RPGGeek")], foundBy);
+        Assert.Equal([key], linked);
+        Assert.Equal(Given.Key, (await store.GetUsedAsync(printed, "RPGGeek", Ct))!.Key);
+        Assert.Equal([MetadataText.Normalize(Sailors.Title)], await LookedUpAsync(_first, printed, "title"));
+    }
+
     static LibrarySyncStore Sync(CatalogDatabase database)
     {
         var contexts = new Factory(database);

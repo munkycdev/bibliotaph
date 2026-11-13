@@ -66,7 +66,7 @@ public sealed record OnlineImportResult(int Added, int Changed, ImportReceipt Un
 /// </summary>
 public sealed class OnlineImports(MetadataStore store, MetadataService metadata, EntryStore entries,
     MetadataProjector projector, IndexQueries queries, IImageCodec images, CoverCache covers, TimeProvider? clock = null,
-    ILogger<OnlineImports>? log = null, LostCovers? lost = null)
+    ILogger<OnlineImports>? log = null, LostCovers? lost = null, ElsewhereLookups? lookups = null)
 {
     readonly TimeProvider _clock = clock ?? TimeProvider.System;
     readonly ILogger _log = log ?? NullLogger<OnlineImports>.Instance;
@@ -231,6 +231,8 @@ public sealed class OnlineImports(MetadataStore store, MetadataService metadata,
         }
 
         if (addedTerms) await projector.ProjectVocabularyAsync(ct);
+        // The new books have no file for Look up to come to, so they're looked up by their titles from here.
+        if (receipt.Added.Count > 0) lookups?.Start();
         // A cover the page's own pictures didn't give comes from its address.
         if (lost is not null && addresses.Count > 0)
         {

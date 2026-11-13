@@ -130,9 +130,43 @@ Nothing the book prints has to match, since you said which book it is. From then
   the record and its suggestions away, whether you gave the record or a lookup found it, and **Use another RPGGeek
   link…** replaces it.
 
-It's offered for a book with a file of its own (not a pack, an adventure inside a file or a book you own elsewhere),
+It's offered for a book with a file of its own or one you own elsewhere (not a pack or an adventure inside a file),
 on the web and on a PC connected to its web library, since RPGGeek is asked through bibliotaph.online. Only the
 number in the address is sent.
+
+### Books a search by title misses
+
+RPGGeek often names a book after its line ("Gull Rock Saga: Book 2. Spells") and lists no ISBN for it, so a search
+for the title a file gives finds nothing. Bibliotaph tries these too, wherever RPGGeek is asked:
+
+- **Inside the line.** When no item is named as the book is, RPGGeek's items for the book's line come back by name
+  only, and Bibliotaph checks them on your side against what the book prints: its text never leaves your library. The
+  one item whose own part of the name ("Book 2. Spells") is in the book's title or on its cover is taken, and then
+  has to agree on a designer or the publisher like any record found by title. A name of one word has to be a line of
+  the cover by itself.
+- **By title when the ISBN isn't listed.** A book whose ISBN or product code RPGGeek doesn't know is searched for as
+  a book printing none is, with the same checks.
+- **From the books beside it.** Once one book in a folder has an RPGGeek record, found or
+  [given by its page](#look-up-from-an-rpggeek-link), the other books in the folder are also checked against the
+  rest of that record's game on RPGGeek, whose books needn't hold the line's name at all.
+- **Asking instead of dropping.** When two or three items might be the book (two lines' *Game Master's Screen*, or a
+  name the cover prints only in pieces), each gets a **Same book?** card in Needs review. **Same book** on one
+  settles the others from that catalogue as not this book; Undo brings them back. More than three and none is asked
+  about.
+
+A book's details show what its last lookup did, under **Online lookup** at the end of **Details**: the ISBN, product
+code or titles it was looked up by, the lines searched, where it was asked, how many items were found by name, and
+which record it uses or Needs review asks about.
+
+Some files aren't books at all. A file printing no ISBN or product code isn't looked up when its **Type** is only
+Map pack or Handout, or, with no type yet, when it has a page or two or its name says what it is ("character
+sheet", "battle map", "handout", "pregens", "tokens"). Its details say **It looks like a map, a sheet or a handout
+rather than a book, so it isn't looked up**, it doesn't count as not found, and it's looked at again when its title
+or the catalogues change. Give it a book's type and it's looked up the next time the app starts.
+
+To try the lookup again without touching the books already found, click the button at the end of **Looking up
+online** in **Settings > Processing** and choose **Only the N not found**. On Windows the question's **Yes** is only
+those and **No** is every book.
 
 ### Cataloged wrong
 
@@ -303,6 +337,11 @@ data and reach your other PCs and the web library with the rest of your library.
 
 Books you own on D&D Beyond or Demiplane, or bought from Humble Bundle or DriveThruRPG, can be imported all at once
 with **Import from an online library…** on the same **Add** menu. See [Online libraries](online-libraries.md).
+
+A book you own elsewhere is looked up online too, by its title, on RPGGeek and AdventureLookup, wherever they're
+asked: after an import, when the app starts, and when you look books up again. With no pages to check, a record is
+used when it has the book's title and its publisher; one with only the title gets a **Same book?** card. Its details
+take **Look up from an RPGGeek link…** as a file's do.
 
 ## Check a download
 

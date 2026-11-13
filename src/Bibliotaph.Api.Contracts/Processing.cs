@@ -20,9 +20,10 @@ public sealed record ProcessingState(
 /// <summary>
 /// A step of Settings › Processing that can be run again for every book: its key (<c>finding</c>, <c>lookup</c>,
 /// <c>ai</c> or <c>scan</c>), the button's tooltip, and the question asked first with its answer's label; a step that
-/// costs nothing to run again (looking through the folders) asks nothing.
+/// costs nothing to run again (looking through the folders) asks nothing. <see cref="Narrower"/> is the same step for
+/// fewer books, offered beside it when the question is asked: <c>lookup-missed</c>, only the books not found online.
 /// </summary>
-public sealed record RunAgainOffer(string Step, string Hint, string? Question = null, string? Confirm = null);
+public sealed record RunAgainOffer(string Step, string Hint, string? Question = null, string? Confirm = null, RunAgainOffer? Narrower = null);
 
 /// <summary>What running a step again did, in a line.</summary>
 public sealed record RunAgainDone(string Note);

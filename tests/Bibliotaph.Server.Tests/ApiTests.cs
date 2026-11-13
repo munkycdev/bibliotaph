@@ -145,12 +145,21 @@ public abstract partial class ApiTests : IDisposable
         }
 
         public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-            IReadOnlyList<string>? lines = null, CancellationToken ct = default)
+            IReadOnlyList<string>? lines = null, IReadOnlyList<string>? families = null, CancellationToken ct = default)
         {
             Codes.AddRange(codes);
             Lines.AddRange(lines ?? []);
-            return new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
+            Titles.AddRange(titles);
+            Families.AddRange(families ?? []);
+            return new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name, Candidates);
         }
+
+        /// <summary>What its searches found by name, for a book it has no record for.</summary>
+        public List<CatalogueItem> Candidates { get; set; } = [];
+
+        public List<string> Titles { get; } = [];
+
+        public List<string> Families { get; } = [];
 
         public Task<BookRecord?> ReadAsync(string source, string key, CancellationToken ct = default)
         {

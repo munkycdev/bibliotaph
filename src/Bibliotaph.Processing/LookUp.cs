@@ -30,7 +30,44 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     public const string NothingToLookUp = "It prints no ISBN or product code to look up.";
 
     /// <summary>Why a book with no ISBN, product code or text to find its title in isn't looked up, as an image isn't.</summary>
-    public const string NothingAtAll = "It prints no ISBN, product code or title to look up.";
+    public const string NothingAtAll = LookupReasons.NothingAtAll;
+
+    /// <summary>Why a map, a character sheet or a handout printing no ISBN or code isn't looked up: no catalogue of books lists it.</summary>
+    public const string NotABook = LookupReasons.NotABook;
+
+    /// <summary>The types that say a file isn't a book.</summary>
+    static readonly HashSet<string> LooseTypes = new(StringComparer.Ordinal) { "map-pack", "handout" };
+
+    /// <summary>What a file's name calls something that isn't a book, as compared (<see cref="BookRecords.Simplify"/>).</summary>
+    static readonly string[] LooseNames =
+    [
+        "character sheet", "character sheets", "char sheet", "pregens", "pregenerated characters", "handout", "handouts", "battle map", "battle maps",
+        "battlemap", "battlemaps", "map pack", "poster map", "tokens", "pawns", "form fillable", "cheat sheet", "reference sheet",
+    ];
+
+    /// <summary>The most pages of a file too short to be a book, where nothing says what it is.</summary>
+    const int LoosePages = 2;
+
+    /// <summary>
+    /// Whether a file printing no ISBN or product code is something no catalogue of books lists: a map, a character
+    /// sheet, a handout. By its <paramref name="types"/> (their keys) where it has any, the user's or a suggestion,
+    /// which then decide either way; else by a page or two (<paramref name="pages"/>), or by what its
+    /// <paramref name="titles"/> call it.
+    /// </summary>
+    public static bool IsNotABook(IReadOnlyCollection<string> types, IEnumerable<string?> titles, int? pages)
+    {
+        if (types.Count > 0) return types.All(LooseTypes.Contains);
+        if (pages is > 0 and <= LoosePages) return true;
+        return titles.OfType<string>().Select(t => $" {BookRecords.Simplify(t)} ").Any(t => LooseNames.Any(n => t.Contains($" {n} ", StringComparison.Ordinal)));
+    }
+
+    /// <summary>
+    /// Whether a book was looked for and no catalogue's record is used for it, however that came about: no record, one
+    /// waiting in Needs review, one the user refused, or nothing a catalogue asked then could go by. Not one with
+    /// nothing to find at all, nor one that isn't a book: asking again would find no more.
+    /// </summary>
+    public static bool NotFound(string? reason) =>
+        reason is not null && reason != NothingAtAll && reason != NotABook && !reason.StartsWith(AskedBefore, StringComparison.Ordinal);
 
     /// <summary>
     /// Why a book none of <paramref name="catalogues"/> ("Open Library or Google Books") knows wasn't looked up, by
@@ -176,8 +213,8 @@ public sealed class BookLookups(IBookCatalogue catalogue)
 /// id. Runs in its own lane, and waits with
 /// a notice while the catalogue can't be reached. A book is asked again once there are more catalogues to ask.
 /// </summary>
-public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, EntryStore entries, LookupRecordStore records, MetadataProjector projector,
-    VersionFinder versions) : IRevisitedStage
+public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, IndexStore index, EntryStore entries, LookupRecordStore records, MetadataStore metadata,
+    MetadataProjector projector, VersionFinder versions, ElsewhereLookups? elsewhere = null) : IRevisitedStage
 {
     public Stage Stage => Stage.LookUp;
 
@@ -204,15 +241,17 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         remove => projector.Retitled -= value;
     }
 
-    public bool RunsAgainFor(string? reason) => BookLookups.Missed(reason);
+    public bool RunsAgainFor(string? reason) => BookLookups.Missed(reason) || reason == BookLookups.NotABook;
 
     public async Task<Func<string?, bool>> RunAgainAsync(CancellationToken ct)
     {
         await lookups.Catalogue.RefreshAsync(ct);
+        // The books with no file are asked alongside, at the start and whenever there is somewhere more to ask.
+        elsewhere?.Start();
         var catalogues = lookups.Catalogue.Name;
         var byTitle = lookups.Catalogue.FindsByTitleAlone;
         return reason => BookLookups.AskedOfFewer(reason, catalogues) || BookLookups.SetAside(reason) || BookLookups.HadNoIsbn(reason)
-            || (byTitle && reason == BookLookups.NothingToLookUp);
+            || (byTitle && reason == BookLookups.NothingToLookUp) || reason == BookLookups.NotABook;
     }
 
     /// <summary>
@@ -238,16 +277,53 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         var kept = await records.GetKeptAsync(job.ContentHash, ct);
         if (nothing is not null && kept.Count == 0) return new StageOutcome.Done(StageStatus.Skipped, [], nothing);
 
+        var entry = await entries.GetEntryAsync(job.DocumentId, ct);
         var title = await queries.GetTitleAsync(job.DocumentId, ct);
         var embedded = (await queries.GetEmbeddedInfoAsync(job.DocumentId, ct))?.Title;
+        var shown = await queries.GetBookTitleAsync(job.DocumentId, ct);
+        var pageCount = await queries.GetPageCountAsync(job.DocumentId, ct);
+        if (nothing is null && byTitle && kept.Count == 0)
+        {
+            // A map or a character sheet is in no catalogue of books: not asked about, and not counted as not found.
+            List<string> types = entry is null ? [] : [.. (await metadata.GetAsync(entry.EntryId, ct)).Compute()[MetadataFields.Types].Values.Select(v => v.Value)];
+            if (BookLookups.IsNotABook(types, [shown, title], pageCount)) return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NotABook);
+        }
+
+        var cover = BookLookups.Cover(pages.Count > 0 ? pages[0] : null);
+        // Its card's title first, which may be the user's or the AI's and read better than the run-together words of a file name.
+        IReadOnlyList<string> titles = [.. BookRecords.Searches(new[] { shown, title, embedded, cover.Title }.OfType<string>().Where(t => t.Trim().Length <= 300), 4)];
+        var beside = await records.GetUsedAsync(await queries.GetHashesBesideAsync(job.DocumentId, MostBeside, ct), ct);
+        // The folders it's in, then what the books beside it were found as, then what its cover prints above its name.
+        string[] shared = [
+            .. BookLookups.Lines(await queries.GetFolderHintAsync(job.DocumentId, ct), front),
+            .. BookLookups.LinesBeside(beside.Select(r => r.Title).Distinct(StringComparer.Ordinal))];
+        IReadOnlyList<string> lines = [.. BookRecords.Searches([.. shared, .. cover.Lines], 4)];
+        // The games most of the books beside it belong to, whose other books it may be.
+        IReadOnlyList<string> families = [.. beside.SelectMany(r => r.Families ?? []).GroupBy(f => f, StringComparer.Ordinal)
+            .OrderByDescending(g => g.Count()).Select(g => g.Key).Take(MostFamilies)];
+
         List<BookRecord> given = [];
         CatalogueAnswer? answer = null;
+        CatalogueItem? sure = null;
+        IReadOnlyList<CatalogueItem> asked = [];
+        List<BookRecord> picked = [];
         try
         {
             // One said to be this book's on another PC is read by its id: no lookup here may ever give it.
             foreach (var (source, key, _) in kept.Where(k => !k.Read))
                 if (await lookups.Catalogue.ReadAsync(source, key, ct) is { } read) given.Add(read);
-            if (nothing is null) answer = await AskAsync(job, isbns, codes, pages, front, title, embedded, ct);
+            if (nothing is null)
+            {
+                answer = await lookups.Catalogue.AskAsync(isbns, titles, codes, lines, families, ct);
+                // What its searches found by name is the book's only if the book says so, which only its own pages can.
+                var refused = await records.GetRefusedAsync(job.ContentHash, ct);
+                var open = (answer.Candidates ?? []).Where(c => !kept.Any(k => k.Source == c.Source) && !answer.Records.Any(r => r.Source == c.Source)
+                    && !refused.Contains((c.Source, c.Key)));
+                // Only a folder's name or its neighbours' is known to be a line's: a line of its cover may be the book's own name.
+                (sure, asked) = BookRecords.Pick(open, shared, [.. titles], front.FirstOrDefault(), front);
+                foreach (var item in sure is null ? asked : [sure])
+                    if (await lookups.Catalogue.ReadAsync(item.Source, item.Key, ct) is { } read) picked.Add(read);
+            }
         }
         catch (CatalogueUnavailableException ex)
         {
@@ -261,17 +337,20 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
             // A record found by an identifier must name the book where it names itself, and one found by title alone must
             // have its title printed in it, or it's dropped; it's used when something else agrees, and asked about if not.
             List<string?> places = [.. front, title, embedded];
-            var pageCount = await queries.GetPageCountAsync(job.DocumentId, ct);
             // Once the user has said which of a catalogue's records the book is, its others aren't the book's: they'd
             // fill the fields that record leaves empty from another book.
             bool Settled(BookRecord r) => kept.Any(k => k.Source == r.Source && k.Key != r.Key && (k.Read || given.Any(g => g.Source == k.Source && g.Key == k.Key)));
-            List<BookRecord> found = [.. given, .. answer.Records.Where(r => !given.Any(g => g.Source == r.Source && g.Key == r.Key) && !Settled(r)
-                && (!BookRecords.ByTitle(r) || BookRecords.IsNamedWholeIn(r, front)))];
+            bool Is(BookRecord r, CatalogueItem? item) => item is not null && item.Source == r.Source && item.Key == r.Key;
+            // One named exactly as the book's card or file is, though its pages don't print the name, as a scan's may not: asked about.
+            bool GoesBy(BookRecord r) => titles.Any(t => BookRecords.Simplify(t) == BookRecords.Simplify(r.Title));
+            List<BookRecord> found = [.. given, .. answer.Records.Concat(picked).Where(r => !given.Any(g => g.Source == r.Source && g.Key == r.Key) && !Settled(r)
+                && (!BookRecords.ByTitle(r) || picked.Contains(r) || BookRecords.IsNamedWholeIn(r, front) || GoesBy(r)))];
             // A record no catalogue gives any more goes with this, unless the user answered about it: it isn't worth asking about.
             saved = await records.SaveAsync(job.ContentHash, found,
-                r => BookRecords.ByTitle(r) ? BookRecords.Agrees(r, front, pageCount) : BookRecords.IsNamedIn(r, places), ct);
+                r => !BookRecords.ByTitle(r) ? BookRecords.IsNamedIn(r, places)
+                    : (Is(r, sure) || (!picked.Contains(r) && BookRecords.IsNamedWholeIn(r, front))) && BookRecords.Agrees(r, front, pageCount), ct);
         }
-        if (await entries.GetEntryAsync(job.DocumentId, ct) is { } entry)
+        if (entry is not null)
         {
             var (changed, grew) = await records.ApplyAsync(entry.EntryId, job.ContentHash, ct);
             if (grew) await projector.ProjectVocabularyAsync(ct);
@@ -282,40 +361,85 @@ public sealed class LookUpStage(BookLookups lookups, IndexQueries queries, Entry
         }
         // Not looked up, so it's asked once it can be, but it has the record the user gave.
         if (answer is null) return new StageOutcome.Done(saved.Used.Count > 0 ? StageStatus.Complete : StageStatus.Skipped, [], nothing);
-        var asked = BookLookups.AskedOf(answer.AskedOf);
-        if (saved.Used.Count > 0) return new StageOutcome.Done(StageStatus.Complete, [], asked);
+        await index.SetLookupSearchAsync(job.DocumentId, LookupSearch.Write(new LookupSearch(isbns, codes, titles, lines, families.Count, answer.AskedOf,
+            [.. saved.Used.Select(Named)], answer.Candidates?.Count ?? 0, [.. saved.Waiting.Select(Named)], [.. saved.Refused.Select(Named)])), ct);
+        var where = BookLookups.AskedOf(answer.AskedOf);
+        if (saved.Used.Count > 0) return new StageOutcome.Done(StageStatus.Complete, [], where);
         if (saved.Waiting.Count == 0 && saved.Refused.Count == 0)
             return new StageOutcome.Done(StageStatus.Skipped, [], BookLookups.NoRecordIn(answer.AskedOf, byCode: isbns.Count == 0, byTitle: byTitle));
+        if (saved.Waiting.Count > 1)
+            return new StageOutcome.Done(StageStatus.Skipped, [],
+                $"{saved.Waiting.Count} records might be this book's, so Needs review asks which it is. {where}");
         if (saved.Waiting.Count > 0)
         {
             var record = saved.Waiting[0];
             return new StageOutcome.Done(StageStatus.Skipped, [], BookRecords.ByTitle(record)
-                ? $"{record.Source}'s record of “{record.Title}” has the title it prints, but not its authors, publisher or page count, so Needs review asks whether it's this book. {asked}"
-                : $"{record.Source}'s record for its {BookRecords.FoundBy(record)} is of “{record.Title}”, which isn't printed in it, so Needs review asks whether it's this book. {asked}");
+                ? $"{record.Source}'s record of “{record.Title}” goes by its name, but nothing else says it's this book, so Needs review asks whether it is. {where}"
+                : $"{record.Source}'s record for its {BookRecords.FoundBy(record)} is of “{record.Title}”, which isn't printed in it, so Needs review asks whether it's this book. {where}");
         }
-        var refused = saved.Refused[0];
+        var no = saved.Refused[0];
         return new StageOutcome.Done(StageStatus.Skipped, [],
-            $"You said {refused.Source}'s record for its {BookRecords.FoundBy(refused)}, of “{refused.Title}”, is of another book. {asked}");
+            $"You said {no.Source}'s record for its {BookRecords.FoundBy(no)}, of “{no.Title}”, is of another book. {where}");
     }
 
-    /// <summary>
-    /// Asks the catalogues about the book: by its ISBNs and codes, the titles it goes by (its card's first, which may be
-    /// the user's or the AI's and read better than the run-together words of a file name), and the lines it belongs to.
-    /// </summary>
-    async Task<CatalogueAnswer> AskAsync(JobRecord job, IReadOnlyList<string> isbns, IReadOnlyList<string> codes, IReadOnlyList<string?> pages,
-        List<string?> front, string? title, string? embedded, CancellationToken ct)
-    {
-        var shown = await queries.GetBookTitleAsync(job.DocumentId, ct);
-        var cover = BookLookups.Cover(pages.Count > 0 ? pages[0] : null);
-        IReadOnlyList<string> titles = [.. BookRecords.Searches(new[] { shown, title, embedded, cover.Title }.OfType<string>().Where(t => t.Trim().Length <= 300), 4)];
-        // The folders it's in, then what the books beside it were found as, then what its cover prints above its name.
-        IReadOnlyList<string> lines = [.. BookRecords.Searches([
-            .. BookLookups.Lines(await queries.GetFolderHintAsync(job.DocumentId, ct), front),
-            .. BookLookups.LinesBeside(await records.GetUsedTitlesAsync(await queries.GetHashesBesideAsync(job.DocumentId, MostBeside, ct), ct)),
-            .. cover.Lines], 4)];
-        return await lookups.Catalogue.AskAsync(isbns, titles, codes, lines, ct);
-    }
+    static string Named(BookRecord record) => $"{record.Source}: {record.Title}";
 
     /// <summary>The books beside one whose records are read for the line they name: enough for a folder of a line's books.</summary>
     const int MostBeside = 200;
+
+    /// <summary>The games asked about for one book.</summary>
+    const int MostFamilies = 2;
+}
+
+/// <summary>
+/// What a book's last lookup searched for and what came of it, kept with the book for its details to show: the ISBNs
+/// and product codes it prints, the titles and lines searched by name, how many games of the books beside it were
+/// looked through (<see cref="Games"/>), where it was asked, the records it uses (<see cref="Found"/>, "RPGGeek: its
+/// name"), how many items the searches found by name alone (<see cref="Candidates"/>), and the records Needs review
+/// asks about (<see cref="Waiting"/>) or the user said are another book's (<see cref="Refused"/>).
+/// </summary>
+public sealed record LookupSearch(IReadOnlyList<string> Isbns, IReadOnlyList<string> Codes, IReadOnlyList<string> Titles, IReadOnlyList<string> Lines,
+    int Games, string AskedOf, IReadOnlyList<string> Found, int Candidates, IReadOnlyList<string> Waiting, IReadOnlyList<string> Refused)
+{
+    static readonly System.Text.Json.JsonSerializerOptions Json = new(System.Text.Json.JsonSerializerDefaults.Web);
+
+    public static string Write(LookupSearch search) => System.Text.Json.JsonSerializer.Serialize(search, Json);
+
+    public static LookupSearch? Read(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return null;
+        try
+        {
+            return System.Text.Json.JsonSerializer.Deserialize<LookupSearch>(json, Json);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The heading the details show it under.</summary>
+    public const string Heading = "Online lookup";
+
+    static string Quoted(IEnumerable<string> values) => string.Join(", ", values.Select(v => $"“{v}”"));
+
+    /// <summary>What the details say of it, a labelled line each, leaving out what there was none of.</summary>
+    public IReadOnlyList<(string Label, string Value)> Facts()
+    {
+        var lines = new List<(string, string)>();
+        var by = new List<string>();
+        if (Isbns.Count > 0) by.Add($"ISBN {string.Join(", ", Isbns)}");
+        if (Codes.Count > 0) by.Add($"product code {string.Join(", ", Codes)}");
+        lines.Add(("Looked up by", by.Count > 0 ? string.Join("; ", by) : "Its title, since it prints no ISBN or product code"));
+        if (Titles.Count > 0) lines.Add(("Titles searched", Quoted(Titles)));
+        if (Lines.Count > 0) lines.Add(("Lines searched", Quoted(Lines)));
+        if (Games > 0) lines.Add(("Also looked in", Games == 1 ? "The game the books beside it belong to" : "The games the books beside it belong to"));
+        lines.Add(("Asked", AskedOf));
+        if (Candidates > 0) lines.Add(("Found by name", $"{Candidates:N0} {(Candidates == 1 ? "item" : "items")}, checked against what the book prints"));
+        if (Found.Count > 0) lines.Add(("Uses", string.Join("; ", Found)));
+        if (Waiting.Count > 0) lines.Add(("Needs review asks about", string.Join("; ", Waiting)));
+        if (Refused.Count > 0) lines.Add(("You said not this book", string.Join("; ", Refused)));
+        if (Found.Count + Waiting.Count + Refused.Count == 0) lines.Add(("Result", BookLookups.NotFoundOnline));
+        return lines;
+    }
 }

@@ -148,6 +148,9 @@ public interface IJobControl
     /// <summary>Runs a stage again for every document that has been through it, as after a vocabulary edit.</summary>
     Task<int> RerunAsync(Stage stage, CancellationToken ct = default);
 
+    /// <summary>Runs a stage again for the documents that finished it for a reason <paramref name="because"/> accepts, as the books no catalogue found.</summary>
+    Task<int> RerunAsync(Stage stage, Func<string?, bool> because, CancellationToken ct = default);
+
     /// <summary>
     /// Runs a stage again for one document that has been through it, as "Scan again" does for a whole-book scan.
     /// A job still waiting runs anyway. Returns whether it was queued again.
@@ -305,6 +308,15 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
     public async Task<int> RerunAsync(Stage stage, CancellationToken ct = default)
     {
         var queued = await _queue.RerunAsync(stage, ct);
+        _lanes.Wake(stage);
+        RaiseChanged();
+        return queued;
+    }
+
+    /// <summary>Runs a stage again for the documents that finished it for a reason <paramref name="because"/> accepts.</summary>
+    public async Task<int> RerunAsync(Stage stage, Func<string?, bool> because, CancellationToken ct = default)
+    {
+        var queued = await _queue.RerunAsync(stage, because, ct);
         _lanes.Wake(stage);
         RaiseChanged();
         return queued;

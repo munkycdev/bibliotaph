@@ -89,10 +89,13 @@ public sealed class RpgGeekTests
         Assert.Equal("https://boardgamegeek.com/xmlapi2/search?query=The+Owlbear+Mill&type=rpgitem", server.Asked[0].RequestUri!.AbsoluteUri);
         Assert.Equal("https://boardgamegeek.com/xmlapi2/thing?id=302,304,301&type=rpgitem&versions=1", server.Asked[1].RequestUri!.AbsoluteUri);
         Assert.All(server.Asked, a => Assert.Equal(("Bearer", "test-token"), (a.Headers.Authorization!.Scheme, a.Headers.Authorization.Parameter)));
-        // Kept: asking again sends nothing, and a book whose ISBN no version lists has no record.
+        Assert.Equal(["1"], record.Families);
+        // Kept: asking again sends nothing. A book whose ISBN no version lists takes the one item of its name, as one
+        // printing no ISBN does, found by its title: Look up then checks the book prints it.
         Assert.Equal((record.Key, record.Title), (Assert.Single(again.Records).Key, again.Records[0].Title));
-        Assert.Empty(other.Records);
-        Assert.Equal(2, server.Asked.Count);
+        var byTitle = Assert.Single(other.Records);
+        Assert.Equal(("302", "", "title"), (byTitle.Key, byTitle.Isbn, BookRecords.FoundBy(byTitle)));
+        Assert.Equal(3, server.Asked.Count);
     }
 
     [Fact]
@@ -103,7 +106,7 @@ public sealed class RpgGeekTests
         var byCode = Assert.Single((await catalogue.AskAsync([], ["The Owlbear Mill"], ["EX1001"], ct: Ct)).Records);
         var byIsbn = Assert.Single((await catalogue.AskAsync(["9780306406157"], ["The Owlbear Mill"], ["EX1001"], ct: Ct)).Records);
         // RPGGeek writes an empty code for a version without one, which matches nothing.
-        var neither = await catalogue.AskAsync([], ["The Owlbear Mill"], ["EX9999"], ct: Ct);
+        var neither = await catalogue.AskAsync([], ["Owlbear Mill Maps"], ["EX9999"], ct: Ct);
 
         Assert.Equal(("302", "EX1001", "product code"), (byCode.Key, byCode.Isbn, BookRecords.FoundBy(byCode)));
         // An ISBN is the surer match, whichever item lists it.
@@ -180,9 +183,9 @@ public sealed class RpgGeekTests
         var catalogue = Catalogue(server);
 
         // A file's name runs the words together and leaves the line out, so RPGGeek's search finds nothing by it.
-        var tome = await catalogue.AskAsync(["9781234567897"], ["Monster Tome Vol1"], [], ["Gull Rock Saga"], Ct);
+        var tome = await catalogue.AskAsync(["9781234567897"], ["Monster Tome Vol1"], [], ["Gull Rock Saga"], ct: Ct);
         var asked = server.Asked.Count;
-        var atlas = await catalogue.AskAsync(["9780306406157"], ["World Atlas Vol1"], [], ["Gull Rock Saga"], Ct);
+        var atlas = await catalogue.AskAsync(["9780306406157"], ["World Atlas Vol1"], [], ["Gull Rock Saga"], ct: Ct);
 
         Assert.Equal(("423", "Gull Rock Saga: Book 23"), (Assert.Single(tome.Records).Key, tome.Records[0].Title));
         Assert.Equal("405", Assert.Single(atlas.Records).Key);
@@ -198,7 +201,7 @@ public sealed class RpgGeekTests
     {
         var server = LineServer(100, new Dictionary<string, string> { ["490"] = "9781234567897" });
 
-        var answer = await Catalogue(server).AskAsync(["9781234567897"], [], [], ["Gull Rock Saga"], Ct);
+        var answer = await Catalogue(server).AskAsync(["9781234567897"], [], [], ["Gull Rock Saga"], ct: Ct);
 
         Assert.Empty(answer.Records);
         Assert.Equal(["search:Gull Rock Saga", "thing:20", "thing:20", "thing:20"], server.Asked.Select(Shown));
@@ -231,7 +234,7 @@ public sealed class RpgGeekTests
     {
         var server = Answering();
 
-        await Catalogue(server).AskAsync(["9780555555552"], ["The Owlbear Mill", "the owlbear mill."], [], ["The Owlbear Mill"], Ct);
+        await Catalogue(server).AskAsync(["9780555555552"], ["The Owlbear Mill", "the owlbear mill."], [], ["The Owlbear Mill"], ct: Ct);
 
         Assert.Single(server.Asked, a => a.RequestUri!.AbsolutePath.EndsWith("/search", StringComparison.Ordinal));
     }
@@ -271,7 +274,7 @@ public sealed class RpgGeekTests
         var catalogue = Catalogue(server);
 
         // Named as the title is, whole.
-        var whole = await catalogue.AskAsync([], ["Gull Rock Saga: Game Master's Screen"], [], ["Gull Rock Saga"], Ct);
+        var whole = await catalogue.AskAsync([], ["Gull Rock Saga: Game Master's Screen"], [], ["Gull Rock Saga"], ct: Ct);
         // Named so after its line's name; two lines have a screen, so a screen alone is neither.
         var screen = await catalogue.AskAsync([], ["Game Master's Screen"], [], ct: Ct);
         // Two items are named so after their line's name, but one is named so whole.
@@ -286,6 +289,76 @@ public sealed class RpgGeekTests
         Assert.Equal("604", Assert.Single(maps.Records).Key);
         Assert.DoesNotContain(server.Asked, a => a.RequestUri!.Query.Contains("query=Gull+Rock+Saga&", StringComparison.Ordinal));
         Assert.True(catalogue.FindsByTitleAlone);
+    }
+
+    const string Line = """
+        <items total="3">
+          <item type="rpgitem" id="701"><name type="primary" value="Gull Rock Saga: Book 1. Sailors"/></item>
+          <item type="rpgitem" id="702"><name type="primary" value="Gull Rock Saga: Book 2. Spells"/></item>
+          <item type="rpgitem" id="703"><name type="primary" value="Gull Rock Saga"/></item>
+        </items>
+        """;
+
+    const string Game = """
+        <items><item type="rpg" id="55"><name type="primary" value="Gull Rock Saga"/>
+          <link type="rpg" id="801" value="Monster Tome" inbound="true"/>
+          <link type="rpg" id="702" value="Gull Rock Saga: Book 2. Spells" inbound="true"/>
+          <link type="rpgpublisher" id="2" value="Example Press"/>
+        </item></items>
+        """;
+
+    static Server LineServer(HttpStatusCode game = HttpStatusCode.OK) => new(r =>
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(r.RequestUri!.Query);
+        if (r.RequestUri.AbsolutePath.EndsWith("/family", StringComparison.Ordinal)) return (game, game == HttpStatusCode.OK ? Game : "");
+        if (r.RequestUri.AbsolutePath.EndsWith("/search", StringComparison.Ordinal))
+            return (HttpStatusCode.OK, query["query"] == "Gull Rock Saga" ? Line : query["query"] == "Game Master's Screen" ? Screens : "<items total=\"0\"/>");
+        return (HttpStatusCode.OK, "<items/>");
+    });
+
+    [Fact]
+    public async Task A_book_no_item_is_taken_for_comes_back_with_what_its_line_and_the_games_beside_it_hold_by_name()
+    {
+        var server = LineServer();
+        var catalogue = Catalogue(server);
+
+        // No item is named as the file is, so the line's items and the game's members come back for Look up to check.
+        var answer = await catalogue.AskAsync([], ["Spells Book 2"], [], ["Gull Rock Saga"], ["55", "not-an-id"], Ct);
+        // An ISBN RPGGeek doesn't list falls back the same way.
+        var printed = await catalogue.AskAsync(["9781234567897"], ["Spells Book 2"], [], ["Gull Rock Saga"], ct: Ct);
+        // Two lines have a screen: both come back, to be asked about.
+        var screens = await catalogue.AskAsync([], ["Game Master's Screen"], [], ct: Ct);
+
+        Assert.Empty(answer.Records);
+        // Those sharing most words with the book's titles first, then the game's members before the line's, each once.
+        Assert.Equal(["702", "701", "801", "703"], answer.Candidates!.Select(c => c.Key));
+        Assert.Equal(("RPGGeek", "Gull Rock Saga: Book 2. Spells"), (answer.Candidates![0].Source, answer.Candidates[0].Name));
+        Assert.Equal(["702", "701", "703"], printed.Candidates!.Select(c => c.Key));
+        Assert.Equal(["601", "602"], screens.Candidates!.Select(c => c.Key));
+        Assert.Single(server.Asked, a => a.RequestUri!.AbsoluteUri == "https://boardgamegeek.com/xmlapi2/family?id=55&type=rpg");
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.NotFound)]
+    public async Task A_game_whose_listing_rpggeek_turns_down_is_done_without_and_not_asked_for_again(HttpStatusCode status)
+    {
+        var server = LineServer(status);
+        var catalogue = Catalogue(server);
+
+        var answer = await catalogue.AskAsync([], ["Spells Book 2"], [], ["Gull Rock Saga"], ["55"], Ct);
+        await catalogue.AskAsync([], ["Spells Book 2"], [], ["Gull Rock Saga"], ["55"], Ct);
+
+        Assert.Equal(["702", "701", "703"], answer.Candidates!.Select(c => c.Key));
+        Assert.Single(server.Asked, a => a.RequestUri!.AbsolutePath.EndsWith("/family", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_busy_rpggeek_makes_the_book_wait_even_for_a_games_listing()
+    {
+        var catalogue = Catalogue(LineServer(HttpStatusCode.ServiceUnavailable));
+
+        await Assert.ThrowsAsync<CatalogueUnavailableException>(() => catalogue.AskAsync([], ["Spells Book 2"], [], ["Gull Rock Saga"], ["55"], Ct));
     }
 
     [Fact]
