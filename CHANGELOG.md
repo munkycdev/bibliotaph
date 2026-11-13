@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Releases no longer test the same code twice.** When the Windows tests already passed on main and the release only
+  adds its notes, the release takes that run instead of running them all again, so a test that stalls now and then
+  can't hold up a release of code that passed. A pipeline test that stalls now says what it was waiting for.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1228 (12 November 2026):
