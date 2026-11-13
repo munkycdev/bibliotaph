@@ -10,11 +10,17 @@ public sealed class NornisKind(NornisKind.Setup? setup = null) : OAuthStorageKin
 {
     public const string Key = "nornis";
 
+    /// <summary>The name Nornis goes by, which also names the one row its worlds share where folders are listed.</summary>
+    public const string Title = "Nornis";
+
+    /// <summary>Whether <paramref name="path"/> is a world's folder in Nornis, kept under the world's ID rather than a name.</summary>
+    public static bool Keeps(string? path) => path is not null && StoragePath.TryParse(path, out var at) && at.Provider == Key;
+
     /// <summary>Where Nornis's grant and API are.</summary>
     public sealed record Setup(string Auth0Domain, string Audience, Uri ApiRoot);
 
     public override string Id => Key;
-    public override string Name => "Nornis";
+    public override string Name => Title;
     public override string Owner => "Nornis";
 
     public override string About => "Nornis can search and share books in your Nornis collections, and Bibliotaph reads files you uploaded to Nornis.";

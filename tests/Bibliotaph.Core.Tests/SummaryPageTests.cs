@@ -37,6 +37,36 @@ public sealed class SummaryPageTests
     }
 
     [Fact]
+    public void Grouped_folders_share_one_row_that_opens_their_collections()
+    {
+        var page = Page(new LibrarySummary
+        {
+            Books = 60,
+            Folders =
+            [
+                new SummaryFolder(4, "rpg", 30, 3_000_000_000, false),
+                new SummaryFolder(7, "1f0c", 20, 1_000_000_000, false, "Nornis"),
+                new SummaryFolder(8, "9a2e", 15, 1_000_000_000, true, "Nornis"),
+            ],
+        });
+
+        Assert.Equal(["Nornis", "RPG"], page.Folders!.Bars.Select(b => b.Label));
+        Assert.Equal("35 · 2 GB", page.Folders.Bars[0].Count);
+        Assert.Equal("Nornis, 2 folders: 35 books, 2 GB", page.Folders.Bars[0].ToolTip);
+        Assert.Equal(SummaryGoal.Collections, page.Folders.Bars[0].Link!.Goal);
+        Assert.False(page.Folders.Bars[0].Offline);
+    }
+
+    [Fact]
+    public void A_group_of_one_opens_the_library_at_its_folder()
+    {
+        var page = Page(new LibrarySummary { Books = 5, Folders = [new SummaryFolder(7, "1f0c", 5, 0, true, "Nornis")] });
+
+        Assert.Equal("Nornis (offline)", page.Folders!.Bars.Single().Label);
+        Assert.Equal(7L, page.Folders.Bars[0].Link!.Filter!.Folder);
+    }
+
+    [Fact]
     public void Tiles_open_the_books_they_count()
     {
         var page = Page(new LibrarySummary
