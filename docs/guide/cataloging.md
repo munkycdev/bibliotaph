@@ -51,7 +51,8 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   too, by title; an image, which prints no title, isn't. **Looking up online** in **Settings > Processing** counts
   them all, not only the books that print an ISBN. The app asks through bibliotaph.online, and **Settings > Processing** names where it asks. A
   book is asked again once there's somewhere more to ask, such as when the app connects. A book none of them knows
-  says **Unable to find in any online listing** beside **Looking it up online** under **Processing** in its details. A record is used only when
+  says **Unable to find in any online listing** beside **Looking it up online** under **Processing** in its details; you
+  can give it its RPGGeek record yourself, with [a link to its page there](#look-up-from-an-rpggeek-link). A record is used only when
   its title is printed in the book, so a misprinted ISBN can't rename it; when it isn't, Needs review asks you
   **Same book?** about it (see below). These beat the AI's suggestions: the AI's guesses for those fields aren't shown, and
   come back only if you reject the looked-up value. **Settings > Processing** says where the ISBNs go. RPGGeek's data
@@ -108,6 +109,30 @@ The **Notes** tab has a note for the whole book, saved as you type, and the note
 - **Not right** rejects a suggestion. It won't be suggested again, by anything.
 - The pencil beside a field (**Edit**) lets you type your own value; **Save** keeps it.
 - **Reset to suggestion** forgets what you set and goes back to what the sources suggest.
+
+### Look up from an RPGGeek link
+
+When no lookup finds a book, or finds the wrong one, you can say which book it is on
+[RPGGeek](https://rpggeek.com). Find the book there, copy the address of its page, then click **Look up from an
+RPGGeek link…** at the end of the book's **Details** section, paste the address and click **Look up**. The address of
+a book's page looks like `https://rpggeek.com/rpgitem/12345/its-name`; the page of a game, a series or a publisher
+isn't a book's, and the box says so. RPGGeek is asked one request at a time, so it can take a few seconds.
+
+The book takes that record at once: its title, designers, publisher, year, game system, series, artists, mechanics
+and what RPGGeek files it under, as suggestions above the AI's and below your own values, like any looked-up record.
+Nothing the book prints has to match, since you said which book it is. From then on:
+
+- The record stays the book's whatever later lookups find, and any other RPGGeek record a lookup gave the book is
+  dropped.
+- It goes to your other PCs and your web library with [sync](onedrive-and-other-pcs.md), as an answer to
+  **Same book?** does. Each reads the record from RPGGeek itself.
+- **On RPGGeek as …** shows at the end of **Details**, and opens the book's page. **Not this book** beside it takes
+  the record and its suggestions away, whether you gave the record or a lookup found it, and **Use another RPGGeek
+  link…** replaces it.
+
+It's offered for a book with a file of its own (not a pack, an adventure inside a file or a book you own elsewhere),
+on the web and on a PC connected to its web library, since RPGGeek is asked through bibliotaph.online. Only the
+number in the address is sent.
 
 ### Cataloged wrong
 

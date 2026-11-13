@@ -1,3 +1,4 @@
+using Bibliotaph.Api.Contracts;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Metadata;
 
@@ -45,10 +46,26 @@ public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, S
         await LearnAsync(answer.Catalogues, ct);
         if (answer.Problem is { } problem) throw new CatalogueUnavailableException(problem);
         var records = answer.Records ?? (answer.Record is { } first ? [first] : []);
-        return new CatalogueAnswer([.. records.Select(r => new BookRecord(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
-            r.Values?.Select(v => new CatalogueValue(v.Field, v.Value)).ToList(), r.Pages))],
-            answer.AskedOf ?? answer.Catalogues);
+        return new CatalogueAnswer([.. records.Select(Read)], answer.AskedOf ?? answer.Catalogues);
     }
+
+    /// <summary>
+    /// Through the web library while connected, which holds RPGGeek's token: a PC on its own asks only Open Library,
+    /// which is read by ISBN alone. Only RPGGeek's records are asked for, since no other catalogue's can be read by
+    /// its id, and an answer from another PC about one of theirs waits for a lookup here to give the record.
+    /// </summary>
+    public async Task<BookRecord?> ReadAsync(string source, string key, CancellationToken ct = default)
+    {
+        if (!web.HasKey) return await direct.ReadAsync(source, key, ct);
+        if (source != RpgGeekCatalogue.Source || !key.All(char.IsAsciiDigit)) return null;
+        var answer = await web.ReadRecordAsync(source, key, ct)
+            ?? throw new CatalogueUnavailableException($"Waiting for {(await web.AddressAsync(ct)).Host}.");
+        if (answer.Problem is { } problem) throw new CatalogueUnavailableException(problem);
+        return answer.Record is { } record ? Read(record) : null;
+    }
+
+    static BookRecord Read(PcBookRecord r) => new(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
+        r.Values?.Select(v => new CatalogueValue(v.Field, v.Value)).ToList(), r.Pages);
 
     async Task LoadAsync(CancellationToken ct)
     {

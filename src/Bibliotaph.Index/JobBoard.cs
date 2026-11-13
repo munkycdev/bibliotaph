@@ -318,6 +318,28 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
         }, ct);
 
     /// <summary>
+    /// Runs <paramref name="stage"/> again for the files with these content hashes that finished it at the current
+    /// version, however it ended, as when the user says which record of a catalogue's a book is. Returns the number queued.
+    /// </summary>
+    public Task<int> RerunFilesAsync(Stage stage, IReadOnlyCollection<string> contentHashes, CancellationToken ct = default) =>
+        contentHashes.Count == 0 ? Task.FromResult(0) : writer.WriteAsync((c, t) =>
+        {
+            var now = Now();
+            var finished = c.Query<(long Id, long DocumentId)>(
+                """
+                SELECT id, document_id FROM job
+                WHERE stage = @stage AND stage_version = @version AND status IN ('done', 'failed') AND content_hash IN (SELECT value FROM json_each(@hashes))
+                """,
+                new { stage = stage.ToString(), version = Pipeline.Version(stage), hashes = JsonSerializer.Serialize(contentHashes) }, t).ToList();
+            foreach (var (id, documentId) in finished)
+            {
+                c.Execute("UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL WHERE id = @id", new { id }, t);
+                SetStatus(c, t, documentId, stage, StageStatus.Pending, null, now);
+            }
+            return finished.Count;
+        }, ct);
+
+    /// <summary>
     /// Runs <paramref name="stage"/> again for one document that has finished it at the current version, as when an
     /// adventure is marked in it and Classify has its pages to read. Returns whether it was queued.
     /// </summary>

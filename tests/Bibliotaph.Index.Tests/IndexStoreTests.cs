@@ -199,6 +199,30 @@ public sealed class IndexStoreTests : IndexFixture
     }
 
     [Fact]
+    public async Task The_files_named_by_their_content_run_again_however_they_finished()
+    {
+        foreach (var id in new long[] { 1, 2, 3 })
+        {
+            await _store.UpsertDocumentAsync(Doc(id), Pages(1), [], Ct);
+            await _queue.EnqueueAsync(id, $"hash{id}", Stage.LookUp, ct: Ct);
+        }
+        foreach (var reason in new[] { "Found.", "No record." })
+            await _queue.CompleteAsync((await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct))!, StageStatus.Skipped, reason, ct: Ct);
+
+        // The first was found and the third is still waiting; the second, which finished too, isn't named.
+        var queued = await _queue.RerunFilesAsync(Stage.LookUp, ["hash1", "hash3", "no-such-file"], Ct);
+        var none = await _queue.RerunFilesAsync(Stage.LookUp, [], Ct);
+
+        Assert.Equal((1, 0), (queued, none));
+        Assert.Equal([1, 3], new[]
+        {
+            (await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct))!.DocumentId,
+            (await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct))!.DocumentId,
+        }.Order());
+        Assert.Null(await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct));
+    }
+
+    [Fact]
     public async Task A_book_the_ai_failed_for_good_needs_attention_and_one_waiting_for_it_does_not()
     {
         await _store.UpsertDocumentAsync(Doc(1) with { DisplayTitle = "Failed book" }, Pages(1), [], Ct);

@@ -245,6 +245,7 @@ public static class LibraryServices
         // Needs review: its cards come from these, and each decision goes through them.
         services.AddSingleton<ElsewhereService>();
         services.AddSingleton<LookupMatches>();
+        services.AddSingleton<LookupLinks>();
         services.AddSingleton(sp => new LostCovers(sp.GetRequiredService<EntryStore>(), sp.GetRequiredService<CoverCache>(), host.Images,
             sp.GetRequiredService<MetadataProjector>(), host.CoverDownloads ?? NoDownloads, sp.GetRequiredService<ILogger<LostCovers>>()));
         services.AddSingleton<OnlineImports>();

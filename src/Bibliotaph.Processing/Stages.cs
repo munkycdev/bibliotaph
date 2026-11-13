@@ -152,6 +152,16 @@ public interface IRevisitedStage : IStage
 
     /// <summary>Which of the documents <see cref="RunAgainFor"/> names to run again, by the reason each finished with.</summary>
     bool RunsAgainFor(string? reason) => false;
+
+    /// <summary>
+    /// Raised with the content hashes of files to run again now however their job ended, from any thread, as a book the
+    /// user has said which record is of.
+    /// </summary>
+    event EventHandler<IReadOnlyCollection<string>>? RunAgainForFiles
+    {
+        add { }
+        remove { }
+    }
 }
 
 /// <summary>

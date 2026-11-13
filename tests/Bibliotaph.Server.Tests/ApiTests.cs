@@ -119,9 +119,15 @@ public abstract partial class ApiTests : IDisposable
     /// <summary>The server's catalogues, answering as told: no test asks a real one.</summary>
     sealed class ScriptedCatalogue : IBookCatalogue
     {
-        public string Name { get; init; } = "Open Library or Google Books";
+        public string Name { get; set; } = "Open Library or Google Books";
 
         public BookRecord? Record { get; set; }
+
+        /// <summary>Whether a book printing no ISBN or code is asked about by its title.</summary>
+        public bool FindsByTitleAlone { get; set; }
+
+        /// <summary>The records it gives by their own ids.</summary>
+        public Dictionary<(string Source, string Key), BookRecord> Items { get; } = [];
 
         public bool Busy { get; set; }
 
@@ -144,6 +150,12 @@ public abstract partial class ApiTests : IDisposable
             Codes.AddRange(codes);
             Lines.AddRange(lines ?? []);
             return new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
+        }
+
+        public Task<BookRecord?> ReadAsync(string source, string key, CancellationToken ct = default)
+        {
+            if (Busy) throw new CatalogueUnavailableException("RPGGeek is busy. Books will be looked up when it answers again.");
+            return Task.FromResult(Items.GetValueOrDefault((source, key)));
         }
     }
 

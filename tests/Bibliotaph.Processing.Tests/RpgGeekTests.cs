@@ -287,4 +287,60 @@ public sealed class RpgGeekTests
         Assert.DoesNotContain(server.Asked, a => a.RequestUri!.Query.Contains("query=Gull+Rock+Saga&", StringComparison.Ordinal));
         Assert.True(catalogue.FindsByTitleAlone);
     }
+
+    [Fact]
+    public async Task An_item_is_read_by_its_id_whatever_the_book_prints_and_through_the_catalogues_asked_together()
+    {
+        var server = Answering();
+        var catalogue = Catalogue(server);
+        var together = new BookCatalogues([new Fixed(new BookRecord("Open Library", "/books/OL1M", "9781234567897", "The Owlbear Mill", [], [], null)), catalogue]);
+
+        var record = await together.ReadAsync("RPGGeek", "302", Ct);
+        var again = await catalogue.ReadAsync("RPGGeek", "302", Ct);
+
+        // As a record found by its title alone is: no ISBN, and the item's own publisher and year.
+        Assert.Equal(("RPGGeek", "302", "", "The Owlbear Mill", "2019"), (record!.Source, record.Key, record.Isbn, record.Title, record.Published));
+        Assert.Equal(["Example Press"], record.Publishers);
+        Assert.Contains(("system", "Example System"), record.Values!.Select(v => (v.Field, v.Value)));
+        Assert.Equal("https://boardgamegeek.com/xmlapi2/thing?id=302&type=rpgitem&versions=1", Assert.Single(server.Asked).RequestUri!.AbsoluteUri);
+        Assert.Equal(record.Title, again!.Title);
+        // An id RPGGeek has no item for, one that isn't an id, and another catalogue's record aren't its to read.
+        Assert.Null(await catalogue.ReadAsync("RPGGeek", "999", Ct));
+        Assert.Null(await catalogue.ReadAsync("RPGGeek", "302&type=boardgame", Ct));
+        Assert.Null(await together.ReadAsync("Open Library", "/books/OL1M", Ct));
+        Assert.Null(await together.ReadAsync("Google Books", "302", Ct));
+        Assert.Equal(2, server.Asked.Count);
+    }
+
+    [Theory]
+    [InlineData("https://rpggeek.com/rpgitem/302/the-owlbear-mill", "302")]
+    [InlineData("  https://www.rpggeek.com/rpgitem/302  ", "302")]
+    [InlineData("http://boardgamegeek.com/rpgitem/302/the-owlbear-mill/credits?x=1#top", "302")]
+    [InlineData("rpggeek.com/RPGItem/302/the-owlbear-mill", "302")]
+    [InlineData("302", "302")]
+    [InlineData("000302", "302")]
+    public void A_books_page_names_its_item(string link, string item)
+    {
+        Assert.Equal((item, null), RpgGeekCatalogue.ItemIn(link));
+    }
+
+    [Theory]
+    [InlineData(null, RpgGeekCatalogue.NoLink)]
+    [InlineData("   ", RpgGeekCatalogue.NoLink)]
+    [InlineData("https://example.com/rpgitem/302/the-owlbear-mill", RpgGeekCatalogue.NotRpgGeek)]
+    [InlineData("The Owlbear Mill", RpgGeekCatalogue.NotRpgGeek)]
+    [InlineData("ftp://rpggeek.com/rpgitem/302", RpgGeekCatalogue.NotRpgGeek)]
+    [InlineData("1234567890123", RpgGeekCatalogue.NotRpgGeek)]
+    [InlineData("0", RpgGeekCatalogue.NotRpgGeek)]
+    // A game's page, a publisher's, a version's and a search aren't a book's.
+    [InlineData("https://rpggeek.com/rpg/55/example-system", RpgGeekCatalogue.NotABook)]
+    [InlineData("https://rpggeek.com/rpgpublisher/2/example-press", RpgGeekCatalogue.NotABook)]
+    [InlineData("https://rpggeek.com/rpgitemversion/9002/print", RpgGeekCatalogue.NotABook)]
+    [InlineData("https://rpggeek.com/geeksearch.php?action=search&q=owlbear", RpgGeekCatalogue.NotABook)]
+    [InlineData("https://rpggeek.com/rpgitem/the-owlbear-mill", RpgGeekCatalogue.NotABook)]
+    [InlineData("https://rpggeek.com", RpgGeekCatalogue.NotABook)]
+    public void Any_other_address_says_what_a_books_page_looks_like(string? link, string problem)
+    {
+        Assert.Equal((null, problem), RpgGeekCatalogue.ItemIn(link));
+    }
 }

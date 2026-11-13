@@ -118,6 +118,38 @@
                     }
                 </div>
             }
+            @if (Book.RpgGeek is not null || Book.RpgGeekOffer is not null)
+            {
+                @* The book's record on RPGGeek, and the box that gives it one by its page's address. *@
+                <div class="bt-rpggeek" aria-label="RPGGeek">
+                    @if (Book.RpgGeek is { } record)
+                    {
+                        <div class="bt-evidenceline">
+                            <a class="bt-link bt-storelink" href="@record.Url" target="_blank" rel="noopener noreferrer" title="@record.Url">
+                                <Icon Name="SquareArrowOutUpRight" Size="12" />@record.Text
+                            </a>
+                            <button class="bt-link" aria-label="The RPGGeek record is not this book" disabled="@_linkBusy" @onclick="NotOnRpgGeekAsync">Not this book</button>
+                        </div>
+                    }
+                    @if (Book.RpgGeekOffer is { } offer && !_linking)
+                    {
+                        <button class="bt-link" @onclick="StartLink"><Icon Name="Search" Size="12" />@offer</button>
+                    }
+                    @if (_linking)
+                    {
+                        <div class="bt-fieldedit">
+                            <input class="bt-input" aria-label="RPGGeek page address" placeholder="https://rpggeek.com/rpgitem/…" value="@_link" disabled="@_linkBusy"
+                                   @oninput="e => _link = e.Value as string ?? string.Empty" @onkeydown="LinkKeyDown" @onkeydown:stopPropagation="true" @ref="_linkBox" />
+                            <div class="bt-small bt-edithint">@Book.RpgGeekHint</div>
+                            @if (_linkProblem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
+                            <div class="bt-boxactions">
+                                <button class="bt-button primary" disabled="@_linkBusy" @onclick="LinkAsync"><Icon Name="Search" Size="14" />@(_linkBusy ? "Looking it up…" : "Look up")</button>
+                                <button class="bt-button" disabled="@_linkBusy" @onclick="CancelLink">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
             @if (Book.FromRpgGeek)
             {
                 @* BoardGameGeek's terms ask for its logo where its data is shown. *@
@@ -151,11 +183,101 @@
     bool _focusEditor;
     CancellationTokenSource? _resolving;
 
+    // Look up from an RPGGeek link.
+    bool _linking;
+    bool _linkBusy;
+    bool _focusLink;
+    string _link = "";
+    string? _linkProblem;
+    ElementReference _linkBox;
+    long _linkedBook;
+
+    protected override void OnParametersSet()
+    {
+        // Another book's details: the box and what was typed in it were the last book's.
+        if (_linkedBook == Host.EntryId) return;
+        _linkedBook = Host.EntryId;
+        CancelLink();
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_focusLink)
+        {
+            _focusLink = false;
+            await _linkBox.FocusAsync();
+        }
         if (!_focusEditor) return;
         _focusEditor = false;
         await _editor.FocusAsync();
+    }
+
+    void StartLink()
+    {
+        _linking = true;
+        _link = "";
+        _linkProblem = null;
+        _focusLink = true;
+    }
+
+    void CancelLink()
+    {
+        _linking = false;
+        _link = "";
+        _linkProblem = null;
+    }
+
+    async Task LinkKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CancelLink();
+        else if (e.Key == "Enter") await LinkAsync();
+    }
+
+    /// <summary>Reads the item whose page was pasted: RPGGeek is asked one request at a time, so it can take some seconds.</summary>
+    async Task LinkAsync()
+    {
+        if (_linkBusy) return;
+        _linkBusy = true;
+        _linkProblem = null;
+        try
+        {
+            var entryId = Host.EntryId;
+            if (await Host.TryAsync(() => BooksApi.LinkRpgGeekAsync(entryId, _link)) is not { } result || entryId != Host.EntryId) return;
+            if (result.Problem is { } problem)
+            {
+                _linkProblem = problem;
+                return;
+            }
+            CancelLink();
+            await ShowAsync(result);
+        }
+        finally
+        {
+            _linkBusy = false;
+        }
+    }
+
+    async Task NotOnRpgGeekAsync()
+    {
+        if (_linkBusy) return;
+        _linkBusy = true;
+        try
+        {
+            var entryId = Host.EntryId;
+            if (await Host.TryAsync(() => BooksApi.UnlinkRpgGeekAsync(entryId)) is { } result && entryId == Host.EntryId) await ShowAsync(result);
+        }
+        finally
+        {
+            _linkBusy = false;
+        }
+    }
+
+    /// <summary>The book's fields as its record left them; its card may read differently now too.</summary>
+    async Task ShowAsync(EditResult result)
+    {
+        await Decided.InvokeAsync();
+        if (result.Details is { } details) Host.Replace(details);
+        await Host.ChangedAsync();
     }
 
     void StartEdit(DetailField field)
