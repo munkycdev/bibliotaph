@@ -172,6 +172,9 @@ public sealed record SummaryPage
             tiles.Add(new(SummaryText.Count(adventures), "Adventures",
                 summary.Adventures > 0 ? $"and {SummaryText.Count(summary.Adventures)} inside other books" : null,
                 new SummaryLink(Filter: new SummaryFilter(MetadataFields.Types.Key, AdventureType, AdventureCards: true))));
+        if (summary.Companions > 0 || summary.CompanionsAsked > 0)
+            tiles.Add(new(SummaryText.Count(summary.Companions), "Maps and handouts",
+                "go with their books" + (summary.CompanionsAsked > 0 ? $", {SummaryText.Count(summary.CompanionsAsked)} more to check in Needs review" : ""), null));
         if (summary.Ebooks > 0)
             tiles.Add(new(SummaryText.Count(summary.Ebooks), "E-books", null, new SummaryLink($"{SearchFields.Format.Name}:ebook")));
         if (summary.Packs > 0)
