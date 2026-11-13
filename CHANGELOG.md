@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Maps and handouts go with their book.** A map, handout, character sheet or pack of images now goes with the book it
+  came with, and takes that book's game system, edition, publisher, series, year, setting, authors, levels, players and
+  your tags, as suggestions above lookups and the AI, keeping its own title, type and anything you set yourself.
+  - Bibliotaph finds the book in the background: pages printed from it, the same ZIP, the only book in the folder or a
+    folder of extras under it ("Maps", "Handouts", "VTT assets") link it at once; a title, product code or initials in
+    its name, the AI reading the book's title on its pages, or a folder of two or three books ask in Needs review with
+    **Goes with a book?**, one card for a folder's files.
+  - In a map's details, **Goes with** names its book and why, with **Keep**, **Change…** and **Not from this book**, or
+    **Choose a book…** for one nothing was found for. Any book can be chosen: one with a file, an adventure inside a
+    file, or a book you own elsewhere. A book's details list what goes with it under **Maps and handouts**.
+  - **Edit metadata** in **Select** sets **Goes with** for every ticked card at once.
+  - While you browse they stay inside their book ("12 maps and handouts" on its card), and a search still finds them.
+    **Maps and handouts** in **More filters** shows them as cards or hides them. The Summary page counts them.
+  - **Character sheet** is a new type. On Windows and the web; your choices sync, and every change has **Undo**.
 - **More books found online.** RPGGeek names many books after their line and lists no ISBN for them, so a search for
   the title a file gives found nothing. Wherever RPGGeek is asked:
   - A book no item is named after is matched **inside its line**: RPGGeek's items for the line come back by name and
