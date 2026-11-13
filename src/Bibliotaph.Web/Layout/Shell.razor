@@ -482,8 +482,11 @@ else
 
     void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
-        // Keeps the box in step when the Library clears the search, or Back goes to another.
-        if (OnLibrary && _searchDelay is null) _searchText = LibraryUrl.Parse(e.Location).Q ?? "";
+        // Keeps the box in step when the Library clears the search, or Back goes to another. The address holds the
+        // search trimmed, so a box that only differs by its spaces is left alone: a pause just after a space would
+        // otherwise take that space out of the box and join the next word to the last.
+        var searched = LibraryUrl.Parse(e.Location).Q ?? "";
+        if (OnLibrary && _searchDelay is null && _searchText.Trim() != searched) _searchText = searched;
         StateHasChanged();
     }
 
