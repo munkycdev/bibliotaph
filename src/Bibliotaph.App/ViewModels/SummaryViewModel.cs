@@ -4,6 +4,7 @@ using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
 using Bibliotaph.Processing;
+using Bibliotaph.Storage.Nornis;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -89,6 +90,7 @@ public sealed partial class SummaryViewModel(LibrarySummaryService summaries, So
         {
             var summary = await Task.Run(() => summaries.GetAsync());
             if (version != _version) return;
+            summary = summary with { Folders = [.. summary.Folders.Select(f => f with { Group = InNornis(f.Path) ? NornisKind.Title : null })] };
             Page = SummaryPage.Of(summary, f => (shelf.NameOf(f.Path), shelf.Show(f.Path)));
         }
         catch (Exception ex)
@@ -96,6 +98,9 @@ public sealed partial class SummaryViewModel(LibrarySummaryService summaries, So
             log.LogError(ex, "Reading the library summary failed");
         }
     }
+
+    /// <summary>A web library folder that is a Nornis world: the PC knows it only by the web library's ID for it.</summary>
+    bool InNornis(string path) => WebLibraryPaths.TryParse(path, out var id, out _) && NornisKind.Keeps(shelf.Folder(id)?.StoragePath);
 
     /// <summary>A figure's filters, as the Library's filter panel has them.</summary>
     public static SmartViewDefinition? Filters(SummaryFilter? filter)

@@ -130,8 +130,12 @@ public sealed record LibrarySummary
 /// </summary>
 public sealed record SummaryValue(string Field, string Value, string Label, long Count, long Confirmed);
 
-/// <summary>A library folder: <see cref="Path"/> as it is kept, which each client names its own way.</summary>
-public sealed record SummaryFolder(long Id, string Path, long Books, long Bytes, bool Offline);
+/// <summary>
+/// A library folder: <see cref="Path"/> as it is kept, which each client names its own way. <see cref="Group"/> names
+/// the one row it shares with folders of its kind whose own names mean nothing to the user, such as every Nornis world,
+/// which is kept under its ID.
+/// </summary>
+public sealed record SummaryFolder(long Id, string Path, long Books, long Bytes, bool Offline, string? Group = null);
 
 /// <summary>Books published in the ten years from <see cref="Decade"/>, such as 1980.</summary>
 public sealed record SummaryDecade(int Decade, long Count);
