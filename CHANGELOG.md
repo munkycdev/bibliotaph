@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6 · 9 November 2026
+
+New in 1.6.1251 (13 November 2026):
+
 - **Maps and handouts go with their book.** A map, handout, character sheet or pack of images now goes with the book it
   came with, and takes that book's game system, edition, publisher, series, year, setting, authors, levels, players and
   your tags, as suggestions above lookups and the AI, keeping its own title, type and anything you set yourself.
@@ -54,8 +58,6 @@
 - **Releases no longer test the same code twice.** When the Windows tests already passed on main and the release only
   adds its notes, the release takes that run instead of running them all again, so a test that stalls now and then
   can't hold up a release of code that passed. A pipeline test that stalls now says what it was waiting for.
-
-## 1.6 · 9 November 2026
 
 New in 1.6.1228 (12 November 2026):
 
