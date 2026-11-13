@@ -16,6 +16,9 @@
   - While you browse they stay inside their book ("12 maps and handouts" on its card), and a search still finds them.
     **Maps and handouts** in **More filters** shows them as cards or hides them. The Summary page counts them.
   - **Character sheet** is a new type. On Windows and the web; your choices sync, and every change has **Undo**.
+- **Fixed: the web search box sometimes took out a space.** Pausing just after typing a space between words ran the
+  search and took that space out of the box, so the next word was joined to the last. The box now keeps what you type,
+  spaces included; only the search itself leaves out spaces at the ends.
 - **More books found online.** RPGGeek names many books after their line and lists no ISBN for them, so a search for
   the title a file gives found nothing. Wherever RPGGeek is asked:
   - A book no item is named after is matched **inside its line**: RPGGeek's items for the line come back by name and
