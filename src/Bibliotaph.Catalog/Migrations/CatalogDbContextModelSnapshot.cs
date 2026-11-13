@@ -15,12 +15,12 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261109044048_CatalogEntryCoverUrl";
+    public override string LastMigrationId => "20261113192218_CatalogCompanionLinks";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
-        modelBuilder.HasAnnotation("ProductVersion", "11.0.0-rc.3.26522.148");
+        modelBuilder.HasAnnotation("ProductVersion", "11.0.0");
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.AskTurn", b =>
             {
@@ -379,6 +379,49 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("collection");
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CompanionLink", b =>
+            {
+                b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("id");
+
+                b.Property<long>("BookEntryId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("book_entry_id");
+
+                b.Property<DateTime>("DecidedUtc")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("decided_utc");
+
+                b.Property<long>("EntryId")
+                    .HasColumnType("INTEGER")
+                    .HasColumnName("entry_id");
+
+                b.Property<string>("Evidence")
+                    .HasColumnType("TEXT")
+                    .HasColumnName("evidence");
+
+                b.Property<string>("State")
+                    .IsRequired()
+                    .HasColumnType("TEXT")
+                    .HasColumnName("state");
+
+                b.HasKey("Id");
+
+                b.HasIndex("BookEntryId");
+
+                b.HasIndex("EntryId")
+                    .IsUnique()
+                    .HasDatabaseName("ix_companion_link_live")
+                    .HasFilter("state IN ('Suggested', 'Confirmed')");
+
+                b.HasIndex("EntryId", "BookEntryId")
+                    .IsUnique();
+
+                b.ToTable("companion_link");
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.CopyDecision", b =>
@@ -1799,6 +1842,21 @@ partial class CatalogDbContextModelSnapshot : ModelSnapshot
                     .WithMany()
                     .HasForeignKey("ParentId")
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+        modelBuilder.Entity("Bibliotaph.Catalog.Entities.CompanionLink", b =>
+            {
+                b.HasOne("Bibliotaph.Catalog.Entities.Entry", null)
+                    .WithMany()
+                    .HasForeignKey("BookEntryId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+
+                b.HasOne("Bibliotaph.Catalog.Entities.Entry", null)
+                    .WithMany()
+                    .HasForeignKey("EntryId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("Bibliotaph.Catalog.Entities.CorrectionRequest", b =>

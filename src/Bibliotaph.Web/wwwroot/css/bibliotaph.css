@@ -542,6 +542,12 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-bannertext{font-size:11px;color:var(--bt-text);margin-top:4px}
 .bt-boxactions.end{justify-content:flex-end}
 .bt-partsintro{margin-bottom:8px}
+.bt-pickerhead{display:flex;gap:8px;align-items:center}
+.bt-pickerinput{flex:1;min-width:0;font:inherit;color:inherit;background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:6px;padding:6px 10px}
+.bt-pickerlist{display:flex;flex-direction:column;gap:2px;margin-top:8px;max-height:320px;overflow-y:auto}
+.bt-pickerchoice{display:flex;flex-direction:column;align-items:flex-start;text-align:left;font:inherit;color:inherit;background:none;border:0;border-radius:6px;padding:6px 8px;cursor:pointer}
+.bt-pickerchoice:hover,.bt-pickerchoice:focus-visible{background:var(--bt-soft)}
+.bt-companion{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
 .bt-parteditor{border:1px solid var(--bt-line);border-radius:10px;background:var(--bt-panel);padding:22px 28px;margin:0 0 8px;box-shadow:0 0 60px #00000026}
 .bt-parteditor .bt-field{margin-top:14px}
 .bt-partheading{font-size:18px;font-weight:500;margin:0}

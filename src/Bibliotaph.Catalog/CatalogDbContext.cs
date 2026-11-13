@@ -18,6 +18,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     public DbSet<ElsewhereMatch> ElsewhereMatches => Set<ElsewhereMatch>();
     public DbSet<PartProposal> PartProposals => Set<PartProposal>();
     public DbSet<LookupRecord> LookupRecords => Set<LookupRecord>();
+    public DbSet<CompanionLink> CompanionLinks => Set<CompanionLink>();
     public DbSet<ChapterScan> ChapterScans => Set<ChapterScan>();
     public DbSet<Assertion> Assertions => Set<Assertion>();
     public DbSet<PageRef> PageRefs => Set<PageRef>();
@@ -105,6 +106,16 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
             e.HasIndex(m => m.DocumentId);
             e.HasOne<Entry>().WithMany().HasForeignKey(m => m.EntryId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne<Document>().WithMany().HasForeignKey(m => m.DocumentId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CompanionLink>(e =>
+        {
+            e.HasIndex(l => new { l.EntryId, l.BookEntryId }).IsUnique();
+            // One link in effect per companion; any number of books it was said not to go with.
+            e.HasIndex(l => l.EntryId).IsUnique().HasFilter("state IN ('Suggested', 'Confirmed')").HasDatabaseName("ix_companion_link_live");
+            e.HasIndex(l => l.BookEntryId);
+            e.HasOne<Entry>().WithMany().HasForeignKey(l => l.EntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<Entry>().WithMany().HasForeignKey(l => l.BookEntryId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PartProposal>(e => e.HasIndex(p => p.ContentHash).IsUnique());

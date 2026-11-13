@@ -150,6 +150,57 @@ public sealed record ElsewhereCardText(ElsewhereItem Item)
 /// "RPGGeek's record for its ISBN is of X, which isn't printed in it. Is it this book?", or for a record found by title
 /// alone, that only its title agrees: Same book or Not this book, with what the record says.
 /// </summary>
+/// <summary>The words on a "Goes with a book?" card.</summary>
+public sealed record SourceBookCardText(SourceBookProposal Proposal)
+{
+    public const string Chip = "Goes with a book?";
+
+    /// <summary>The answer that it goes with none of the books proposed.</summary>
+    public const string None = "none";
+
+    public const string Detail = "A map, handout or character sheet that goes with a book takes its system, publisher, setting and tags, and shows inside it in the library. "
+        + "Not from these books keeps it as it is, and they won't be suggested for it again.";
+
+    /// <summary>How many of its companions the card names, at most.</summary>
+    const int Most = 3;
+
+    public string Title => Proposal.Companions.Count == 1 ? Proposal.Titles[0] : $"{Proposal.Companions.Count} files";
+
+    public string Heading => Proposal.Companions.Count == 1
+        ? Proposal.Books.Count == 1 ? $"Does it go with {Proposal.Books[0].Title}?" : "Which book does it go with?"
+        : Proposal.Books.Count == 1 ? $"Do these {Proposal.Companions.Count} files go with {Proposal.Books[0].Title}?" : $"Which book do these {Proposal.Companions.Count} files go with?";
+
+    /// <summary>"Harbor map, Tavern handout, Crypt map and 9 more", for a card about several.</summary>
+    public string Named => Proposal.Companions.Count == 1 ? "" : string.Join(", ", Proposal.Titles.Take(Most))
+        + (Proposal.Titles.Count > Most ? $" and {Proposal.Titles.Count - Most} more" : "");
+
+    /// <summary>Why each book was proposed: "Drowned Abbey: its name carries “Drowned Abbey”".</summary>
+    public string Evidence => string.Join(" · ", Proposal.Books.Select(b => b.Detail.Length == 0 ? b.Title : $"{b.Title}: {Lower(b.Detail)}"));
+
+    static string Lower(string text) => text.Length == 0 ? text : char.ToLowerInvariant(text[0]) + text[1..];
+
+    /// <summary>A choice for each book, the likeliest first.</summary>
+    public IReadOnlyList<ReviewChoiceText> Choices =>
+    [
+        .. Proposal.Books.Select((b, i) => new ReviewChoiceText(Key(b.EntryId), $"Goes with {b.Title}",
+            "It takes the book's system, publisher, setting and tags, and shows inside it.", i == 0)),
+        new(None, Proposal.Books.Count == 1 ? "Not from this book" : "Not from these books", "It stays as it is, and these books won't be suggested for it again."),
+    ];
+
+    public static string Key(EntryId book) => $"book:{book.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+
+    /// <summary>The book a choice names, or null for <see cref="None"/>.</summary>
+    public static EntryId? Book(string key) =>
+        key.StartsWith("book:", StringComparison.Ordinal) && long.TryParse(key.AsSpan(5), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id)
+            ? new EntryId(id) : null;
+
+    public string Linked(EntryId book) => Proposal.Books.FirstOrDefault(b => b.EntryId == book) is { } chosen
+        ? Proposal.Companions.Count == 1 ? $"It goes with {chosen.Title} now." : $"These {Proposal.Companions.Count} files go with {chosen.Title} now."
+        : "Done.";
+
+    public string NotFromThese => Proposal.Companions.Count == 1 ? "Left as it is." : $"Left these {Proposal.Companions.Count} files as they are.";
+}
+
 public sealed record LookupMatchCardText(LookupMatchItem Item)
 {
     public const string Chip = "Same book?";

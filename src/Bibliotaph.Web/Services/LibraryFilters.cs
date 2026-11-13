@@ -42,6 +42,8 @@ public static class LibraryFilters
             q => q with { Found = null }, true);
         Add(query.Adventures is not null, query.Adventures == "Hidden" ? "Adventures inside files hidden" : "Adventures as cards", "adventures inside files",
             q => q with { Adventures = null }, true);
+        Add(query.Companions is not null, query.Companions == "Hidden" ? "Maps and handouts hidden" : "Maps and handouts as cards", "maps and handouts",
+            q => q with { Companions = null }, true);
         Add(query.Collections is not null, Label(LibraryChoices.Collections, query.Collections), "collection", q => q with { Collections = null }, true);
         return chips;
     }

@@ -19,7 +19,29 @@ public sealed record BookDetails(
     string SplitPackLabel, string SplitPackTip, IReadOnlyList<CollectionChip> Collections, IReadOnlyList<DetailChapter> Chapters,
     bool CanAsk, bool HasChosenCover = false, string? OcrEveryPageQuestion = null, bool FromRpgGeek = false,
     DetailRpgGeek? RpgGeek = null, string? RpgGeekOffer = null, string RpgGeekHint = "", IReadOnlyList<DetailFact>? Lookup = null,
-    string LookupHeading = "");
+    string LookupHeading = "", DetailGoesWith? GoesWith = null);
+
+/// <summary>
+/// Goes with: the book a map, handout, character sheet or pack goes with (<see cref="Book"/>), the books proposed for
+/// it, and, on a book, the cards that go with it. <see cref="CanGoWith"/> says whether the card can go with a book.
+/// </summary>
+public sealed record DetailGoesWith(bool CanGoWith, DetailSourceBook? Book, IReadOnlyList<BookChoice> Proposed, IReadOnlyList<DetailCompanion> Companions,
+    string CompanionsHeading);
+
+/// <summary>The book a card goes with: its title, how Bibliotaph knew, and whether the user set or kept it.</summary>
+public sealed record DetailSourceBook(long EntryId, string Title, string How, bool Confirmed);
+
+/// <summary>A card that goes with a book, as the book's details list it.</summary>
+public sealed record DetailCompanion(long EntryId, string Title, string How);
+
+/// <summary>A book a card can go with, as the picker and the proposals list it.</summary>
+public sealed record BookChoice(long EntryId, string Title, string Detail);
+
+/// <summary>The picker's search: the words typed, and the cards it never offers (those that would go with the book).</summary>
+public sealed record BookSearch(string Text, IReadOnlyList<long> Not);
+
+/// <summary>The book a card goes with now, chosen by the user.</summary>
+public sealed record SourceBookEdit(long Book);
 
 /// <summary>The book's record on RPGGeek: <see cref="Text"/> says what it's called there, and <see cref="Url"/> is its page.</summary>
 public sealed record DetailRpgGeek(string Text, string Url);

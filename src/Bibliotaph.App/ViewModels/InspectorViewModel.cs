@@ -77,6 +77,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         CorrectionService? corrections, ChosenCovers? chosen, Microsoft.Extensions.Logging.ILogger log, WebShelfCache? shelf, LookupLinks? links)
     {
         PartUndo = new UndoSlot(log);
+        SourceUndo = new UndoSlot(log);
         _links = links;
         _files = files;
         _prompts = prompts;
@@ -505,7 +506,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         IJobControl indexing, IStageCatalog stages, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers,
         PartsService parts, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log,
         CorrectionService? corrections = null, ChosenCovers? chosen = null, WebShelfCache? shelf = null, WebLibraryCopies? webCopies = null,
-        LookupLinks? links = null)
+        LookupLinks? links = null, SourceBooksService? sourceBooks = null)
     {
         DocumentSource? webSource = null;
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
@@ -544,6 +545,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (webSource is not null) await inspector.LoadOfflineAsync(webCopies!, webSource);
         await inspector.ReloadMetadataAsync(changed: false);
         await inspector.LoadPartsAsync(parts);
+        if (sourceBooks is not null) await inspector.LoadSourceBooksAsync(sourceBooks);
         await inspector.LoadChaptersAsync(log);
         return inspector;
     }

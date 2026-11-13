@@ -322,6 +322,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             await library.Get<SharedResults>().StopAsync(CancellationToken.None);
             await library.Get<LibrarySync>().StopAsync(CancellationToken.None);
             await library.Get<LibraryVectors>().StopAsync(CancellationToken.None);
+            await library.Get<SourceBookFinder>().StopAsync(CancellationToken.None);
             await library.Indexing.StopAsync(CancellationToken.None);
             await library.Writer.StopAsync(CancellationToken.None);
             var index = library.Index;
@@ -453,6 +454,7 @@ public sealed class UserLibraries(ServerPaths paths, IDatabaseRestore restore, L
             // Scans every library folder as it starts, which picks up whatever changed while the library was closed.
             await library.Indexing.StartAsync(CancellationToken.None);
             await library.Get<LibraryVectors>().StartAsync(CancellationToken.None);
+            await library.Get<SourceBookFinder>().StartAsync(CancellationToken.None);
             await library.Get<ServerSyncChannel>().LoadAsync();
             await library.Get<LibrarySync>().StartAsync(CancellationToken.None);
             await library.Get<SharedResults>().StartAsync(CancellationToken.None);

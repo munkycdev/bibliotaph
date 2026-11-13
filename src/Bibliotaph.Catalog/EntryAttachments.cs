@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Metadata;
@@ -57,8 +58,11 @@ internal sealed record EntryReturn(CatalogDbContext Db, Entry Entry, RemovedEntr
 /// </summary>
 internal sealed class MovedRows
 {
-    /// <summary>The shape this build writes. Raise it when a change means older rows must be read differently.</summary>
-    public const int CurrentVersion = 1;
+    /// <summary>
+    /// The shape this build writes. Raise it when a change means older rows must be read differently, or when an older
+    /// build would leave something behind: 2 added the links of companions.
+    /// </summary>
+    public const int CurrentVersion = 2;
 
     /// <summary>
     /// The shape of the record. The default stays 1 whatever <see cref="CurrentVersion"/> becomes: it is what rows
@@ -90,6 +94,12 @@ internal sealed class MovedRows
     public List<long> Members { get; set; } = [];
     /// <summary>The adventures marked in the joining card's file.</summary>
     public List<long> Parts { get; set; } = [];
+    /// <summary>The joining card's own links to books, as a companion. Left out when none moved, as records before version 2 have none.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<long>? CompanionLinks { get; set; }
+    /// <summary>The links of the cards that go with the joining card, now pointing at the card it joined.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<long>? CompanionBooks { get; set; }
 
     public string ToJson() => JsonSerializer.Serialize(this);
 
@@ -118,6 +128,7 @@ internal static class EntryAttachments
     [
         new SourceRows(), new AssertionRows(), new RejectionRows(), new RunRows(), new FavoriteRow(), new ReadingRow(), new PinRow(),
         new CollectionRows(), new SessionItemRows(), new OwnNote(), new PageNotes(), new PackMembers(), new Parts(), new AskTurns(),
+        new CompanionLinks(), new CompanionBooks(),
     ];
 
     /// <summary>
@@ -730,5 +741,92 @@ internal static class EntryAttachments
             Model = t.Model,
             NotAnswered = t.NotAnswered,
         };
+    }
+
+    /// <summary>
+    /// The joining card's links as a companion: the book it goes with, and the books it was said not to. Each moves to
+    /// the card it joins unless that card already has a row for the same book, and a link in effect moves only to a
+    /// card without one, so the card it joins keeps its own. A removed entry's are kept and come back with it.
+    /// </summary>
+    sealed class CompanionLinks : IEntryAttachment
+    {
+        public Type Rows => typeof(CompanionLink);
+        public string ForeignKey => nameof(CompanionLink.EntryId);
+
+        public async Task MoveAsync(EntryMove move, CancellationToken ct)
+        {
+            var db = move.Db;
+            var theirs = await db.CompanionLinks.Where(l => l.EntryId == move.Target).ToListAsync(ct);
+            var live = theirs.Any(l => l.State is CompanionState.Suggested or CompanionState.Confirmed);
+            foreach (var link in await db.CompanionLinks.Where(l => l.EntryId == move.JoiningId).ToListAsync(ct))
+            {
+                if (link.BookEntryId == move.Target || theirs.Any(t => t.BookEntryId == link.BookEntryId)) continue;
+                if (link.State is CompanionState.Suggested or CompanionState.Confirmed)
+                {
+                    if (live) continue;
+                    live = true;
+                }
+                link.EntryId = move.Target;
+                (move.Moved.CompanionLinks ??= []).Add(link.Id);
+            }
+        }
+
+        public async Task MoveBackAsync(EntryMoveBack back, CancellationToken ct)
+        {
+            if (back.Moved.CompanionLinks is not { Count: > 0 } moved) return;
+            foreach (var link in await back.Db.CompanionLinks.Where(l => l.EntryId == back.From && moved.Contains(l.Id)).ToListAsync(ct))
+                link.EntryId = back.Card;
+        }
+
+        public async Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct) =>
+            removed with { CompanionLinks = [.. await db.CompanionLinks.AsNoTracking().Where(l => l.EntryId == entry.Id || l.BookEntryId == entry.Id).ToListAsync(ct)] };
+
+        public async Task RestoreIntoAsync(EntryReturn back, CancellationToken ct)
+        {
+            if (back.Removed.CompanionLinks is not { Count: > 0 } links) return;
+            var was = back.Removed.EntryId.Value;
+            var others = links.Select(l => l.EntryId == was ? l.BookEntryId : l.EntryId).Distinct().ToList();
+            var still = (await back.Db.Entries.Where(e => others.Contains(e.Id)).Select(e => e.Id).ToListAsync(ct)).ToHashSet();
+            foreach (var link in links)
+            {
+                var (companion, book) = (link.EntryId == was ? back.Entry.Id : link.EntryId, link.BookEntryId == was ? back.Entry.Id : link.BookEntryId);
+                if (!still.Contains(companion == back.Entry.Id ? book : companion)) continue;
+                back.Db.CompanionLinks.Add(new CompanionLink { EntryId = companion, BookEntryId = book, State = link.State, Evidence = link.Evidence, DecidedUtc = link.DecidedUtc });
+            }
+        }
+    }
+
+    /// <summary>
+    /// The links of the cards that go with the joining card: they follow the book to the card it joins, as the same
+    /// book; a companion that already goes with that card keeps its own row. Undo points them back.
+    /// </summary>
+    sealed class CompanionBooks : IEntryAttachment
+    {
+        public Type Rows => typeof(CompanionLink);
+        public string ForeignKey => nameof(CompanionLink.BookEntryId);
+
+        public async Task MoveAsync(EntryMove move, CancellationToken ct)
+        {
+            var db = move.Db;
+            var already = (await db.CompanionLinks.Where(l => l.BookEntryId == move.Target).Select(l => l.EntryId).ToListAsync(ct)).ToHashSet();
+            foreach (var link in await db.CompanionLinks.Where(l => l.BookEntryId == move.JoiningId).ToListAsync(ct))
+            {
+                if (already.Contains(link.EntryId) || link.EntryId == move.Target) continue;
+                link.BookEntryId = move.Target;
+                (move.Moved.CompanionBooks ??= []).Add(link.Id);
+            }
+        }
+
+        public async Task MoveBackAsync(EntryMoveBack back, CancellationToken ct)
+        {
+            if (back.Moved.CompanionBooks is not { Count: > 0 } moved) return;
+            foreach (var link in await back.Db.CompanionLinks.Where(l => l.BookEntryId == back.From && moved.Contains(l.Id)).ToListAsync(ct))
+                link.BookEntryId = back.Card;
+        }
+
+        // CompanionLinks keeps and restores the rows on both sides of a removed entry.
+        public Task<RemovedEntry> CaptureAsync(CatalogDbContext db, Entry entry, RemovedEntry removed, CancellationToken ct) => Task.FromResult(removed);
+
+        public Task RestoreIntoAsync(EntryReturn back, CancellationToken ct) => Task.CompletedTask;
     }
 }

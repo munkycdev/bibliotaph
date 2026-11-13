@@ -21,6 +21,12 @@ public sealed record LibrarySummary
     /// <summary>Adventures marked inside files, each a card of its own when searched for.</summary>
     public long Adventures { get; init; }
 
+    /// <summary>Maps, handouts, character sheets and packs that go with a book.</summary>
+    public long Companions { get; init; }
+
+    /// <summary>Maps, handouts and packs with books proposed for them in Needs review.</summary>
+    public long CompanionsAsked { get; init; }
+
     /// <summary>Books owned in print, on a virtual tabletop or online, with no file.</summary>
     public long Elsewhere { get; init; }
 

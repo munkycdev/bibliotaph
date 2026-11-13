@@ -49,7 +49,12 @@ internal static class LibrarySql
         CASE WHEN e.kind = 'Part' THEN (SELECT fp.label FROM page fp WHERE fp.document_id = e.document_id AND fp.pdf_page = e.first_page) END AS FirstLabel,
         CASE WHEN e.kind = 'Part' THEN (SELECT lp.label FROM page lp WHERE lp.document_id = e.document_id AND lp.pdf_page = e.last_page) END AS LastLabel,
         CASE WHEN e.kind = 'Part' THEN d.cover END AS FileCover,
-        e.pack_file AS PackFile, CASE WHEN e.pack_file IS NOT NULL THEN coalesce(m.title, e.name) END AS PackTitle
+        e.pack_file AS PackFile, CASE WHEN e.pack_file IS NOT NULL THEN coalesce(m.title, e.name) END AS PackTitle,
+        e.source_id AS SourceId, e.companions AS Companions,
+        CASE WHEN e.source_id IS NOT NULL THEN (
+            SELECT coalesce(sm.title, se.name, sd.display_title) FROM entry_doc se
+            LEFT JOIN entry_meta sm ON sm.entry_id = se.entry_id LEFT JOIN doc sd ON sd.document_id = se.document_id
+            WHERE se.entry_id = e.source_id) END AS SourceTitle
         """;
 
     /// <summary>
@@ -66,10 +71,10 @@ internal static class LibrarySql
     public static string Cards(bool packFiles) => packFiles
         ? """
             (SELECT entry_id, document_id, kind, copies, name, members, added_utc, parent_id, first_page, last_page, parts, cover, cover_member,
-                    NULL AS pack_file
+                    source_id, companions, NULL AS pack_file
              FROM entry_doc WHERE kind <> 'Pack'
              UNION ALL
-             SELECT p.entry_id, em.document_id, 'Whole', 1, p.name, 0, p.added_utc, NULL, NULL, NULL, 0, NULL, NULL, em.member_entry_id
+             SELECT p.entry_id, em.document_id, 'Whole', 1, p.name, 0, p.added_utc, NULL, NULL, NULL, 0, NULL, NULL, p.source_id, 0, em.member_entry_id
              FROM entry_doc p JOIN entry_member em ON em.entry_id = p.entry_id
              WHERE p.kind = 'Pack')
             """

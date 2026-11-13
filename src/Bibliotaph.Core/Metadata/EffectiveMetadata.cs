@@ -90,6 +90,7 @@ public sealed class EffectiveMetadata
     {
         AssertionOrigin.User => 100,
         AssertionOrigin.FolderRule or AssertionOrigin.UserTag => 60,
+        AssertionOrigin.SourceBook => 58,
         AssertionOrigin.Lookup => 55,
         AssertionOrigin.Ai => 50,
         AssertionOrigin.Rule => 30,

@@ -121,8 +121,10 @@ public static class SelectionApi
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var plan = await PlanAsync(lease.Library, books.EntryIds, ct);
             if (plan.Books.Count == 0) return Results.NotFound();
+            var goesWith = await lease.Library.Get<SourceBooksService>().GetBulkAsync(plan.Books, ct);
             return Results.Ok(new BulkEditForm(BulkEditText.Eyebrow, plan.Heading, plan.ApplyLabel, BulkEditText.Intro, BulkEditText.ReviewIntro,
-                plan.Books.Count, [.. plan.Fields.Select(f => FieldForm(f, plan.Books.Count))]));
+                plan.Books.Count, [.. plan.Fields.Select(f => FieldForm(f, plan.Books.Count))],
+                new BulkGoesWithForm(BulkGoesWith.Label, BulkGoesWith.Hint, goesWith.Current, goesWith.Breakdown, goesWith.IsKnown)));
         });
 
         selection.MapPost("/edit/read", async (BulkReadRequest request, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
@@ -146,7 +148,11 @@ public static class SelectionApi
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
             var plan = await PlanAsync(lease.Library, request.EntryIds, ct);
-            IReadOnlyList<BulkSummaryItem> lines = [.. Edit(plan, request.Changes).Summary.Select(l => new BulkSummaryItem(l.Field, l.Text, l.Warning))];
+            IEnumerable<BulkSummaryLine> goesWith = [];
+            if (request.GoesWith is { } edit)
+                goesWith = [(await lease.Library.Get<SourceBooksService>().GetBulkAsync(plan.Books, ct))
+                    .Describe(edit.Book is { } book ? new EntryId(book) : null, edit.Book is null ? null : edit.Title ?? "the book")];
+            IReadOnlyList<BulkSummaryItem> lines = [.. goesWith.Concat(Edit(plan, request.Changes).Summary).Select(l => new BulkSummaryItem(l.Field, l.Text, l.Warning))];
             return lines;
         });
 
@@ -156,12 +162,22 @@ public static class SelectionApi
             var library = lease.Library;
             var plan = await PlanAsync(library, request.EntryIds, ct);
             var metadata = library.Get<MetadataService>();
-            MetadataProblem? problem;
-            IReadOnlyList<FieldSnapshot>? undo;
+            var sourceBooks = library.Get<SourceBooksService>();
+            MetadataProblem? problem = null;
+            IReadOnlyList<FieldSnapshot> undo = [];
+            SourceBookChange? goesWith = null;
+            var changes = Edit(plan, request.Changes).Changes;
             try
             {
                 // Not cancelled once started: the edit is one transaction, and search should follow all of it.
-                (problem, undo) = await metadata.EditManyAsync(plan.Books, Edit(plan, request.Changes).Changes, ct: CancellationToken.None);
+                if (changes.Count > 0)
+                {
+                    (problem, var snapshots) = await metadata.EditManyAsync(plan.Books, changes, ct: CancellationToken.None);
+                    undo = snapshots ?? [];
+                }
+                // The book's values reach the cards after their own are set, so a value set here stays theirs.
+                if (problem is null && request.GoesWith is { } edit)
+                    goesWith = await sourceBooks.SetManyAsync(plan.Books, edit.Book is { } book ? new EntryId(book) : null, CancellationToken.None);
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
@@ -169,9 +185,13 @@ public static class SelectionApi
                 return new BulkApplyResult(BulkEditText.SaveFailed(e.Message), null);
             }
             if (problem is not null) return new BulkApplyResult(problem.Message, null);
-            var books = undo!.Select(s => s.EntryId).Distinct().Count();
+            var books = undo.Select(s => s.EntryId).Concat(goesWith?.Changed ?? []).Distinct().Count();
             return new BulkApplyResult(null, new ActionResult(SelectionRules.Edited(books),
-                books > 0 ? EditApi.Hold(library, () => metadata.UndoManyAsync(undo!, ct: CancellationToken.None), BulkEditText.UndoFailed) : null));
+                books > 0 ? EditApi.Hold(library, async () =>
+                {
+                    if (goesWith is not null) await sourceBooks.UndoAsync(goesWith.Undo, CancellationToken.None);
+                    await metadata.UndoManyAsync(undo, ct: CancellationToken.None);
+                }, BulkEditText.UndoFailed) : null));
         });
     }
 

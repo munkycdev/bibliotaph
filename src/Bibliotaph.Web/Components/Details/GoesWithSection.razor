@@ -1,0 +1,173 @@
+@* Goes with: the book a map, handout, character sheet or pack came from, whose system, publisher, setting and tags it
+   takes, with Keep, Not from this book and a picker to choose another; or, on a book, the cards that go with it. *@
+@using Bibliotaph.Core
+@inject BooksClient BooksApi
+
+@if (Book.GoesWith is { } goes)
+{
+    @if (goes.CanGoWith || goes.Book is not null)
+    {
+        <DetailSection Section="@DetailSections.GoesWith" Heading="GOES WITH">
+            <Actions>
+                <button class="bt-link" aria-label="Choose the book this goes with" @onclick="OpenPickerAsync">
+                    <Icon Name="Pencil" Size="13" />@(goes.Book is null ? "Choose a book…" : "Change…")
+                </button>
+            </Actions>
+            <ChildContent>
+                @if (goes.Book is { } source)
+                {
+                    <div class="bt-detailbox">
+                        <button class="bt-titlelink" aria-label="Details for @source.Title" @onclick="() => Host.ShowAsync(source.EntryId)">@source.Title</button>
+                        <div class="bt-small">@source.How</div>
+                        <div class="bt-small">Its system, publisher, setting and tags come from the book unless it has its own.</div>
+                        <div class="bt-boxactions">
+                            @if (!source.Confirmed)
+                            {
+                                <button class="bt-button" aria-label="Keep the book this goes with" @onclick="KeepAsync"><Icon Name="Check" Size="14" />Keep</button>
+                            }
+                            <button class="bt-button" title="It won't be suggested for this book again" @onclick="RefuseAsync"><Icon Name="X" Size="14" />Not from this book</button>
+                        </div>
+                    </div>
+                }
+                else if (goes.Proposed.Count > 0)
+                {
+                    <div class="bt-small">It may go with one of these:</div>
+                    <div aria-label="Books it may go with">
+                        @foreach (var choice in goes.Proposed)
+                        {
+                            <div class="bt-detailbox" @key="choice.EntryId">
+                                <div class="bt-row">@choice.Title</div>
+                                <div class="bt-small">@choice.Detail</div>
+                                <div class="bt-boxactions">
+                                    <button class="bt-button" aria-label="Goes with @choice.Title" @onclick="() => PickAsync(choice)">Goes with this</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="bt-small bt-partsintro">A map, handout or character sheet can go with the book it came from, and take its system, publisher, setting and tags.</div>
+                }
+                @if (_picking)
+                {
+                    <div class="bt-detailbox" aria-label="Choose a book">
+                        <div class="bt-pickerhead">
+                            <input class="bt-pickerinput" aria-label="Type part of the book's title" placeholder="Type part of the book's title" @bind="Query" @bind:event="oninput"
+                                   @onkeydown="PickerKeyDown" />
+                            <button class="bt-icon" title="Close (Esc)" aria-label="Close the book picker" @onclick="ClosePicker"><Icon Name="X" Size="14" /></button>
+                        </div>
+                        <div class="bt-pickerlist" aria-label="Books to choose from">
+                            @foreach (var choice in _choices)
+                            {
+                                <button class="bt-pickerchoice" @key="choice.EntryId" aria-label="Goes with @choice.Title" @onclick="() => PickAsync(choice)">
+                                    <span class="bt-row">@choice.Title</span>
+                                    <span class="bt-small">@choice.Detail</span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                }
+            </ChildContent>
+        </DetailSection>
+    }
+    @if (goes.Companions.Count > 0)
+    {
+        <DetailSection Section="@DetailSections.GoesWith" Heading="@goes.CompanionsHeading">
+            <div class="bt-small bt-partsintro">These take the book's system, publisher, setting and tags unless they have their own.</div>
+            <div aria-label="Maps and handouts that go with this book">
+                @foreach (var companion in goes.Companions)
+                {
+                    <div class="bt-companion" @key="companion.EntryId">
+                        <div>
+                            <button class="bt-titlelink" aria-label="Details for @companion.Title" @onclick="() => Host.ShowAsync(companion.EntryId)">@companion.Title</button>
+                            <div class="bt-small">@companion.How</div>
+                        </div>
+                        <button class="bt-icon" title="Not from this book" aria-label="@companion.Title is not from this book"
+                                @onclick="() => RemoveCompanionAsync(companion)"><Icon Name="X" Size="14" /></button>
+                    </div>
+                }
+            </div>
+        </DetailSection>
+    }
+}
+<DoneNote Result="_note" UndoName="Undo the change to the book this goes with" Dismissed="() => _note = null" Undone="UndoneAsync" />
+
+@code {
+    [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
+    [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
+
+    ActionResult? _note;
+    bool _picking;
+    string _query = "";
+    List<BookChoice> _choices = [];
+    // Each search moves this on, so an older search's answer, arriving late, is dropped.
+    int _search;
+
+    string Query
+    {
+        get => _query;
+        set
+        {
+            _query = value;
+            _ = FindAsync(value);
+        }
+    }
+
+    async Task OpenPickerAsync()
+    {
+        _note = null;
+        _picking = true;
+        _query = "";
+        await FindAsync("");
+    }
+
+    void ClosePicker()
+    {
+        _search++;
+        _picking = false;
+        _choices = [];
+    }
+
+    void PickerKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") ClosePicker();
+    }
+
+    async Task FindAsync(string text)
+    {
+        var search = ++_search;
+        // Typing waits a moment, so each key doesn't search.
+        if (text.Length > 0) await Task.Delay(200);
+        if (search != _search) return;
+        if (await Host.TryAsync(() => BooksApi.FindSourceBooksAsync(text, [Host.EntryId])) is not { } found || search != _search) return;
+        _choices = found;
+        StateHasChanged();
+    }
+
+    Task PickAsync(BookChoice choice)
+    {
+        ClosePicker();
+        return ChangeAsync(() => BooksApi.SetSourceBookAsync(Host.EntryId, choice.EntryId));
+    }
+
+    Task KeepAsync() => ChangeAsync(() => BooksApi.KeepSourceBookAsync(Host.EntryId));
+
+    Task RefuseAsync() => ChangeAsync(() => BooksApi.RefuseSourceBookAsync(Host.EntryId));
+
+    Task RemoveCompanionAsync(DetailCompanion companion) => ChangeAsync(() => BooksApi.RefuseSourceBookAsync(companion.EntryId));
+
+    async Task ChangeAsync(Func<Task<ActionResult>> change)
+    {
+        if (await Host.TryAsync(change) is not { } done) return;
+        _note = done;
+        await Host.ChangedAsync();
+        await Host.RefreshAsync();
+    }
+
+    async Task UndoneAsync()
+    {
+        await Host.ChangedAsync();
+        await Host.RefreshAsync();
+    }
+}

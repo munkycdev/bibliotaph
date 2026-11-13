@@ -145,14 +145,15 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
     }
 
     /// <summary>
-    /// Projects these entries and the adventures marked in their files, whose cards show their file's title and take
-    /// its game system, publisher and the rest. Returns every entry projected, and the documents whose book's card has
-    /// a new title (<see cref="Retitled"/>).
+    /// Projects these entries, the adventures marked in their files, whose cards show their file's title and take
+    /// its game system, publisher and the rest, and the cards that go with them, which take their values too. Returns
+    /// every entry projected, and the documents whose book's card has a new title (<see cref="Retitled"/>).
     /// </summary>
     async Task<(IReadOnlyCollection<EntryId> Projected, IReadOnlyCollection<long> Retitled)> WriteAsync(IReadOnlyCollection<EntryId> requested,
         CancellationToken ct)
     {
-        IReadOnlyCollection<EntryId> entryIds = [.. requested.Union(await entries.GetPartIdsAsync(requested, ct))];
+        IReadOnlyCollection<EntryId> withParts = [.. requested.Union(await entries.GetPartIdsAsync(requested, ct))];
+        IReadOnlyCollection<EntryId> entryIds = [.. withParts.Union(await entries.GetCompanionIdsAsync(withParts, ct))];
         var vocabulary = await vocabularies.GetAsync(ct);
         var reviewAll = await ReviewAllAsync(ct);
         var before = await queries.GetCardTitlesAsync(entryIds, ct);
@@ -187,6 +188,8 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         ParentEntryId = entry.ParentEntryId,
         Pages = entry.Pages,
         Parts = entry.Parts,
+        SourceEntryId = entry.SourceEntryId,
+        Companions = entry.Companions,
     };
 
     /// <summary>Copies every name of every term into index.db, for field search. Run when a term is added.</summary>

@@ -65,6 +65,21 @@ public sealed class BooksClient(ApiHttp http)
     public Task<ActionResult> RemovePartAsync(long partId, CancellationToken ct = default) =>
         http.SendAsync<ActionResult>(HttpMethod.Delete, $"{Book(partId)}/part", null, ct);
 
+    /// <summary>The books a card can go with whose title or details have <paramref name="text"/>, never <paramref name="not"/>.</summary>
+    public Task<List<BookChoice>> FindSourceBooksAsync(string text, IReadOnlyList<long> not, CancellationToken ct = default) =>
+        http.SendAsync<List<BookChoice>>(HttpMethod.Post, "api/library/source-books", new BookSearch(text, not), ct);
+
+    /// <summary>Goes with: the card goes with <paramref name="book"/>, chosen by the user.</summary>
+    public Task<ActionResult> SetSourceBookAsync(long entryId, long book, CancellationToken ct = default) =>
+        http.SendAsync<ActionResult>(HttpMethod.Put, $"{Book(entryId)}/source", new SourceBookEdit(book), ct);
+
+    public Task<ActionResult> KeepSourceBookAsync(long entryId, CancellationToken ct = default) =>
+        http.SendAsync<ActionResult>(HttpMethod.Post, $"{Book(entryId)}/source/keep", null, ct);
+
+    /// <summary>Not from this book: the rules won't suggest it again.</summary>
+    public Task<ActionResult> RefuseSourceBookAsync(long entryId, CancellationToken ct = default) =>
+        http.SendAsync<ActionResult>(HttpMethod.Delete, $"{Book(entryId)}/source", null, ct);
+
     /// <summary>A pack's cover: one of its files, or null for the mosaic.</summary>
     public Task<BookDetails> UsePackCoverAsync(long packId, long? member, CancellationToken ct = default) =>
         http.SendAsync<BookDetails>(HttpMethod.Put, $"{Book(packId)}/cover", new PackCover(member), ct);

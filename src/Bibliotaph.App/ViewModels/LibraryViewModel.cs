@@ -461,7 +461,8 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
             var withCopies = await Task.Run(() => _queries.CountWithCopiesAsync());
             var parts = await Task.Run(() => _queries.CountPartsAsync());
-            if (version == _version) Filters.ShowCounts(aiRead, withCopies, parts, Collections.Directory.ChildrenOf(null).Count > 0);
+            var companions = await Task.Run(() => _queries.CountCompanionsAsync());
+            if (version == _version) Filters.ShowCounts(aiRead, withCopies, parts, Collections.Directory.ChildrenOf(null).Count > 0, companions);
             if (!IsSearching)
             {
                 var entries = await Task.Run(() => _queries.ListAsync(filter));

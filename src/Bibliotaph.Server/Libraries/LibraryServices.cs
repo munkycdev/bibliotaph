@@ -100,6 +100,9 @@ public static class LibraryServices
         services.AddSingleton<PackStore>();
         services.AddSingleton<PartStore>();
         services.AddSingleton<PartsService>();
+        services.AddSingleton<CompanionStore>();
+        services.AddSingleton<SourceBooksService>();
+        services.AddSingleton<SourceBookFinder>();
         services.AddSingleton<PartProposalStore>();
         services.AddSingleton<PartProposalService>();
         services.AddSingleton<PackService>();

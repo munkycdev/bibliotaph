@@ -9,7 +9,8 @@ namespace Bibliotaph.Processing;
 /// them, catalog.db's for the folders' sizes and the user's own things. The Windows app shows it as it is, and the web
 /// library sends the same figures to the browser, so the two never disagree.
 /// </summary>
-public sealed class LibrarySummaryService(LibraryStore library, SourceRootStore roots, SummaryStore store, SummaryQueries queries, TimeProvider clock)
+public sealed class LibrarySummaryService(LibraryStore library, SourceRootStore roots, SummaryStore store, SummaryQueries queries, TimeProvider clock,
+    CompanionStore? companions = null)
 {
     public async Task<LibrarySummary> GetAsync(CancellationToken ct = default)
     {
@@ -23,8 +24,11 @@ public sealed class LibrarySummaryService(LibraryStore library, SourceRootStore 
             folders.Add(new SummaryFolder(root.Id, root.Path, books, bytes.GetValueOrDefault(root.Id), root.Availability == SourceRootAvailability.Offline));
         }
         var work = await store.GetUserWorkAsync(ct);
+        var shown = scope.ToHashSet();
+        var asked = companions is null ? 0 : (await companions.GetProposedAsync(ct)).Select(p => p.Companion).Distinct().Count(shown.Contains);
         return summary with
         {
+            CompanionsAsked = asked,
             Folders = [.. folders.OrderByDescending(f => f.Books).ThenBy(f => f.Id)],
             Bytes = folders.Sum(f => f.Bytes),
             Collections = work.Collections,

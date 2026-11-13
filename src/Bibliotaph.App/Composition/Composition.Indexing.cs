@@ -19,6 +19,9 @@ static partial class Composition
         // Reading the whole library for meaning, slowly and last of all.
         services.AddSingleton<LibraryVectors>();
         services.AddHostedService(sp => sp.GetRequiredService<LibraryVectors>());
+        // Which book each map, handout and pack goes with, looked for again whenever the library changes.
+        services.AddSingleton<SourceBookFinder>();
+        services.AddHostedService(sp => sp.GetRequiredService<SourceBookFinder>());
         return services;
     }
 }

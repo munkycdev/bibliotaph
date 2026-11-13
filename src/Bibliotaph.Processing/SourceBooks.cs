@@ -1,0 +1,265 @@
+using Bibliotaph.Catalog;
+using Bibliotaph.Core;
+using Bibliotaph.Core.Search;
+using Bibliotaph.Index;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
+namespace Bibliotaph.Processing;
+
+/// <summary>A book a companion can go with, as the picker lists it: its title and its byline.</summary>
+public sealed record SourceBookChoice(EntryId EntryId, string Title, string Detail);
+
+/// <summary>
+/// The book a companion goes with, as its details show it: the title, how Bibliotaph knew ("It sits beside the book in
+/// “Maps”", "You chose it"), and whether the user set or kept it.
+/// </summary>
+public sealed record SourceBookLink(EntryId Book, string Title, string How, bool Confirmed);
+
+/// <summary>A card that goes with a book, as the book's details list it.</summary>
+public sealed record CompanionView(EntryId EntryId, string Title, string How, bool Confirmed);
+
+/// <summary>
+/// "Goes with" in a card's details: the book it goes with, the books proposed for it and waiting in Needs review, the
+/// cards that go with it when it is the book, and whether it can go with one at all.
+/// </summary>
+public sealed record SourceBookDetails(SourceBookLink? GoesWith, IReadOnlyList<SourceBookChoice> Proposed, IReadOnlyList<CompanionView> Companions, bool CanGoWith)
+{
+    public static SourceBookDetails None { get; } = new(null, [], [], false);
+}
+
+/// <summary>
+/// "Goes with a book?" in Needs review: companions in one folder with the same books proposed for them, their titles,
+/// the folder, and the books, best first, each with why it was proposed.
+/// </summary>
+public sealed record SourceBookProposal(IReadOnlyList<EntryId> Companions, IReadOnlyList<string> Titles, string? Path, IReadOnlyList<SourceBookChoice> Books)
+{
+    /// <summary>Names the card while its companions and books stay the same.</summary>
+    public string Key => $"{string.Join(',', Companions.Select(c => c.Value).Order())}>{string.Join(',', Books.Select(b => b.EntryId.Value).Order())}";
+}
+
+/// <summary>What linking or unlinking did, in words, with what undoes it and the cards that couldn't take part.</summary>
+public sealed record SourceBookChange(string Message, IReadOnlyList<EntryId> Changed, IReadOnlyList<EntryId> Refused, CompanionUndo Undo);
+
+/// <summary>
+/// The user's side of linking maps, handouts, character sheets and packs to the book they go with: the details' Goes
+/// with row and its book picker, Select's Edit metadata for many cards at once, and Undo. Every change is projected at
+/// once, the companions and the books before and after, so the companions show the book's values and the books count
+/// them.
+/// </summary>
+public sealed class SourceBooksService(CompanionStore store, EntryStore entries, LibraryQueries library, IndexQueries queries, MetadataProjector projector,
+    LibraryStore files, ILogger<SourceBooksService>? log = null)
+{
+    readonly ILogger _log = log ?? NullLogger<SourceBooksService>.Instance;
+
+    /// <summary>Raised after links changed, with the companions, on the caller's thread: Needs review and the Summary follow.</summary>
+    public event EventHandler<IReadOnlyCollection<EntryId>>? Changed;
+
+    /// <summary>What the details show for <paramref name="entryId"/>.</summary>
+    public async Task<SourceBookDetails> GetDetailsAsync(EntryId entryId, CancellationToken ct = default)
+    {
+        var kind = await entries.GetKindAsync(entryId, ct);
+        if (kind is null) return SourceBookDetails.None;
+        var all = await store.GetAllAsync(entryId, ct);
+        var companions = await store.GetCompanionsAsync(entryId, ct);
+        var live = all.FirstOrDefault(l => l.InEffect);
+        var proposed = all.Where(l => l.State == CompanionState.Proposed).OrderByDescending(l => l.Evidence?.Score ?? 0).ToList();
+        var titles = await queries.GetCardTitlesAsync([.. all.Select(l => l.Book), .. companions.Select(c => c.Companion)], ct);
+        string Title(EntryId id) => titles.TryGetValue(id, out var t) ? t.Title : "Untitled";
+        var goesWith = live is null ? null : new SourceBookLink(live.Book, Title(live.Book), SourceBookText.How(live), live.State == CompanionState.Confirmed);
+        var canGoWith = companions.Count == 0 && kind is EntryKind.Whole or EntryKind.Pack && !await IsInPackAsync(entryId, ct);
+        return new SourceBookDetails(goesWith,
+            [.. proposed.Select(p => new SourceBookChoice(p.Book, Title(p.Book), p.Evidence?.Describe() ?? ""))],
+            [.. companions.Select(c => new CompanionView(c.Companion, Title(c.Companion), SourceBookText.How(c), c.State == CompanionState.Confirmed))
+                .OrderBy(c => c.Title, StringComparer.CurrentCultureIgnoreCase)],
+            canGoWith);
+    }
+
+    /// <summary>A file in a pack is a member, not a card; its pack is what goes with a book.</summary>
+    async Task<bool> IsInPackAsync(EntryId entryId, CancellationToken ct) =>
+        await entries.GetCurrentDocumentAsync(entryId, ct) is { } documentId && await entries.GetCardAsync(documentId, ct) is { } card && card != entryId;
+
+    /// <summary>
+    /// The picker: the books whose title or details have <paramref name="text"/>, best first, or the books opened
+    /// lately while nothing is typed. Never a pack, a card that goes with a book itself, or any of <paramref name="excluding"/>.
+    /// </summary>
+    public async Task<IReadOnlyList<SourceBookChoice>> FindBooksAsync(string text, IReadOnlyCollection<EntryId> excluding, int limit = 20, CancellationToken ct = default)
+    {
+        var typed = text.Trim().Length > 0;
+        var filter = new LibraryFilter(Sort: typed ? LibrarySort.Relevance : LibrarySort.RecentlyOpened, HideCompanions: true);
+        var plan = typed ? SearchPlan.From(SearchQuery.Parse(text)) : new SearchPlan();
+        var found = await library.SearchDocumentsAsync(plan, filter, limit + excluding.Count + 20, ct);
+        var skip = excluding.ToHashSet();
+        return [.. found.Where(e => !e.IsPack && !skip.Contains(e.EntryId)).DistinctBy(e => e.EntryId).Take(limit)
+            .Select(e => new SourceBookChoice(e.EntryId, e.Title, CardText.Byline(e)))];
+    }
+
+    /// <summary>"Goes with": each of <paramref name="companions"/> goes with <paramref name="book"/>, set by the user.</summary>
+    public async Task<SourceBookChange> LinkAsync(IReadOnlyCollection<EntryId> companions, EntryId book, CancellationToken ct = default)
+    {
+        var change = await store.LinkAsync(companions, book, ct);
+        _log.LogInformation("Linked {Count} cards to book {Book}; {Refused} couldn't go with it", change.Changed.Count, book, change.Refused.Count);
+        await ProjectAsync(change.Undo, [book], ct);
+        var title = (await queries.GetCardTitlesAsync([book], ct)).TryGetValue(book, out var t) ? t.Title : "the book";
+        return new SourceBookChange(SourceBookText.Linked(change.Changed.Count, title, change.Refused.Count), change.Changed, change.Refused, change.Undo);
+    }
+
+    /// <summary>
+    /// Takes the cards away from the book they go with. <paramref name="refuse"/> is "Not from this book": the rules
+    /// won't suggest it again. Without, they may suggest one again.
+    /// </summary>
+    public async Task<SourceBookChange> UnlinkAsync(IReadOnlyCollection<EntryId> companions, bool refuse, CancellationToken ct = default)
+    {
+        var change = await store.UnlinkAsync(companions, refuse, ct);
+        await ProjectAsync(change.Undo, [], ct);
+        return new SourceBookChange(SourceBookText.Unlinked(change.Changed.Count, refuse), change.Changed, [], change.Undo);
+    }
+
+    /// <summary>"Keep": the suggested book becomes the user's choice.</summary>
+    public async Task<SourceBookChange> ConfirmAsync(IReadOnlyCollection<EntryId> companions, CancellationToken ct = default)
+    {
+        var change = await store.ConfirmAsync(companions, ct);
+        await ProjectAsync(change.Undo, [], ct);
+        return new SourceBookChange(SourceBookText.Kept(change.Changed.Count), change.Changed, [], change.Undo);
+    }
+
+    /// <summary>
+    /// The answer to a "Goes with a book?" card: <paramref name="book"/>, or none of those proposed when it is null.
+    /// </summary>
+    public async Task<SourceBookChange> AnswerAsync(EntryId companion, EntryId? book, CancellationToken ct = default) =>
+        book is { } chosen ? await LinkAsync([companion], chosen, ct) : await UnlinkAsync([companion], refuse: true, ct);
+
+    /// <summary>
+    /// The "Goes with a book?" cards: the companions the library shows that have books proposed, one card for each
+    /// folder and set of books, so a folder of forty maps asks once.
+    /// </summary>
+    public async Task<IReadOnlyList<SourceBookProposal>> GetProposalsAsync(CancellationToken ct = default)
+    {
+        var proposed = await store.GetProposedAsync(ct);
+        if (proposed.Count == 0) return [];
+        var shown = (await files.GetVisibleEntryIdsAsync(ct: ct)).ToHashSet();
+        var byCompanion = proposed.Where(p => shown.Contains(p.Companion) && shown.Contains(p.Book)).GroupBy(p => p.Companion).ToList();
+        if (byCompanion.Count == 0) return [];
+        var companions = byCompanion.Select(g => g.Key).ToList();
+        var folders = (await store.GetCardFoldersAsync(companions, ct)).GroupBy(f => f.Card).ToDictionary(g => g.Key, g => g.First().FullPath);
+        var titles = await queries.GetCardTitlesAsync([.. companions, .. byCompanion.SelectMany(g => g.Select(p => p.Book)).Distinct()], ct);
+        string Title(EntryId id) => titles.TryGetValue(id, out var t) ? t.Title : "Untitled";
+        return [.. byCompanion
+            .GroupBy(g => (Path: folders.GetValueOrDefault(g.Key), Books: string.Join(',', g.Select(p => p.Book.Value).Order())))
+            .Select(group =>
+            {
+                var rows = group.SelectMany(g => g).ToList();
+                var books = rows.GroupBy(r => r.Book).Select(b => b.MaxBy(r => r.Evidence?.Score ?? 0)!).OrderByDescending(r => r.Evidence?.Score ?? 0)
+                    .Select(r => new SourceBookChoice(r.Book, Title(r.Book), r.Evidence?.Describe() ?? "")).ToList();
+                var members = group.Select(g => g.Key).OrderBy(Title, StringComparer.CurrentCultureIgnoreCase).ToList();
+                return new SourceBookProposal(members, [.. members.Select(Title)], group.Key.Path, books);
+            })
+            .OrderBy(p => p.Path, StringComparer.CurrentCultureIgnoreCase).ThenBy(p => p.Titles[0], StringComparer.CurrentCultureIgnoreCase)];
+    }
+
+    /// <summary>The answer to a "Goes with a book?" card: every companion on it goes with <paramref name="book"/>, or with none of its books.</summary>
+    public Task<SourceBookChange> AnswerAsync(SourceBookProposal proposal, EntryId? book, CancellationToken ct = default) =>
+        SetManyAsync(proposal.Companions, book, ct);
+
+    /// <summary>Goes with in Select's Edit metadata: which books the ticked cards go with now.</summary>
+    public async Task<BulkGoesWith> GetBulkAsync(IReadOnlyList<EntryId> cards, CancellationToken ct = default)
+    {
+        var live = await store.GetLiveAsync(cards, ct);
+        var titles = await queries.GetCardTitlesAsync([.. live.Values.Select(l => l.Book).Distinct()], ct);
+        return new BulkGoesWith(cards.Count, [.. live.Values.GroupBy(l => l.Book).Select(g =>
+            new BulkGoesWith.Book(g.Key, titles.TryGetValue(g.Key, out var t) ? t.Title : "Untitled", g.Count(), g.Count(l => l.State == CompanionState.Confirmed)))]);
+    }
+
+    /// <summary>Applies Goes with from Select's Edit metadata: every card goes with <paramref name="book"/>, or with none.</summary>
+    public Task<SourceBookChange> SetManyAsync(IReadOnlyCollection<EntryId> cards, EntryId? book, CancellationToken ct = default) =>
+        book is { } chosen ? LinkAsync(cards, chosen, ct) : UnlinkAsync(cards, refuse: true, ct);
+
+    /// <summary>Puts the links back as they were before a change.</summary>
+    public async Task UndoAsync(CompanionUndo undo, CancellationToken ct = default)
+    {
+        var after = await store.GetLiveAsync(undo.Companions, ct);
+        await store.RestoreAsync(undo, ct);
+        await ProjectAsync(undo, [.. after.Values.Select(l => l.Book)], ct);
+    }
+
+    async Task ProjectAsync(CompanionUndo undo, IReadOnlyCollection<EntryId> books, CancellationToken ct)
+    {
+        if (undo.Companions.Count == 0) return;
+        var touched = new HashSet<EntryId>(undo.Companions);
+        touched.UnionWith(books);
+        touched.UnionWith(undo.Before.Where(b => b.InEffect).Select(b => b.Book));
+        await projector.ProjectAsync(touched, ct);
+        Changed?.Invoke(this, undo.Companions);
+    }
+}
+
+/// <summary>
+/// Goes with in Select's Edit metadata: the books the ticked cards go with now, and what giving them all one book,
+/// or none, will do.
+/// </summary>
+public sealed class BulkGoesWith(int cards, IReadOnlyList<BulkGoesWith.Book> books)
+{
+    /// <summary>A book some of the cards go with, on how many, and on how many the user chose it.</summary>
+    public sealed record Book(EntryId EntryId, string Title, int Cards, int Chosen);
+
+    public const string Label = "Goes with";
+
+    public const string Hint = "Maps, handouts and character sheets take the book's system, publisher, setting and tags.";
+
+    public IReadOnlyList<Book> Books { get; } = books;
+
+    /// <summary>"Drowned Abbey", "No book" or "Mixed".</summary>
+    public string Current => Books.Count == 0 ? "No book" : Books.Count == 1 && Books[0].Cards == cards ? Books[0].Title : "Mixed";
+
+    public bool IsKnown => Books.Count > 0;
+
+    /// <summary>"Drowned Abbey on 3 · no book on 9", when the cards differ.</summary>
+    public string Breakdown
+    {
+        get
+        {
+            var linked = Books.Sum(b => b.Cards);
+            if (Books.Count == 0 || (Books.Count == 1 && linked == cards)) return "";
+            var parts = Books.OrderByDescending(b => b.Cards).Select(b => $"{b.Title} on {b.Cards}").ToList();
+            if (linked < cards) parts.Add($"no book on {cards - linked}");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>"Will go with “Drowned Abbey” on every card", while it is pending.</summary>
+    public static string WillBe(string? title) => title is null ? "Will go with no book on every card" : $"Will go with “{title}” on every card";
+
+    /// <summary>What Review changes says it will do, warning where it replaces a book the user chose for a card.</summary>
+    public BulkSummaryLine Describe(EntryId? book, string? title)
+    {
+        var replaced = Books.Where(b => b.EntryId != book).Sum(b => b.Chosen);
+        var text = title is null ? $"No book on every card ({cards})" : $"“{title}” on every card ({cards})";
+        return new BulkSummaryLine(Label, text, replaced == 0 ? null
+            : replaced == 1 ? "Replaces the book you chose for 1 card." : $"Replaces the books you chose for {replaced} cards.");
+    }
+}
+
+/// <summary>The words for links between companions and books, shared by the Windows app and the web client.</summary>
+public static class SourceBookText
+{
+    /// <summary>How the link was made: the rule's evidence, or that the user chose it.</summary>
+    public static string How(CompanionLinkInfo link) =>
+        link.State == CompanionState.Confirmed
+            ? link.Evidence is { } evidence ? $"{evidence.Describe()}. You kept it." : "You chose it."
+            : link.Evidence?.Describe() is { Length: > 0 } how ? $"{how}." : "Suggested.";
+
+    /// <summary>"Maps and handouts (3)", over the cards that go with a book.</summary>
+    public static string CompanionsHeading(int count) => count == 0 ? "MAPS AND HANDOUTS" : $"MAPS AND HANDOUTS ({count})";
+
+    public static string Linked(int count, string title, int refused) =>
+        (count == 0 ? "Nothing changed." : count == 1 ? $"It goes with “{title}” now." : $"{count} cards go with “{title}” now.")
+        + (refused == 0 ? "" : refused == 1 ? " One card can't go with it: a pack's file, an adventure, the book itself or a book others go with."
+            : $" {refused} cards can't go with it: packs' files, adventures, the book itself or books others go with.");
+
+    public static string Unlinked(int count, bool refuse) =>
+        count == 0 ? "Nothing changed."
+        : refuse ? count == 1 ? "It won't be suggested for that book again." : $"{count} cards won't be suggested for their books again."
+        : count == 1 ? "It doesn't go with a book now." : $"{count} cards don't go with a book now.";
+
+    public static string Kept(int count) => count <= 1 ? "Kept." : $"Kept for {count} cards.";
+}

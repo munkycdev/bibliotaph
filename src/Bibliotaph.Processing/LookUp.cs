@@ -36,7 +36,7 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     public const string NotABook = LookupReasons.NotABook;
 
     /// <summary>The types that say a file isn't a book.</summary>
-    static readonly HashSet<string> LooseTypes = new(StringComparer.Ordinal) { "map-pack", "handout" };
+    static readonly HashSet<string> LooseTypes = new(StringComparer.Ordinal) { "map-pack", "handout", "character-sheet" };
 
     /// <summary>What a file's name calls something that isn't a book, as compared (<see cref="BookRecords.Simplify"/>).</summary>
     static readonly string[] LooseNames =

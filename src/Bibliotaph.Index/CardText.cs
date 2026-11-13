@@ -14,10 +14,12 @@ public static class CardText
     /// "D&amp;D 5e · Adventure" once there is metadata, otherwise "PDF · 320 pages" or "PNG image"; with "still being
     /// read" until its text is searchable, or why it won't be by itself. A pack a search found by one of its images
     /// names that image. An adventure inside a file says which file and pages; a file holding adventures says how many.
-    /// A file in a pack on a card of its own says which pack.
+    /// A file in a pack on a card of its own says which pack. A companion says which book it goes with; a book with
+    /// companions says how many.
     /// </summary>
     public static string Meta(LibraryEntry entry) =>
-        entry.MatchedMember ?? entry.PartLine ?? PackLine(entry) ?? (Catalogued(entry) ?? Describe(entry)) + PartsNote(entry) + TextNote(entry);
+        entry.MatchedMember ?? entry.PartLine ?? PackLine(entry) ?? entry.SourceLine
+        ?? (Catalogued(entry) ?? Describe(entry)) + PartsNote(entry) + CompanionsNote(entry) + TextNote(entry);
 
     /// <summary>"in Dungeon Maps", for a file in a pack on a card of its own; null for any other card.</summary>
     public static string? PackLine(LibraryEntry entry) => entry.IsPackFile ? $"in {entry.PackTitle ?? "its pack"}" : null;
@@ -26,7 +28,8 @@ public static class CardText
     /// The publisher, or the folders when there isn't one, under the title in the list; for a pack a search found by an
     /// image, that image's name.
     /// </summary>
-    public static string Byline(LibraryEntry entry) => entry.MatchedMember ?? entry.PartLine ?? PackLine(entry) ?? entry.Publisher ?? entry.FolderHint ?? "";
+    public static string Byline(LibraryEntry entry) =>
+        entry.MatchedMember ?? entry.PartLine ?? PackLine(entry) ?? entry.SourceLine ?? entry.Publisher ?? entry.FolderHint ?? "";
 
     /// <summary>
     /// Pages for a PDF, the format for an image, "120 images" for a pack ("6 files" with PDFs in it), "Print · Foundry
@@ -46,6 +49,11 @@ public static class CardText
 
     /// <summary>"5 adventures", for a file with adventures marked in it; empty otherwise.</summary>
     public static string Parts(LibraryEntry entry) => entry.Parts > 0 ? Adventures(entry.Parts) : "";
+
+    /// <summary>"12 maps and handouts", for a book that cards go with; empty otherwise.</summary>
+    public static string Companions(LibraryEntry entry) => entry.Companions > 0 ? Companions(entry.Companions) : "";
+
+    public static string Companions(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "map or handout" : "maps and handouts")}";
 
     /// <summary>The first letter of the title, for the placeholder cover.</summary>
     public static string Initial(string title) =>
@@ -131,6 +139,8 @@ public static class CardText
     }
 
     static string PartsNote(LibraryEntry entry) => Parts(entry) is { Length: > 0 } parts ? $" · {parts}" : "";
+
+    static string CompanionsNote(LibraryEntry entry) => Companions(entry) is { Length: > 0 } companions ? $" · {companions}" : "";
 
     static string TextNote(LibraryEntry entry) => entry.IsElsewhere ? "" : entry.TextAccess switch
     {

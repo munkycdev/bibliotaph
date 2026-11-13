@@ -130,6 +130,14 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
         foreach (var entry in entries.Where(e => e.Kind == EntryKind.Pack && e.CoverEntryId is not null && cardFields.ContainsKey(e.Id)))
             if (cardKeys.TryGetValue(entry.CoverEntryId!.Value, out var cover)) cardFields[entry.Id][SyncFields.Cover] = Json(cover);
 
+        // The book each companion goes with, as the user linked it, and the books they said it doesn't.
+        foreach (var link in await db.CompanionLinks.AsNoTracking().Where(l => l.State == CompanionState.Confirmed || l.State == CompanionState.Rejected).ToListAsync(ct))
+        {
+            if (!cardFields.TryGetValue(link.EntryId, out var fields) || !cardKeys.TryGetValue(link.BookEntryId, out var book)) continue;
+            if (link.State == CompanionState.Confirmed) fields[SyncFields.Source] = Json(book);
+            else fields[SyncFields.NotSourcePrefix + book] = Json(true);
+        }
+
         // What the user chose for each file: the page its cover shows, and that its text be forgotten.
         foreach (var d in await db.Documents.AsNoTracking().Where(d => d.CoverPage != null || d.TextForgottenUtc != null)
             .Select(d => new { d.ContentHash, d.CoverPage, Forgotten = d.TextForgottenUtc != null }).ToListAsync(ct))

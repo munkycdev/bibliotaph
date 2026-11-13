@@ -249,6 +249,7 @@ public sealed partial class NeedsReviewViewModel(
             foreach (var proposal in list.Packs) cards.Add(new PackCardViewModel(proposal, await TilesAsync(proposal), this));
             foreach (var match in list.Elsewhere ?? []) cards.Add(new ElsewhereCardViewModel(match, this));
             foreach (var record in list.Records ?? []) cards.Add(new LookupMatchCardViewModel(record, this));
+            foreach (var proposal in list.SourceBooks ?? []) cards.Add(new SourceBookCardViewModel(proposal, this));
             foreach (var revision in list.Revisions ?? []) cards.Add(new RevisionCardViewModel(revision, this));
             foreach (var proposal in list.Proposals ?? []) cards.Add(new PartProposalCardViewModel(proposal, await GetPageLabelsAsync(proposal.DocumentId), this));
             foreach (var part in list.Parts ?? []) cards.Add(new UnplacedPartCardViewModel(part, await GetPageLabelsAsync(part.DocumentId), this));
@@ -309,6 +310,7 @@ public sealed partial class NeedsReviewViewModel(
         PackCardViewModel => "packs",
         ElsewhereCardViewModel => "elsewhere",
         LookupMatchCardViewModel => "records",
+        SourceBookCardViewModel => "sourcebooks",
         RevisionCardViewModel => "revisions",
         PartProposalCardViewModel or UnplacedPartCardViewModel => "parts",
         CorrectionCardViewModel => "corrections",
@@ -561,6 +563,9 @@ public sealed partial class NeedsReviewViewModel(
 
     public async Task<Func<Task>> AnswerLookupAsync(LookupMatchItem item, LookupAnswer answer) =>
         await review.AnswerLookupAsync(item.Match, answer) ?? (() => Task.CompletedTask);
+
+    public async Task<Func<Task>> AnswerSourceBookAsync(SourceBookProposal proposal, EntryId? book) =>
+        await Task.Run(() => review.AnswerSourceBookAsync(proposal, book)) ?? (() => Task.CompletedTask);
 
     public Task<IReadOnlyList<string?>> GetPageLabelsAsync(long documentId) => Task.Run(() => parts.GetPageLabelsAsync(documentId));
 

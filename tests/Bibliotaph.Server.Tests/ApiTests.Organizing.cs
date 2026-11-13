@@ -268,6 +268,59 @@ public abstract partial class ApiTests
         }
 
         [Fact]
+        public async Task Goes_with_is_set_for_the_ticked_maps_in_Edit_metadata_and_changed_in_the_details()
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var user = await AddUserAsync(admin: false);
+            var connections = _factory.Services.GetRequiredService<StorageConnections>();
+            var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+            _graph.Add("RPG/Books/abbey.pdf", await File.ReadAllBytesAsync(_pdfs.WatermarkedForAna, ct));
+            _graph.Add("RPG/Maps/harbor.png", Png());
+            _graph.Add("RPG/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
+            var client = Client(user);
+            client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+            using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+            var cards = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 3 } three
+                && three.All(b => b.Cover is not null) ? three : null, ct);
+            var book = cards.Single(c => c.HasText);
+            List<long> maps = [.. cards.Where(c => c != book).Select(c => c.EntryId)];
+
+            var form = await PostAsync<BulkEditForm>("/api/library/selection/edit", new SelectedBooks(maps));
+            var picker = await PostAsync<List<BookChoice>>("/api/library/source-books", new BookSearch("", maps));
+            BulkEditRequest linking = new(maps, [], new BulkGoesWithEdit(book.EntryId, book.Title));
+            var review = await PostAsync<List<BulkSummaryItem>>("/api/library/selection/edit/review", linking);
+            var applied = await PostAsync<BulkApplyResult>("/api/library/selection/edit/apply", linking);
+            var after = await PostAsync<BulkEditForm>("/api/library/selection/edit", new SelectedBooks(maps));
+            var mapDetails = (await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{maps[0]}", ct))!;
+            var bookDetails = (await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{book.EntryId}", ct))!;
+            await PostAsync<ActionResult>($"/api/library/held/{applied.Done!.Undo}", null);
+            var undone = await PostAsync<BulkEditForm>("/api/library/selection/edit", new SelectedBooks(maps));
+
+            Assert.Equal(("Goes with", "No book"), (form.GoesWith!.Label, form.GoesWith.Current));
+            Assert.Contains(picker, p => p.EntryId == book.EntryId);
+            Assert.DoesNotContain(picker, p => maps.Contains(p.EntryId));
+            Assert.Equal(["Goes with"], review.Select(l => l.Field));
+            Assert.Null(applied.Problem);
+            Assert.Equal(book.Title, after.GoesWith!.Current);
+            Assert.Equal((book.EntryId, true), (mapDetails.GoesWith!.Book!.EntryId, mapDetails.GoesWith.Book.Confirmed));
+            Assert.Equal(2, bookDetails.GoesWith!.Companions.Count);
+            Assert.Equal("No book", undone.GoesWith!.Current);
+
+            // In the details: chosen, then refused.
+            using (var set = await client.PutAsJsonAsync($"/api/library/books/{maps[0]}/source", new SourceBookEdit(book.EntryId), ct)) set.EnsureSuccessStatusCode();
+            Assert.Equal(book.EntryId, (await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{maps[0]}", ct))!.GoesWith!.Book!.EntryId);
+            using (var refuse = await client.DeleteAsync($"/api/library/books/{maps[0]}/source", ct)) refuse.EnsureSuccessStatusCode();
+            Assert.Null((await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{maps[0]}", ct))!.GoesWith!.Book);
+
+            async Task<T> PostAsync<T>(string url, object? body)
+            {
+                using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
+                response.EnsureSuccessStatusCode();
+                return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+            }
+        }
+
+        [Fact]
         public async Task Edit_metadata_sets_adds_and_removes_on_every_ticked_book_with_review_and_undo()
         {
             var ct = TestContext.Current.CancellationToken;

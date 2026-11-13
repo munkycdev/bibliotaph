@@ -195,6 +195,26 @@ public sealed class PackDecision
 }
 
 /// <summary>
+/// A companion card (a map, handout, character sheet or pack of images) and the book it goes with: the book's game,
+/// publisher, setting and the rest reach the companion as suggestions while the link is in effect
+/// (<see cref="Core.Metadata.SourceBookMetadata"/>). A companion has at most one link in effect, Suggested or
+/// Confirmed; Rejected rows remember the books the user said no to, so nothing proposes them again.
+/// </summary>
+public sealed class CompanionLink
+{
+    public long Id { get; set; }
+    /// <summary>The companion: a file's own card or a pack.</summary>
+    public long EntryId { get; set; }
+    /// <summary>The book it goes with: a book with files, one owned elsewhere, or an adventure inside a file.</summary>
+    public long BookEntryId { get; set; }
+    public CompanionState State { get; set; }
+    /// <summary>What found the link, as JSON, for the details to show; null when the user made it.</summary>
+    public string? Evidence { get; set; }
+    /// <summary>When the link was made or last answered.</summary>
+    public DateTime DecidedUtc { get; set; }
+}
+
+/// <summary>
 /// A file whose title and publisher match a book the user owns elsewhere: a Needs review card, "You own X elsewhere.
 /// Is this its file?", while <see cref="Answer"/> is null. "Same book" joins the file to the book and the row goes;
 /// "Separate book" stays, so the pair is never asked about again.

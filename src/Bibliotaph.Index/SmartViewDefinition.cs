@@ -15,7 +15,7 @@ public enum ResultsTab
     Pages,
 }
 
-/// <summary>Where the Library shows the adventures marked inside files.</summary>
+/// <summary>Where the Library shows the adventures marked inside files, and the maps and handouts that go with a book.</summary>
 public enum AdventureCards
 {
     /// <summary>
@@ -38,7 +38,8 @@ public enum AdventureCards
 /// adventures inside files show; <see cref="HideParts"/> is how a view from before there was a choice of three said
 /// so, and is read only from those. <see cref="Subfolder"/> is a folder inside the library folder <see cref="Folder"/>
 /// ("D&amp;D 5e\Adventures"), or null for the whole library folder. <see cref="NoSource"/> keeps the books with nothing
-/// in Get it from.
+/// in Get it from. <see cref="Companions"/> says where the maps and handouts that go with a book show, as
+/// <see cref="Adventures"/> does for adventures; a view saved before there was a choice keeps them inside their books.
 /// </summary>
 public sealed record SmartViewDefinition(
     string Query = "",
@@ -66,7 +67,8 @@ public sealed record SmartViewDefinition(
     AdventureCards Adventures = AdventureCards.InBooks,
     string? Found = null,
     string? Subfolder = null,
-    bool NoSource = false)
+    bool NoSource = false,
+    AdventureCards Companions = AdventureCards.InBooks)
 {
     /// <summary>2: <see cref="Adventures"/>, which defaults to inside their books, took over from <see cref="HideParts"/>.</summary>
     public const int CurrentVersion = 2;

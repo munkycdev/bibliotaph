@@ -14,7 +14,8 @@ bar for its full count. The page fills in as Bibliotaph reads your books, and ke
 
 The headline is how many books, pages and gigabytes you have, and how long reading every page would take at a page a
 minute. The tiles under it count adventures (and those marked inside other books), e-books, packs, the duplicates
-Bibliotaph found, and the books you own with no file.
+Bibliotaph found, the books you own with no file, and the maps and handouts that go with their books, with how many more
+wait in Needs review.
 
 A book is counted as the Library shows it: a pack counts once, a book found twice counts once (its second copy counts as
 a duplicate), and a book owned in print or online counts as a book. Its pages count once, whatever its copies.

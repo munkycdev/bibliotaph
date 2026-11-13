@@ -8,6 +8,7 @@ public static class DetailSections
 {
     public const string Adventures = "adventures";
     public const string InFile = "in-file";
+    public const string GoesWith = "goes-with";
     public const string Pack = "pack";
     public const string Found = "found";
     public const string Collections = "collections";
@@ -18,7 +19,7 @@ public static class DetailSections
     public const string Indexing = "indexing";
 
     /// <summary>Every section, top to bottom.</summary>
-    public static IReadOnlyList<string> All { get; } = [Adventures, InFile, Pack, Found, Collections, Details, File, Where, Copies, Indexing];
+    public static IReadOnlyList<string> All { get; } = [Adventures, InFile, GoesWith, Pack, Found, Collections, Details, File, Where, Copies, Indexing];
 
     /// <summary>Folded until opened: what the file is and how it was read, which most visits don't need.</summary>
     public static IReadOnlySet<string> FoldedAtFirst { get; } = new HashSet<string>(StringComparer.Ordinal) { File, Where, Copies, Indexing };

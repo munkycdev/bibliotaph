@@ -172,7 +172,8 @@ public static class DetailsApi
             onRpgGeek is null ? null : new DetailRpgGeek(LookupLinks.Shown(onRpgGeek), onRpgGeek.Url),
             !links.CanLink(entry) ? null : onRpgGeek is null ? LookupLinks.Offer : LookupLinks.OfferAnother,
             LookupLinks.Hint,
-            [.. (await links.SearchedAsync(entry, ct)).Select(l => new DetailFact(l.Label, l.Value))], LookupSearch.Heading);
+            [.. (await links.SearchedAsync(entry, ct)).Select(l => new DetailFact(l.Label, l.Value))], LookupSearch.Heading,
+            SourceBooksApi.ToGoesWith(await library.Get<SourceBooksService>().GetDetailsAsync(entryId, ct)));
     }
 
     /// <summary>What the AI found reading the book chapter by chapter; an adventure inside a file shows only its own chapters.</summary>

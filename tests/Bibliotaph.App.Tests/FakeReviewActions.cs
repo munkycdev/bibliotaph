@@ -77,6 +77,8 @@ sealed class FakeReviewActions : IReviewActions
 
     public Task<Func<Task>> AnswerLookupAsync(LookupMatchItem item, LookupAnswer answer) => Answer($"lookup {answer}");
 
+    public Task<Func<Task>> AnswerSourceBookAsync(SourceBookProposal proposal, EntryId? book) => Answer($"source {book?.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "none"}");
+
     public Task<Func<Task>?> UsePlaceAsync(RevisionPlace place)
     {
         UsedPlaces.Add(place);

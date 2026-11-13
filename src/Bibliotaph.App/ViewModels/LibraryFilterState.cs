@@ -200,6 +200,18 @@ public sealed partial class LibraryFilterState : ObservableObject
     [ObservableProperty]
     public partial bool ShowPartsChoice { get; private set; }
 
+    /// <summary>
+    /// Maps, handouts and packs that go with a book: inside it (only a search shows them as cards), cards of their own,
+    /// or hidden. Offered once some go with a book, or while another than the first is chosen.
+    /// </summary>
+    public IReadOnlyList<Choice<AdventureCards>> CompanionsChoices { get; } =
+        [InBooks, new(AdventureCards.Cards, "Show as cards"), new(AdventureCards.Hidden, "Hide")];
+
+    public Choice<AdventureCards> CompanionsChoice { get; set => Choose(ref field, value, InBooks); } = InBooks;
+
+    [ObservableProperty]
+    public partial bool ShowCompanionsChoice { get; private set; }
+
     /// <summary>The filter panel, opened from the toolbar's Filters.</summary>
     [ObservableProperty]
     public partial bool ShowFilters { get; set; }
@@ -231,7 +243,7 @@ public sealed partial class LibraryFilterState : ObservableObject
     public bool IsFiltering => KindChoice.Value != KindFilter.All || FolderChoice.Value is not null || SystemChoice.Value is not null
         || TypeChoice.Value is not null || LevelChoice.Value is not null || AiChoice.Value != AiFilter.All || CopiesChoice.Value || SourceChoice.Value || OwnChoice.Value is not null
         || StyleChoice.Value is not null || DurationChoice.Value is not null || PlayersChoice.Value is not null || StoreChoice.Value is not null
-        || PartsChoice.Value != AdventureCards.InBooks || CollectionChoice.Value != CollectionFilter.All || FoundChoice.Value is not null
+        || PartsChoice.Value != AdventureCards.InBooks || CompanionsChoice.Value != AdventureCards.InBooks || CollectionChoice.Value != CollectionFilter.All || FoundChoice.Value is not null
         || ChipFilters.Any(b => b.Picks.Count > 0);
 
     partial void OnIncludeUnknownLevelsChanged(bool value)
@@ -292,6 +304,7 @@ public sealed partial class LibraryFilterState : ObservableObject
             CopiesChoice = CopiesChoices[0];
             SourceChoice = AnySource;
             PartsChoice = PartsChoices[0];
+            CompanionsChoice = CompanionsChoices[0];
             CollectionChoice = CollectionChoices[0];
             FolderChoice = AllFolders;
             SystemChoice = AllSystems;
@@ -318,14 +331,15 @@ public sealed partial class LibraryFilterState : ObservableObject
             IncludeUnknownLevels, AiChoice.Value, CopiesChoice.Value, Selected(OwnChoice), group, Styles: Selected(StyleChoice),
             Durations: Selected(DurationChoice), Players: PlayersChoice.Value, Stores: Selected(StoreChoice),
             HideParts: PartsChoice.Value == AdventureCards.Hidden, Collections: CollectionChoice.Value, Picked: ChipPicks(),
-            PartsInBooks: PartsChoice.Value == AdventureCards.InBooks, Found: Selected(FoundChoice), OnlyWithoutStore: SourceChoice.Value);
+            PartsInBooks: PartsChoice.Value == AdventureCards.InBooks, Found: Selected(FoundChoice), OnlyWithoutStore: SourceChoice.Value,
+            CompanionsInBooks: CompanionsChoice.Value == AdventureCards.InBooks, HideCompanions: CompanionsChoice.Value == AdventureCards.Hidden);
 
     /// <summary>The filters as a saved search keeps them. Its search, scope, order, layout and tab are the page's to add.</summary>
     public SmartViewDefinition ToView() => new(Kind: KindChoice.Value, Folder: FolderChoice.Value?.RootId, System: SystemChoice.Value, Type: TypeChoice.Value,
         Level: LevelChoice.Value, IncludeUnknownLevels: LevelChoice.Value is not null && IncludeUnknownLevels, Ai: AiChoice.Value, Copies: CopiesChoice.Value,
         Own: OwnChoice.Value, Style: StyleChoice.Value, Duration: DurationChoice.Value, Players: PlayersChoice.Value, Store: StoreChoice.Value,
         Collections: CollectionChoice.Value, Picked: ChipPicks(), Adventures: PartsChoice.Value, Found: FoundChoice.Value,
-        Subfolder: FolderChoice.Value is { Folder.Length: > 0 } folder ? folder.Folder : null, NoSource: SourceChoice.Value);
+        Subfolder: FolderChoice.Value is { Folder.Length: > 0 } folder ? folder.Folder : null, NoSource: SourceChoice.Value, Companions: CompanionsChoice.Value);
 
     /// <summary>
     /// Puts a saved search's filters back, without raising <see cref="Changed"/>: the page refreshes once it has put the
@@ -339,6 +353,7 @@ public sealed partial class LibraryFilterState : ObservableObject
         CopiesChoice = CopiesChoices.FirstOrDefault(c => c.Value == view.Copies) ?? CopiesChoices[0];
         SourceChoice = SourceChoices.FirstOrDefault(c => c.Value == view.NoSource) ?? AnySource;
         PartsChoice = PartsChoices.FirstOrDefault(c => c.Value == view.Adventures) ?? PartsChoices[0];
+        CompanionsChoice = CompanionsChoices.FirstOrDefault(c => c.Value == view.Companions) ?? CompanionsChoices[0];
         CollectionChoice = CollectionChoices.FirstOrDefault(c => c.Value == view.Collections) ?? CollectionChoices[0];
         SystemChoice = Pick(SystemChoices, AllSystems, view.System);
         TypeChoice = Pick(TypeChoices, AllTypes, view.Type);
@@ -385,11 +400,12 @@ public sealed partial class LibraryFilterState : ObservableObject
     });
 
     /// <summary>
-    /// Shows the AI, Copies, Adventures inside files and Collection filters once the library has books for them (or
-    /// collections), or while one is chosen.
+    /// Shows the AI, Copies, Adventures inside files, Maps and handouts and Collection filters once the library has
+    /// books for them (or collections), or while one is chosen.
     /// </summary>
-    public void ShowCounts(long aiRead, long withCopies, long parts, bool hasCollections)
+    public void ShowCounts(long aiRead, long withCopies, long parts, bool hasCollections, long companions = 0)
     {
+        ShowCompanionsChoice = companions > 0 || CompanionsChoice.Value != AdventureCards.InBooks;
         ShowAiChoice = aiRead > 0 || AiChoice.Value != AiFilter.All;
         ShowCopiesChoice = withCopies > 0 || CopiesChoice.Value;
         ShowPartsChoice = parts > 0 || PartsChoice.Value != AdventureCards.InBooks;
@@ -481,6 +497,8 @@ public sealed partial class LibraryFilterState : ObservableObject
             "found online", () => FoundChoice = AnyFound, isFolded: true);
         Add(PartsChoice.Value != AdventureCards.InBooks, PartsChoice.Value == AdventureCards.Hidden ? "Adventures inside files hidden" : "Adventures as cards",
             "adventures inside files", () => PartsChoice = PartsChoices[0], isFolded: true);
+        Add(CompanionsChoice.Value != AdventureCards.InBooks, CompanionsChoice.Value == AdventureCards.Hidden ? "Maps and handouts hidden" : "Maps and handouts as cards",
+            "maps and handouts", () => CompanionsChoice = CompanionsChoices[0], isFolded: true);
         Add(CollectionChoice.Value != CollectionFilter.All, CollectionChoice.Label, "collection", () => CollectionChoice = CollectionChoices[0], isFolded: true);
         folded = more;
         return chips;

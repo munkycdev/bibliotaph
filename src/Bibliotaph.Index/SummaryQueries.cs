@@ -24,7 +24,7 @@ public sealed class SummaryQueries(IndexDatabase database)
     // The cards in scope, as the Library would list them.
     const string Shown = """
         WITH shown AS (
-            SELECT e.entry_id, e.document_id, e.kind, e.copies, coalesce(e.added_utc, d.added_utc) AS added_utc, d.format
+            SELECT e.entry_id, e.document_id, e.kind, e.copies, coalesce(e.added_utc, d.added_utc) AS added_utc, d.format, e.source_id
             FROM entry_doc e LEFT JOIN doc d ON d.document_id = e.document_id
             WHERE (d.document_id IS NOT NULL OR e.document_id IS NULL) AND e.entry_id IN (SELECT value FROM json_each(@scope)))
         """;
@@ -55,6 +55,7 @@ public sealed class SummaryQueries(IndexDatabase database)
                 coalesce(sum(kind = 'Pack'), 0) AS Packs,
                 coalesce(sum(kind = 'Part'), 0) AS Adventures,
                 coalesce(sum(kind = 'Elsewhere'), 0) AS Elsewhere,
+                coalesce(sum(source_id IS NOT NULL), 0) AS Companions,
                 coalesce(sum(kind = 'Whole' AND format IN (SELECT value FROM json_each(@ebooks))), 0) AS Ebooks,
                 coalesce(sum(CASE WHEN kind = 'Whole' AND copies > 1 THEN copies - 1 ELSE 0 END), 0) AS Duplicates,
                 coalesce(sum(kind <> 'Part' AND entry_id IN (SELECT entry_id FROM entry_opened)), 0) AS Opened,
@@ -143,6 +144,7 @@ public sealed class SummaryQueries(IndexDatabase database)
             Packs = counts.Packs,
             Adventures = counts.Adventures,
             Elsewhere = counts.Elsewhere,
+            Companions = counts.Companions,
             Ebooks = counts.Ebooks,
             Duplicates = counts.Duplicates,
             Pages = pages.Pages,
@@ -221,7 +223,7 @@ public sealed class SummaryQueries(IndexDatabase database)
         return growth;
     }
 
-    sealed record CountsRow(long Books, long Files, long Packs, long Adventures, long Elsewhere, long Ebooks, long Duplicates, long Opened,
+    sealed record CountsRow(long Books, long Files, long Packs, long Adventures, long Elsewhere, long Companions, long Ebooks, long Duplicates, long Opened,
         long Favorites, long ReadByAi, long NotedBooks, long TextRead);
 
     sealed record PagesRow(long Pages, long Ocr);

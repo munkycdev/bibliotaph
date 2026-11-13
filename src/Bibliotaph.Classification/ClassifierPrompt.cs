@@ -182,6 +182,7 @@ public static partial class ClassifierPrompt
         ["player-options"] = "new choices for player characters: classes, ancestries, feats, spells, equipment",
         ["map-pack"] = "maps, with little or no adventure to go with them",
         ["handout"] = "props or pages to hand to the players",
+        ["character-sheet"] = "blank or filled-in character sheets, or pregenerated characters for the players",
         ["magazine"] = "an issue of a magazine or zine, with articles of several kinds",
     };
 

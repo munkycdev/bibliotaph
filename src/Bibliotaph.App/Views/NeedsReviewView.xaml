@@ -451,6 +451,56 @@
       </Border>
     </DataTemplate>
 
+    <!-- Goes with a book?: maps, handouts or packs in one folder, and the books they may go with, each a button. -->
+    <DataTemplate DataType="{x:Type vm:SourceBookCardViewModel}">
+      <Border Style="{StaticResource Card}">
+        <Grid>
+          <ContentPresenter Content="{Binding}" ContentTemplate="{StaticResource Decided}"
+                            Visibility="{Binding IsDone, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+            <DockPanel>
+              <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
+                <TextBlock Text="{x:Static p:SourceBookCardText.Chip}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+              </Border>
+              <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Row}" FontWeight="SemiBold" TextWrapping="Wrap" />
+            </DockPanel>
+            <TextBlock Text="{Binding Heading}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Named}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                       Visibility="{Binding Named, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            <Button Style="{StaticResource Bt.Link}" Content="{Binding Path}" Command="{Binding ShowFolderCommand}" HorizontalAlignment="Left" Margin="0,6,0,0"
+                    ToolTip="Show the folder" AutomationProperties.Name="{Binding Path, StringFormat='Show the folder {0}'}"
+                    Visibility="{Binding Path, Converter={StaticResource Bt.VisibleWhenSet}}" />
+            <DockPanel Margin="0,14,0,0">
+              <c:LucideIcon DockPanel.Dock="Left" Data="{StaticResource Icon.TextSearch}" Size="13" Foreground="{DynamicResource Bt.Muted}"
+                            VerticalAlignment="Top" Margin="0,1,8,0" />
+              <StackPanel>
+                <TextBlock Text="{Binding Evidence}" FontSize="11" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource Bt.Muted}" TextWrapping="Wrap" Margin="0,4,0,0" />
+              </StackPanel>
+            </DockPanel>
+            <WrapPanel Margin="0,16,0,0">
+              <ItemsControl ItemsSource="{Binding Books}" Focusable="False" AutomationProperties.Name="Books it may go with">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate DataType="{x:Type p:SourceBookChoice}">
+                    <Button Content="{Binding Title, StringFormat='Goes with {0}'}" c:Ui.Icon="{StaticResource Icon.Check}" Margin="0,0,8,8"
+                            ToolTip="It takes the book's system, publisher, setting and tags, and shows inside it."
+                            Command="{Binding DataContext.GoesWithCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Button Content="{Binding NoneLabel}" Command="{Binding NotFromTheseCommand}" Margin="0,0,8,8"
+                      ToolTip="It stays as it is, and these books won't be suggested for it again." />
+            </WrapPanel>
+          </StackPanel>
+        </Grid>
+      </Border>
+    </DataTemplate>
+
     <!-- Cataloged wrong… left without a change: Fix it opens the book's details to correct again. -->
     <DataTemplate DataType="{x:Type vm:CorrectionCardViewModel}">
       <Border Style="{StaticResource Card}">

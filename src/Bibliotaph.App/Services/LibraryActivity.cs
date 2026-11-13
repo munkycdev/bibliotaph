@@ -117,7 +117,7 @@ public sealed partial class LibraryActivity : ObservableObject
 
     public LibraryActivity(IIndexingStatus indexing, IJobControl jobs, IStageCatalog stages, IndexQueries queries, LibraryStore library,
         MetadataProjector metadata, ReviewService review, ChapterScanService chapters, WebLibrary web, RunAgainService runAgain, TimeProvider time,
-        ILogger<LibraryActivity> log)
+        ILogger<LibraryActivity> log, SourceBookFinder? sourceBooks = null)
     {
         _indexing = indexing;
         _runAgain = runAgain;
@@ -135,6 +135,8 @@ public sealed partial class LibraryActivity : ObservableObject
         // Metadata edits and projections change what the library shows without any indexing.
         metadata.Projected += (_, _) => Interlocked.Exchange(ref _dirty, 1);
         web.ReachabilityChanged += (_, _) => Interlocked.Exchange(ref _dirty, 1);
+        // Books proposed for maps and handouts are Needs review cards.
+        if (sourceBooks is not null) sourceBooks.Changed += (_, _) => Interlocked.Exchange(ref _dirty, 1);
         Phases = [_finding, _reading, _making, _scans, _lookingUp, _classifying, _scanning];
     }
 

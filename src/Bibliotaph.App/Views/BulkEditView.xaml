@@ -241,8 +241,63 @@
 
       <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" Visibility="{Binding IsEditingStep, Converter={StaticResource Bt.VisibleWhenTrue}}">
-          <ItemsControl ItemsSource="{Binding Fields}" Focusable="False" KeyboardNavigation.TabNavigation="Continue" Margin="0,0,8,0"
-                        AutomationProperties.Name="Fields" />
+          <StackPanel Margin="0,0,8,0">
+            <!-- Goes with: the book the cards came from, whose system, publisher, setting and tags they take. -->
+            <Border x:Name="BulkGoesWith" DataContext="{Binding GoesWith}" Padding="0,12" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1"
+                    AutomationProperties.Name="{x:Static p:BulkGoesWith.Label}">
+              <StackPanel>
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BulkChooseBook" Style="{StaticResource Bt.Link}" Content="Choose a book…" c:Ui.Icon="{StaticResource Icon.Pencil}"
+                            Command="{Binding ChooseCommand}" Margin="0,0,10,0" AutomationProperties.Name="Choose the book every card goes with" />
+                    <Button x:Name="BulkNoBook" Style="{StaticResource Bt.Link}" Content="No book" Command="{Binding NoBookCommand}" Margin="0,0,10,0"
+                            ToolTip="None of these goes with a book" AutomationProperties.Name="None of these cards goes with a book"
+                            Visibility="{Binding IsKnown, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                    <Button Style="{StaticResource Bt.Link}" Content="Undo change" Command="{Binding UndoCommand}"
+                            AutomationProperties.Name="Leave the book they go with as it is"
+                            Visibility="{Binding HasChange, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                  </StackPanel>
+                  <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{x:Static p:BulkGoesWith.Label}" FontSize="10" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,0,3" />
+                    <TextBlock x:Name="BulkGoesWithCurrent" Text="{Binding Current}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Breakdown}" Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding Breakdown, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                    <TextBlock Text="{x:Static p:BulkGoesWith.Hint}" Style="{StaticResource Text.Small}" Margin="0,3,0,0" TextWrapping="Wrap" />
+                    <TextBlock x:Name="BulkGoesWithPending" Text="{Binding PendingText}" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Accent}"
+                               Margin="0,5,0,0" TextWrapping="Wrap" Visibility="{Binding PendingText, Converter={StaticResource Bt.VisibleWhenSet}}" />
+                  </StackPanel>
+                </DockPanel>
+                <StackPanel Margin="0,8,0,0" Visibility="{Binding IsPicking, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <DockPanel>
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
+                            ToolTip="Close" AutomationProperties.Name="Close the book picker" Command="{Binding CancelPickingCommand}" />
+                    <TextBox x:Name="BulkBookQuery" Style="{StaticResource Bt.TextBox}" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
+                             AutomationProperties.Name="Type part of the book's title" ToolTip="Type part of the book's title" c:Ui.FocusWhenVisible="True">
+                      <TextBox.InputBindings>
+                        <KeyBinding Key="Escape" Command="{Binding CancelPickingCommand}" />
+                      </TextBox.InputBindings>
+                    </TextBox>
+                  </DockPanel>
+                  <ItemsControl x:Name="BulkBookChoices" ItemsSource="{Binding Choices}" Focusable="False" Margin="0,8,0,0" AutomationProperties.Name="Books to choose from">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type p:SourceBookChoice}">
+                        <Button Style="{StaticResource Bt.Link}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,0,0,6"
+                                AutomationProperties.Name="{Binding Title, StringFormat='Goes with {0}'}"
+                                Command="{Binding DataContext.PickCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
+                          <StackPanel>
+                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+                          </StackPanel>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <ItemsControl ItemsSource="{Binding Fields}" Focusable="False" KeyboardNavigation.TabNavigation="Continue"
+                          AutomationProperties.Name="Fields" />
+          </StackPanel>
         </ScrollViewer>
         <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False" Visibility="{Binding IsSummaryStep, Converter={StaticResource Bt.VisibleWhenTrue}}">
           <ItemsControl ItemsSource="{Binding Summary}" Focusable="False" Margin="0,0,8,0" AutomationProperties.Name="What will change" />

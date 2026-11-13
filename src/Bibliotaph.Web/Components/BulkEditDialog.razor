@@ -18,6 +18,56 @@
     <div class="bt-bulkbody">
         @if (_step == Step.Editing)
         {
+            @if (Form.GoesWith is { } goes)
+            {
+                @* Goes with: the book the cards came from, whose system, publisher, setting and tags they take. *@
+                <div class="bt-bulkfield" aria-label="@goes.Label">
+                    <div class="bt-bulkline">
+                        <div class="bt-bulkwhat">
+                            <div class="bt-fieldlabel">@goes.Label</div>
+                            <div class="bt-fieldvalue @(goes.IsKnown ? "" : "unknown")">@goes.Current</div>
+                            @if (goes.Breakdown.Length > 0) { <div class="bt-small bt-bulkbreakdown">@goes.Breakdown</div> }
+                            <div class="bt-small bt-bulkbreakdown">@goes.Hint</div>
+                            @if (_goesWith is { } pending)
+                            {
+                                <div class="bt-bulkpending">@(pending.Book is null ? "Will go with no book on every card" : $"Will go with “{pending.Title}” on every card")</div>
+                            }
+                        </div>
+                        @if (_goesWith is not null)
+                        {
+                            <button class="bt-link" aria-label="Leave the book they go with as it is" @onclick="() => _goesWith = null">Undo change</button>
+                        }
+                        else
+                        {
+                            <button class="bt-link bt-inline" aria-label="Choose the book every card goes with" @onclick="OpenPickerAsync"><Icon Name="Pencil" Size="12" />Choose a book…</button>
+                            @if (goes.IsKnown)
+                            {
+                                <button class="bt-link bt-inline" title="None of these goes with a book" aria-label="None of these cards goes with a book"
+                                        @onclick="NoBook">No book</button>
+                            }
+                        }
+                    </div>
+                    @if (_picking)
+                    {
+                        <div class="bt-fieldedit">
+                            <div class="bt-pickerhead">
+                                <input class="bt-pickerinput" aria-label="Type part of the book's title" placeholder="Type part of the book's title"
+                                       @bind="BookQuery" @bind:event="oninput" @onkeydown="PickerKeyDown" @onkeydown:stopPropagation="true" />
+                                <button class="bt-icon" title="Close" aria-label="Close the book picker" @onclick="ClosePicker"><Icon Name="X" Size="14" /></button>
+                            </div>
+                            <div class="bt-pickerlist" aria-label="Books to choose from">
+                                @foreach (var choice in _bookChoices)
+                                {
+                                    <button class="bt-pickerchoice" @key="choice.EntryId" aria-label="Goes with @choice.Title" @onclick="() => PickBook(choice)">
+                                        <span class="bt-row">@choice.Title</span>
+                                        <span class="bt-small">@choice.Detail</span>
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
             <div aria-label="Fields">
                 @foreach (var field in _fields)
                 {
@@ -136,7 +186,74 @@
     /// <summary>Raised when the dialog closes: with what applying did, or null when it was cancelled.</summary>
     [Parameter] public EventCallback<ActionResult?> Closed { get; set; }
 
-    bool HasChanges => _fields.Any(f => f.HasChange);
+    bool HasChanges => _goesWith is not null || _fields.Any(f => f.HasChange);
+
+    BulkGoesWithEdit? _goesWith;
+    bool _picking;
+    string _bookQuery = "";
+    List<BookChoice> _bookChoices = [];
+    // Each search moves this on, so an older search's answer, arriving late, is dropped.
+    int _bookSearch;
+
+    string BookQuery
+    {
+        get => _bookQuery;
+        set
+        {
+            _bookQuery = value;
+            _ = FindBooksAsync(value);
+        }
+    }
+
+    async Task OpenPickerAsync()
+    {
+        _picking = true;
+        _bookQuery = "";
+        await FindBooksAsync("");
+    }
+
+    void ClosePicker()
+    {
+        _bookSearch++;
+        _picking = false;
+        _bookChoices = [];
+    }
+
+    void PickerKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") ClosePicker();
+    }
+
+    async Task FindBooksAsync(string text)
+    {
+        var search = ++_bookSearch;
+        // Typing waits a moment, so each key doesn't search.
+        if (text.Length > 0) await Task.Delay(200);
+        if (search != _bookSearch) return;
+        try
+        {
+            var found = await BooksApi.FindSourceBooksAsync(text, Books);
+            if (search != _bookSearch) return;
+            _bookChoices = found;
+        }
+        catch (HttpRequestException)
+        {
+            _problem = "The books couldn't be searched. Try again.";
+        }
+        StateHasChanged();
+    }
+
+    void PickBook(BookChoice choice)
+    {
+        ClosePicker();
+        _goesWith = new BulkGoesWithEdit(choice.EntryId, choice.Title);
+    }
+
+    void NoBook()
+    {
+        ClosePicker();
+        _goesWith = new BulkGoesWithEdit(null, null);
+    }
 
     protected override void OnInitialized() => _fields = [.. Form.Fields.Select(f => new FieldState(f))];
 
@@ -426,7 +543,7 @@
         _working = true;
         try
         {
-            _summary = await SelectionApi.BulkReviewAsync(new BulkEditRequest(Books, Changes()));
+            _summary = await SelectionApi.BulkReviewAsync(new BulkEditRequest(Books, Changes(), _goesWith));
             _problem = null;
             _step = Step.Summary;
             _focusApply = true;
@@ -453,7 +570,7 @@
         _step = Step.Applying;
         try
         {
-            var result = await SelectionApi.BulkApplyAsync(new BulkEditRequest(Books, Changes()));
+            var result = await SelectionApi.BulkApplyAsync(new BulkEditRequest(Books, Changes(), _goesWith));
             if (result.Done is { } done)
             {
                 await Closed.InvokeAsync(done);

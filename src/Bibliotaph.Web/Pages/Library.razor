@@ -245,6 +245,11 @@
                         <Menu Label="Adventures inside files" Choices="LibraryChoices.Adventures" Value="@_query.Adventures" Changed='v => Filter(_query with { Adventures = v })'
                               Hint="Adventures marked inside a compilation: inside their book, where a search still finds them; as cards of their own; or hidden" />
                     }
+                    @if (menus.ShowCompanions)
+                    {
+                        <Menu Label="Maps and handouts" Choices="LibraryChoices.Companions" Value="@_query.Companions" Changed='v => Filter(_query with { Companions = v })'
+                              Hint="Maps, handouts and packs that go with a book: inside the book, where a search still finds them; as cards of their own; or hidden" />
+                    }
                     @if (menus.ShowCollections)
                     {
                         <Menu Label="Collection" Choices="LibraryChoices.Collections" Value="@_query.Collections" Changed='v => Filter(_query with { Collections = v })'

@@ -54,6 +54,9 @@ public sealed record LibraryQuery
 
     public string? Adventures { get; init; }
 
+    /// <summary>Where the maps and handouts that go with a book show: as <see cref="Adventures"/>, by the names in <see cref="LibraryChoices.Companions"/>.</summary>
+    public string? Companions { get; init; }
+
     public string? Collections { get; init; }
 
     /// <summary>
@@ -115,7 +118,11 @@ public sealed record LibraryMenus(
     IReadOnlyList<FilterChoice> Systems, IReadOnlyList<FilterChoice> Types, IReadOnlyList<FilterChoice> Styles,
     IReadOnlyList<FilterChoice> Durations, IReadOnlyList<FilterChoice> Folders, IReadOnlyList<FilterChoice> Owns,
     IReadOnlyList<FilterChoice> Stores, bool ShowStyle, bool ShowDuration, bool ShowOwn, bool ShowStore, bool ShowAi, bool ShowCopies,
-    bool ShowAdventures, bool ShowCollections, IReadOnlyList<FilterBox> Boxes, IReadOnlyList<FilterChoice> Found, bool ShowFound);
+    bool ShowAdventures, bool ShowCollections, IReadOnlyList<FilterBox> Boxes, IReadOnlyList<FilterChoice> Found, bool ShowFound)
+{
+    /// <summary>Some cards go with a book, or the menu is set: the Maps and handouts menu shows.</summary>
+    public bool ShowCompanions { get; init; }
+}
 
 /// <summary>
 /// A type-ahead filter, for a field with too many values for a menu: its label and hint, whether the books shown have
@@ -176,6 +183,8 @@ public static class LibraryChoices
     public static IReadOnlyList<FilterChoice> Source { get; } = [new("", "All books"), new("true", "No source given")];
 
     public static IReadOnlyList<FilterChoice> Adventures { get; } = [new("", "Inside their book"), new("Cards", "Show as cards"), new("Hidden", "Hide")];
+
+    public static IReadOnlyList<FilterChoice> Companions { get; } = [new("", "Inside their book"), new("Cards", "Show as cards"), new("Hidden", "Hide")];
 
     public static IReadOnlyList<FilterChoice> Collections { get; } = [new("", "All books"), new("InOne", "In a collection"), new("NotInOne", "Not in a collection")];
 }

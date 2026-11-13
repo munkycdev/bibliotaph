@@ -187,6 +187,12 @@ shown), and click **Edit metadata**. Change any field but the title. A field the
 looking blank, and fields you don't touch stay as they are. **Review changes** shows what will change before it's
 saved, and **Undo** puts it back afterwards.
 
+**Goes with**, at the end of the same dialog, sets the book the ticked maps, handouts and packs go with, all at once:
+type a few words of the book's title, pick it, and each ticked card takes the book's values (see
+[Maps and handouts that go with a book](#maps-and-handouts-that-go-with-a-book)). **No book** takes them away from the
+book they had. When the cards go with different books it says **Mixed**, with how many go with which, and **Review
+changes** warns when it replaces a book you chose yourself.
+
 ## Needs review
 
 **Needs review** in the sidebar holds what Bibliotaph would like you to look at. It's never in the way: every book is
@@ -224,6 +230,11 @@ usable while its card waits. It has two lists:
   (see [Collections from folders](organizing.md#collections-from-folders)): **Accept**, **Not now** or **Never**.
 - **Add to collection?** "Add these 4 books to “Ashen Vale”?" for books that share what most of a collection's books
   share (see [Books for your collections](organizing.md#books-for-your-collections)).
+- **Goes with a book?** "Does it go with *Harbor of Shadows*?" or "Which book do these 6 files go with?", for maps,
+  handouts and packs whose book Bibliotaph isn't sure of, with why each book is suggested ("its name carries “Harbor
+  of Shadows”"). The files in one folder that could go with the same books share a card. **Goes with …** on a book
+  links them, and **Not from these books** leaves them as they are and never suggests those books for them again
+  (see [Maps and handouts that go with a book](#maps-and-handouts-that-go-with-a-book)).
 
 The cards that offer to make something (a collection, books for a collection, an image pack, a folder rule, or cards
 for a file's adventures) have a **×** in their top right corner. It closes the card with its "don't ask again" answer,
@@ -237,7 +248,7 @@ opening the next card's book shows it in the same window rather than another. Cl
 in the main window.
 
 When there's more than one kind, **Show** narrows the list to one: New terms, Terms that may be the same, New versions,
-Image packs, Owned elsewhere, Same book?, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field
+Image packs, Owned elsewhere, Same book?, Goes with a book?, Adventures, Collections from folders, Books for collections and so on, or the suggestions for one field
 such as Setting or Type. Each entry says how many are waiting, and **Everything** shows the whole list again.
 
 **Files needing attention**: files that couldn't be read, with the reason, including books the AI couldn't read.
@@ -321,6 +332,40 @@ show. A search you saved with adventures hidden keeps them hidden.
 **Remove adventure** in an adventure's details takes its card away; its pages are only the file's again, and the file
 itself is never changed. To remove several at once, tick their cards in **Select** mode and click
 **Remove adventures**. Either way, **Undo** brings them back.
+
+## Maps and handouts that go with a book
+
+A map, a handout, a character sheet or a pack of images usually comes with a book. Once Bibliotaph knows which, the
+file **goes with** that book: it takes the book's game system, edition, publisher, series, year, setting, authors,
+levels, players and your tags, as suggestions ranked above lookups and the AI, so it turns up wherever the book does.
+It keeps its own title and type, and a value you set on it yourself always stays. A tag you add to the book reaches
+its maps too.
+
+Bibliotaph looks for the book a few minutes after it starts, and again whenever files arrive or move, from what the
+library already knows:
+
+- **Its pages are in the book**: a handout printed from it.
+- **It came in the same ZIP** as the book, the only book in it.
+- **It sits beside the book**, the only book in its folder, or in a folder of extras under it, such as **Maps**,
+  **Handouts**, **Pregens** or **VTT assets**.
+- **Its name carries the book's** title, product code or initials ("LMoP handouts").
+- **The AI read the book's title** on its pages, when the AI is on.
+
+The first three link the file at once, as a suggestion. A name, the AI, or a folder of two or three books only
+suggest it, and Needs review asks with a **Goes with a book?** card. A file counts when it isn't a book: an image, a
+pack, or a PDF typed as a map pack, handout or character sheet, or of a page or two, or named like one ("character
+sheet", "battle map"). **Character sheet** is a type of its own for that.
+
+In a map's details, **Goes with** names its book and why. **Keep** makes the suggestion yours, so later passes leave it
+alone; **Change…** picks another book (any book, an adventure inside a file, or a book you own elsewhere); **Not from
+this book** takes it away and never suggests that book for it again. **Choose a book…** links a file nothing was found
+for. A book's details list what goes with it under **Maps and handouts**, each a click away. Every change has
+**Undo**, and your choices reach your other PCs and the web library with sync.
+
+While you browse, maps and handouts stay inside their book, as adventures do: the book's card says how many go with it
+("12 maps and handouts") and a search still finds them, each card saying which book it goes with. **Maps and
+handouts** in the Library's **More filters** shows them as cards of their own instead, or **Hide** leaves them out
+altogether. To link many at once, use **Goes with** in [Edit many books at once](#edit-many-books-at-once).
 
 ## Books you own elsewhere
 
