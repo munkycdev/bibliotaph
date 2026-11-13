@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Fixed: the web search box sometimes took out a space.** Pausing just after typing a space between words ran the
+  search and took that space out of the box, so the next word was joined to the last. The box now keeps what you type,
+  spaces included; only the search itself leaves out spaces at the ends.
+
 - **More books found online.** RPGGeek names many books after their line and lists no ISBN for them, so a search for
   the title a file gives found nothing. Wherever RPGGeek is asked:
   - A book no item is named after is matched **inside its line**: RPGGeek's items for the line come back by name and
