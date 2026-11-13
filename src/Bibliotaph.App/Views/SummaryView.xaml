@@ -230,7 +230,7 @@
             <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource Bt.Accent}" Margin="0,0,5,0" />
             <TextBlock Text="Confirmed" Style="{StaticResource Text.Small}" Margin="0,0,16,0" />
             <Border Width="10" Height="10" CornerRadius="2" Background="{DynamicResource Bt.ChartSoft}" Margin="0,0,5,0" />
-            <TextBlock Text="Suggested, not yet reviewed" Style="{StaticResource Text.Small}" />
+            <TextBlock Text="Suggested by AI or lookups" Style="{StaticResource Text.Small}" />
           </StackPanel>
             <TextBlock Text="WHAT IT IS" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
           </DockPanel>

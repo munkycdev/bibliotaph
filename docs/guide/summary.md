@@ -38,7 +38,11 @@ a duplicate), and a book owned in print or online counts as a book. Its pages co
 Your game systems, types and settings, then themes, environments and **What's included** (pre-generated characters,
 handouts, battle maps and adventures you can play solo), most first, with the rest folded into one line. Many of these
 come from the online lookups, AdventureLookup especially. Each bar has two shades: the dark part is what you've
-confirmed, the lighter part is suggestions not yet reviewed, so you can see how much of your catalogue is settled.
+confirmed (typed, accepted or kept), the lighter part is what the AI or an online lookup suggested and you haven't
+confirmed, so you can see how much of your catalogue is settled. Suggestions are used in search and filters straight
+away, and only those that sources disagree about wait in **Needs review**, so an empty Needs review with a long light
+part is normal. Choose **All suggestions** for **What waits for review** in **Settings > Preferences** to look at every
+one.
 **Not cataloged yet** is the books with no system so far. A setting, theme or environment opens the Library with it
 picked in its box under More filters; what's included opens a search such as `includes:pregens`.
 

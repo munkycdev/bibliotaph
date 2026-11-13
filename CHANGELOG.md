@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Clearer Summary legend.** The lighter part of the Summary page's bars is now labelled **Suggested by AI or
+  lookups** instead of "Suggested, not yet reviewed", since those values don't wait in Needs review unless **What waits
+  for review** is set to **All suggestions**.
 - **Releases no longer run the web server's tests on Windows.** They test the Windows app's projects only; the
   server's tests run on Linux before each deploy, as before. A slow Windows runner had timed out one of them.
 
