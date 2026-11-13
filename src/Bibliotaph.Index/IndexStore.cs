@@ -332,6 +332,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 DELETE FROM chapter WHERE document_id = @documentId;
                 DELETE FROM chapter_tag WHERE document_id = @documentId;
                 DELETE FROM doc_identifier WHERE document_id = @documentId;
+                DELETE FROM lookup_search WHERE document_id = @documentId;
                 DELETE FROM job WHERE document_id = @documentId;
                 DELETE FROM stage_status WHERE document_id = @documentId;
                 """, args, t);
@@ -569,6 +570,12 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             c.Execute("INSERT INTO doc_identifier (document_id, kind, value, pdf_page, printed) VALUES (@documentId, @Kind, @Value, @PdfPage, @Printed)",
                 identifiers.Select(i => new { documentId, Kind = i.Kind.ToString(), i.Value, i.PdfPage, i.Printed }), t);
         }, ct);
+
+    /// <summary>Keeps what a document's lookup searched for and what came of it, as JSON, in place of its last one's.</summary>
+    public Task SetLookupSearchAsync(long documentId, string searched, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) => c.Execute(
+            "INSERT INTO lookup_search (document_id, searched) VALUES (@documentId, @searched) ON CONFLICT (document_id) DO UPDATE SET searched = excluded.searched",
+            new { documentId, searched }, t), ct);
 
     public Task SetFingerprintsAsync(long documentId, IReadOnlyList<string?> fingerprints, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) => c.Execute(

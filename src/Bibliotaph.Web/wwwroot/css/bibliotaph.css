@@ -301,6 +301,10 @@ a{color:var(--bt-accent)}
 .bt-rpggeek{margin-top:12px;font-size:11px}
 .bt-rpggeek .bt-storelink{margin-top:0}
 .bt-rpggeek>.bt-link{display:inline-flex;align-items:center;gap:4px;padding:0;margin-top:6px}
+.bt-lookup{margin-top:14px;font-size:11px}
+.bt-lookup dl{margin:0}
+.bt-lookup dt{color:var(--bt-muted);margin-top:6px}
+.bt-lookup dd{margin:0;overflow-wrap:anywhere}
 @media(forced-colors:active){.bt-poweredby{forced-color-adjust:none;background:LinkText}}
 .bt-tagline{font-family:'Libre Caslon Display',Georgia,serif;font-style:italic;font-size:14px;color:var(--bt-text)}
 #bt-main:has(.bt-reader,.bt-binderreader)+.bt-appfoot{display:none}

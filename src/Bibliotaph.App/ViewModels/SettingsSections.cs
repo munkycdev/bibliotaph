@@ -115,10 +115,17 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
     async Task RunAgainAsync(PhaseProgress phase)
     {
         if (phase.RunAgain is not { } offer) return;
-        if (offer.Question is { } question && !prompts.Confirm(question, $"{offer.Hint}?", PromptKind.Question, okByDefault: false)) return;
+        var step = offer.Step;
+        if (offer is { Question: { } both, Narrower: { } narrower })
+        {
+            // A message box's buttons can't be named, so the question says which is which.
+            if (prompts.Choose($"{both}\n\nYes: {narrower.Confirm}.\nNo: {offer.Confirm}.", $"{offer.Hint}?", PromptKind.Question) is not { } onlyThose) return;
+            if (onlyThose) step = narrower.Step;
+        }
+        else if (offer.Question is { } question && !prompts.Confirm(question, $"{offer.Hint}?", PromptKind.Question, okByDefault: false)) return;
         try
         {
-            RunAgainNote = await Task.Run(() => runAgain.RunAsync(offer.Step)) ?? "";
+            RunAgainNote = await Task.Run(() => runAgain.RunAsync(step)) ?? "";
         }
         catch (Exception ex)
         {

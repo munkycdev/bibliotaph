@@ -28,7 +28,8 @@ public sealed record ElsewhereItem(PendingElsewhere Match, string BookTitle, str
 /// library checked here by the same rule.
 /// </summary>
 public sealed class ElsewhereService(EntryStore entries, ElsewhereStore matches, MetadataService metadata, VocabularyStore vocabularies,
-    MetadataProjector projector, LibraryStore library, IndexQueries queries, LibraryQueries cards, ILogger<ElsewhereService>? log = null)
+    MetadataProjector projector, LibraryStore library, IndexQueries queries, LibraryQueries cards, ILogger<ElsewhereService>? log = null,
+    ElsewhereLookups? lookups = null)
     : IDisposable
 {
     readonly ILogger _log = log ?? NullLogger<ElsewhereService>.Instance;
@@ -68,6 +69,8 @@ public sealed class ElsewhereService(EntryStore entries, ElsewhereStore matches,
             foreach (var (field, typed) in fields)
                 if (await metadata.SetAsync(entryId, field, typed, ct) is { } problem) return (entryId, problem);
             await ProposeFilesAsync([entryId], ct);
+            // It has no file for Look up to come to, so it's searched for by the title just given.
+            lookups?.Start();
             return (entryId, null);
         }
         finally

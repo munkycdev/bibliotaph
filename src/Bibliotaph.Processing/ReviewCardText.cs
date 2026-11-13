@@ -169,7 +169,7 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
     BookRecord Record => Item.Match.Record;
 
     public string Heading => BookRecords.ByTitle(Record)
-        ? $"{Record.Source} has a record of {Record.Title}, the title it prints, but not its authors, publisher or page count. Is it this book?"
+        ? $"{Record.Source} has a record of {Record.Title}, a name this book goes by, but nothing else says it's the same book. Is it this book?"
         : $"{Record.Source}'s record for its {BookRecords.FoundBy(Record)} is of {Record.Title}, which isn't printed in it. Is it this book?";
 
     /// <summary>The record as the catalogue gives it: "The Owlbear Mill · Ada Quill · Gull Rock Games · 2019", then what it files the book under.</summary>

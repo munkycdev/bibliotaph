@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **More books found online.** RPGGeek names many books after their line and lists no ISBN for them, so a search for
+  the title a file gives found nothing. Wherever RPGGeek is asked:
+  - A book no item is named after is matched **inside its line**: RPGGeek's items for the line come back by name and
+    are checked on your side against the book's title and cover, so its text still never leaves your library.
+  - A book whose **ISBN or product code RPGGeek doesn't list** is searched for by its title, with the checks a book
+    printing none gets.
+  - Once one book in a folder has an RPGGeek record, found or given by its page, **the books beside it** are checked
+    against the rest of that record's game.
+  - When **two or three items** might be the book, Needs review asks **Same book?** about each instead of taking
+    none. **Same book** on one settles the others.
+  - **Books you own elsewhere** are looked up too, such as those imported from D&D Beyond and Demiplane, by title,
+    and take **Look up from an RPGGeek link…** in their details.
+- **See what a lookup searched for.** A book's details end **Details** with **Online lookup**: what it was looked up
+  by, the titles and lines searched, where it was asked, and which record it uses or Needs review asks about.
+- **Look up only the books not found.** The button at the end of **Looking up online** in **Settings > Processing**
+  now offers **Only the N not found**, so the books already found stay as they are.
+- **Maps, sheets and handouts aren't looked up as books.** A file printing no ISBN whose type is only Map pack or
+  Handout, or that has a page or two, or is named a character sheet, battle map, handout or the like, is set aside
+  with a reason of its own instead of counting as not found.
 - **Nornis worlds share one row on the Summary page.** Under **Folders and drives**, each Nornis world showed as a
   folder named by a long ID. They now count together as one row, **Nornis**, with their books and size, which opens
   Collections, where each world is a collection of its own. On Windows and the web.

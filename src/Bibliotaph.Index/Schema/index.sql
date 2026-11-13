@@ -317,6 +317,12 @@ CREATE TABLE doc_identifier (
 ) WITHOUT ROWID;
 CREATE INDEX doc_identifier_value ON doc_identifier (kind, value);
 
+-- What a document's last online lookup searched for and what came of it, as JSON, for its details to show.
+CREATE TABLE lookup_search (
+    document_id  INTEGER PRIMARY KEY,
+    searched     TEXT    NOT NULL
+);
+
 -- Per-document, per-stage progress. A document is searchable once its Text stage is complete.
 CREATE TABLE stage_status (
     document_id    INTEGER NOT NULL,
@@ -368,4 +374,4 @@ CREATE TABLE shared_state (
     value           TEXT    NOT NULL
 );
 
-PRAGMA user_version = 23;
+PRAGMA user_version = 24;

@@ -28,6 +28,7 @@ static partial class Composition
         services.AddSingleton<ElsewhereService>();
         services.AddSingleton<LookupMatches>();
         services.AddSingleton<LookupLinks>();
+        services.AddSingleton<ElsewhereLookups>();
         services.AddSingleton<ChosenCovers>();
         services.AddSingleton<FavoriteStore>();
         services.AddSingleton<ReadingStore>();

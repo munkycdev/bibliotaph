@@ -26,10 +26,12 @@ public interface IBookCatalogue
     /// may be empty when it prints only a code. <paramref name="lines"/> name the line the book belongs to, as the
     /// folders it's in do where the book prints the name ("Gull Rock Saga" for its monster book): a broader search, for a
     /// catalogue whose records are then taken only by ISBN or code, since a line names many books.
+    /// <paramref name="families"/> are the catalogue's ids of the games the books beside it belong to
+    /// (<see cref="BookRecord.Families"/>), whose other books it may be.
     /// </summary>
     /// <exception cref="CatalogueUnavailableException">None of the catalogues could be asked right now.</exception>
     async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        IReadOnlyList<string>? lines = null, CancellationToken ct = default) =>
+        IReadOnlyList<string>? lines = null, IReadOnlyList<string>? families = null, CancellationToken ct = default) =>
         new(await FindAsync(isbns, ct) is { } record ? [record] : [], Name);
 
     /// <summary>
@@ -67,9 +69,11 @@ public interface IBookCatalogue
 
 /// <summary>
 /// The records of a book, most preferred first, and the catalogues that answered (<see cref="AskedOf"/>, "Open Library
-/// or Google Books"): fewer than were meant to be asked when one couldn't answer just then.
+/// or Google Books"): fewer than were meant to be asked when one couldn't answer just then. <see cref="Candidates"/>
+/// are what a catalogue searched by name found that may be the book where it took no record, for the caller to check
+/// against what the book prints.
 /// </summary>
-public sealed record CatalogueAnswer(IReadOnlyList<BookRecord> Records, string AskedOf);
+public sealed record CatalogueAnswer(IReadOnlyList<BookRecord> Records, string AskedOf, IReadOnlyList<CatalogueItem>? Candidates = null);
 
 /// <summary>The catalogue can't be reached, or is too busy to answer: nothing to do with the book asked about.</summary>
 public sealed class CatalogueUnavailableException(string message, Exception? inner = null) : Exception(message, inner);
@@ -116,10 +120,11 @@ public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : I
         catalogues.FirstOrDefault(c => c.Name == source) is { } catalogue ? catalogue.ReadAsync(source, key, ct) : Task.FromResult<BookRecord?>(null);
 
     public async Task<CatalogueAnswer> AskAsync(IReadOnlyList<string> isbns, IReadOnlyList<string> titles, IReadOnlyList<string> codes,
-        IReadOnlyList<string>? lines = null, CancellationToken ct = default)
+        IReadOnlyList<string>? lines = null, IReadOnlyList<string>? families = null, CancellationToken ct = default)
     {
         CatalogueUnavailableException? unavailable = null;
         var found = new Dictionary<int, IReadOnlyList<BookRecord>>();
+        var candidates = new List<CatalogueItem>();
         // Those searched by name last, so the titles the others' records give can be searched for first.
         foreach (var (catalogue, at) in catalogues.Select((c, i) => (c, i)).OrderBy(c => c.c.SearchesByTitle))
         {
@@ -134,7 +139,9 @@ public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : I
                 IReadOnlyList<string> searched = catalogue.SearchesByTitle
                     ? [.. found.OrderBy(f => f.Key).SelectMany(f => f.Value).Select(r => r.Title).Concat(titles).Distinct(StringComparer.OrdinalIgnoreCase)]
                     : titles;
-                found[at] = (await catalogue.AskAsync(isbns, searched, codes, lines, ct)).Records;
+                var answer = await catalogue.AskAsync(isbns, searched, codes, lines, families, ct);
+                found[at] = answer.Records;
+                candidates.AddRange(answer.Candidates ?? []);
             }
             catch (CatalogueUnavailableException ex)
             {
@@ -143,7 +150,7 @@ public sealed class BookCatalogues(IReadOnlyList<IBookCatalogue> catalogues) : I
         }
         if (found.Count == 0) throw unavailable!;
         return new CatalogueAnswer([.. found.OrderBy(f => f.Key).SelectMany(f => f.Value)],
-            string.Join(" or ", found.Keys.Order().Select(i => catalogues[i].Name)));
+            string.Join(" or ", found.Keys.Order().Select(i => catalogues[i].Name)), candidates);
     }
 }
 

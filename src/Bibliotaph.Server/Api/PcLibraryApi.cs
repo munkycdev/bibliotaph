@@ -76,13 +76,16 @@ public static class PcLibraryApi
                 return Results.BadRequest();
             if (request.Lines is { } lines && (lines.Count > MostLines || lines.Any(l => string.IsNullOrWhiteSpace(l) || l.Length > LongestTitle)))
                 return Results.BadRequest();
+            if (request.Families is { } families && (families.Count > MostLines || families.Any(f => f is not { Length: > 0 and <= LongestCode } || !f.All(char.IsAsciiDigit))))
+                return Results.BadRequest();
             // A book printing no ISBN or code is looked up by its title alone.
             if (isbns.Count + codes.Count == 0 && request.Titles is not { Count: > 0 }) return Results.BadRequest();
             try
             {
-                var answer = await catalogue.AskAsync(isbns, request.Titles ?? [], [.. codes.Select(c => c.ToUpperInvariant())], request.Lines, ct);
+                var answer = await catalogue.AskAsync(isbns, request.Titles ?? [], [.. codes.Select(c => c.ToUpperInvariant())], request.Lines, request.Families, ct);
                 List<PcBookRecord> records = [.. answer.Records.Select(ToPc)];
-                return Results.Ok(new PcLookupAnswer(catalogue.Name, records.FirstOrDefault(), Records: records, AskedOf: answer.AskedOf));
+                return Results.Ok(new PcLookupAnswer(catalogue.Name, records.FirstOrDefault(), Records: records, AskedOf: answer.AskedOf,
+                    Candidates: answer.Candidates is { Count: > 0 } items ? [.. items.Select(i => new PcCatalogueItem(i.Source, i.Key, i.Name))] : null));
             }
             catch (CatalogueUnavailableException ex)
             {
@@ -188,7 +191,7 @@ public static class PcLibraryApi
     }
 
     static PcBookRecord ToPc(BookRecord r) => new(r.Source, r.Key, r.Isbn, r.Title, r.Authors, r.Publishers, r.Published,
-        r.Values?.Select(v => new PcCatalogueValue(v.Field, v.Value)).ToList(), r.Pages);
+        r.Values?.Select(v => new PcCatalogueValue(v.Field, v.Value)).ToList(), r.Pages, r.Families);
 
     static bool IsActivity(PcActivity activity) =>
         (activity.Step is null || AiSteps.Contains(activity.Step))

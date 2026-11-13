@@ -13,10 +13,11 @@ namespace Bibliotaph.Processing;
 /// indexing files, and reading scans, have none: a whole library's worth changes nothing unless a file changed, and
 /// Reprocess does one book.
 /// </summary>
-public sealed class RunAgainService(IJobControl jobs, AiService ai, ChapterScanService chapters, SourceRootStore roots)
+public sealed class RunAgainService(IJobControl jobs, AiService ai, ChapterScanService chapters, SourceRootStore roots, ElsewhereLookups? elsewhere = null)
 {
     public const string Finding = "finding";
     public const string LookingUp = "lookup";
+    public const string LookingUpMissed = "lookup-missed";
     public const string Cataloguing = "ai";
     public const string Scanning = "scan";
 
@@ -35,10 +36,17 @@ public sealed class RunAgainService(IJobControl jobs, AiService ai, ChapterScanS
         var offers = new List<RunAgainOffer>();
         if ((await roots.ListAsync(ct)).Count > 0) offers.Add(new RunAgainOffer(Finding, "Look through your folders again now"));
         if (progress.LookedUp > 0)
+        {
+            // The books already found stay as they are: for trying a new way of searching on those it missed.
+            var missed = progress.NotFoundOnline > 0 && progress.NotFoundOnline < progress.LookedUp
+                ? new RunAgainOffer(LookingUpMissed, "Look up only the books not found online", null, $"Only the {N(progress.NotFoundOnline)} not found")
+                : null;
             offers.Add(new RunAgainOffer(LookingUp, "Look every book up again",
                 $"{N(progress.LookedUp)} {Books(progress.LookedUp)} will be looked up again, one at a time in the background, asking every catalogue afresh. " +
-                $"With RPGGeek's pace of a book every few seconds that can take a while. {Kept}",
-                $"Look up {N(progress.LookedUp)} again"));
+                $"With RPGGeek's pace of a book every few seconds that can take a while. " +
+                (missed is null ? "" : $"Or look up only the {N(progress.NotFoundOnline)} no catalogue found, and leave the rest as they are. ") + Kept,
+                $"Look up {N(progress.LookedUp)} again", missed));
+        }
         if (aiOn && AiText.ReadAgain(await ai.SummarizeAsync(ct)) is { } readAgain)
             offers.Add(new RunAgainOffer(Cataloguing, "Read every book again, with your lists as they stand now", readAgain.Question, readAgain.Label));
         if (aiOn && chapters.IsOn && progress.ScannedWhole > 0)
@@ -59,7 +67,12 @@ public sealed class RunAgainService(IJobControl jobs, AiService ai, ChapterScanS
                 return "Looking through your folders now.";
             case LookingUp:
                 var looking = await jobs.RerunAsync(Stage.LookUp, ct);
+                elsewhere?.Start(again: true);
                 return looking == 0 ? "There are no books to look up." : "The books go back to be looked up one at a time, in the background.";
+            case LookingUpMissed:
+                var missed = await jobs.RerunAsync(Stage.LookUp, BookLookups.NotFound, ct);
+                elsewhere?.Start(again: true, missedOnly: true);
+                return missed == 0 ? "Every book looked up was found." : $"{N(missed)} {Books(missed)} not found online {(missed == 1 ? "goes" : "go")} back to be looked up, in the background.";
             case Cataloguing:
                 return AiText.ReadingAgain(await ai.ReadAgainAsync(ct));
             case Scanning:

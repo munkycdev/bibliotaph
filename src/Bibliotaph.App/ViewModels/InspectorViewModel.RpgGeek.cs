@@ -10,6 +10,8 @@ namespace Bibliotaph.App.ViewModels;
 /// be said to be another book's, and "Look up from an RPGGeek link…", a box for the address of the book's page, for a
 /// book no lookup found. Only where RPGGeek can be asked, which is while this PC is connected to its web library.
 /// </summary>
+public sealed record LookupFact(string Label, string Value);
+
 public sealed partial class InspectorViewModel
 {
     LookupLinks? _links;
@@ -59,11 +61,19 @@ public sealed partial class InspectorViewModel
 
     bool RpgGeekIsFree => !IsRpgGeekBusy;
 
+    /// <summary>What the book's last online lookup searched for and what came of it, a labelled line each.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLookupFacts))]
+    public partial IReadOnlyList<LookupFact> LookupFacts { get; private set; } = [];
+
+    public bool HasLookupFacts => LookupFacts.Count > 0;
+
     async Task ShowRpgGeekAsync()
     {
         if (_links is not { } links) return;
         CanLinkRpgGeek = links.CanLink(Item.Entry);
         RpgGeekRecord = await Task.Run(() => links.GetAsync(Item.Entry));
+        LookupFacts = [.. (await Task.Run(() => links.SearchedAsync(Item.Entry))).Select(l => new LookupFact(l.Label, l.Value))];
     }
 
     [RelayCommand]

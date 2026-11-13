@@ -246,6 +246,7 @@ public static class LibraryServices
         services.AddSingleton<ElsewhereService>();
         services.AddSingleton<LookupMatches>();
         services.AddSingleton<LookupLinks>();
+        services.AddSingleton<ElsewhereLookups>();
         services.AddSingleton(sp => new LostCovers(sp.GetRequiredService<EntryStore>(), sp.GetRequiredService<CoverCache>(), host.Images,
             sp.GetRequiredService<MetadataProjector>(), host.CoverDownloads ?? NoDownloads, sp.GetRequiredService<ILogger<LostCovers>>()));
         services.AddSingleton<OnlineImports>();

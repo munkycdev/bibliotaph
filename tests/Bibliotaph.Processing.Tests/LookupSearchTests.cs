@@ -33,6 +33,52 @@ public sealed class LookupSearchTests
         Assert.Empty(BookLookups.Lines("Gull Rock Saga", [null, " "]));
     }
 
+    [Theory]
+    // What it's typed as decides, whatever its pages or name.
+    [InlineData("map-pack", "The Owlbear Mill", 40, true)]
+    [InlineData("handout", "The Owlbear Mill", 40, true)]
+    [InlineData("adventure", "Owlbear Mill Battle Map", 1, false)]
+    [InlineData("map-pack,adventure", "The Owlbear Mill", 40, false)]
+    // Untyped: a page or two is no book, nor is what calls itself a map or a sheet.
+    [InlineData("", "The Owlbear Mill", 2, true)]
+    [InlineData("", "The Owlbear Mill", 3, false)]
+    [InlineData("", "The Owlbear Mill", null, false)]
+    [InlineData("", "Owlbear Mill - Battle Map (Night)", 12, true)]
+    [InlineData("", "Gull Rock Saga Character Sheet", 4, true)]
+    [InlineData("", "Mapping the Gull Rock", 12, false)]
+    public void A_map_or_a_sheet_isnt_looked_up_as_a_book(string types, string title, int? pages, bool notABook)
+    {
+        Assert.Equal(notABook, BookLookups.IsNotABook(types.Split(',', StringSplitOptions.RemoveEmptyEntries), [title, null], pages));
+    }
+
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData(BookLookups.NothingAtAll, false)]
+    [InlineData(BookLookups.NotABook, false)]
+    [InlineData(BookLookups.NotFoundOnline, true)]
+    public void Only_a_book_that_was_looked_for_and_not_found_is_looked_up_again_with_the_missed(string? reason, bool missed)
+    {
+        Assert.Equal(missed, BookLookups.NotFound(reason));
+    }
+
+    [Fact]
+    public void What_a_book_was_searched_by_reads_as_a_line_each_and_survives_being_stored()
+    {
+        var search = LookupSearch.Read(LookupSearch.Write(new LookupSearch([], [], ["The Owlbear Mill"], ["Gull Rock Saga"], 1, "RPGGeek", [],
+            12, ["RPGGeek: Gull Rock Saga: The Owlbear Mill"], [])))!;
+
+        Assert.Equal([
+            ("Looked up by", "Its title, since it prints no ISBN or product code"),
+            ("Titles searched", "“The Owlbear Mill”"),
+            ("Lines searched", "“Gull Rock Saga”"),
+            ("Also looked in", "The game the books beside it belong to"),
+            ("Asked", "RPGGeek"),
+            ("Found by name", "12 items, checked against what the book prints"),
+            ("Needs review asks about", "RPGGeek: Gull Rock Saga: The Owlbear Mill"),
+        ], search.Facts());
+        Assert.Null(LookupSearch.Read("not json"));
+    }
+
     [Fact]
     public void A_title_is_searched_for_once_however_it_is_written()
     {

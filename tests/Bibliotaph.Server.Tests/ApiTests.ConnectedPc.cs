@@ -306,11 +306,11 @@ public abstract partial class ApiTests
             var changes = 0;
             pc.ReachabilityChanged += (_, _) => changes++;
 
-            Assert.Null(await pc.LookUpAsync(["9781234567897"], [], [], [], ct));
+            Assert.Null(await pc.LookUpAsync(["9781234567897"], [], [], [], [], ct));
             var down = pc.IsUnreachable;
             network.Down = false;
             // Any answer, a refused key included, means it can be reached.
-            await pc.LookUpAsync(["9781234567897"], [], [], [], ct);
+            await pc.LookUpAsync(["9781234567897"], [], [], [], [], ct);
 
             Assert.True(down);
             Assert.False(pc.IsUnreachable);

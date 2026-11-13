@@ -14,9 +14,9 @@ public sealed record LinkedRecord(string Key, string Title, string Url);
 /// record from then on whatever a lookup finds (<see cref="LookupRecordStore.LinkAsync"/>), fills its fields at once as
 /// a looked-up record does, above the AI's suggestions and below the user's own values, and goes to the user's other
 /// PCs as an answer to Same book? does. Only where RPGGeek can be asked, which is through the web library, and only for
-/// a book with a file of its own: a record is kept by its file.
+/// a book with a file of its own or one owned elsewhere: a record is kept by its file, or by the book's own name.
 /// </summary>
-public sealed class LookupLinks(BookLookups lookups, LookupRecordStore records, MetadataProjector projector, VersionFinder versions)
+public sealed class LookupLinks(BookLookups lookups, LookupRecordStore records, MetadataProjector projector, VersionFinder versions, IndexQueries queries)
 {
     /// <summary>What a book that can't be given a record is answered with, as when the PC has just lost its web library.</summary>
     public const string NotHere = "RPGGeek can't be asked from here just now.";
@@ -35,12 +35,22 @@ public sealed class LookupLinks(BookLookups lookups, LookupRecordStore records, 
 
     static bool HasOwnFile(LibraryEntry entry) => !entry.IsPack && !entry.IsElsewhere && !entry.IsPart && !entry.IsPackFile;
 
+    /// <summary>A book owned elsewhere keeps records too, under its own name in a file's place.</summary>
+    static bool KeepsRecords(LibraryEntry entry) => entry.IsElsewhere || HasOwnFile(entry);
+
     /// <summary>Whether a record can be given for the book: one with a file of its own, while RPGGeek can be asked.</summary>
-    public bool CanLink(LibraryEntry entry) => HasOwnFile(entry) && lookups.Asks(RpgGeekCatalogue.Source);
+    public bool CanLink(LibraryEntry entry) => KeepsRecords(entry) && lookups.Asks(RpgGeekCatalogue.Source);
+
+    /// <summary>
+    /// What the book's last lookup searched for and what came of it, a labelled line each, for its details: none for
+    /// a book not looked up yet, or with no file of its own.
+    /// </summary>
+    public async Task<IReadOnlyList<(string Label, string Value)>> SearchedAsync(LibraryEntry entry, CancellationToken ct = default) =>
+        HasOwnFile(entry) && LookupSearch.Read(await queries.GetLookupSearchAsync(entry.DocumentId, ct)) is { } search ? search.Facts() : [];
 
     /// <summary>The RPGGeek record the book uses, found by a lookup or given by hand, or null.</summary>
     public async Task<LinkedRecord?> GetAsync(LibraryEntry entry, CancellationToken ct = default) =>
-        HasOwnFile(entry) && await records.GetUsedAsync(entry.EntryId, RpgGeekCatalogue.Source, ct) is { } record
+        KeepsRecords(entry) && await records.GetUsedAsync(entry.EntryId, RpgGeekCatalogue.Source, ct) is { } record
             ? new LinkedRecord(record.Key, record.Title, RpgGeekCatalogue.PageOf(record.Key))
             : null;
 
@@ -66,7 +76,7 @@ public sealed class LookupLinks(BookLookups lookups, LookupRecordStore records, 
         var files = await records.LinkAsync(entry.EntryId, record, ct);
         if (files.Count == 0) return NotHere;
         // Match looked for a book of the same title and publisher before the record named this one properly.
-        if (await ApplyAsync(entry.EntryId, files, ct)) await versions.ProposeByTitleAndPublisherAsync(entry.DocumentId, ct);
+        if (await ApplyAsync(entry.EntryId, files, ct) && !entry.IsElsewhere) await versions.ProposeByTitleAndPublisherAsync(entry.DocumentId, ct);
         return null;
     }
 
