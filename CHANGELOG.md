@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Books printing no ISBN are looked up again after an update too.** 1.6.1218 asks every book again with its new
+  searches, but books printing no ISBN or product code, the ones looked up by title, were left out, and
+  the button at the end of **Looking up online** couldn't reach them either, so its count stopped short of the start. They're
+  now looked up again the next time the app starts, as every step's new version is for every book it ran for.
 - **Releases no longer run the web server's tests on Windows.** They test the Windows app's projects only; the
   server's tests run on Linux before each deploy, as before. A slow Windows runner had timed out one of them.
 

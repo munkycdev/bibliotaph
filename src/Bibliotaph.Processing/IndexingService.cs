@@ -395,7 +395,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         {
             if (stage is not { Backfill: true, After: { } after }) continue;
             var backfilled = await _queue.EnqueueMissingAsync(stage.Stage, after, stoppingToken);
-            if (backfilled > 0) _log.LogInformation("Queued {Stage} for {Count} documents read before it existed", stage.Stage, backfilled);
+            if (backfilled > 0) _log.LogInformation("Queued {Stage} for {Count} documents read before it or its latest version existed", stage.Stage, backfilled);
         }
         WatchGates();
         // In the background: a stage may need to ask over the network what has changed, and nothing waits for it.
