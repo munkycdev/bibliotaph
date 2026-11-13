@@ -131,6 +131,33 @@ public sealed class IndexStoreTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_new_stage_version_reaches_every_book_the_old_one_ran_for_even_one_identify_found_nothing_in()
+    {
+        foreach (var id in new long[] { 1, 2, 3 })
+        {
+            await _store.UpsertDocumentAsync(Doc(id), Pages(1), [], Ct);
+            await _queue.EnqueueAsync(id, $"hash{id}", Stage.Identify, ct: Ct);
+        }
+        // The first prints an ISBN; the second and third print none, and only the second was passed on to be looked up.
+        foreach (var outcome in new[] { StageStatus.Complete, StageStatus.Skipped, StageStatus.Skipped })
+            await _queue.CompleteAsync((await _queue.LeaseAsync([Stage.Identify], "t", TimeSpan.FromMinutes(1), Ct))!, outcome, ct: Ct);
+        foreach (var id in new long[] { 1, 2 })
+            Connection.Execute(
+                "INSERT INTO job (document_id, content_hash, stage, stage_version, status, created_utc) VALUES (@id, @hash, 'LookUp', @old, 'done', '2026-01-01T00:00:00Z')",
+                new { id, hash = $"hash{id}", old = Pipeline.Version(Stage.LookUp) - 1 });
+
+        var queued = await _queue.EnqueueMissingAsync(Stage.LookUp, Stage.Identify, Ct);
+        var first = await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct);
+        var second = await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct);
+
+        Assert.Equal(2, queued);
+        Assert.Equal([1L, 2L], new[] { first!.DocumentId, second!.DocumentId }.Order());
+        Assert.All(new[] { first, second }, j => Assert.Equal(Pipeline.Version(Stage.LookUp), j.StageVersion));
+        Assert.Null(await _queue.LeaseAsync([Stage.LookUp], "t", TimeSpan.FromMinutes(1), Ct));
+        Assert.Equal(0, await _queue.EnqueueMissingAsync(Stage.LookUp, Stage.Identify, Ct));
+    }
+
+    [Fact]
     public async Task Only_the_finished_jobs_whose_reason_is_accepted_run_again()
     {
         await _store.UpsertDocumentAsync(Doc(1), Pages(1), [], Ct);

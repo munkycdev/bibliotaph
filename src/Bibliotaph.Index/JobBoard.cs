@@ -50,9 +50,11 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
     }
 
     /// <summary>
-    /// Queues <paramref name="stage"/> for every document whose <paramref name="after"/> stage has finished and that has
-    /// no job for it at the current version: how a stage added in an update reaches a library indexed before it.
-    /// Returns the number queued.
+    /// Queues <paramref name="stage"/> for every document that has no job for it at the current version and either
+    /// finished its <paramref name="after"/> stage or went through this one at an older version: how a stage added in
+    /// an update reaches a library indexed before it, and how a new version of one reaches every book the old one ran
+    /// for, including those the stage before passed on to it though it found nothing, as Identify does a book printing
+    /// no ISBN so it can be looked up by title. Returns the number queued.
     /// </summary>
     public Task<int> EnqueueMissingAsync(Stage stage, Stage after, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
@@ -60,12 +62,21 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             var now = Now();
             var missing = c.Query<(long DocumentId, string ContentHash)>(
                 """
-                SELECT s.document_id, j.content_hash
-                FROM stage_status s
-                JOIN job j ON j.document_id = s.document_id AND j.stage = @after
-                WHERE s.stage = @after AND s.status IN ('Complete', 'Partial')
-                  AND NOT EXISTS (SELECT 1 FROM job k WHERE k.content_hash = j.content_hash AND k.stage = @stage AND k.stage_version = @version)
-                GROUP BY s.document_id
+                WITH candidate AS (
+                    SELECT s.document_id, j.content_hash
+                    FROM stage_status s
+                    JOIN job j ON j.document_id = s.document_id AND j.stage = @after
+                    WHERE s.stage = @after AND s.status IN ('Complete', 'Partial')
+                    UNION ALL
+                    SELECT o.document_id, o.content_hash
+                    FROM job o
+                    JOIN doc d ON d.document_id = o.document_id AND d.content_hash = o.content_hash
+                    WHERE o.stage = @stage AND o.stage_version < @version
+                )
+                SELECT document_id, content_hash
+                FROM candidate n
+                WHERE NOT EXISTS (SELECT 1 FROM job k WHERE k.content_hash = n.content_hash AND k.stage = @stage AND k.stage_version = @version)
+                GROUP BY document_id
                 """,
                 new { stage = stage.ToString(), after = after.ToString(), version = Pipeline.Version(stage) }, t).ToList();
             foreach (var (documentId, contentHash) in missing) Enqueue(c, t, documentId, contentHash, stage, 0, now);

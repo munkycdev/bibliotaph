@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Books printing no ISBN are looked up again after an update too.** 1.6.1218 asks every book again with its new
+  searches, but books printing no ISBN or product code, the ones looked up by title, were left out, and
+  the button at the end of **Looking up online** couldn't reach them either, so its count stopped short of the start. They're
+  now looked up again the next time the app starts, as every step's new version is for every book it ran for.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1223 (12 November 2026):

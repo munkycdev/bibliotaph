@@ -85,6 +85,8 @@ and changed files are read.
   for every book: **Finding files** looks through your folders now, and **Looking up online**, **Cataloguing with AI**
   (with your lists as they stand now, say after adding names) and **Scanning whole books** ask first, since each takes
   a pass over your library. Values you've accepted, typed or rejected stay as they are.
+- When an update changes how a step works, as one that finds more books online does, every book that step ran for goes
+  through it again once, the next time you start Bibliotaph, so its row counts back up from the start for a while.
 - Files that couldn't be read are listed in **Needs review**, under **Files needing attention**.
 
 ### Set up AI, or not
