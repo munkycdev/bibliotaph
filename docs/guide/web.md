@@ -158,7 +158,8 @@ found by search like any other page. With [AI](#ai) set up, each book is then ca
 **Covers**. Each card says what the book is ("D&D 5e · Adventure", or "PDF · 96 pages" until it's catalogued), and marks
 a book owned elsewhere, a locked or protected file, a file that's missing, a favourite and a book read by AI. The
 **Packs** and **Each file** buttons show a pack as one card or each of its files on its own. Order the books with the
-menu beside **Filters**: **Recently added**, **Recently opened**, **Title A–Z** or **Publisher A–Z**. The browser
+menu beside **Filters**: **Recently added**, **Recently opened**, **Title A–Z**, **Publisher A–Z** or **Folder**, which
+groups the cards under each folder's name. The browser
 remembers the layout, the order and the pack view.
 
 Right-click a book (or press and hold it on a touch screen) for the Windows app's menu: **Open**, **Open in new

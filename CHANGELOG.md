@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **The tour and the keyboard shortcuts know Organize mode.** The Library step of the first-run tour mentions
+  **Organize**, and the web tour no longer offers Box, which was taken out in 1.6. **Ctrl+/** lists Organize mode's
+  keys, **Ctrl+Z** and the Menu key that opens a book's details in it included. An empty collection says to choose
+  **Organize** rather than Select. On Windows and the web.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1272 (14 November 2026):
@@ -36,11 +41,11 @@ New in 1.6.1265 (14 November 2026):
   title and details, highlights under the mouse, and the box takes the keyboard as the picker opens. On the web on a
   phone or tablet, the books it finds no longer hide behind the on-screen keyboard: the picker moves to the top of the
   screen while you type.
-- **A change in Select mode unticks the books.** After **Edit metadata**, **Add to collection**, **Add to binder** or
-  any other change from the Select bar, the books you ticked are unticked so the next change starts fresh, and you stay
-  in Select mode. **Undo** still puts the change back. **Export these** changes nothing, so it leaves them ticked. On
+- **A change in Organize mode unticks the books.** After **Edit metadata**, **Add to collection**, **Add to binder** or
+  any other change from the Organize bar, the books you ticked are unticked so the next change starts fresh, and you
+  stay in Organize mode. **Undo** still puts the change back. **Export these** changes nothing, so it leaves them ticked. On
   Windows and the web.
-- **The Select bar stays in view on the web.** It's pinned to the top of the window as you scroll down the Library, so
+- **The Organize bar stays in view on the web.** It's pinned to the top of the window as you scroll down the Library, so
   **Edit metadata** and the other actions are in reach from any row, on a phone too. The Windows app already kept it
   above the books.
 
