@@ -4,6 +4,13 @@
 
 - **Right-click opens a book's details in Organize mode.** A click still ticks the card; right-clicking it, or
   holding a finger on it and lifting without moving on a touch screen, shows its details, on Windows and the web.
+- **The details panel puts what you need at the table first.** **At a glance** opens it with the game system, edition,
+  type, levels, players, setting, includes and your tags. Then come the adventures in a file and the maps and handouts
+  that go with it, **What's inside** (themes, environments, monsters and items, with the first three chapters the AI
+  found something in and **Show all**), and your collections. **Publication** (title, publisher, authors, year, stores
+  and the RPGGeek record), **The file** (where it is, **Reprocess** and its facts, once About the file and Where it is)
+  and **How it was read** (indexing and the online lookup report) wait folded at the bottom. Sections you folded stay
+  folded. On Windows and the web.
 
 ## 1.6 · 9 November 2026
 

@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.ViewModels;
 
 /// <summary>
-/// A chapter in the details' "Found inside the book": its title and pages as the file numbers them, and one line per
+/// A chapter under the details' "What's inside": its title and pages as the file numbers them, and one line per
 /// field the AI found something for ("Creatures: Goblin, Ogre"), or why there is nothing.
 /// </summary>
 public sealed record InspectorChapter(string Title, string PagesText, IReadOnlyList<string> Lines, string? Note)
@@ -19,8 +19,8 @@ public sealed record InspectorChapter(string Title, string PagesText, IReadOnlyL
 }
 
 /// <summary>
-/// The details' "Found inside the book": what the AI found reading the book chapter by chapter, kept apart from the
-/// book's own details above, which it never changes. An adventure inside a file shows only its own chapters.
+/// The chapters under the details' "What's inside": what the AI found reading the book chapter by chapter, which never
+/// changes the book's own fields above them. An adventure inside a file shows only its own chapters.
 /// </summary>
 public sealed partial class InspectorViewModel
 {
@@ -28,10 +28,24 @@ public sealed partial class InspectorViewModel
     ILogger? _chaptersLog;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasChapters))]
+    [NotifyPropertyChangedFor(nameof(HasChapters), nameof(ShownChapters), nameof(CanShowAllChapters), nameof(ShowAllChaptersLabel), nameof(ShowsInside))]
     public partial IReadOnlyList<InspectorChapter> Chapters { get; private set; } = [];
 
     public bool HasChapters => Chapters.Count > 0;
+
+    /// <summary>Show all was pressed: every chapter shows, not only the first the AI found something in.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShownChapters), nameof(CanShowAllChapters))]
+    public partial bool ShowsAllChapters { get; set; }
+
+    public IReadOnlyList<InspectorChapter> ShownChapters => ShowsAllChapters ? Chapters : DetailSections.FirstChapters(Chapters, c => c.Lines.Count > 0);
+
+    public bool CanShowAllChapters => !ShowsAllChapters && ShownChapters.Count < Chapters.Count;
+
+    public string ShowAllChaptersLabel => DetailSections.ShowAllChapters(Chapters.Count);
+
+    [RelayCommand]
+    void ShowAllChapters() => ShowsAllChapters = true;
 
     /// <summary>"Scan again" said it would: shown under the chapters until the details are opened again.</summary>
     [ObservableProperty]

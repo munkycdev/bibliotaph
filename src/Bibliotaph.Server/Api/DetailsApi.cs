@@ -76,7 +76,7 @@ public static class DetailsApi
         var vocabulary = await library.Get<VocabularyStore>().GetAsync(ct);
         var adventure = DetailsText.IsAdventure(entry, metadata);
         // A book owned elsewhere says first where it is owned.
-        var fields = entry.IsElsewhere ? metadata.Fields.OrderBy(f => f.Field != MetadataFields.AlsoOwn) : metadata.Fields;
+        var fields = DetailSections.InFieldOrder(metadata.Fields, f => f.Field, entry.IsElsewhere);
 
         IReadOnlyList<PackFile> packFiles = [];
         IReadOnlyList<DetailLocation> locations = [];
@@ -137,7 +137,8 @@ public static class DetailsApi
             entry.Publisher ?? "",
             CardText.Pages(entry),
             !entry.IsElsewhere,
-            [.. fields.Select(f => ToField(f, vocabulary, DetailsText.IsPrimary(f.Field, entry.IsElsewhere, adventure)))],
+            [.. fields.Select(f => ToField(f, vocabulary, DetailsText.IsPrimary(f.Field, entry.IsElsewhere, adventure),
+                DetailSections.FieldSection(f.Field, entry.IsElsewhere)))],
             parts,
             DetailsText.PartsHeading(parts.Count),
             !entry.IsPack && !entry.IsElsewhere && !entry.IsPart && entry.Format == SourceFormats.Pdf,
@@ -195,7 +196,7 @@ public static class DetailsApi
     /// <summary>Its last page, or blank for one page.</summary>
     static string To(PartPages? pages, IReadOnlyList<string?> labels) => pages is { } p && p.Count > 1 ? PageNumbers.Display(p.Last, labels) : "";
 
-    static DetailField ToField(EffectiveField field, Vocabulary vocabulary, bool primary)
+    static DetailField ToField(EffectiveField field, Vocabulary vocabulary, bool primary, string section)
     {
         DetailValue Value(EffectiveValue v)
         {
@@ -209,6 +210,6 @@ public static class DetailsApi
         return new DetailField(field.Field.Key, field.Field.Label, primary, FieldText.Join([.. values.Select(v => v.Text)]), values.Count > 0, suggested,
             field.NeedsReview, FieldText.EvidenceLabel(field.NeedsReview, suggested), values.Any(v => v.Confirmed), values,
             [.. field.Alternatives.Select(Value)], field.Field.Multiple, FieldText.EditHint(field.Field), FieldText.ChoicesLabel(field.Field),
-            FieldText.Choices(field.Field, vocabulary));
+            FieldText.Choices(field.Field, vocabulary), section);
     }
 }

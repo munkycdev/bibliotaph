@@ -252,7 +252,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VisibleFields), nameof(HasHiddenFields))]
+    [NotifyPropertyChangedFor(nameof(VisibleFields), nameof(HasHiddenFields), nameof(GlanceFields), nameof(InsideFields), nameof(PublicationFields),
+        nameof(HasHiddenGlanceFields), nameof(HasHiddenInsideFields), nameof(HasHiddenPublicationFields), nameof(ShowsInside))]
     public partial IReadOnlyList<MetadataFieldViewModel> Fields { get; private set; } = [];
 
     /// <summary>Some of the book's details came from RPGGeek, which the details credit to BoardGameGeek.</summary>
@@ -260,12 +261,28 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public partial bool FromRpgGeek { get; private set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VisibleFields), nameof(HasHiddenFields), nameof(MoreFieldsLabel))]
+    [NotifyPropertyChangedFor(nameof(VisibleFields), nameof(HasHiddenFields), nameof(MoreFieldsLabel), nameof(GlanceFields), nameof(InsideFields),
+        nameof(PublicationFields), nameof(ShowsInside))]
     public partial bool ShowAllFields { get; set; }
 
     public IReadOnlyList<MetadataFieldViewModel> VisibleFields => [.. Fields.Where(f => ShowAllFields || f.IsKnown || f.IsPrimary)];
 
     public bool HasHiddenFields => Fields.Any(f => !f.IsKnown && !f.IsPrimary);
+
+    // The fields in each of the sections that hold them, as DetailSections groups them; More fields shows in each that has some empty.
+    public IReadOnlyList<MetadataFieldViewModel> GlanceFields => InSection(DetailSections.Glance);
+    public IReadOnlyList<MetadataFieldViewModel> InsideFields => InSection(DetailSections.Inside);
+    public IReadOnlyList<MetadataFieldViewModel> PublicationFields => InSection(DetailSections.Publication);
+    public bool HasHiddenGlanceFields => HasHidden(DetailSections.Glance);
+    public bool HasHiddenInsideFields => HasHidden(DetailSections.Inside);
+    public bool HasHiddenPublicationFields => HasHidden(DetailSections.Publication);
+
+    IReadOnlyList<MetadataFieldViewModel> InSection(string section) => [.. VisibleFields.Where(f => f.Section == section)];
+
+    bool HasHidden(string section) => Fields.Any(f => f.Section == section && !f.IsKnown && !f.IsPrimary);
+
+    /// <summary>What's inside shows once there is something in it: a field known or asked for, or a chapter the AI read.</summary>
+    public bool ShowsInside => HasChapters || IsCorrecting || InsideFields.Count > 0;
 
     public string MoreFieldsLabel => ShowAllFields ? "Fewer fields" : "More fields";
 
@@ -283,12 +300,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         var (metadata, vocabulary) = await _metadata.GetAsync(Item.EntryId);
         _shown = metadata;
         var open = Fields.Where(f => f.ShowEvidence).Select(f => f.Field).ToHashSet();
-        // A book owned elsewhere says first where it is owned.
-        var fields = IsElsewhere ? metadata.Fields.OrderBy(f => f.Field != MetadataFields.AlsoOwn) : metadata.Fields;
+        var fields = DetailSections.InFieldOrder(metadata.Fields, f => f.Field, IsElsewhere);
         var adventure = IsAdventure(metadata);
         Fields = [.. fields.Select(f => new MetadataFieldViewModel(f, vocabulary, this,
             DetailsText.IsPrimary(f.Field, IsElsewhere, adventure))
         {
+            Section = DetailSections.FieldSection(f.Field, IsElsewhere),
             ShowEvidence = open.Contains(f.Field),
             MarksGuesses = IsCorrecting,
         })];
@@ -357,7 +374,11 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     /// or the details close. Left without a change or a kept value, the book gets a Needs review card that opens it again.
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowsInside))]
     public partial bool IsCorrecting { get; private set; }
+
+    /// <summary>The field sections Cataloged wrong… opened, folded again when it ends, as they were left.</summary>
+    (bool Glance, bool Inside, bool Publication)? _foldedBeforeCorrecting;
 
     /// <summary>Opens the editor for Cataloged wrong…, from the card's menu or the button in the details.</summary>
     [RelayCommand]
@@ -367,7 +388,11 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         IsCorrecting = true;
         IsNotesTab = false;
         ShowAllFields = true;
-        Pane?.Details = true;
+        if (Pane is { } pane)
+        {
+            _foldedBeforeCorrecting ??= (!pane.Glance, !pane.Inside, !pane.Publication);
+            pane.Glance = pane.Inside = pane.Publication = true;
+        }
         foreach (var field in Fields)
         {
             field.MarksGuesses = true;
@@ -388,6 +413,13 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         if (!IsCorrecting) return;
         IsCorrecting = false;
         foreach (var field in Fields) field.MarksGuesses = false;
+        if (Pane is { } pane && _foldedBeforeCorrecting is { } folded)
+        {
+            if (folded.Glance) pane.Glance = false;
+            if (folded.Inside) pane.Inside = false;
+            if (folded.Publication) pane.Publication = false;
+        }
+        _foldedBeforeCorrecting = null;
         if (_corrections is null) return;
         var unfinished = !_decided;
         if (unfinished) await Task.Run(() => _corrections.LeaveUnfinishedAsync(Item.EntryId));
@@ -452,10 +484,13 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public IReadOnlyList<InspectorLocation> Locations { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasStages))]
+    [NotifyPropertyChangedFor(nameof(HasStages), nameof(ShowsRead))]
     public partial IReadOnlyList<InspectorStage> Stages { get; private set; } = [];
 
     public bool HasStages => Stages.Count > 0;
+
+    /// <summary>How it was read shows its indexing and what the last online lookup searched for, when there is either.</summary>
+    public bool ShowsRead => HasStages || HasLookupFacts;
 
     /// <summary>
     /// True while any of the book's stages is waiting or running, as after Reprocess: the button reads

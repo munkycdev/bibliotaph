@@ -26,7 +26,7 @@ public sealed class DetailsPane(IJSRuntime js)
         _loaded = true;
         try
         {
-            _folded = [.. DetailSections.Read(await js.InvokeAsync<string?>("bibliotaphPrefs.get", FoldedKey))];
+            _folded = [.. DetailSections.ReadFolded(await js.InvokeAsync<string?>("bibliotaphPrefs.get", FoldedKey))];
             if (int.TryParse(await js.InvokeAsync<string?>("bibliotaphPrefs.get", WidthKey), NumberStyles.None, CultureInfo.InvariantCulture, out var width))
                 Width = width;
         }

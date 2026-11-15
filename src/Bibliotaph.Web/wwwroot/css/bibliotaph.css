@@ -490,7 +490,8 @@ a{color:var(--bt-accent)}
 .bt-row{font-size:12px;color:var(--bt-text)}
 .bt-path{font-size:11px;overflow-wrap:anywhere}
 .bt-copyheading{font-size:12px;font-weight:600}
-.bt-foundnote{margin-bottom:8px}
+.bt-foundnote{margin:10px 0 8px}
+.bt-showall{padding:0;margin-top:2px}
 .bt-chapterhead{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .bt-chapterhead .bt-small{margin-top:0;white-space:nowrap}
 .bt-chaptertitle{font-size:12px;font-weight:600;color:var(--bt-text);overflow-wrap:anywhere}

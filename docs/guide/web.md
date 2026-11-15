@@ -194,12 +194,15 @@ through it, **Enter** or **Tab** puts the highlighted one in the box, and **Esc*
 are in the page's address, so you can bookmark them.
 
 Click a card, a list row or a matching book's title to open its details over the page, laid out as in the Windows app:
-its cover and what it is, then the adventures marked in a file or the file an adventure is in, a pack's files, what
-the AI found inside, its collections, **Details**, each field with where its value came from (**Sources**,
+its cover and what it is, then **At a glance** (system, edition, type, levels, players, setting and your tags), the
+adventures marked in a file or the file an adventure is in, what goes with it, a pack's files, **What's inside** (its
+themes, environments, monsters and items, and the first chapters the AI found something in), its collections, then
+**Publication** (title, publisher, authors, year, stores and its RPGGeek record), **The file** in your storage (the
+service first, such as OneDrive or Dropbox, then the account and its folders), its copies when it has more than one,
+each with its service too, and **How it was read**. Each field shows where its value came from (**Sources**,
 **Suggested** or **Sources disagree** opens the evidence and the other suggestions; **More fields** shows the empty
-ones), then **About the file**, **Where it is** in your storage (the service first, such as OneDrive or Dropbox, then
-the account and its folders), its copies when it has more than one, each with its service too, and how far reading it
-has got. A section's heading folds it away; this browser remembers which are folded, and the last four start folded. Drag the pane's left edge to make it wider, which this browser remembers too. **Esc**, the **×** or a click outside closes them.
+ones). A section's heading folds it away; this browser remembers which are folded, and Publication, The file, Copies
+and How it was read start folded. Drag the pane's left edge to make it wider, which this browser remembers too. **Esc**, the **×** or a click outside closes them.
 
 **Home** greets you with the books you opened last and those added last, a cover each; a click opens the book's details
 in the Library, and a right-click has the same menu as in the Library. Until AI is set up, Home asks **Fill in the
@@ -226,7 +229,7 @@ The details change a book as the Windows app's do:
 - **Adventures in this file**: **Add** gives pages of a PDF a card of their own, typed as the file numbers them; each
   has **Edit range** and **Remove**, with **Undo**. An adventure's own details have **Show the file**, **Edit range** and
   **Remove adventure**.
-- **Reprocess**, under **Where it is**, reads the file again; what you added stays. The arrow beside it has **Reprocess
+- **Reprocess**, under **The file**, reads the file again; what you added stays. The arrow beside it has **Reprocess
   with OCR on every page…**, for a scan whose own text is poor: it says how long that takes and asks first.
 - **Open on D&D Beyond** (or wherever you own the book online) opens its page there, **Ask this book** opens it with
   the Ask panel, and **Download the file** is there for a file whose protection Bibliotaph can't open.
@@ -609,7 +612,7 @@ a request on your key and costs far more than cataloguing. It goes after everyth
 AI something; Settings and the sidebar show **Scanning whole books · 12 of 840**, and a scan carries on where it was
 the next time.
 
-What it finds shows under **Found inside the book** in a book's details, apart from the book's own details, which it
+What it finds shows under **What's inside** in a book's details, apart from the book's own details, which it
 never changes, and in the reader's **Contents** under the chapter it was found in. **Scan again** forgets what was found
 in a book and reads it again.
 

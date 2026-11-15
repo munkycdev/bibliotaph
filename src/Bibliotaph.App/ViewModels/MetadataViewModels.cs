@@ -78,6 +78,9 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
 
     public MetadataField Field { get; }
 
+    /// <summary>The section of the details it shows in, as <see cref="DetailSections.FieldSection"/> says.</summary>
+    public string Section { get; init; } = DetailSections.Glance;
+
     public string Label => Field.Label;
 
     /// <summary>Shown even when unknown, so the fields that matter most can be filled in.</summary>

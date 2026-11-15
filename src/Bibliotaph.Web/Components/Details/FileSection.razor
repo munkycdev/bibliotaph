@@ -1,10 +1,11 @@
-@* Where a book's file is, each place with its state, and Reprocess under the first; Reprocess with OCR on every page
-   asks first, since a long book takes a while. *@
+@* The book's file: where it is, each place with its state and Reprocess under the first, then what Bibliotaph knows of
+   it. Reprocess with OCR on every page asks first, since a long book takes a while. A book owned elsewhere has no file,
+   only when it was added. *@
 @using Bibliotaph.Core
 @inject BooksClient BooksApi
 
-<DetailSection Section="@DetailSections.Where" Heading="WHERE IT IS">
-    @for (var i = 0; i < Book.Locations.Count; i++)
+<DetailSection Section="@DetailSections.File" Heading="@Book.FactsHeading">
+    @for (var i = 0; i < (Book.ShowsLocations ? Book.Locations.Count : 0); i++)
     {
         var location = Book.Locations[i];
         <div class="bt-detailbox">
@@ -44,6 +45,13 @@
             }
         </div>
     }
+    <dl class="bt-facts">
+        @foreach (var fact in Book.Facts)
+        {
+            <dt>@fact.Label</dt>
+            <dd>@fact.Value</dd>
+        }
+    </dl>
 </DetailSection>
 
 @code {

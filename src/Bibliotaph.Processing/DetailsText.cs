@@ -46,7 +46,7 @@ public static class DetailsText
         : SourceFormats.HasPages(entry.Format) ? CardText.FormatName(entry.Format) : SourceFormats.IsVideo(entry.Format) ? "VIDEO" : "IMAGE";
 
     /// <summary>A book owned elsewhere has no file to say anything about.</summary>
-    public static string FactsHeading(LibraryEntry entry) => entry.IsElsewhere ? "IN YOUR LIBRARY" : "ABOUT THE FILE";
+    public static string FactsHeading(LibraryEntry entry) => entry.IsElsewhere ? "IN YOUR LIBRARY" : "THE FILE";
 
     /// <summary>Why a chapter shows no values, or null when it has some.</summary>
     public static string? ChapterNote(ScannedChapter chapter, int lines) => chapter.Reading switch

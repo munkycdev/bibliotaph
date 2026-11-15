@@ -98,8 +98,8 @@ themes and creatures in each chapter, with the pages they're on.
 - **It waits its turn.** It starts only after a book is catalogued, and stops the moment you use the AI for anything
   else (cataloging, **Ask**, **Ask this book**), carrying on half a minute after you've finished. Closing Bibliotaph
   doesn't lose its place.
-- **It never changes a book's own details.** What it finds is shown apart, under **Found inside the book** in the
-  book's details, and beside each chapter in the reader's **Contents**. **Scan again** there reads the book again.
+- **It never changes a book's own details.** What it finds is shown apart, under the chapters in **What's inside** in
+  the book's details, and beside each chapter in the reader's **Contents**. **Scan again** there reads the book again.
 - **Search uses it.** `setting:`, `environment:` and `theme:` also find books by what's inside them, and `creature:`
   finds the books with a creature in one of their chapters, such as `creature:owlbear`.
 - **Each finding is checked like any other**: its quote must be on its page, inside its chapter.
