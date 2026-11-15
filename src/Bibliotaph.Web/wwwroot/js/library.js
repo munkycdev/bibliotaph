@@ -41,6 +41,10 @@ window.bibliotaphSelect = (function () {
     if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'a' || e.key === 'A')) {
       e.preventDefault();
       page.invokeMethodAsync('SelectAll');
+    } else if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) {
+      // Organize mode takes back its own changes one at a time; a box keeps its own undo.
+      e.preventDefault();
+      page.invokeMethodAsync('UndoLast');
     } else if (e.key === 'Escape') {
       page.invokeMethodAsync('StopSelecting');
     }
@@ -48,6 +52,137 @@ window.bibliotaphSelect = (function () {
   return {
     start: function (p) { page = p; },
     stop: function () { page = null; }
+  };
+})();
+// Organize mode's drags. A card is picked up by moving the mouse a little with the button down, or by holding a finger
+// on it, so a swipe still scrolls; the ticked cards go with a ticked one. What is under the pointer is named to the
+// page, which says what a drop there does; the words follow the pointer, and the window scrolls near its top and bottom
+// edges. Esc puts the cards down where they were.
+window.bibliotaphOrganize = (function () {
+  var page = null, drag = null, swallowClick = false;
+  var MOVE = 6, HOLD = 350, EDGE = 64;
+
+  function cardAt(el) { return el && el.closest ? el.closest('[data-organize-card]') : null; }
+
+  function targetAt(x, y) {
+    if (drag && drag.ghost) drag.ghost.style.display = 'none';
+    var el = document.elementFromPoint(x, y);
+    if (drag && drag.ghost) drag.ghost.style.display = '';
+    return el && el.closest ? el.closest('[data-drop]') : null;
+  }
+
+  function cancel() {
+    if (!drag) return;
+    clearTimeout(drag.timer);
+    if (drag.ghost) drag.ghost.remove();
+    cancelAnimationFrame(drag.frame);
+    var started = drag.started;
+    drag = null;
+    if (started && page) page.invokeMethodAsync('Drop', '', '', 0, 0);
+  }
+
+  function begin() {
+    if (!drag || !page) return;
+    drag.started = true;
+    page.invokeMethodAsync('DragStart', drag.id).then(function (count) {
+      if (!drag || !count) { cancel(); return; }
+      var ghost = document.createElement('div');
+      ghost.className = 'bt-dragghost';
+      ghost.innerHTML = '<strong></strong><span></span>';
+      ghost.firstChild.textContent = count;
+      document.body.appendChild(ghost);
+      drag.ghost = ghost;
+      place(drag.x, drag.y);
+      scroll();
+    });
+  }
+
+  function place(x, y) {
+    if (!drag || !drag.ghost) return;
+    drag.ghost.style.left = (x + 14) + 'px';
+    drag.ghost.style.top = (y + 14) + 'px';
+  }
+
+  // Keeps scrolling while the pointer rests near an edge.
+  function scroll() {
+    if (!drag || !drag.started) return;
+    var step = drag.y < EDGE ? -12 : drag.y > window.innerHeight - EDGE ? 12 : 0;
+    if (step) { window.scrollBy(0, step); over(drag.x, drag.y); }
+    drag.frame = requestAnimationFrame(scroll);
+  }
+
+  function over(x, y) {
+    var target = targetAt(x, y);
+    var key = target ? target.getAttribute('data-drop') : '';
+    if (key === drag.key) return;
+    drag.key = key;
+    var name = target ? target.getAttribute('data-drop-name') || '' : '';
+    page.invokeMethodAsync('DragOver', key, name).then(function (hover) {
+      if (!drag || !drag.ghost || drag.key !== key) return;
+      drag.ghost.lastChild.textContent = hover.label || '';
+      drag.ghost.classList.toggle('no', !hover.ok && !!key);
+    });
+  }
+
+  document.addEventListener('pointerdown', function (e) {
+    if (!page || e.button !== 0 || drag) return;
+    var card = cardAt(e.target);
+    if (!card) return;
+    drag = { id: card.getAttribute('data-organize-card'), x: e.clientX, y: e.clientY, fromX: e.clientX, fromY: e.clientY,
+      touch: e.pointerType !== 'mouse', started: false, key: null };
+    if (drag.touch) drag.timer = setTimeout(begin, HOLD);
+  }, true);
+
+  document.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    var moved = Math.abs(e.clientX - drag.fromX) + Math.abs(e.clientY - drag.fromY);
+    if (!drag.started) {
+      // A finger that moves before the hold is scrolling, not dragging.
+      if (drag.touch) { if (moved > MOVE * 2) { clearTimeout(drag.timer); drag = null; } return; }
+      if (moved > MOVE) begin();
+      return;
+    }
+    e.preventDefault();
+    place(e.clientX, e.clientY);
+    over(e.clientX, e.clientY);
+  }, true);
+
+  // Once a finger has picked a card up, the page stays still under it.
+  document.addEventListener('touchmove', function (e) { if (drag && drag.started) e.preventDefault(); }, { passive: false });
+
+  document.addEventListener('pointerup', function (e) {
+    if (!drag) return;
+    clearTimeout(drag.timer);
+    if (!drag.started) { drag = null; return; }
+    var target = targetAt(e.clientX, e.clientY);
+    var key = target ? target.getAttribute('data-drop') : '';
+    var name = target ? target.getAttribute('data-drop-name') || '' : '';
+    if (drag.ghost) drag.ghost.remove();
+    cancelAnimationFrame(drag.frame);
+    drag = null;
+    swallowClick = true;
+    setTimeout(function () { swallowClick = false; }, 0);
+    page.invokeMethodAsync('Drop', key, name, e.clientX, e.clientY);
+  }, true);
+
+  document.addEventListener('pointercancel', cancel, true);
+
+  // The click that ends a drag doesn't tick the card it started on.
+  document.addEventListener('click', function (e) { if (swallowClick) { e.stopPropagation(); e.preventDefault(); swallowClick = false; } }, true);
+
+  // A cover's image would otherwise be dragged as an image, which ends the pointer's events.
+  document.addEventListener('dragstart', function (e) { if (page && cardAt(e.target)) e.preventDefault(); }, true);
+
+  // A held finger doesn't open the browser's own menu, nor a long press the link's.
+  document.addEventListener('contextmenu', function (e) { if (drag && drag.touch) e.preventDefault(); }, true);
+
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && drag && drag.started) { e.stopPropagation(); cancel(); } }, true);
+
+  return {
+    start: function (p) { page = p; },
+    stop: function () { cancel(); page = null; }
   };
 })();
 // A file made in the browser, such as Export these' CSV, saved where the browser saves downloads. A CSV starts with a

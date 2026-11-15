@@ -189,6 +189,7 @@ public sealed class MetadataProjector(MetadataStore metadata, EntryStore entries
         Pages = entry.Pages,
         Parts = entry.Parts,
         SourceEntryId = entry.SourceEntryId,
+        SourceSuggested = entry.SourceSuggested,
         Companions = entry.Companions,
     };
 

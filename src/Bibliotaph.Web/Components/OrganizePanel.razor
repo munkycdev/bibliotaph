@@ -1,0 +1,125 @@
+@* Organize mode's Books panel: books to drop maps and handouts on without scrolling the library to them. The books in
+   the folder of the card ticked or dragged last, those dropped on lately, and any found by their title. Each is a drop
+   target, and its button gives it the ticked cards, for a keyboard or a phone. *@
+@inject BooksClient BooksApi
+@inject SelectionClient SelectionApi
+
+<aside class="bt-organizepanel" aria-label="Books to drop on">
+    <div class="bt-organizehead">
+        <span class="bt-eyebrow">BOOKS</span>
+        <button class="bt-icon" title="Close the Books panel" aria-label="Close the Books panel" @onclick="Closed"><Icon Name="X" Size="14" /></button>
+    </div>
+    <input class="bt-pickerinput" aria-label="Find a book by its title" placeholder="Find a book by its title" @bind="Query" @bind:event="oninput" />
+    @if (_query.Trim().Length > 0)
+    {
+        @Rows("FOUND", _found, "No book has those words in its title.")
+    }
+    else
+    {
+        @if (Near is not null)
+        {
+            @Rows("IN THIS FOLDER", _near, "No books beside it.")
+        }
+        @if (Recent.Count > 0)
+        {
+            @Rows("DROPPED ON LATELY", Recent, null)
+        }
+        @if (Near is null && Recent.Count == 0)
+        {
+            <p class="bt-small">Tick or drag a map, and the books in its folder show here. Or find a book by its title.</p>
+        }
+    }
+</aside>
+
+@code {
+    /// <summary>The card whose folder's books "In this folder" shows: the one ticked or dragged last.</summary>
+    [Parameter] public long? Near { get; set; }
+
+    [Parameter] public IReadOnlyList<BookChoice> Recent { get; set; } = [];
+
+    /// <summary>How many cards are ticked, for each book's button.</summary>
+    [Parameter] public int Ticked { get; set; }
+
+    [Parameter] public EventCallback<BookChoice> Link { get; set; }
+
+    [Parameter] public EventCallback Closed { get; set; }
+
+    /// <summary>The drop target under the pointer ("book:12"), and whether it takes what is dragged, to mark it.</summary>
+    [Parameter] public string? Over { get; set; }
+
+    [Parameter] public bool OverOk { get; set; }
+
+    string _query = "";
+    List<BookChoice> _found = [];
+    IReadOnlyList<BookChoice> _near = [];
+    long? _nearShown;
+    // Each search moves this on, so an older search's answer, arriving late, is dropped.
+    int _search;
+
+    string Query
+    {
+        get => _query;
+        set
+        {
+            _query = value;
+            _ = FindAsync(value);
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Near == _nearShown) return;
+        _nearShown = Near;
+        _near = [];
+        if (Near is not { } card) return;
+        try
+        {
+            var near = await SelectionApi.BooksNearAsync(card);
+            if (_nearShown == card) _near = near;
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            // The panel goes without them; finding by title still works.
+        }
+    }
+
+    async Task FindAsync(string text)
+    {
+        var search = ++_search;
+        // Typing waits a moment, so each key doesn't search.
+        if (text.Length > 0) await Task.Delay(200);
+        if (search != _search || text.Trim().Length == 0) return;
+        try
+        {
+            var found = await BooksApi.FindSourceBooksAsync(text, Near is { } near ? [near] : []);
+            if (search != _search) return;
+            _found = found;
+            StateHasChanged();
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+        }
+    }
+
+    RenderFragment Rows(string heading, IReadOnlyList<BookChoice> books, string? none) => __builder =>
+    {
+        <span class="bt-eyebrow bt-eyebrow-block">@heading</span>
+        @if (books.Count == 0 && none is not null)
+        {
+            <p class="bt-small">@none</p>
+        }
+        <div role="list" aria-label="@heading.ToLowerInvariant()">
+            @foreach (var book in books)
+            {
+                <div class="bt-organizebook @(Over == $"book:{book.EntryId}" ? OverOk ? "dropok" : "dropno" : "")" role="listitem" @key="book.EntryId" data-drop="@($"book:{book.EntryId}")" data-drop-name="@book.Title">
+                    <div class="bt-organizebooktext">
+                        <span class="bt-row">@book.Title</span>
+                        <span class="bt-small">@book.Detail</span>
+                    </div>
+                    <button class="bt-button" disabled="@(Ticked == 0)" title="The ticked cards go with this book" aria-label="The ticked cards go with @book.Title"
+                            @onclick="() => Link.InvokeAsync(book)"><Icon Name="Link" Size="14" />Goes with</button>
+                </div>
+            }
+        </div>
+    };
+}

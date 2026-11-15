@@ -6,14 +6,15 @@ using Bibliotaph.Index;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Select mode's rules and words, in the Windows app and on the web: what the Select bar says, and which of Same book,
-/// Pack together and Remove adventures fit the ticked cards.
+/// Organize mode's rules and words for ticked cards, in the Windows app and on the web: what the Organize bar says, and
+/// which of Same book, Pack together and Remove adventures fit the ticked cards. Dropping cards on others follows
+/// <see cref="OrganizeRules"/>.
 /// </summary>
 public static class SelectionRules
 {
     /// <summary>"12 selected", "12 selected, 3 not shown", or what to do when nothing is ticked.</summary>
     public static string Summary(int count, int notShown) => count == 0
-        ? "Click books to select them. Shift+click selects a range, Ctrl+A everything shown."
+        ? "Click books to tick them, or drag one onto another. Shift+click ticks a range, Ctrl+A everything shown."
         : notShown == 0
             ? $"{count.ToString("N0", CultureInfo.CurrentCulture)} selected"
             : $"{count.ToString("N0", CultureInfo.CurrentCulture)} selected, {notShown.ToString("N0", CultureInfo.CurrentCulture)} not shown";
@@ -27,17 +28,14 @@ public static class SelectionRules
     /// Same book fits two or more cards for books or single images, with at most one book owned elsewhere among them.
     /// Packs aren't offered: a pack is many files, not a copy of a book.
     /// </summary>
-    public static bool CanJoin(IReadOnlyCollection<LibraryEntry> cards) =>
-        cards.Count >= 2 && !cards.Any(StandsForPack) && cards.Count(c => c.IsElsewhere) <= 1;
+    public static bool CanJoin(IReadOnlyCollection<LibraryEntry> cards) => OrganizeRules.CanJoin([.. cards.Select(c => c.Organize)]);
 
     /// <summary>
     /// Pack together fits two or more cards for single files, images or PDFs (a party's character sheets), or packs:
     /// no books owned elsewhere, no adventures inside files, and no file with adventures marked in it, whose cards
     /// name it.
     /// </summary>
-    public static bool CanPack(IReadOnlyCollection<LibraryEntry> cards) =>
-        cards.Count >= 2 && cards.All(c => StandsForPack(c) || c is { IsElsewhere: false, IsPart: false, Parts: 0 }
-            && (SourceFormats.IsPicture(c.Format) || c.Format == SourceFormats.Pdf));
+    public static bool CanPack(IReadOnlyCollection<LibraryEntry> cards) => OrganizeRules.CanPack([.. cards.Select(c => c.Organize)]);
 
     /// <summary>Remove adventures fits ticked cards that are all adventures inside files.</summary>
     public static bool CanRemoveAdventures(IReadOnlyCollection<LibraryEntry> cards) => cards.Count > 0 && cards.All(c => c.IsPart);

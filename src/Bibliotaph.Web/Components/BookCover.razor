@@ -1,5 +1,6 @@
 @* .bt-bookcover: the book's own cover, a pack's mosaic, or a plain one with its
-   initial while there is none; with the marks for a book owned elsewhere, away, locked, found inside its book or read by AI. *@
+   initial while there is none; with the marks for a book owned elsewhere, away, locked, found inside its book or read by AI, and the badges that say how
+   it is put together. *@
 <div class="bt-bookcover @(Book.Availability.Length > 0 ? "away" : "")">
     @if (Book.Mosaic.Count > 0)
     {
@@ -32,6 +33,10 @@
         {
             <span class="bt-aibadge" title="@Book.AiTip" role="img" aria-label="@Book.AiTip"><Icon Name="Sparkle" Size="11" /></span>
         }
+        @if (Book.Badges is { Count: > 0 } badges)
+        {
+            <CardBadges Badges="badges" Wide="Wide" Class="@(Book.AiTip is null ? "" : "below-ai")" />
+        }
         @if (Book.Elsewhere)
         {
             <span class="bt-covermark elsewhere" title="Owned elsewhere: @Book.Size"><Icon Name="Cloud" Size="12" />@Book.Badge</span>
@@ -48,6 +53,9 @@
 
     /// <summary>The list's small covers leave the marks to the row's own columns.</summary>
     [Parameter] public bool Marks { get; set; } = true;
+
+    /// <summary>Organize mode: the badge for the book a card goes with names it.</summary>
+    [Parameter] public bool Wide { get; set; }
 
     bool _failed;
     string? _shown;

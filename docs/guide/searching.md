@@ -189,7 +189,7 @@ among everything else or search for one handout by its name. A file's card says 
 Tiles"), and opening it opens the pack at that file, so the arrows still step through the rest. Filters and searches
 treat a file as its pack: a search for the pack's name finds all its files, one for a file's name finds only that
 file, and **Kind: Packs** shows the files that are in packs. Its pages are found under its own card. Its details,
-heart, collections and **Select** mode are the pack's, while **Add to binder** adds just that file. The choice is
+heart, collections and **Organize** mode are the pack's, while **Add to binder** adds just that file. The choice is
 remembered, for browsing and searching alike.
 
 ## Saved searches

@@ -55,6 +55,32 @@ public static class CardText
 
     public static string Companions(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "map or handout" : "maps and handouts")}";
 
+    /// <summary>
+    /// The small marks down a cover's right edge that say how a card is put together, in this order: the book it goes
+    /// with, a pack's files, the adventures marked in a file, the maps and handouts that go with a book, and its copies.
+    /// Each is an icon and a number, with the words in its tooltip; Organize mode shows the book's name on the first.
+    /// </summary>
+    public static IReadOnlyList<CardBadge> Badges(LibraryEntry entry)
+    {
+        var culture = CultureInfo.CurrentCulture;
+        List<CardBadge> badges = [];
+        if (entry.SourceEntryId is not null)
+        {
+            var title = entry.SourceTitle ?? "a book";
+            badges.Add(new CardBadge(CardBadge.GoesWith, "", entry.SourceSuggested ? $"Suggested: goes with {title}" : $"Goes with {title}", title,
+                entry.SourceSuggested));
+        }
+        if (entry.IsPack) badges.Add(new CardBadge(CardBadge.Pack, entry.Members.ToString("N0", culture), Describe(entry), Members(entry)));
+        if (entry.Parts > 0)
+            badges.Add(new CardBadge(CardBadge.Adventures, entry.Parts.ToString("N0", culture), $"{Adventures(entry.Parts)} inside", Adventures(entry.Parts)));
+        if (entry.Companions > 0)
+            badges.Add(new CardBadge(CardBadge.Companions, entry.Companions.ToString("N0", culture),
+                $"{Companions(entry.Companions)} {(entry.Companions == 1 ? "goes" : "go")} with it", Companions(entry.Companions)));
+        if (entry.Copies > 1)
+            badges.Add(new CardBadge(CardBadge.Copies, entry.Copies.ToString("N0", culture), $"{Copies(entry)}: files of this book in your library", Copies(entry)));
+        return badges;
+    }
+
     /// <summary>The first letter of the title, for the placeholder cover.</summary>
     public static string Initial(string title) =>
         title.FirstOrDefault(char.IsLetterOrDigit) is var c and not '\0' ? char.ToUpper(c, CultureInfo.CurrentCulture).ToString() : "?";
@@ -152,4 +178,27 @@ public static class CardText
 
     static string? Catalogued(LibraryEntry entry) =>
         entry.System is null && entry.Kind is null ? null : string.Join(" · ", new[] { entry.System, entry.Kind }.OfType<string>());
+}
+
+/// <summary>
+/// A mark on a card: its kind (which icon it has), the number beside the icon, the words in its tooltip, and the
+/// longer words Organize mode shows. <see cref="Suggested"/> marks a book the rules only suggested, drawn dashed.
+/// </summary>
+public sealed record CardBadge(string Kind, string Count, string Tip, string Wide, bool Suggested = false)
+{
+    public const string GoesWith = "goes-with";
+    public const string Pack = "pack";
+    public const string Adventures = "adventures";
+    public const string Companions = "companions";
+    public const string Copies = "copies";
+
+    /// <summary>The Lucide icon for each kind, by its name in Icons.xaml.</summary>
+    public string Icon => Kind switch
+    {
+        GoesWith => "Link",
+        Pack => "Layers",
+        Adventures => "BookOpen",
+        Companions => "Paperclip",
+        _ => "Copy",
+    };
 }

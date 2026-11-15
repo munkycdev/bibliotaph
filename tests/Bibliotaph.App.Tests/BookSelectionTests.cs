@@ -43,7 +43,7 @@ public class BookSelectionTests
 
         Assert.False(_shown[1].IsSelected);
         Assert.False(_selection.HasAny);
-        Assert.StartsWith("Click books to select them.", _selection.Summary, StringComparison.Ordinal);
+        Assert.StartsWith("Click books to tick them,", _selection.Summary, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -31,8 +31,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     static readonly Choice<LibrarySort> TitleOrder = new(LibrarySort.Title, "Title A–Z");
     static readonly Choice<LibrarySort> PublisherOrder = new(LibrarySort.Publisher, "Publisher A–Z");
     static readonly Choice<LibrarySort> RecentlyOpened = new(LibrarySort.RecentlyOpened, "Recently opened");
-    static readonly IReadOnlyList<Choice<LibrarySort>> SearchSorts = [BestMatch, RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder];
-    static readonly IReadOnlyList<Choice<LibrarySort>> BrowseSorts = [RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder];
+    static readonly Choice<LibrarySort> FolderOrder = new(LibrarySort.Folder, "Folder");
+    static readonly IReadOnlyList<Choice<LibrarySort>> SearchSorts = [BestMatch, RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder, FolderOrder];
+    static readonly IReadOnlyList<Choice<LibrarySort>> BrowseSorts = [RecentlyAdded, RecentlyOpened, TitleOrder, PublisherOrder, FolderOrder];
 
     readonly SourceRootStore _roots;
     readonly LibraryStore _library;
@@ -204,7 +205,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// <summary>The books' filters, their menus and the chips that show which are on.</summary>
     public LibraryFilterState Filters { get; } = new();
 
-    /// <summary>Select mode: the books ticked, the bulk editor and the Select bar's actions, with their Undo.</summary>
+    /// <summary>Organize mode: the books ticked, the bulk editor, the bar's actions and the drags, with their Undo.</summary>
     public LibrarySelectionViewModel Selection { get; }
 
     /// <summary>The saved search shown, Save search, and the list of every saved search.</summary>
@@ -213,7 +214,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     public IReadOnlyList<Choice<LibrarySort>> SortChoices => IsSearching ? SearchSorts : BrowseSorts;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(GroupsByFolder))]
     public partial Choice<LibrarySort> SortChoice { get; set; }
+
+    /// <summary>Folder order: the cards sit under a heading for each folder, so a map is dragged a short way to its book.</summary>
+    public bool GroupsByFolder => SortChoice?.Value == LibrarySort.Folder;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsDocumentsTab), nameof(IsPagesTab), nameof(ShowGrid), nameof(ShowList), nameof(ShowHits), nameof(ShowLayoutChoice))]
@@ -455,7 +460,11 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         {
             var scope = Filters.FolderChoice.Value is { } folder ? await _library.GetVisibleEntryIdsAsync(folder) : await _library.GetVisibleEntryIdsAsync();
             var away = await _library.GetUnavailableAsync();
-            var filter = Filters.ToFilter(scope, SortChoice.Value, Group) with { PackFiles = ShowPackFiles };
+            var filter = Filters.ToFilter(scope, SortChoice.Value, Group) with
+            {
+                PackFiles = ShowPackFiles,
+                Links = Selection.Books.IsActive ? Selection.Links : LinkFilter.All,
+            };
             // A question to the library is about the books shown here.
             _askScope.Set(filter, IsSearching ? Search.Query : SearchQuery.Parse(""), Filters.ActiveFilters.Select(c => c.Label));
             var aiRead = await Task.Run(() => _queries.CountAiReadAsync());
@@ -534,6 +543,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         {
             ShowItems(documents);
             Selection.Books.SetShown(Items);
+            Selection.ShownChanged();
             Hits = [];
             CountText = documents.Count.ToString("N0", CultureInfo.CurrentCulture);
             CountLabel = documents.Count == 1 ? "document" : "documents";
@@ -562,6 +572,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         {
             ShowItems(documents);
             Selection.Books.SetShown(Items);
+            Selection.ShownChanged();
             Hits = [];
             CountText = documents.Count.ToString("N0", CultureInfo.CurrentCulture);
             CountLabel = $"{(documents.Count == 1 ? "document" : "documents")} {forQuery}";
@@ -1048,7 +1059,13 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     void ILibrarySelectionPage.CloseDetails() => Inspector = null;
 
-    /// <summary>Esc closes the topmost thing: a dialog, the bulk editor (or its summary), the details, then Select mode.</summary>
+    void ILibrarySelectionPage.AddToCollection(IReadOnlyList<EntryId> books, string what, long collection, string name, Action added) =>
+        Collections.Add(books, what, new CollectionMenuChoice(CollectionMenuKind.Collection, collection, name, null), added);
+
+    void ILibrarySelectionPage.AddToBinder(IReadOnlyList<EntryId> books, string what, long binder, string name, Action added) =>
+        Sessions.Add(books, what, new SessionMenuChoice(SessionMenuKind.Session, binder, name), added);
+
+    /// <summary>Esc closes the topmost thing: a dialog, the bulk editor (or its summary), the drop menu, the details, then Organize mode.</summary>
     [RelayCommand]
     void Escape()
     {
@@ -1057,6 +1074,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         else if (Collections.Dialog is { } collection) collection.CancelCommand.Execute(null);
         else if (AddElsewhereDialog is { } dialog) dialog.CancelCommand.Execute(null);
         else if (Selection.CloseDialog()) return;
+        else if (Selection.IsChoosingDrop) Selection.IsChoosingDrop = false;
         else if (Inspector is not null) Inspector = null;
         else Selection.Books.Stop();
     }

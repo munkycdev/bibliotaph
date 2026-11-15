@@ -114,7 +114,7 @@ public static class LibraryApi
             Subfolder = Text("subfolder"),
             Own = Text("own"), Store = Text("store"), Kind = Text("kind"), Ai = Text("ai"), Copies = On("copies"), NoSource = On("noSource"), Found = Text("found"), Adventures = Text("adventures"),
             Companions = Text("companions"),
-            Collections = Text("collections"), Picked = Text("picked"),
+            Collections = Text("collections"), Links = Text("links"), Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = On("addedHere"), Favorites = On("favorites"),
             Binder = long.TryParse(Text("binder"), NumberStyles.None, CultureInfo.InvariantCulture, out var binder) ? binder : null,
@@ -220,7 +220,7 @@ public static class LibraryApi
             Durations: One(query.Duration), Players: query.Players, Stores: One(query.Store), HideParts: adventures == "Hidden",
             Collections: Parse<CollectionFilter>(query.Collections) ?? CollectionFilter.All, PartsInBooks: adventures.Length == 0,
             PackFiles: query.EachFile, Picked: Picked(query.Picked), Found: One(query.Found), OnlyWithoutStore: query.NoSource,
-            CompanionsInBooks: companions.Length == 0, HideCompanions: companions == "Hidden",
+            CompanionsInBooks: companions.Length == 0, HideCompanions: companions == "Hidden", Links: Parse<LinkFilter>(query.Links) ?? LinkFilter.All,
             Group: query.Collection is { } collection ? query.AddedHere ? ScopeKeys.CollectionOwn(collection) : ScopeKeys.Collection(collection)
                 : query.Binder is { } binder ? ScopeKeys.Session(binder)
                 : query.Favorites ? ScopeKeys.Favorites : null);
@@ -357,7 +357,10 @@ public static class LibraryApi
         !e.IsElsewhere && !e.IsPack && SourceFormats.HasPages(e.Format) && e.TextAccess == TextAccess.Readable,
         !e.IsElsewhere && !e.IsPack && !e.IsPackFile && e.TextAccess != TextAccess.Forgotten,
         e.TextAccess == TextAccess.Forgotten && !e.IsPackFile,
-        !e.IsElsewhere && e.TextAccess == TextAccess.Protected);
+        !e.IsElsewhere && e.TextAccess == TextAccess.Protected,
+        [.. CardText.Badges(e).Select(b => new BookBadge(b.Kind, b.Icon, b.Count, b.Tip, b.Wide, b.Suggested))],
+        e.Organize is var o ? new OrganizeFacts(o.Title, o.Format, o.StandsForPack, o.Elsewhere, o.Part, o.Parts, o.Loose, o.GoesWithBook, o.Companions) : null,
+        e.FolderHint ?? "");
 
     static T? Parse<T>(string? value) where T : struct, Enum => Enum.TryParse<T>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
 

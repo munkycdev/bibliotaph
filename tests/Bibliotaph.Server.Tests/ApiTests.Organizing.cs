@@ -237,7 +237,7 @@ public abstract partial class ApiTests
             var csv = await PostAsync<ExportedCsv>("/api/library/selection/export", new SelectedBooks(ids));
             using var noAdventures = await client.PostAsJsonAsync("/api/library/selection/remove-adventures", new SelectedBooks(ids), ct);
 
-            Assert.Equal("Click books to select them. Shift+click selects a range, Ctrl+A everything shown.", none.Summary);
+            Assert.Equal("Click books to tick them, or drag one onto another. Shift+click ticks a range, Ctrl+A everything shown.", none.Summary);
             Assert.Equal(("1 selected", "1 book", false, false, false), (one.Summary, one.Books, one.CanJoin, one.CanPack, one.CanRemoveAdventures));
             // A ticked book no longer in the library is left out of what fits, but still counted, as the bar counts ticks.
             Assert.Equal(("3 selected, 1 not shown", true, true, false), (both.Summary, both.CanJoin, both.CanPack, both.CanRemoveAdventures));
@@ -258,6 +258,78 @@ public abstract partial class ApiTests
             Assert.StartsWith("Title,System,Type", lines[0], StringComparison.Ordinal);
             Assert.Contains(lines, l => l.EndsWith("OneDrive · Dana › RPG › Maps › harbor.png", StringComparison.Ordinal));
             Assert.Equal(HttpStatusCode.NotFound, noAdventures.StatusCode);
+
+            async Task<T> PostAsync<T>(string url, object? body)
+            {
+                using var response = body is null ? await client.PostAsync(url, null, ct) : await client.PostAsJsonAsync(url, body, ct);
+                response.EnsureSuccessStatusCode();
+                return (await response.Content.ReadFromJsonAsync<T>(ct))!;
+            }
+        }
+
+        [Fact]
+        public async Task Organize_drops_link_unlink_and_pack_cards_with_badges_folders_and_undo()
+        {
+            var ct = TestContext.Current.CancellationToken;
+            var user = await AddUserAsync(admin: false);
+            var connections = _factory.Services.GetRequiredService<StorageConnections>();
+            var drive = await connections.SaveAsync(user.Id, OneDriveProvider.Key, FakeGraph.DriveId, "OneDrive · Dana", "personal", "refresh", null, ct);
+            _graph.Add("RPG/Abbey/abbey.pdf", await File.ReadAllBytesAsync(_pdfs.WatermarkedForAna, ct));
+            _graph.Add("RPG/Abbey/Maps/harbor.png", Png());
+            _graph.Add("RPG/Abbey/Maps/tower.png", Png(SkiaSharp.SKColors.Crimson));
+            _graph.Add("RPG/Abbey/Maps/gate.png", Png(SkiaSharp.SKColors.Teal));
+            var client = Client(user);
+            client.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
+            using (await client.PostAsJsonAsync("/api/library/folders", new AddLibraryFolder(drive.Id, "RPG"), ct)) { }
+            var cards = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 4 } four
+                && four.All(b => b.Cover is not null) ? four : null, ct);
+            var book = cards.Single(c => c.HasText);
+            var maps = cards.Where(c => c != book).OrderBy(c => c.Title, StringComparer.Ordinal).ToList();
+            var (gate, harbor, tower) = (maps[0], maps[1], maps[2]);
+
+            var loose = await client.GetFromJsonAsync<LibraryResults>("/api/library?links=Loose", ct);
+            var byFolder = await client.GetFromJsonAsync<LibraryResults>("/api/library?sort=Folder", ct);
+            var near = await client.GetFromJsonAsync<List<BookChoice>>($"/api/library/organize/near/{harbor.EntryId}", ct);
+            var linked = await PostAsync<ActionResult>("/api/library/organize/goes-with", new OrganizeGoesWith([harbor.EntryId, tower.EntryId], book.EntryId));
+            var withBook = await client.GetFromJsonAsync<LibraryResults>("/api/library?companions=Cards", ct);
+            var stillLoose = await client.GetFromJsonAsync<LibraryResults>("/api/library?links=Loose", ct);
+            var apart = await PostAsync<ActionResult>("/api/library/organize/not-with-a-book", new SelectedBooks([harbor.EntryId]));
+            var harborApart = (await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{harbor.EntryId}", ct))!;
+            await PostAsync<ActionResult>($"/api/library/held/{apart.Undo}", null);
+            var harborBack = (await client.GetFromJsonAsync<BookDetails>($"/api/library/books/{harbor.EntryId}", ct))!;
+            var kept = await PostAsync<ActionResult>("/api/library/organize/keep", new SelectedBooks([harbor.EntryId, tower.EntryId]));
+            await PostAsync<ActionResult>($"/api/library/held/{linked.Undo}", null);
+            var packed = await PostAsync<ActionResult>("/api/library/selection/pack/make", new PackTogetherRequest([harbor.EntryId, tower.EntryId], "Abbey maps"));
+            var pack = (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books.Single(b => b.Title == "Abbey maps");
+            var joined = await PostAsync<ActionResult>("/api/library/organize/join-pack", new OrganizeJoinPack([gate.EntryId], pack.EntryId));
+            var afterJoin = await client.GetFromJsonAsync<LibraryResults>("/api/library", ct);
+            await PostAsync<ActionResult>($"/api/library/held/{joined.Undo}", null);
+            var afterUndo = await client.GetFromJsonAsync<LibraryResults>("/api/library", ct);
+
+            // Only the maps go with nothing yet; the book is a book.
+            Assert.Equal([gate.EntryId, harbor.EntryId, tower.EntryId], loose!.Books.Select(b => b.EntryId).Order());
+            Assert.Equal(new OrganizeFacts(book.Title, "pdf", false, false, false, 0, false, false, 0), book.Organize);
+            Assert.True(harbor.Organize!.Loose);
+            // Folder order puts the book's folder before the maps' folder inside it, and names each card's folder.
+            Assert.Equal(book.EntryId, byFolder!.Books[0].EntryId);
+            Assert.EndsWith("Maps", byFolder.Books[^1].Folder, StringComparison.Ordinal);
+            Assert.Equal([book.EntryId], near!.Select(b => b.EntryId));
+            Assert.NotNull(linked.Undo);
+            var bookCard = withBook!.Books.Single(b => b.EntryId == book.EntryId);
+            Assert.Equal(("companions", "2"), (bookCard.Badges![0].Kind, bookCard.Badges[0].Count));
+            var harborCard = withBook.Books.Single(b => b.EntryId == harbor.EntryId);
+            Assert.Equal(("goes-with", "", book.Title, false), (harborCard.Badges![0].Kind, harborCard.Badges[0].Count, harborCard.Badges[0].Wide, harborCard.Badges[0].Suggested));
+            Assert.True(harborCard.Organize!.GoesWithBook);
+            Assert.Equal([gate.EntryId], stillLoose!.Books.Select(b => b.EntryId));
+            Assert.NotNull(apart.Undo);
+            Assert.Null(harborApart.GoesWith!.Book);
+            Assert.Equal(book.EntryId, harborBack.GoesWith!.Book!.EntryId);
+            // Chosen by hand, there was nothing suggested to keep.
+            Assert.Null(kept.Undo);
+            Assert.NotNull(packed.Undo);
+            Assert.NotNull(joined.Undo);
+            Assert.Equal(["Abbey maps"], afterJoin!.Books.Where(b => b.EntryId != book.EntryId).Select(b => b.Title));
+            Assert.Contains(afterUndo!.Books, b => b.EntryId == gate.EntryId);
 
             async Task<T> PostAsync<T>(string url, object? body)
             {

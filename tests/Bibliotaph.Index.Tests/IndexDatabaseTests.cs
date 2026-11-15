@@ -180,6 +180,8 @@ public sealed class IndexDatabaseTests : IDisposable
         // Version 22: the ISBNs and product codes books print, and an e-book package's ISBN.
         Assert.Equal(0, read.ExecuteScalar<long>("SELECT count(*) FROM doc_identifier"));
         Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('doc') WHERE name = 'meta_isbn'"));
+        // Versions 25 and 26: the book each map goes with, how many go with each book, and whether the rules only suggested it.
+        Assert.Equal(1, read.ExecuteScalar<long>("SELECT count(*) FROM pragma_table_info('entry_doc') WHERE name = 'source_suggested'"));
     }
 
     [Fact]

@@ -24,6 +24,7 @@ public partial class LibraryView
         ElsewhereDialog.IsVisibleChanged += ElsewhereDialog_IsVisibleChanged;
         SameBookDialog.IsVisibleChanged += SameBookDialog_IsVisibleChanged;
         PackDialog.IsVisibleChanged += PackDialog_IsVisibleChanged;
+        HookOrganize();
         SizeChanged += (_, _) => FitPageHead();
         PageFoot.SizeChanged += (_, _) => FitPageHead();
         DataContextChanged += (_, _) => Attach(DataContext as LibraryViewModel);
@@ -87,8 +88,11 @@ public partial class LibraryView
     {
         if (ReferenceEquals(_model, model)) return;
         _model?.RestoreScroll -= OnRestoreScroll;
+        _model?.PropertyChanged -= OnModelChanged;
         _model = model;
         model?.RestoreScroll += OnRestoreScroll;
+        model?.PropertyChanged += OnModelChanged;
+        if (model is not null) ShowGroups();
     }
 
     void OnRestoreScroll(object? sender, EventArgs e) =>

@@ -17,7 +17,7 @@ The binder you worked on last is your current one. Home shows it under **Current
 ## Add books and pages
 
 - **A whole book**: **Add to binder** on a book's right-click menu or in its details, or for many books, in the
-  Library's **Select** mode.
+  Library's **Organize** mode.
 - **One page**: the **+** beside a matching page in the search results, or **Add to binder** in the reader, which lists your binders. A page added from
   the reader is labelled after the bookmark it's under.
 - **A range of pages**: in the reader, **Add to binder** has **Add pages…** at the bottom of its menu. Give the range a label you'll

@@ -27,3 +27,9 @@ public sealed record PackTogetherRequest(IReadOnlyList<long> EntryIds, string Na
 
 /// <summary>Export these: the CSV, the name to save it as, and what the note says once it is saved.</summary>
 public sealed record ExportedCsv(string Name, string Csv, string Message);
+
+/// <summary>Organize mode: the cards dropped on a book, which go with it.</summary>
+public sealed record OrganizeGoesWith(IReadOnlyList<long> EntryIds, long Book);
+
+/// <summary>Organize mode: the files dropped on a pack, which join it under its own name.</summary>
+public sealed record OrganizeJoinPack(IReadOnlyList<long> EntryIds, long Pack);

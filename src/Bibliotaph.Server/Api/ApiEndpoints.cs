@@ -74,6 +74,7 @@ public static class ApiEndpoints
         api.MapSavedSearchesApi();
         api.MapPinsApi();
         api.MapSelectionApi();
+        api.MapOrganizeApi();
         api.MapBindersApi();
         api.MapReviewApi();
         api.MapBackupApi();

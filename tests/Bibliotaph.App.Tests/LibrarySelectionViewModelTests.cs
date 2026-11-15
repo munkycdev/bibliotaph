@@ -38,6 +38,10 @@ public class LibrarySelectionViewModelTests
             Refreshes++;
             return Task.CompletedTask;
         }
+
+        public void AddToCollection(IReadOnlyList<EntryId> books, string what, long collection, string name, Action added) => added();
+
+        public void AddToBinder(IReadOnlyList<EntryId> books, string what, long binder, string name, Action added) => added();
     }
 
     /// <summary>A save dialog that is always cancelled.</summary>
@@ -59,7 +63,7 @@ public class LibrarySelectionViewModelTests
     {
         _page.Books.AddRange(new[] { "Mill Road", "The Sunken Bell", "Ashes of Varn" }.Select((title, i) => Book(title, i)));
         // Ticking, clearing and the note never reach the library's services, so these tests give none.
-        _selection = new LibrarySelectionViewModel(_page, null!, null!, null!, null!, null!, null!, new CancelledPicker(), NullLogger.Instance, null!);
+        _selection = new LibrarySelectionViewModel(_page, null!, null!, null!, null!, null!, null!, new CancelledPicker(), NullLogger.Instance, null!, null!);
     }
 
     static LibraryItemViewModel Book(string title, int index, EntryKind kind = EntryKind.Whole) =>
@@ -202,5 +206,58 @@ public class LibrarySelectionViewModelTests
         await _selection.ExportSelectedCommand.ExecuteAsync(null);
 
         Assert.Equal("Edited 3 books.", _selection.Undo.Message);
+    }
+
+    [Fact]
+    public async Task Ctrl_Z_takes_back_Organize_changes_newest_first_and_each_only_once()
+    {
+        List<string> undone = [];
+        _selection.StartSelectingCommand.Execute(null);
+        _selection.SayDone("Linked 2 cards.", () => Record("first"), "failed");
+        _selection.SayDone("Took 1 card from its book.", () => Record("second"), "failed");
+
+        await _selection.UndoLastCommand.ExecuteAsync(null);
+        Assert.Equal("Undone: Took 1 card from its book. Ctrl+Z takes back 1 more.", _selection.Undo.Message);
+        await _selection.UndoLastCommand.ExecuteAsync(null);
+        await _selection.UndoLastCommand.ExecuteAsync(null);
+
+        Assert.Equal(["second", "first"], undone);
+        Assert.Equal("Undone: Linked 2 cards.", _selection.Undo.Message);
+
+        Task Record(string which)
+        {
+            undone.Add(which);
+            return Task.CompletedTask;
+        }
+    }
+
+    [Fact]
+    public async Task The_notes_Undo_and_Ctrl_Z_share_one_undo_so_a_change_is_taken_back_once()
+    {
+        var runs = 0;
+        _selection.StartSelectingCommand.Execute(null);
+        _selection.SayDone("Linked 2 cards.", () =>
+        {
+            runs++;
+            return Task.CompletedTask;
+        }, "failed");
+
+        await _selection.Undo.UndoCommand.ExecuteAsync(null);
+        await _selection.UndoLastCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, runs);
+    }
+
+    [Fact]
+    public void Picking_up_a_ticked_card_carries_every_ticked_card_and_an_unticked_one_only_itself()
+    {
+        Assert.Null(_selection.Pick(_page.Books[0]));
+        _selection.StartSelectingCommand.Execute(null);
+        _selection.Books.Toggle(_page.Books[0]);
+        _selection.Books.Toggle(_page.Books[1]);
+
+        Assert.Equal(2, _selection.Pick(_page.Books[1])!.Cards.Count);
+        Assert.Equal([_page.Books[2]], _selection.Pick(_page.Books[2])!.Cards);
+        Assert.Equal("1 card", _selection.Pick(_page.Books[2])!.Count);
     }
 }

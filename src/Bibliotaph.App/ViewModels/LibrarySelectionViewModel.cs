@@ -32,11 +32,18 @@ public interface ILibrarySelectionPage
 
     /// <summary>Shows the library again after a change.</summary>
     Task RefreshAsync();
+
+    /// <summary>Cards dropped on a pinned collection: they go in it, and <paramref name="added"/> runs once they are in.</summary>
+    void AddToCollection(IReadOnlyList<EntryId> books, string what, long collection, string name, Action added);
+
+    /// <summary>Cards dropped on a pinned binder: they go in it, and <paramref name="added"/> runs once they are in.</summary>
+    void AddToBinder(IReadOnlyList<EntryId> books, string what, long binder, string name, Action added);
 }
 
 /// <summary>
-/// The Library's Select mode: the books ticked, the bulk editor, and the Select bar's Same book, Pack together, Remove
-/// adventures and Export these, with the note under the bar that says what the last change did, beside its Undo.
+/// The Library's Organize mode (Select mode in the code): the books ticked, the bulk editor, and the bar's Same book, Pack
+/// together, Remove adventures and Export these, with the note under the bar that says what the last change did, beside
+/// its Undo. Its drags are in the other part of this class.
 /// </summary>
 public sealed partial class LibrarySelectionViewModel : ObservableObject
 {
@@ -48,6 +55,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
     readonly LibraryStore _library;
     readonly PartsService _parts;
     readonly ExportService _export;
+    readonly OrganizeService _organize;
     readonly IFilePicker _files;
     readonly ILogger _log;
 
@@ -60,10 +68,12 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
     /// <param name="export">Writes the ticked books as CSV, for Export these.</param>
     /// <param name="files">Asks where the CSV goes.</param>
     /// <param name="log">Failures.</param>
-    /// <param name="sourceBooks">Gives the ticked cards the book they go with, in Edit metadata.</param>
+    /// <param name="sourceBooks">Gives the ticked cards the book they go with, in Edit metadata, and finds the Books panel's books.</param>
+    /// <param name="organize">What Organize mode's drops do.</param>
     public LibrarySelectionViewModel(ILibrarySelectionPage page, MetadataService metadata, CopiesService copies, PackService packs, LibraryStore library,
-        PartsService parts, ExportService export, IFilePicker files, ILogger log, SourceBooksService sourceBooks)
+        PartsService parts, ExportService export, IFilePicker files, ILogger log, SourceBooksService sourceBooks, OrganizeService organize)
     {
+        _organize = organize;
         _sourceBooks = sourceBooks;
         _page = page;
         _metadata = metadata;
@@ -76,6 +86,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
         _log = log;
         Undo = new UndoSlot(log);
         Books.Changed += (_, _) => OnBooksChanged();
+        Panel = new OrganizePanelViewModel(sourceBooks, () => Books.EntryIds, book => GoWithAsync(Books.EntryIds, book));
     }
 
     /// <summary>The books ticked in Select mode, kept while the search and filters change.</summary>
@@ -104,6 +115,15 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
 
     void OnBooksChanged()
     {
+        // Esc and Done both leave through Books.Stop, so the mode's own state goes with the ticks however it is left.
+        if (Books.IsActive != _organizing)
+        {
+            _organizing = Books.IsActive;
+            if (_organizing) StartOrganizing();
+            else StopOrganizing();
+            UndoLastCommand.NotifyCanExecuteChanged();
+        }
+        if (Books.Items is [.., var last] && Books.IsActive) Panel.Near = last.EntryId;
         EditSelectedCommand.NotifyCanExecuteChanged();
         ExportSelectedCommand.NotifyCanExecuteChanged();
         SelectAllCommand.NotifyCanExecuteChanged();
@@ -117,11 +137,13 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
         OnPropertyChanged(nameof(CanRemoveSelectedParts));
     }
 
-    /// <summary>Select: a checkbox on every book, and a click ticks a book instead of opening its details.</summary>
+    bool _organizing;
+
+    /// <summary>Organize: a checkbox on every book, a click ticks a book instead of opening its details, and a card can be dragged.</summary>
     [RelayCommand]
     void StartSelecting() => Books.Start();
 
-    /// <summary>Done, or Esc: leaves Select mode, and the ticks with it.</summary>
+    /// <summary>Done, or Esc: leaves Organize mode, and the ticks with it.</summary>
     [RelayCommand]
     void StopSelecting() => Books.Stop();
 
@@ -205,18 +227,21 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
 
     /// <summary>Same book: the dialog for which file opens, then the ticked cards become one book.</summary>
     [RelayCommand(CanExecute = nameof(CanJoinSelected))]
-    async Task JoinSelected()
+    Task JoinSelected() => OpenSameBookDialogAsync(Books.Items);
+
+    /// <summary>The Same book dialog for <paramref name="cards"/>: the ticked cards, or a book and those dropped on it.</summary>
+    async Task OpenSameBookDialogAsync(IReadOnlyList<LibraryItemViewModel> cards)
     {
         try
         {
-            var dialog = await SameBookDialogViewModel.LoadAsync(_copies, Books.Items);
+            var dialog = await SameBookDialogViewModel.LoadAsync(_copies, cards);
             dialog.Closed += async (_, result) => await SameBookClosedAsync(result);
             _page.CloseDetails();
             SameBookDialog = dialog;
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Loading the copies of {Count} selected cards failed", Books.Count);
+            _log.LogError(ex, "Loading the copies of {Count} cards failed", cards.Count);
         }
         OnPropertyChanged(nameof(CanJoinSelected));
     }
@@ -242,18 +267,21 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
 
     /// <summary>Pack together: the dialog for the pack's name, then the ticked cards become one pack.</summary>
     [RelayCommand(CanExecute = nameof(CanPackSelected))]
-    async Task PackSelected()
+    Task PackSelected() => OpenPackDialogAsync(Books.Items);
+
+    /// <summary>The Pack together dialog for <paramref name="cards"/>: the ticked cards, or a picture and those dropped on it.</summary>
+    async Task OpenPackDialogAsync(IReadOnlyList<LibraryItemViewModel> cards)
     {
         try
         {
-            var dialog = await PackTogetherDialogViewModel.LoadAsync(_packs, _library, Books.Items);
+            var dialog = await PackTogetherDialogViewModel.LoadAsync(_packs, _library, cards);
             dialog.Closed += async (_, result) => await PackDialogClosedAsync(result);
             _page.CloseDetails();
             PackDialog = dialog;
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Opening Pack together for {Count} selected cards failed", Books.Count);
+            _log.LogError(ex, "Opening Pack together for {Count} cards failed", cards.Count);
         }
         OnPropertyChanged(nameof(CanPackSelected));
     }
@@ -314,19 +342,23 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
     /// <summary>
     /// Says under the Select bar what a change did, with Undo when <paramref name="undo"/> is given: it runs off the UI
     /// thread, and the library is shown again whether or not it worked. <paramref name="failed"/> is what the note says
-    /// if it didn't.
+    /// if it didn't. In Organize mode Ctrl+Z can take it back too, once, whichever is used.
     /// </summary>
-    public void SayDone(string message, Func<Task>? undo, string failed) => Undo.Offer(message, undo is null ? null : async () =>
+    public void SayDone(string message, Func<Task>? undo, string failed)
     {
-        try
+        var once = undo is null ? null : Remember(message, undo, failed);
+        Undo.Offer(message, once is null ? null : async () =>
         {
-            await Task.Run(undo);
-        }
-        finally
-        {
-            await _page.RefreshAsync();
-        }
-    }, failed);
+            try
+            {
+                await Task.Run(once);
+            }
+            finally
+            {
+                await _page.RefreshAsync();
+            }
+        }, failed);
+    }
 
     /// <summary>Esc while Same book, Pack together or the bulk editor is open: closes it, or its summary. False when none is open.</summary>
     public bool CloseDialog()

@@ -1,4 +1,5 @@
 @page "/library"
+@using Bibliotaph.Core
 @using Bibliotaph.Core.Search
 @implements IAsyncDisposable
 @inject CollectionsClient CollectionsApi
@@ -14,6 +15,7 @@
 @inject Pins Pins
 @inject BinderActions BinderActions
 @inject AskScope AskScope
+@inject BindersClient BindersApi
 
 @* The Library page: its heading, the toolbar (results tabs while searching, filters, order, covers or
    list, packs or each file), the filter panel and its chips, the count, then the covers, the list or the matching pages. *@
@@ -90,7 +92,7 @@
         <div class="bt-tools">
             @if (!_query.IsPagesTab && !_select.On)
             {
-                <button class="bt-button" title="Tick books to edit their metadata together" aria-label="Select books" @onclick="StartSelectingAsync"><Icon Name="CopyCheck" />Select</button>
+                <button class="bt-button" title="Tick, edit and drag books to organize your library" aria-label="Organize books" @onclick="StartSelectingAsync"><Icon Name="LayoutGrid" />Organize</button>
             }
             @if (CanSaveSearch)
             {
@@ -310,9 +312,10 @@
     </div>
     @if (_select.On)
     {
-        @* Select mode: how many are ticked, and what can be done to them all. It sits outside the block above so it can
-           stay pinned to the top of the window all the way down the listing. *@
-        <div class="bt-selectbar bt-stickybar" role="toolbar" aria-label="Selection">
+        @* Organize mode: how many are ticked, what can be done to them all, which cards to show, and where to drop a card
+           that shouldn't go with a book. It sits outside the block above so it can stay pinned to the top of the window
+           all the way down the listing, where a card is dragged from. *@
+        <div class="bt-selectbar bt-stickybar" role="toolbar" aria-label="Organize">
             <span class="bt-selectsummary" role="status">@(_select.Info?.Summary ?? "")</span>
             <button class="bt-button primary" title="Change fields on every selected book at once" disabled="@(_select.Ticked.Count == 0 || _working)"
                     @onclick="EditSelectedAsync"><Icon Name="Pencil" />Edit metadata</button>
@@ -355,7 +358,24 @@
             <button class="bt-button" title="Save the selected books as a CSV file, for a spreadsheet" aria-label="Export the selected books"
                     disabled="@(_select.Ticked.Count == 0 || _working)" @onclick="ExportSelectedAsync"><Icon Name="SquareArrowOutUpRight" />Export these</button>
             <button class="bt-button" aria-label="Clear the selection" disabled="@(_select.Ticked.Count == 0)" @onclick="ClearSelectionAsync">Clear</button>
-            <button class="bt-button" title="Leave Select mode (Esc)" aria-label="Done selecting" @onclick="StopSelectingAsync">Done</button>
+            <button class="bt-button" title="Leave Organize mode (Esc)" aria-label="Done organizing" @onclick="StopSelectingAsync">Done</button>
+            <div class="bt-organizerow">
+                <div class="bt-viewtoggle bt-linkschoice" role="group" aria-label="Show">
+                    @foreach (var choice in LibraryChoices.Links)
+                    {
+                        var on = (_query.Links ?? "") == choice.Value;
+                        <button class="bt-chip @(on ? "on" : "")" aria-pressed="@on" @onclick="() => Filter(_query with { Links = choice.Value.Length == 0 ? null : choice.Value })">@choice.Label</button>
+                    }
+                </div>
+                @if (_query.Links == "Suggested" && _results.Books.Count > 0)
+                {
+                    <button class="bt-button" title="The books the rules suggested become your own choice" disabled="@_working" @onclick="KeepSuggestionsAsync"><Icon Name="Check" />Keep these @_results.Books.Count</button>
+                }
+                <span class="bt-dropzone @(_dragTarget == "unlink" ? _dragOk ? "dropok" : "dropno" : "")" data-drop="unlink" data-drop-name="@OrganizeRules.NotWithABookZone"
+                      title="Drop maps and handouts here when they don't go with a book"><Icon Name="Unlink" Size="14" />@OrganizeRules.NotWithABookZone</span>
+                <button class="bt-button @(_panel ? "on" : "")" aria-pressed="@_panel" title="Books to drop maps and handouts on, without scrolling to them"
+                        @onclick="() => _panel = !_panel"><Icon Name="LibraryBig" />Books</button>
+            </div>
         </div>
     }
     @if (_results.Empty is null)
@@ -374,7 +394,7 @@
 @if (_done is not null)
 {
     <div class="bt-librarynote">
-        <DoneNote Result="_done" Dismissed="() => _done = null" Undone="UndoneAsync" />
+        <DoneNote Result="_done" Dismissed="() => Note(null)" Undone="UndoneAsync" />
     </div>
 }
 
@@ -423,9 +443,15 @@ else if (_query.IsPagesTab)
 else if (_list)
 {
     <div class="bt-booklist" aria-label="Books" data-tour="first-books">
+        @{ string? previous = null; }
         @foreach (var book in _results.Books.Take(_shown))
         {
-            <div class="bt-listitem" @key="book.Id" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_select.On)">
+            @if (FolderHeading(book, ref previous) is { } heading)
+            {
+                <div class="bt-foldergroup" role="heading" aria-level="3"><Icon Name="Folder" Size="14" />@heading</div>
+            }
+            <div class="bt-listitem @DropClass(book)" @key="book.Id" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_select.On)"
+                 data-organize-card="@(_select.On ? book.Id : null)" data-drop="@(_select.On ? $"card:{book.Id}" : null)">
             <button class="bt-listrow @(_select.On ? "selecting" : "")" title="@book.Title" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" data-popout="@PopOutUrl(book)"
                     @onclick="e => CardClickAsync(book, e)" @ondblclick="() => OpenBook(book)">
                 @if (_select.On) { <Tick On="_select.IsTicked(book.EntryId)" /> }
@@ -433,6 +459,7 @@ else if (_list)
                 <div class="bt-listtitle">
                     <div class="bt-booktitle">@book.Title</div>
                     <div class="bt-bookmeta">@book.Byline</div>
+                    @if (book.Badges is { Count: > 0 } badges) { <CardBadges Badges="badges" Wide="_select.On" Class="inline" /> }
                 </div>
                 <div class="bt-listfield wide" title="Game system">@book.System</div>
                 <div class="bt-listfield wide" title="Type">@book.Kind</div>
@@ -456,13 +483,19 @@ else if (_list)
 else
 {
     <div class="bt-books" aria-label="Books" data-tour="first-books">
+        @{ string? previous = null; }
         @foreach (var book in _results.Books.Take(_shown))
         {
-            <div class="bt-book" @key="book.Id" title="@book.Title" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_select.On)">
+            @if (FolderHeading(book, ref previous) is { } heading)
+            {
+                <div class="bt-foldergroup" role="heading" aria-level="3"><Icon Name="Folder" Size="14" />@heading</div>
+            }
+            <div class="bt-book @DropClass(book)" @key="book.Id" title="@book.Title" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_select.On)"
+                 data-organize-card="@(_select.On ? book.Id : null)" data-drop="@(_select.On ? $"card:{book.Id}" : null)">
                 <button class="bt-bookbutton @(_select.On ? "selecting" : "")" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" data-popout="@PopOutUrl(book)" @onclick="e => CardClickAsync(book, e)"
                         @ondblclick="() => OpenBook(book)">
                 <div class="bt-coverarea">
-                    <BookCover Book="book" />
+                    <BookCover Book="book" Wide="_select.On" />
                     @if (_select.On) { <Tick On="_select.IsTicked(book.EntryId)" /> }
                     @if (book.Favorite) { <span class="bt-heart cover on" role="img" aria-label="Favorite"><Icon Name="Heart" Size="13" /></span> }
                 </div>
@@ -477,7 +510,7 @@ else
 <div @ref="_end" class="bt-end-of-results"></div>
 @if (_sameBook is { } sameBook)
 {
-    <SameBookDialog Preview="sameBook" Books="_select.Ticked" Closed="SameBookClosedAsync" />
+    <SameBookDialog Preview="sameBook" Books="_dialogBooks" Closed="SameBookClosedAsync" />
 }
 @if (_bulk is { } bulk)
 {
@@ -485,7 +518,20 @@ else
 }
 @if (_packing is { } packing)
 {
-    <PackTogetherDialog Preview="packing" Books="_select.Ticked" Closed="PackClosedAsync" />
+    <PackTogetherDialog Preview="packing" Books="_dialogBooks" Closed="PackClosedAsync" />
+}
+@if (_dropMenu is { } dropMenu)
+{
+    @* Books dropped on a book: they go with it, or they're the same book. *@
+    <div class="bt-backdrop fixed bt-menuback" @onclick="() => _dropMenu = null"></div>
+    <div class="bt-menu bt-dropmenu" role="menu" aria-label="What to do" style="@dropMenu.Style">
+        <button class="bt-menuitem" role="menuitem" @onclick="() => DropMenuAsync(DropAction.GoesWith)">@OrganizeRules.GoesWith(dropMenu.Target.Title)</button>
+        <button class="bt-menuitem" role="menuitem" @onclick="() => DropMenuAsync(DropAction.SameBook)">Same book as “@dropMenu.Target.Title”…</button>
+    </div>
+}
+@if (_select.On && _panel)
+{
+    <OrganizePanel Near="_near" Recent="_recent" Ticked="_select.Ticked.Count" Link="LinkTickedAsync" Closed="() => _panel = false" Over="_dragTarget" OverOk="_dragOk" />
 }
 @if (_addingElsewhere)
 {
@@ -529,6 +575,8 @@ else
     bool _addingElsewhere;
     BookDetailsDrawer? _drawer;
     ActionResult? _done;
+    // The changes made in Organize mode that can still be undone, newest last, for Ctrl+Z.
+    readonly List<(string Message, string Token)> _history = [];
     CollectionPage? _collection;
     bool _prefList;
     string? _settled;
@@ -543,6 +591,27 @@ else
     PackTogetherPreview? _packing;
     BulkEditForm? _bulk;
     bool _working;
+
+    /// <summary>The books Same book or Pack together is open for: the ticked ones, or those dropped and the one dropped on.</summary>
+    IReadOnlyList<long> _dialogBooks = [];
+
+    /// <summary>Every card the results have shown, by book, so ticks from earlier searches drag with what they are.</summary>
+    readonly Dictionary<long, BookCard> _known = [];
+
+    /// <summary>The books being dragged in Organize mode, and the target under the pointer with whether it takes them.</summary>
+    IReadOnlyList<long> _dragged = [];
+    string? _dragTarget;
+    bool _dragOk;
+
+    /// <summary>The Books panel, its card for "In this folder", and the books dropped on lately, newest first.</summary>
+    bool _panel;
+    long? _near;
+    readonly List<BookChoice> _recent = [];
+
+    /// <summary>Books dropped on a book: the menu that asks whether they go with it or are the same book.</summary>
+    DropMenu? _dropMenu;
+
+    sealed record DropMenu(BookCard Target, IReadOnlyList<long> Dragged, string Style);
 
     /// <summary>A saved search keeps its own order; elsewhere the order is the browser's to remember.</summary>
     string Sort => _query.Sort ?? (_viewId is null ? _query.IsSearching ? _searchSort : _browseSort : null) ?? (_query.IsSearching ? "Relevance" : "RecentlyAdded");
@@ -584,7 +653,7 @@ else
         Activity.Changed += OnActivityChanged;
         Pins.Changed += OnPinsChanged;
         // After a change made elsewhere, such as a collection made from Collections: the note saying so.
-        _done = Collections.Pending;
+        Note(Collections.Pending);
         Collections.Pending = null;
         await Task.WhenAll(ShowAddressAsync(Navigation.Uri), LoadSearchesAsync());
     }
@@ -700,6 +769,7 @@ else
             var results = await LibraryApi.LibraryAsync(_query with { Sort = Sort, EachFile = _eachFile }, _loading.Token);
             if (version != _version) return;
             _results = results;
+            foreach (var card in results.Books) _known[card.EntryId] = card;
             // Ask in the top bar answers from the books shown here.
             AskScope.Set(_query, Chips.Select(c => c.Label));
             _loaded = DateTime.UtcNow;
@@ -780,14 +850,51 @@ else
         _detailsCard = null;
     }
 
-    async Task ShowDone(ActionResult result)
+    /// <summary>The note under the bar says what a change did; in Organize mode Ctrl+Z can take it back too.</summary>
+    void Note(ActionResult? result)
     {
         _done = result;
+        if (_select.On && result?.Undo is { } token) _history.Add((result.Message, token));
+    }
+
+    /// <summary>Ctrl+Z in Organize mode: takes back the newest change made in it that is still standing.</summary>
+    [JSInvokable]
+    public async Task UndoLast()
+    {
+        if (!_select.On || _working || _history.Count == 0) return;
+        var (message, token) = _history[^1];
+        _history.RemoveAt(_history.Count - 1);
+        _working = true;
+        Note(new ActionResult("Undoing…"));
+        StateHasChanged();
+        try
+        {
+            var result = await LibraryApi.RunHeldAsync(token);
+            Note(new ActionResult(result.Message is { Length: > 0 } failed ? failed
+                : _history.Count == 0 ? $"Undone: {message}" : $"Undone: {message} Ctrl+Z takes back {_history.Count} more."));
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            Note(new ActionResult(e is ApiProblemException ? e.Message : "That couldn't be undone. Check your connection and try again."));
+        }
+        finally
+        {
+            _working = false;
+        }
+        await UndoneAsync();
+        StateHasChanged();
+    }
+
+    async Task ShowDone(ActionResult result)
+    {
+        Note(result);
         await ReloadAsync();
     }
 
     async Task UndoneAsync()
     {
+        // The note's own Undo took it back, so Ctrl+Z doesn't try it again.
+        if (_done?.Undo is { } undone) _history.RemoveAll(h => h.Token == undone);
         // An Undo of a saved search's change brings back what it was; one of a deletion, the search itself.
         await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
         if (_viewId is { } id && !_edited && await SearchesApi.SavedSearchAsync(id) is { } view)
@@ -852,11 +959,11 @@ else
     {
         try
         {
-            if (await BinderActions.AddToCurrentAsync(hit.Where, new BinderAdd([], DocumentId: book.DocumentId, Page: hit.PdfPage)) is { } result) _done = result;
+            if (await BinderActions.AddToCurrentAsync(hit.Where, new BinderAdd([], DocumentId: book.DocumentId, Page: hit.PdfPage)) is { } result) Note(result);
         }
         catch (ApiProblemException e)
         {
-            _done = new ActionResult(e.Message);
+            Note(new ActionResult(e.Message));
         }
     }
 
@@ -906,7 +1013,7 @@ else
         if (await Collections.CreateAsync(open.Collection) is { } created) Navigation.NavigateTo($"library?collection={created.Id}");
         else if (Collections.Pending is { } problem)
         {
-            _done = problem;
+            Note(problem);
             Collections.Pending = null;
         }
     }
@@ -927,7 +1034,7 @@ else
         if (_collection is not { } open || await Collections.DeleteAsync(open.Collection.Id) is not { } result) return;
         if (result.Undo is null)
         {
-            _done = result;
+            Note(result);
             return;
         }
         Collections.Pending = result;
@@ -946,14 +1053,16 @@ else
     async Task StartSelectingAsync()
     {
         _select.Start();
+        _history.Clear();
         _self ??= DotNetObjectReference.Create(this);
         try
         {
             await JS.InvokeVoidAsync("bibliotaphSelect.start", _self);
+            await JS.InvokeVoidAsync("bibliotaphOrganize.start", _self);
         }
         catch (JSException)
         {
-            // Without library.js, Ctrl+A and Esc are left to the browser; the bar's buttons still work.
+            // Without library.js, Ctrl+A, Esc and dragging are left to the browser; the bar's buttons still work.
         }
         await _select.RefreshAsync(ShownBooks);
     }
@@ -966,18 +1075,24 @@ else
         StateHasChanged();
     }
 
-    /// <summary>Done, or Esc: leaves Select mode, and the ticks with it.</summary>
+    /// <summary>Done, or Esc: leaves Organize mode, and the ticks, its choice of cards and the Books panel with it.</summary>
     async Task StopSelectingAsync()
     {
         _select.Stop();
+        _history.Clear();
         _selectionMenu = null;
+        _panel = false;
+        _near = null;
+        _dropMenu = null;
         try
         {
             await JS.InvokeVoidAsync("bibliotaphSelect.stop");
+            await JS.InvokeVoidAsync("bibliotaphOrganize.stop");
         }
         catch (JSException)
         {
         }
+        if (_query.Links is not null) await Filter(_query with { Links = null });
     }
 
     /// <summary>Ctrl+A in Select mode: ticks every book in the current results, keeping the ticks from earlier searches.</summary>
@@ -1005,6 +1120,7 @@ else
             return;
         }
         _select.Click(book.EntryId, e.ShiftKey, ShownBooks);
+        if (_select.IsTicked(book.EntryId)) _near = book.EntryId;
         await _select.RefreshAsync(ShownBooks);
     }
 
@@ -1031,7 +1147,7 @@ else
         if (await Collections.AddAsync([.. _select.Ticked], selection.Books, item) is { } result) await AfterSelectionChangeAsync(result);
         else if (Collections.Pending is { } problem)
         {
-            _done = problem;
+            Note(problem);
             Collections.Pending = null;
         }
     }
@@ -1065,7 +1181,8 @@ else
     {
         CloseDetails();
         _working = true;
-        _sameBook = await SearchActionAsync(() => SelectionApi.SameBookAsync([.. _select.Ticked]));
+        _dialogBooks = [.. _select.Ticked];
+        _sameBook = await SearchActionAsync(() => SelectionApi.SameBookAsync(_dialogBooks));
         _working = false;
     }
 
@@ -1080,7 +1197,8 @@ else
     {
         CloseDetails();
         _working = true;
-        _packing = await SearchActionAsync(() => SelectionApi.PackPreviewAsync([.. _select.Ticked]));
+        _dialogBooks = [.. _select.Ticked];
+        _packing = await SearchActionAsync(() => SelectionApi.PackPreviewAsync(_dialogBooks));
         _working = false;
     }
 
@@ -1108,6 +1226,173 @@ else
         await ShowDone(result);
     }
 
+    // Organize mode's drags. library.js follows the pointer and names what is under it; what a drop does is decided here.
+
+    static OrganizeCard Facts(BookCard card) => card.Organize is { } o
+        ? new OrganizeCard(card.EntryId, o.Title, o.Format, o.Pack, o.Elsewhere, o.Part, o.Parts, o.Loose, o.GoesWithBook, o.Companions)
+        : new OrganizeCard(card.EntryId, card.Title, card.Format.ToLowerInvariant());
+
+    IReadOnlyList<OrganizeCard> DraggedFacts => [.. _dragged.Where(_known.ContainsKey).Select(id => Facts(_known[id]))];
+
+    BookCard? CardOf(string id) => _results?.Books.FirstOrDefault(b => b.Id == id);
+
+    /// <summary>"3 books", or the one book's title, as a change's note names what was dropped.</summary>
+    string DroppedWhat(IReadOnlyList<long> books) =>
+        books.Count == 1 && _known.TryGetValue(books[0], out var one) ? one.Title : $"{books.Count.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)} books";
+
+    string DropClass(BookCard book) => _dragTarget == $"card:{book.Id}" ? _dragOk ? "dropok" : "dropno" : "";
+
+    /// <summary>The folder's name over the first card in it, while the books go by folder.</summary>
+    string? FolderHeading(BookCard book, ref string? previous)
+    {
+        if (Sort != "Folder" || _query.IsPagesTab) return null;
+        var folder = book.Folder;
+        if (previous == folder) return null;
+        previous = folder;
+        return folder.Length == 0 ? "Not in a folder" : folder.Replace("\\", " › ").Replace("/", " › ");
+    }
+
+    /// <summary>A card picked up: a ticked one carries every ticked card with it, any other only itself.</summary>
+    [JSInvokable]
+    public string DragStart(string cardId)
+    {
+        if (!_select.On || CardOf(cardId) is not { } card) return "";
+        _dragged = _select.IsTicked(card.EntryId) ? [.. _select.Ticked] : [card.EntryId];
+        _near = card.EntryId;
+        _dropMenu = null;
+        StateHasChanged();
+        return OrganizeRules.Dragging(_dragged.Count);
+    }
+
+    /// <summary>What dropping the dragged cards on <paramref name="target"/> would do, for the words beside the pointer.</summary>
+    [JSInvokable]
+    public DragHover DragOver(string target, string name)
+    {
+        var plan = PlanFor(target, name);
+        _dragTarget = target.Length == 0 ? null : target;
+        _dragOk = plan.CanDrop;
+        StateHasChanged();
+        return new DragHover(plan.CanDrop, plan.Label);
+    }
+
+    /// <summary>The drag ended: over nothing, or with Esc, it does nothing.</summary>
+    [JSInvokable]
+    public async Task Drop(string target, string name, double x, double y)
+    {
+        var dragged = _dragged;
+        var plan = PlanFor(target, name);
+        _dragged = [];
+        _dragTarget = null;
+        if (!plan.CanDrop || target.Length == 0)
+        {
+            StateHasChanged();
+            return;
+        }
+        var (kind, id) = (target.Split(':')[0], target.Contains(':') ? target[(target.IndexOf(':') + 1)..] : "");
+        long Number() => long.Parse(id, System.Globalization.CultureInfo.InvariantCulture);
+        switch (kind)
+        {
+            case "card" when CardOf(id) is { } card:
+                if (plan.Action == DropAction.GoesWithOrSameBook)
+                {
+                    var at = $"left:{Math.Round(x).ToString(System.Globalization.CultureInfo.InvariantCulture)}px;top:{Math.Round(y).ToString(System.Globalization.CultureInfo.InvariantCulture)}px";
+                    _dropMenu = new DropMenu(card, dragged, at);
+                }
+                else await DropOnCardAsync(plan.Action, dragged, card);
+                break;
+            case "book":
+                await GoWithAsync(dragged, new BookChoice(Number(), name, ""));
+                break;
+            case "collection":
+                if (await Collections.AddAsync(dragged, DroppedWhat(dragged), new CollectionMenuItem("collection", Number(), name, null)) is { } added)
+                    await AfterSelectionChangeAsync(added);
+                else if (Collections.Pending is { } problem)
+                {
+                    Note(problem);
+                    Collections.Pending = null;
+                }
+                break;
+            case "binder":
+                await AfterSelectionChangeAsync(await SearchActionAsync(() => BindersApi.AddToBinderAsync(Number(), new BinderAdd(dragged))));
+                break;
+            case "unlink":
+                await AfterSelectionChangeAsync(await SearchActionAsync(() => SelectionApi.NotWithABookAsync(dragged)));
+                break;
+        }
+        StateHasChanged();
+    }
+
+    DropPlan PlanFor(string target, string name)
+    {
+        var dragged = DraggedFacts;
+        var kind = target.Split(':')[0];
+        var id = target.Contains(':') ? target[(target.IndexOf(':') + 1)..] : "";
+        return kind switch
+        {
+            "card" when CardOf(id) is { } card => OrganizeRules.OnCard(dragged, Facts(card)),
+            "book" when long.TryParse(id, System.Globalization.CultureInfo.InvariantCulture, out var book) => OrganizeRules.OnBook(dragged, book, name),
+            "collection" => new DropPlan(DropAction.Add, OrganizeRules.OnCollection(name)),
+            "binder" => new DropPlan(DropAction.Add, OrganizeRules.OnBinder(name)),
+            "unlink" => OrganizeRules.NotWithABook(dragged),
+            _ => DropPlan.Nothing(""),
+        };
+    }
+
+    async Task DropOnCardAsync(DropAction action, IReadOnlyList<long> dragged, BookCard target)
+    {
+        switch (action)
+        {
+            case DropAction.GoesWith:
+                await GoWithAsync(dragged, new BookChoice(target.EntryId, Facts(target).Title, target.Byline));
+                break;
+            case DropAction.JoinPack:
+                await AfterSelectionChangeAsync(await SearchActionAsync(() => SelectionApi.JoinPackAsync(dragged, target.EntryId)));
+                break;
+            case DropAction.PackTogether:
+                CloseDetails();
+                _dialogBooks = [.. dragged, target.EntryId];
+                _packing = await SearchActionAsync(() => SelectionApi.PackPreviewAsync(_dialogBooks));
+                break;
+            case DropAction.SameBook:
+                CloseDetails();
+                _dialogBooks = [.. dragged, target.EntryId];
+                _sameBook = await SearchActionAsync(() => SelectionApi.SameBookAsync(_dialogBooks));
+                break;
+        }
+    }
+
+    async Task DropMenuAsync(DropAction action)
+    {
+        if (_dropMenu is not { } menu) return;
+        _dropMenu = null;
+        await DropOnCardAsync(action, menu.Dragged, menu.Target);
+    }
+
+    /// <summary>The cards go with <paramref name="book"/>, which the Books panel then lists first among those dropped on lately.</summary>
+    async Task GoWithAsync(IReadOnlyList<long> cards, BookChoice book)
+    {
+        if (await SearchActionAsync(() => SelectionApi.GoesWithAsync(cards, book.EntryId)) is not { } result) return;
+        _recent.RemoveAll(r => r.EntryId == book.EntryId);
+        _recent.Insert(0, book);
+        if (_recent.Count > 5) _recent.RemoveAt(5);
+        await AfterSelectionChangeAsync(result);
+    }
+
+    /// <summary>A book's Goes with in the Books panel: the ticked cards go with it.</summary>
+    Task LinkTickedAsync(BookChoice book) => _select.Ticked.Count == 0 ? Task.CompletedTask : GoWithAsync([.. _select.Ticked], book);
+
+    /// <summary>Keep these: every card shown, whose book was only suggested, keeps it.</summary>
+    async Task KeepSuggestionsAsync()
+    {
+        if (_results is null) return;
+        _working = true;
+        var result = await SearchActionAsync(() => SelectionApi.KeepSuggestionsAsync([.. _results.Books.Select(b => b.EntryId).Distinct()]));
+        _working = false;
+        await AfterSelectionChangeAsync(result);
+    }
+
+    public sealed record DragHover(bool Ok, string Label);
+
     /// <summary>Export these: the ticked books as CSV, the rows Settings › Backup's Export CSV writes, saved as a download.</summary>
     async Task ExportSelectedAsync()
     {
@@ -1118,16 +1403,16 @@ else
         try
         {
             await JS.InvokeVoidAsync("bibliotaphSave", csv.Name, "text/csv;charset=utf-8", csv.Csv);
-            _done = new ActionResult(csv.Message);
+            Note(new ActionResult(csv.Message));
         }
         catch (JSException)
         {
-            _done = new ActionResult("The export couldn't be saved by this browser.");
+            Note(new ActionResult("The export couldn't be saved by this browser."));
         }
     }
 
     /// <summary>What the Library shows, as a saved search keeps it.</summary>
-    LibraryQuery Saving => _query with { Sort = Sort, EachFile = false };
+    LibraryQuery Saving => _query with { Sort = Sort, EachFile = false, Links = null };
 
     /// <summary>Saved, the search opens as itself, pinned in the sidebar.</summary>
     async Task SaveSearchAsync()
@@ -1145,7 +1430,7 @@ else
     async Task SaveNewAsync(string name)
     {
         if (await SearchActionAsync(() => SearchesApi.SaveSearchAsync(new SavedSearchSave(name, Saving, _list))) is not { } created) return;
-        _done = created.Result;
+        Note(created.Result);
         _view = created.Search;
         await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
         Navigation.NavigateTo($"library?view={created.Search.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
@@ -1154,7 +1439,7 @@ else
     async Task UpdateSearchAsync()
     {
         if (_view is not { } view || await SearchActionAsync(() => SearchesApi.UpdateSearchAsync(view.Id, new SavedSearchChange(Saving, _list))) is not { } result) return;
-        _done = result;
+        Note(result);
         _view = await SearchesApi.SavedSearchAsync(view.Id);
         Navigation.NavigateTo($"library?view={view.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)}", replace: true);
     }
@@ -1181,7 +1466,7 @@ else
     {
         _showSearches = false;
         if (await SearchActionAsync(() => SearchesApi.DeleteSearchAsync(id)) is not { } result) return;
-        _done = result;
+        Note(result);
         await Task.WhenAll(LoadSearchesAsync(), Pins.LoadAsync());
         if (id != _viewId) return;
         var query = _query;
@@ -1199,11 +1484,11 @@ else
         }
         catch (ApiProblemException e)
         {
-            _done = new ActionResult(e.Message);
+            Note(new ActionResult(e.Message));
         }
         catch (HttpRequestException)
         {
-            _done = new ActionResult("That didn't work. Check your connection and try again.");
+            Note(new ActionResult("That didn't work. Check your connection and try again."));
         }
         return null;
     }

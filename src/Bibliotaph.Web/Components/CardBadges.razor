@@ -1,0 +1,19 @@
+@* A card's badges: the book it goes with, a pack's files, the adventures in a file, the maps and handouts that go
+   with a book, and its copies, each an icon and a number with its words in the tooltip. Organize mode names the book. *@
+
+<span class="bt-badges @Class" role="list" aria-label="How it's put together">
+    @foreach (var badge in Badges)
+    {
+        <span class="bt-badge @(badge.Suggested ? "suggested" : "") @(Wide && badge.Wide.Length > 0 && badge.Count.Length == 0 ? "wide" : "")" role="listitem"
+              title="@badge.Tip" aria-label="@badge.Tip"><Icon Name="@badge.Icon" Size="11" />@if (Wide && badge.Count.Length == 0) { <span>@badge.Wide</span> } else { @badge.Count }</span>
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BookBadge> Badges { get; set; } = [];
+
+    [Parameter] public bool Wide { get; set; }
+
+    /// <summary>"below-ai" moves them under the AI badge; "inline" lays them along a list row.</summary>
+    [Parameter] public string Class { get; set; } = "";
+}

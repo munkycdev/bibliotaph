@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Drag maps onto their books in Organize mode.** **Select** is now **Organize**, and in it you can drag a map,
+  handout or pack onto its book's card to link them, or tick several and drag them together. Dropping on a pack adds
+  to it, on a picture packs them together, on a pinned collection or binder adds them, on a book asks whether it goes
+  with it or is the same book, and on **Not with a book** unlinks them. The words beside the pointer say what letting
+  go will do. Every drop has **Undo**, and **Ctrl+Z** takes back Organize's changes one at a time.
+  - Covers show badges for the book a map goes with, a pack's files, adventures inside, maps and handouts, and copies.
+  - **Folder** order groups the Library by folder, so a book and its maps sit together.
+  - The bar shows **Loose maps and handouts** or **Suggested links** (with **Keep these**), and the **Books** panel
+    lists the books near the card you picked up, those you dropped on lately, and any you find by title.
+  - On Windows and the web, where a finger held on a card picks it up on a phone or tablet.
 - **A change in Select mode unticks the books.** After **Edit metadata**, **Add to collection**, **Add to binder** or
   any other change from the Select bar, the books you ticked are unticked so the next change starts fresh, and you stay
   in Select mode. **Undo** still puts the change back. **Export these** changes nothing, so it leaves them ticked. On

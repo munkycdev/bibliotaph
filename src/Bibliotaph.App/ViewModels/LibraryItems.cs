@@ -214,6 +214,9 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public string Folder => Entry.FolderHint ?? "";
 
+    /// <summary>The heading over the cards in its folder while the Library goes by folder: "D&amp;D 5e › Adventures".</summary>
+    public string FolderGroup => Folder.Length == 0 ? "Not in a folder" : Folder.Replace("\\", " › ").Replace("/", " › ");
+
     public string FormatLabel => CardText.Format(Entry);
 
     /// <summary>A model has read this book: its cover carries a spark.</summary>
@@ -287,12 +290,34 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// <summary>When this book was last opened, for Home; null if never.</summary>
     public DateTime? OpenedUtc => Entry.OpenedUtc;
 
-    /// <summary>Ticked in the Library's Select mode. <see cref="BookSelection"/> sets it.</summary>
+    /// <summary>Ticked in the Library's Organize mode. <see cref="BookSelection"/> sets it.</summary>
     public bool IsSelected
     {
         get;
         internal set => SetProperty(ref field, value);
     }
+
+    /// <summary>The marks down the cover that say how the card is put together: its book, a pack's files, adventures, maps and copies.</summary>
+    public IReadOnlyList<CardBadge> Badges => CardText.Badges(Entry);
+
+    public bool HasBadges => Badges.Count > 0;
+
+    /// <summary>What Organize mode's drops go by.</summary>
+    public OrganizeCard Organize => Entry.Organize;
+
+    /// <summary>
+    /// While cards are dragged over this one in Organize mode: <see cref="DropOk"/> when dropping them here does
+    /// something, <see cref="DropNo"/> when it can't; null otherwise.
+    /// </summary>
+    public string? DropMark
+    {
+        get;
+        set => SetProperty(ref field, value);
+    }
+
+    public const string DropOk = "ok";
+
+    public const string DropNo = "no";
 
     public ImageSource? Cover
     {
@@ -372,6 +397,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         OnPropertyChanged(nameof(OpensOnline));
         OnPropertyChanged(nameof(ShowOpenOnline));
         OnPropertyChanged(nameof(BadgeLabel));
+        OnPropertyChanged(nameof(Badges));
+        OnPropertyChanged(nameof(HasBadges));
     }
 
     public static string Images(int count) => CardText.Images(count);
