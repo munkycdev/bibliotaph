@@ -130,6 +130,8 @@
     {
         if (!_attach || !_picking) return;
         _attach = false;
+        // As on Windows, typing goes straight into the box once the picker opens.
+        await _box.FocusAsync();
         await PickerScript.AttachAsync(JS, _box);
     }
 

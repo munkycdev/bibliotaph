@@ -364,7 +364,7 @@ sheet", "battle map"). **Character sheet** is a type of its own for that.
 In a map's details, **Goes with** names its book and why. **Keep** makes the suggestion yours, so later passes leave it
 alone; **Change…** picks another book (any book, an adventure inside a file, or a book you own elsewhere); **Not from
 this book** takes it away and never suggests that book for it again. **Choose a book…** links a file nothing was found
-for: type a few words of the book's title and pick it from the list. On a phone or tablet the list moves to the top
+for: type a few words of the book's title (the box is ready for them as the picker opens) and pick it from the list. On a phone or tablet the list moves to the top
 of the screen while you type, so the keyboard doesn't hide it. A book's details list what goes with it under **Maps
 and handouts**, each a click away. Every change has **Undo**, and your choices reach your other PCs and the web library
 with sync.
