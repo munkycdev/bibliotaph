@@ -215,6 +215,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
     readonly HashingLoop _hashing;
     readonly FolderWatchers _watchers;
     readonly LibraryScanner _scanner;
+    readonly WorkInHand _work = new();
     readonly Lock _lock = new();
     bool _gatesWatched;
     CancellationToken _stopping;
@@ -240,10 +241,10 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         _clock = clock ?? TimeProvider.System;
         // Each part logs as indexing, and says through Changed when what it shows moves. A callback into a part made
         // after it runs only once the loops have started, long after this.
-        _lanes = new LaneRunner(queue, library, stages, options, _log, _clock, RaiseChanged, fileStageDone: () => _hashing!.WakeReturns());
-        _hashing = new HashingLoop(library, queue, files, packs, folderCollections, _lanes, _activity, options, _log, _clock, RaiseChanged);
+        _lanes = new LaneRunner(queue, library, stages, options, _log, _clock, RaiseChanged, fileStageDone: () => _hashing!.WakeReturns(), _work);
+        _hashing = new HashingLoop(library, queue, files, packs, folderCollections, _lanes, _activity, options, _log, _clock, RaiseChanged, _work);
         _watchers = new FolderWatchers(folderWatcher ?? new FileSystemFolderWatcher(), options.RescanDelay, _log, _clock, rootId => _scanner!.RequestScan(rootId));
-        _scanner = new LibraryScanner(roots, library, files.Lister, files.Identity, _watchers, _hashing, _lanes, _activity, options, _log, _clock, RaiseChanged);
+        _scanner = new LibraryScanner(roots, library, files.Lister, files.Identity, _watchers, _hashing, _lanes, _activity, options, _log, _clock, RaiseChanged, _work);
     }
 
     /// <summary>Something changed that a progress display would show. Raised on a background thread, often; throttle.</summary>
@@ -265,6 +266,34 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
 
     /// <summary>True when online-only files are waiting because their drive is short of space.</summary>
     public bool WaitingForDiskSpace => _activity.Current.WaitingForDiskSpace;
+
+    /// <summary>
+    /// Completes once indexing has nothing in hand: the folders asked for are scanned, the files hashed, packs made,
+    /// and no lane has a job it can run now or within a few seconds. What it would wait on from outside doesn't count:
+    /// a model service that isn't answering, a retry after a failure, a watched folder's change still settling, a lane
+    /// paused or waiting for AI to be set up. Tests wait on this rather than polling for what indexing makes.
+    /// </summary>
+    public async Task WhenIdleAsync(CancellationToken ct = default)
+    {
+        while (true)
+        {
+            await _work.WhenIdleAsync(ct);
+            if (!await HasUnclaimedWorkAsync(ct)) return;
+            // Work queued without waking the part that does it would sit until that part's next look, minutes away.
+            _log.LogWarning("Indexing went idle with work ready that nothing was told about; waking it");
+            _hashing.Wake();
+            _lanes.WakeAll();
+            await Task.Delay(TimeSpan.FromMilliseconds(100), _clock, ct);
+        }
+    }
+
+    async Task<bool> HasUnclaimedWorkAsync(CancellationToken ct)
+    {
+        if (_lanes.IsPaused(Lane.Index)) return false;
+        if (!_activity.Current.WaitingForDiskSpace && (await _library.GetCountsAsync(ct)).Unhashed > _hashing.Unreadable.Count) return true;
+        Stage[] working = [.. _lanes.Stages.All.Where(s => !_lanes.IsPaused(s.Lane) && _lanes.IsOpen(s.Lane) && _lanes.Unavailable(s.Lane) is null).Select(s => s.Stage)];
+        return working.Length > 0 && await _queue.NextReadyAsync(working, ct) is { } next && next <= _clock.GetUtcNow();
+    }
 
     public IReadOnlyList<RootScan> Scans => _scanner.Scans;
 
@@ -394,7 +423,31 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         return true;
     }
 
+    /// <summary>
+    /// Busy from the moment it is started until each loop counts for itself, so it reads as idle only once its loops
+    /// have looked for work: the host may run <see cref="ExecuteAsync"/> a moment after this returns.
+    /// </summary>
+    public override async Task StartAsync(CancellationToken cancellationToken)
+    {
+        _work.Start();
+        await base.StartAsync(cancellationToken);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        List<Task> loops;
+        try
+        {
+            loops = await StartLoopsAsync(stoppingToken);
+        }
+        finally
+        {
+            _work.Stop();
+        }
+        await Task.WhenAll(loops);
+    }
+
+    async Task<List<Task>> StartLoopsAsync(CancellationToken stoppingToken)
     {
         _stopping = stoppingToken;
         var recovered = await _queue.RecoverLeasesAsync(stoppingToken);
@@ -411,22 +464,39 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         }
         WatchGates();
         // In the background: a stage may need to ask over the network what has changed, and nothing waits for it.
-        foreach (var revisited in _lanes.Stages.All.OfType<IRevisitedStage>()) _ = RevisitAsync(revisited);
+        foreach (var revisited in _lanes.Stages.All.OfType<IRevisitedStage>()) Errand(() => RevisitAsync(revisited));
 
         _scanner.Wake();
-        // Each loop on the thread pool: none of this may run on the UI thread that started the host.
+        // Each loop on the thread pool: none of this may run on the UI thread that started the host. A lane with no
+        // stage here has nothing to run.
         List<Task> loops =
         [
-            Task.Run(() => LoopAsync("scanner", _scanner.RunAsync, stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("offline check", _scanner.OfflineLoopAsync, stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("hasher", _hashing.RunAsync, stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("index lane", ct => _lanes.RunAsync(Lane.Index, ct), stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("OCR lane", ct => _lanes.RunAsync(Lane.Ocr, ct), stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("Classify lane", ct => _lanes.RunAsync(Lane.Classify, ct), stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("online lane", ct => _lanes.RunAsync(Lane.Online, ct), stoppingToken), CancellationToken.None),
-            Task.Run(() => LoopAsync("online-only returns", _hashing.ReturnLoopAsync, stoppingToken), CancellationToken.None),
+            Run("scanner", _scanner.RunAsync, _scanner.Signal),
+            // Not counted as work in hand: it only asks for scans now and then, and those count once asked for.
+            Run("offline check", _scanner.OfflineLoopAsync, null),
+            Run("hasher", _hashing.RunAsync, _hashing.HashSignal),
+            Run("online-only returns", _hashing.ReturnLoopAsync, _hashing.ReturnSignal),
+            .. Enum.GetValues<Lane>().Where(lane => _lanes.Stages.All.Any(s => s.Lane == lane))
+                .Select(lane => Run($"{lane} lane", ct => _lanes.RunAsync(lane, ct), _lanes.SignalOf(lane))),
         ];
-        await Task.WhenAll(loops);
+        return loops;
+
+        Task Run(string name, Func<CancellationToken, Task> loop, Signal? signal)
+        {
+            // Counted from now rather than once on the thread pool, so the start never reads as idle in between.
+            signal?.Begin();
+            return Task.Run(async () =>
+            {
+                try
+                {
+                    await LoopAsync(name, loop, stoppingToken);
+                }
+                finally
+                {
+                    signal?.End();
+                }
+            }, CancellationToken.None);
+        }
     }
 
     void WatchGates()
@@ -443,11 +513,11 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         }
         foreach (var revisited in _lanes.Stages.All.OfType<IRevisitedStage>())
         {
-            revisited.RunAgainChanged += (_, _) => _ = RevisitAsync(revisited);
-            revisited.RunAgainFor += (_, documents) => _ = RevisitAsync(revisited, documents);
-            revisited.RunAgainForFiles += (_, files) => _ = RevisitAsync(revisited, files: files);
+            revisited.RunAgainChanged += (_, _) => Errand(() => RevisitAsync(revisited));
+            revisited.RunAgainFor += (_, documents) => Errand(() => RevisitAsync(revisited, documents));
+            revisited.RunAgainForFiles += (_, files) => Errand(() => RevisitAsync(revisited, files: files));
         }
-        _parts.Marked += (_, documentId) => _ = ClassifyPartsAsync(documentId);
+        _parts.Marked += (_, documentId) => Errand(() => ClassifyPartsAsync(documentId));
         _returns.SettingChanged += (_, _) => _hashing.WakeReturns();
     }
 
@@ -474,6 +544,28 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         catch (Exception ex)
         {
             _log.LogError(ex, "Couldn't queue {Stage} again", stage.Stage);
+        }
+    }
+
+    /// <summary>
+    /// Counts work started from an event as in hand until it is done: it queues jobs, and wakes their lanes, after the
+    /// event's raiser has moved on. Started before the work's first await, so there's no moment it goes uncounted.
+    /// </summary>
+    void Errand(Func<Task> start)
+    {
+        _work.Start();
+        _ = RunErrandAsync();
+
+        async Task RunErrandAsync()
+        {
+            try
+            {
+                await start();
+            }
+            finally
+            {
+                _work.Stop();
+            }
         }
     }
 
@@ -524,6 +616,7 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
             try
             {
                 await loop(ct);
+                return;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -550,7 +643,5 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
     {
         base.Dispose();
         _lanes.Dispose();
-        _scanner.Dispose();
-        _hashing.Dispose();
     }
 }

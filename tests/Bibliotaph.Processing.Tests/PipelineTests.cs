@@ -236,8 +236,10 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
     }
 
     /// <summary>
-    /// Waits until nothing is waiting to be scanned, hashed, packed or processed. One that never settles fails saying
-    /// what it was still waiting for, so a run that can't be repeated still names the part that stuck.
+    /// Waits until nothing is waiting to be scanned, hashed, packed or processed: looks each time indexing goes idle
+    /// (<see cref="IndexingService.WhenIdleAsync"/>), and again after a moment for what that doesn't count, such as a
+    /// watched folder's change settling. One that never settles fails saying what it was still waiting for, so a run
+    /// that can't be repeated still names the part that stuck.
     /// </summary>
     async Task<IndexProgress> SettleAsync()
     {
@@ -248,7 +250,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         {
             while (true)
             {
-                await Task.Delay(200, timeout.Token);
+                await _service.WhenIdleAsync(timeout.Token);
                 var summary = await _queries.GetQueueSummaryAsync(timeout.Token);
                 var progress = await _queries.GetProgressAsync(timeout.Token);
                 var counts = await _libraryStore.GetCountsAsync(timeout.Token);
@@ -265,6 +267,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
                 if (_service.PacksPending) still.Add("packs");
                 if (still.Count == 0) return progress;
                 waiting = string.Join(", ", still);
+                await Task.Delay(50, timeout.Token);
             }
         }
         catch (OperationCanceledException) when (!Ct.IsCancellationRequested)
