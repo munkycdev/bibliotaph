@@ -117,7 +117,8 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             if (row is null) return null;
 
             c.Execute(
-                "UPDATE job SET status = 'leased', lease_owner = @owner, lease_expires_utc = @expires, attempts = attempts + 1 WHERE id = @Id",
+                // not_before_utc is cleared: while the job is leased it records whether it was woken (WakeDeferred).
+                "UPDATE job SET status = 'leased', lease_owner = @owner, lease_expires_utc = @expires, attempts = attempts + 1, not_before_utc = NULL WHERE id = @Id",
                 new { row.Id, owner, expires = Timestamp(_clock.GetUtcNow() + leaseFor) }, t);
             var job = row.ToRecord() with { Attempts = (int)row.Attempts + 1 };
             SetStatus(c, t, job.DocumentId, job.Stage, StageStatus.Running, null, now);
@@ -185,13 +186,18 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
     /// <summary>
     /// Puts a leased job back to wait at least <paramref name="wait"/>, without counting the attempt: for a stage that
     /// has to wait for another, as Classify waits for a book's OCR. <paramref name="reason"/> shows as its status. The
-    /// job is woken early when another stage of the same document finishes, and looks again.
+    /// job is woken early when another stage of the same document finishes, and looks again; if one finished while this
+    /// job was running, it may have decided to wait on what had just ended, so it is ready again at once.
     /// </summary>
     public Task DeferAsync(JobRecord job, TimeSpan wait, string? reason = null, CancellationToken ct = default) =>
         writer.WriteAsync((c, t) =>
         {
             c.Execute(
-                "UPDATE job SET status = 'pending', lease_owner = NULL, lease_expires_utc = NULL, attempts = attempts - 1, not_before_utc = @notBefore WHERE id = @Id",
+                """
+                UPDATE job SET status = 'pending', lease_owner = NULL, lease_expires_utc = NULL, attempts = attempts - 1,
+                    not_before_utc = CASE WHEN not_before_utc IS NULL THEN @notBefore END
+                WHERE id = @Id
+                """,
                 new { job.Id, notBefore = Timestamp(_clock.GetUtcNow() + wait) }, t);
             SetStatus(c, t, job.DocumentId, job.Stage, StageStatus.Pending, reason, Now());
         }, ct);
@@ -199,15 +205,19 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
     /// <summary>
     /// Wakes the document's deferred jobs once one of its stages has finished, done, blocked or failed for good, so a
     /// stage waiting on it looks again now rather than when its wait runs out. Deferring gives the attempt back, so a
-    /// deferred job has none; one waiting after a failure has some and keeps its backoff.
+    /// deferred job has none; one waiting after a failure has some and keeps its backoff. A job of the document running
+    /// now is marked as woken, so that if it then defers (having looked before this stage ended) it doesn't sleep
+    /// through the end it was waiting for.
     /// </summary>
-    static void WakeDeferred(SqliteConnection c, SqliteTransaction t, JobRecord finished) =>
+    void WakeDeferred(SqliteConnection c, SqliteTransaction t, JobRecord finished) =>
         c.Execute(
             """
             UPDATE job SET not_before_utc = NULL
-            WHERE document_id = @DocumentId AND id <> @Id AND status = 'pending' AND attempts = 0 AND not_before_utc IS NOT NULL
+            WHERE document_id = @DocumentId AND id <> @Id AND status = 'pending' AND attempts = 0 AND not_before_utc IS NOT NULL;
+            UPDATE job SET not_before_utc = @now
+            WHERE document_id = @DocumentId AND id <> @Id AND status = 'leased';
             """,
-            new { finished.DocumentId, finished.Id }, t);
+            new { finished.DocumentId, finished.Id, now = Now() }, t);
 
     /// <summary>Returns every leased job to pending. Run once at startup, before any lane leases work.</summary>
     public Task<int> RecoverLeasesAsync(CancellationToken ct = default) =>

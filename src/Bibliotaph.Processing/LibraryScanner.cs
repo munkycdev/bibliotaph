@@ -12,9 +12,9 @@ namespace Bibliotaph.Processing;
 /// <paramref name="changed"/> is called when something a progress display would show has moved.
 /// </summary>
 internal sealed class LibraryScanner(SourceRootStore roots, LibraryStore library, ISourceLister lister, IFileIdentity identity, FolderWatchers watchers, HashingLoop hashing,
-    LaneRunner lanes, IndexingActivityState activity, IndexingOptions options, ILogger log, TimeProvider clock, Action changed) : IDisposable
+    LaneRunner lanes, IndexingActivityState activity, IndexingOptions options, ILogger log, TimeProvider clock, Action changed, WorkInHand work)
 {
-    readonly Signal _signal = new();
+    readonly Signal _signal = new(work);
     readonly Lock _lock = new();
     HashSet<long>? _pendingScans; // null: every root
     bool _scanAll = true;
@@ -27,6 +27,9 @@ internal sealed class LibraryScanner(SourceRootStore roots, LibraryStore library
     {
         get { lock (_lock) return [.. _scans.Values]; }
     }
+
+    /// <summary>The signal the scan loop waits on.</summary>
+    public Signal Signal => _signal;
 
     /// <summary>Wakes the scanner to take whatever was asked for.</summary>
     public void Wake() => _signal.Set();
@@ -203,6 +206,4 @@ internal sealed class LibraryScanner(SourceRootStore roots, LibraryStore library
         await library.SetRootAvailabilityAsync(root.Id, SourceRootAvailability.Offline, ct);
         lock (_lock) _scans[root.Id] = new RootScan(root.Id, root.Path, false, null, null, now, reason);
     }
-
-    public void Dispose() => _signal.Dispose();
 }

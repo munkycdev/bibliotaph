@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A book's next step no longer stalls after another one finishes.** When a book's scanned pages were read while the
+  AI was already looking at it, the AI could wait five minutes before trying again (and matching 30 seconds after its
+  name hints). It now goes on at once. On Windows and the web.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1272 (14 November 2026):

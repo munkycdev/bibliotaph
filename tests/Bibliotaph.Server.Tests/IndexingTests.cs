@@ -497,14 +497,20 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IDisposable
         return data.ToArray();
     }
 
-    static async Task<T> WaitAsync<T>(Func<Task<T?>> done) where T : class
+    /// <summary>Asks <paramref name="done"/> each time the open libraries' indexing has gone idle, until it gives a result.</summary>
+    async Task<T> WaitAsync<T>(Func<Task<T?>> done) where T : class
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(60));
         while (true)
         {
+            foreach (var userId in Fixture.Libraries.OpenUsers)
+            {
+                await using var lease = await Fixture.Libraries.LeaseIfOpenAsync(userId);
+                if (lease is not null) await lease.Library.Indexing.WhenIdleAsync(timeout.Token);
+            }
             if (await done() is { } result) return result;
-            await Task.Delay(100, timeout.Token);
+            await Task.Delay(50, timeout.Token);
         }
     }
 }
