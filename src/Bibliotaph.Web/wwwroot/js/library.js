@@ -237,9 +237,44 @@ window.bibliotaphShell = (function () {
     }
     if (!box) return false;
     main.focus();
-    box.focus();
+    var bar = box.closest('.bt-topbar');
+    // Scrolled down the Library, the top bar has gone off the top. Focusing the box would jump the page back up to
+    // it and lose the reader's place, so the bar comes down over the page instead, as the Windows app's top bar never
+    // leaves. Typing then shows the results from their start; leaving the box empty puts the page back as it was.
+    if (bar && box.getBoundingClientRect().top < 0) {
+      pin(main, bar, box);
+      box.focus({ preventScroll: true });
+    } else {
+      box.focus();
+    }
     box.select();
     return true;
+  }
+  function pin(win, bar, box) {
+    if (bar.classList.contains('bt-pinned')) return;
+    var doc = win.document;
+    bar.classList.add('bt-pinned');
+    doc.documentElement.style.setProperty('--bt-pinned-height', bar.offsetHeight + 'px');
+    function scrollToResults() {
+      // The bar's own place in the page: with it at the top of the window, the results start just under it.
+      var top = bar.parentElement.getBoundingClientRect().top + win.scrollY;
+      if (win.scrollY > top) win.scrollTo(0, top);
+    }
+    function unpin(e) {
+      if (e && e.relatedTarget && bar.contains(e.relatedTarget)) return;
+      bar.classList.remove('bt-pinned');
+      doc.documentElement.style.removeProperty('--bt-pinned-height');
+      box.removeEventListener('input', scrollToResults);
+      bar.removeEventListener('focusout', unpin);
+      box.removeEventListener('keydown', escape);
+    }
+    // Esc in an empty box puts the bar away; with text, the box's own Esc clears it first.
+    function escape(e) {
+      if (e.key === 'Escape' && !box.value && box.dataset.guide !== 'open') box.blur();
+    }
+    box.addEventListener('input', scrollToResults, { once: true });
+    bar.addEventListener('focusout', unpin);
+    box.addEventListener('keydown', escape);
   }
   function popOut(card) {
     var url = card && card.getAttribute('data-popout');

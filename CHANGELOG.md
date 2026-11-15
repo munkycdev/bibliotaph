@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Ctrl+K finds the search box wherever you've scrolled to, on the web.** Far down the Library, Ctrl+K or / brings
+  the top bar down over the page instead of jumping back to the top. Type, and the results show from their start;
+  press Esc or click away with the box empty, and you're left where you were. The Windows app's top bar already stays
+  in place.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1272 (14 November 2026):
