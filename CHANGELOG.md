@@ -12,6 +12,9 @@
   - The bar shows **Loose maps and handouts** or **Suggested links** (with **Keep these**), and the **Books** panel
     lists the books near the card you picked up, those you dropped on lately, and any you find by title.
   - On Windows and the web, where a finger held on a card picks it up on a phone or tablet.
+- **Fixed: dropping a handout on a book on the web did nothing.** A PDF handout dropped on a book's card asks whether
+  it goes with that book or is the same book, but the web drew that menu off the bottom of the window, so nothing could
+  be picked and the handout stayed unlinked. The menu now opens where you let go, inside the window.
 - **Fixed: the Goes with book picker showed no books on Windows.** Choosing the book a map goes with, in its details or
   in **Edit metadata**, found the books but drew each one blank, so typing seemed to do nothing. Each book now shows its
   title and details, highlights under the mouse, and the box takes the keyboard as the picker opens. On the web on a

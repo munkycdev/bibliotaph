@@ -1489,7 +1489,8 @@ a.bt-sumrow:hover>span:first-child{color:var(--bt-accent)}
 .bt-dropzone{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 12px;border:1.5px dashed var(--bt-muted);border-radius:6px;color:var(--bt-muted)}
 .bt-dropzone.dropok{border-color:var(--bt-accent);color:var(--bt-text);background:var(--bt-panel)}
 .bt-dropzone.dropno{opacity:.6}
-.bt-dropmenu{position:fixed;z-index:40}
+/* Hidden until the page has put it where the pointer let go. */
+.bt-dropmenu{position:fixed;z-index:40;right:auto;top:0;left:0;visibility:hidden}
 /* Organize's folder headings, across the whole row of covers. */
 .bt-foldergroup{grid-column:1/-1;display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--bt-muted);padding:8px 0 4px;border-bottom:1px solid var(--bt-line)}
 .bt-booklist .bt-foldergroup{margin-top:14px}
