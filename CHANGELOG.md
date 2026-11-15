@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6 · 9 November 2026
+
+New in 1.6.1272 (14 November 2026):
+
 - **Right-click opens a book's details in Organize mode.** A click still ticks the card; right-clicking it, or
   holding a finger on it and lifting without moving on a touch screen, shows its details, on Windows and the web.
 - **The details panel puts what you need at the table first.** **At a glance** opens it with the game system, edition,
@@ -11,8 +15,6 @@
   and the RPGGeek record), **The file** (where it is, **Reprocess** and its facts, once About the file and Where it is)
   and **How it was read** (indexing and the online lookup report) wait folded at the bottom. Sections you folded stay
   folded. On Windows and the web.
-
-## 1.6 · 9 November 2026
 
 New in 1.6.1265 (14 November 2026):
 
