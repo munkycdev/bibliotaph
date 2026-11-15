@@ -33,10 +33,12 @@ public abstract partial class ApiTests : IDisposable
     protected ApiTests(SyntheticPdfs pdfs)
     {
         _pdfs = pdfs;
+        TemplateDatabases.PlaceAccounts(_folder.Path);
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
         {
             host.UseEnvironment("Testing");
             host.UseSetting("Server:DataRoot", _folder.Path);
+            host.ConfigureServices(services => services.AddSingleton<IDatabaseRestore>(new TemplateDatabases.Restore()));
             host.ConfigureServices(services => services.AddSingleton<IHttpClientFactory>(new FakeHttp(new FakeHosts(_graph, _dropbox))));
             host.ConfigureServices(services => services.AddSingleton(new ModelClientFactory(_models.ClientFor, TimeSpan.FromMilliseconds(50))));
             host.ConfigureServices(services => services.AddSingleton<IBookCatalogue>(_catalogue));

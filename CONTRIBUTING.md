@@ -118,6 +118,10 @@ skipped. The Test step ends with the fifteen slowest tests, which is where to lo
   for requests.
 - What indexing doesn't count (a watched folder's change settling, a retry after a failure, a connected PC's sync)
   still needs a condition, asked again after a moment, with a timeout whose message says what it was waiting for.
+- The server's tests start a server each, with its own data folder. Its accounts.db and each new library's
+  catalog.db and index.db are copies of databases made once per run (`TemplateDatabases`, put in place where the
+  server would restore them from its replica), so a test doesn't spend a second migrating; Catalog's tests cover
+  the migrations.
 - A test that takes more than a few seconds is worth a look: verify's Test step lists the fifteen slowest.
 
 ## Common tasks
