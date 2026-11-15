@@ -5,6 +5,10 @@
 - **Fixed: choosing the book a map goes with seemed not to search on a phone.** On the web on a phone or tablet, the
   books found for **Goes with** opened below the box, behind the on-screen keyboard, so typing seemed to do nothing.
   The picker now moves to the top of the screen while you type, in a map's details and in **Edit metadata**.
+- **A change in Select mode unticks the books.** After **Edit metadata**, **Add to collection**, **Add to binder** or
+  any other change from the Select bar, the books you ticked are unticked so the next change starts fresh, and you stay
+  in Select mode. **Undo** still puts the change back. **Export these** changes nothing, so it leaves them ticked. On
+  Windows and the web.
 
 ## 1.6 · 9 November 2026
 

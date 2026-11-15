@@ -30,6 +30,9 @@
     /// <summary>What adding did, with its Undo, for the page to show; or why it failed.</summary>
     [Parameter] public EventCallback<ActionResult> Done { get; set; }
 
+    /// <summary>What an add that went in did, in place of <see cref="Done"/>, which still has the failures.</summary>
+    [Parameter] public EventCallback<ActionResult> Added { get; set; }
+
     [Parameter] public string ButtonClass { get; set; } = "bt-button";
 
     [Parameter] public string MenuClass { get; set; } = "";
@@ -65,7 +68,7 @@
         _menu = null;
         try
         {
-            if (await Actions.AddAsync(menu, choice, What, Add()) is { } result) await Done.InvokeAsync(result);
+            if (await Actions.AddAsync(menu, choice, What, Add()) is { } result) await (Added.HasDelegate ? Added : Done).InvokeAsync(result);
         }
         catch (ApiProblemException e)
         {

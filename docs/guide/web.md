@@ -338,7 +338,8 @@ mode and **Clear** unticks them all. The Select bar says how many are ticked and
 - **Remove adventures** removes ticked adventures marked inside files; their pages are only their files' again.
 - **Export these** saves the ticked books as a CSV file for a spreadsheet, with the Windows app's columns.
 
-Each change says what it did, with **Undo**.
+Each change says what it did, with **Undo**, and unticks the books so the next change starts fresh; you stay in
+Select mode. **Export these** changes nothing, so the books stay ticked after it.
 
 **Edit metadata** shows every field but the title with what the ticked books have in it: the value they share, "Mixed
 (3 values)" with how many have each, or "Not set". The pencil sets one value on every book, typed or picked from the
@@ -346,8 +347,7 @@ list, and **Back to suggestions** forgets what you set yourself on all of them. 
 Type or Your tags, shows each value as a chip with how many of the books have it: click a chip to put it on every
 book, its **×** to take it off every book, or type values (separated by commas) and **Add** them. Fields you don't
 touch stay as they are. **Review changes** says what will happen before anything is saved, and warns where it
-replaces values you set yourself; **Apply** saves it all at once, and the note's **Undo** puts every field back. The
-books stay ticked, so another change can follow.
+replaces values you set yourself; **Apply** saves it all at once, and the note's **Undo** puts every field back.
 
 ### Binders
 

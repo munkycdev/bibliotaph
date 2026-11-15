@@ -187,6 +187,11 @@ shown), and click **Edit metadata**. Change any field but the title. A field the
 looking blank, and fields you don't touch stay as they are. **Review changes** shows what will change before it's
 saved, and **Undo** puts it back afterwards.
 
+Once a change is applied, the books are unticked so the next change starts fresh, and you stay in **Select** mode.
+That goes for every change from the Select bar: **Edit metadata**, **Add to collection**, **Add to binder**, **Same
+book**, **Pack together**, **Remove adventures** and **Remove from collection**. **Export these** changes nothing, so
+the books stay ticked after it.
+
 **Goes with**, at the end of the same dialog, sets the book the ticked maps, handouts and packs go with, all at once:
 type a few words of the book's title, pick it, and each ticked card takes the book's values (see
 [Maps and handouts that go with a book](#maps-and-handouts-that-go-with-a-book)). **No book** takes them away from the

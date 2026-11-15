@@ -31,38 +31,42 @@ public sealed partial class CollectionActions(CollectionsService collections, Co
 
     public CollectionDirectory Directory { get; } = directory;
 
-    /// <summary>One of a menu's Add to collection items, for these books: "Ghost Tower" or "3 books" in the note.</summary>
-    public void Add(IReadOnlyList<EntryId> books, string what, CollectionMenuChoice choice)
+    /// <summary>
+    /// One of a menu's Add to collection items, for these books: "Ghost Tower" or "3 books" in the note.
+    /// <paramref name="added"/> runs once they are in, and not when a dialog is cancelled or the add fails.
+    /// </summary>
+    public void Add(IReadOnlyList<EntryId> books, string what, CollectionMenuChoice choice, Action? added = null)
     {
         if (books.Count == 0) return;
         switch (choice.Kind)
         {
             case CollectionMenuKind.Collection when choice.CollectionId is { } id:
-                AddToAsync(books, what, id).FireAndForget();
+                AddToAsync(books, what, id, added).FireAndForget();
                 break;
             case CollectionMenuKind.New:
                 Open(CollectionDialogViewModel.Naming("Add to a new collection", "Create and add"), async result =>
                 {
                     var created = await Run(() => collections.CreateAsync(result.Name, null, result.Description), "Making the collection failed");
-                    if (created is not null) await AddToAsync(books, what, created.Id);
+                    if (created is not null) await AddToAsync(books, what, created.Id, added);
                 });
                 break;
             case CollectionMenuKind.Choose:
                 Open(CollectionDialogViewModel.Picking($"Add {what} to a collection", Directory.Tree()), async result =>
                 {
-                    if (result.Choice?.Id is { } picked) await AddToAsync(books, what, picked);
+                    if (result.Choice?.Id is { } picked) await AddToAsync(books, what, picked, added);
                 });
                 break;
         }
     }
 
-    async Task AddToAsync(IReadOnlyList<EntryId> books, string what, long collectionId)
+    async Task AddToAsync(IReadOnlyList<EntryId> books, string what, long collectionId, Action? then)
     {
         var added = await Run(() => collections.AddAsync(collectionId, books), "Adding to a collection failed");
         if (added is null) return;
         var name = Directory.Find(collectionId)?.Name ?? "the collection";
         await FinishAsync(CollectionText.Added(what, books.Count, added.Count, name),
             added.Count == 0 ? null : () => collections.RemoveAsync(collectionId, added));
+        then?.Invoke();
     }
 
     /// <summary>Takes books out of a collection: Remove from collection in Select mode, or a chip's × in the details.</summary>
