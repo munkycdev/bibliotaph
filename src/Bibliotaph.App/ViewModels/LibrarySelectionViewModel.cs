@@ -174,6 +174,7 @@ public sealed partial class LibrarySelectionViewModel : ObservableObject
                 await _metadata.UndoManyAsync(result.Undo);
             } : null,
             BulkEditText.UndoFailed);
+        Books.Clear();
         await _page.RefreshAsync();
     }
 

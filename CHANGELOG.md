@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **A change in Select mode unticks the books.** After **Edit metadata**, **Add to collection**, **Add to binder** or
+  any other change from the Select bar, the books you ticked are unticked so the next change starts fresh, and you stay
+  in Select mode. **Undo** still puts the change back. **Export these** changes nothing, so it leaves them ticked. On
+  Windows and the web.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1251 (13 November 2026):

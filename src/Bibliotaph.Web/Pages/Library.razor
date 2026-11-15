@@ -328,7 +328,7 @@
                         </div>
                     }
                 </div>
-                <AddToBinder What="@(_select.Info?.Books ?? "")" Add="() => new BinderAdd([.. _select.Ticked])" Done="ShowDone" Label="Add to binder" MenuClass="bt-menuleft"
+                <AddToBinder What="@(_select.Info?.Books ?? "")" Add="() => new BinderAdd([.. _select.Ticked])" Added="AfterSelectionChangeAsync" Done="ShowDone" Label="Add to binder" MenuClass="bt-menuleft"
                              Title="Add every selected book to a binder" Disabled="@(_select.Ticked.Count == 0)" />
                 @if (_select.Info is { CanJoin: true })
                 {
@@ -1027,7 +1027,7 @@ else
     {
         _selectionMenu = null;
         if (_select.Info is not { } selection) return;
-        if (await Collections.AddAsync([.. _select.Ticked], selection.Books, item) is { } result) await ShowDone(result);
+        if (await Collections.AddAsync([.. _select.Ticked], selection.Books, item) is { } result) await AfterSelectionChangeAsync(result);
         else if (Collections.Pending is { } problem)
         {
             _done = problem;
@@ -1053,11 +1053,10 @@ else
         _working = false;
     }
 
-    /// <summary>As in the Windows app, the books stay ticked after an edit, so another can follow.</summary>
     async Task BulkClosedAsync(ActionResult? result)
     {
         _bulk = null;
-        if (result is not null) await ShowDone(result);
+        await AfterSelectionChangeAsync(result);
     }
 
     /// <summary>Same book: the dialog for which file opens, then the ticked cards become one book.</summary>
