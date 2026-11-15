@@ -173,6 +173,7 @@ sealed class LibraryFixture : IAsyncDisposable
         Google = new FakeGoogleDrive();
         WebDav = new FakeWebDav();
         Paths = new ServerPaths(root);
+        TemplateDatabases.PlaceAccounts(root);
         Accounts = new AccountsDatabase(Paths.Accounts);
         Accounts.MigrateAsync().GetAwaiter().GetResult();
         Connections = new StorageConnections(Accounts, Protection, clock);
@@ -190,7 +191,7 @@ sealed class LibraryFixture : IAsyncDisposable
         Tokens = new DriveTokens(http, configuration, Connections, clock, NullLogger<DriveTokens>.Instance);
         Drives = new UserDriveFactory(Connections, Tokens, http, clock);
         Pdf = new PdfWorkerPool(new PdfWorkerPoolOptions());
-        Libraries = new UserLibraries(Paths, restore ?? new NoRestore(), new LibraryHost(NullLoggerFactory.Instance, clock, Drives, Paths.Downloads,
+        Libraries = new UserLibraries(Paths, restore ?? new TemplateDatabases.Restore(), new LibraryHost(NullLoggerFactory.Instance, clock, Drives, Paths.Downloads,
             new WorkerPdfEngine(Pdf), new SkiaImageCodec(), Covers, Protection, new ModelClientFactory(Models.ClientFor)));
     }
 

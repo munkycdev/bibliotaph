@@ -119,6 +119,26 @@ public sealed class JobBoardTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_job_that_defers_after_another_stage_of_its_book_ended_while_it_ran_is_ready_again_at_once()
+    {
+        await _queue.EnqueueAsync(1, "aa", Stage.Ocr, ct: Ct);
+        await _queue.EnqueueAsync(1, "aa", Stage.Classify, ct: Ct);
+        await _queue.EnqueueAsync(2, "bb", Stage.Classify, ct: Ct);
+        var classify = (await _queue.LeaseAsync([Stage.Classify], "test", Lease, Ct))!;
+        var other = (await _queue.LeaseAsync([Stage.Classify], "test", Lease, Ct))!;
+
+        // Classify looked for unread scanned pages, then OCR ended before it said it would wait for them.
+        var ocr = (await _queue.LeaseAsync([Stage.Ocr], "test", Lease, Ct))!;
+        await _queue.BlockAsync(ocr, "OCR is not available.", Ct);
+        await _queue.DeferAsync(classify, TimeSpan.FromMinutes(5), "Waiting for its scanned pages to be read.", Ct);
+        await _queue.DeferAsync(other, TimeSpan.FromMinutes(5), ct: Ct);
+
+        Assert.Equal(classify.Id, (await _queue.LeaseAsync([Stage.Classify], "test", Lease, Ct))?.Id);
+        // Another book's job waits as it said it would.
+        Assert.Null(await _queue.LeaseAsync([Stage.Classify], "test", Lease, Ct));
+    }
+
+    [Fact]
     public async Task A_stage_blocked_on_the_user_wakes_a_deferred_job_too_and_a_retry_waiting_after_a_failure_keeps_its_wait()
     {
         await _queue.EnqueueAsync(1, "aa", Stage.Ocr, ct: Ct);

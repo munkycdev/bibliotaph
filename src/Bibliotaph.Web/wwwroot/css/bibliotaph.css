@@ -56,6 +56,8 @@ small{display:block;color:var(--bt-muted);font-size:11px;font-weight:400}
 .bt-sample{font-size:10px;letter-spacing:.6px;color:var(--bt-muted);padding:16px 8px 0}
 .bt-workarea{min-width:0}
 .bt-topbar{min-height:68px;display:flex;gap:15px;align-items:center;padding:15px 24px;border-bottom:1px solid var(--bt-line)}
+/* Ctrl+K or / far down a page brings the top bar down over it rather than jumping the page up to it. */
+.bt-topbar.bt-pinned{position:sticky;top:0;z-index:6;background:var(--bt-bg);box-shadow:0 6px 14px -10px #00000059}
 .bt-breadcrumb{font-size:11px;color:var(--bt-muted);white-space:nowrap}
 .bt-breadcrumb span{padding:0 8px;opacity:.5}
 .bt-search{display:flex;align-items:center;gap:8px;margin-left:auto;max-width:360px;flex:1;background:var(--bt-panel);border:1px solid var(--bt-line);border-radius:7px;padding:8px 10px;color:var(--bt-muted)}
@@ -669,7 +671,7 @@ button.bt-heart{color:var(--bt-accent)}
 .bt-selectsummary{font-size:12px;margin-right:8px}
 /* A mode's bar stays pinned to the top of the window while the listing scrolls under it, so its actions are in reach
    from any row. It sits above the cards' ticks but below the filter boxes' suggestions, drawers and dialogs. */
-.bt-stickybar{position:sticky;top:0;z-index:4;box-shadow:0 6px 14px -10px #00000059}
+.bt-stickybar{position:sticky;top:var(--bt-pinned-height,0px);z-index:4;box-shadow:0 6px 14px -10px #00000059}
 /* Keyboard focus moving down the listing stops below the pinned bar rather than behind it. */
 html:has(.bt-stickybar){scroll-padding-top:72px}
 .bt-menu.bt-menuleft{left:0;right:auto}

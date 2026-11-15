@@ -49,7 +49,8 @@ bibliotaph.online/settings#library, so Back returns to the last one; an older li
 another, such as #storage, opens the one it's in now.
 **About Bibliotaph**, under the list, shows the version (the build number and commit the site is running, as the footer does), the licence and links to the source code, problem reports,
 the privacy policy, the terms and the change log. **Keyboard shortcuts**, under it, lists every key that works on the web, by where it works; Ctrl+/
-shows the same list from anywhere. Ctrl+K, or / when you're not typing, puts the keyboard in the search box, and in a
+shows the same list from anywhere. Ctrl+K, or / when you're not typing, puts the keyboard in the search box; scrolled far
+down a page, the top bar comes down over it, so you don't lose your place, and goes away again on Esc. In a
 reader popped out into a window of its own, Ctrl+K searches in the main window. The button beside **Settings**, or
 Ctrl+B, folds the sidebar to its icons, each named when you point at it, as in the Windows app. Folded, the monogram
 stays at the top and the same button, now under **Settings**, unfolds it; the browser remembers which you chose.

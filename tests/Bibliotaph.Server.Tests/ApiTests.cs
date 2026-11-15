@@ -33,10 +33,12 @@ public abstract partial class ApiTests : IDisposable
     protected ApiTests(SyntheticPdfs pdfs)
     {
         _pdfs = pdfs;
+        TemplateDatabases.PlaceAccounts(_folder.Path);
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host =>
         {
             host.UseEnvironment("Testing");
             host.UseSetting("Server:DataRoot", _folder.Path);
+            host.ConfigureServices(services => services.AddSingleton<IDatabaseRestore>(new TemplateDatabases.Restore()));
             host.ConfigureServices(services => services.AddSingleton<IHttpClientFactory>(new FakeHttp(new FakeHosts(_graph, _dropbox))));
             host.ConfigureServices(services => services.AddSingleton(new ModelClientFactory(_models.ClientFor, TimeSpan.FromMilliseconds(50))));
             host.ConfigureServices(services => services.AddSingleton<IBookCatalogue>(_catalogue));
@@ -186,14 +188,32 @@ public abstract partial class ApiTests : IDisposable
         return (pc, key.Find()!);
     }
 
-    static async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class
+    /// <summary>
+    /// Waits for <paramref name="done"/> to give a result, asking it each time every open library's indexing has gone
+    /// idle. Asking only then keeps the test's own requests from holding the background work back (it steps aside for
+    /// requests), and a result indexing makes is there the first time. What indexing doesn't make, such as a connected
+    /// PC's sync, is asked for again after a moment.
+    /// </summary>
+    async Task<T> WaitAsync<T>(Func<Task<T?>> done, CancellationToken ct) where T : class
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(60));
         while (true)
         {
+            await IdleAsync(timeout.Token);
             if (await done() is { } result) return result;
-            await Task.Delay(100, timeout.Token);
+            await Task.Delay(50, timeout.Token);
+        }
+    }
+
+    /// <summary>Waits until the indexing of every library open now has nothing in hand.</summary>
+    async Task IdleAsync(CancellationToken ct)
+    {
+        var libraries = _factory.Services.GetRequiredService<UserLibraries>();
+        foreach (var userId in libraries.OpenUsers)
+        {
+            await using var lease = await libraries.LeaseIfOpenAsync(userId);
+            if (lease is not null) await lease.Library.Indexing.WhenIdleAsync(ct);
         }
     }
 

@@ -3,7 +3,8 @@
 [Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Searching
 
 The search box at the top of the window searches your whole library. Click it or press **Ctrl+K**, and start typing:
-results update as you type, in the Library.
+results update as you type, in the Library. On the web, where the page scrolls, Ctrl+K far down the Library brings
+the top bar down over the page instead of jumping back to the top.
 
 ## Books and pages
 
