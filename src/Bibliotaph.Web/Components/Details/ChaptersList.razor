@@ -1,0 +1,29 @@
+@* Under What's inside: what a chapter-by-chapter scan found, which never changes the book's own details. The first
+   chapters it found something in show until Show all. *@
+@using Bibliotaph.Core
+
+@if (Book.Chapters.Count > 0)
+{
+    var shown = _all ? Book.Chapters : DetailSections.FirstChapters(Book.Chapters, c => c.Lines.Count > 0);
+    <div class="bt-small bt-foundnote">@DetailSections.ChaptersNote</div>
+    <div aria-label="Found inside the book">
+        @foreach (var chapter in shown)
+        {
+            <div class="bt-detailbox" aria-label="@chapter.Title, @chapter.Pages">
+                <div class="bt-chapterhead"><span class="bt-chaptertitle">@chapter.Title</span><span class="bt-small">@chapter.Pages</span></div>
+                @foreach (var line in chapter.Lines) { <div class="bt-chapterline">@line</div> }
+                @if (chapter.Note is { } note) { <div class="bt-small">@note</div> }
+            </div>
+        }
+    </div>
+    @if (!_all && shown.Count < Book.Chapters.Count)
+    {
+        <button class="bt-link bt-showall" @onclick="() => _all = true">@DetailSections.ShowAllChapters(Book.Chapters.Count)</button>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
+
+    bool _all;
+}

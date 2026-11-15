@@ -77,28 +77,38 @@ Under the cover is a row of buttons for what you can do with the book:
 - **Remove from library**, for a book you own elsewhere. It's on the book's right-click menu in the Library too.
 - On the right, icon buttons to pin the book, add it to a binder, and correct it (**Cataloged wrong…**).
 
-The **Details** tab starts with what the book holds and ends with its file. Click a section's heading to fold it
-away, or to open it again; every book's details keep the sections as you left them on this PC. The last four start
-folded.
+The **Details** tab puts what you need to run a game first: what the book is for and who, what goes with it and
+what's in it. Where it came from, its file and how it was read come last. Click a section's heading to fold it
+away, or to open it again; every book's details keep the sections as you left them on this PC. **Publication**,
+**The file**, **Copies** and **How it was read** start folded.
 
+- **At a glance**: game system, edition, type, levels, players, setting, includes, duration and your tags. For a book
+  you own elsewhere, where else you own it (**Also own**) comes first.
 - **Adventures in this file**, for a compilation, or **In a file**, for an adventure inside one. See
   [Adventures inside a file](#adventures-inside-a-file).
+- **Goes with**, for a map or handout, or **Maps and handouts**, for a book. See
+  [Maps and handouts that go with a book](#maps-and-handouts-that-go-with-a-book).
 - A pack's files.
-- **Found inside the book**, once the AI has [scanned the whole book](ai.md#scanning-whole-books): each chapter with
-  its pages and the settings, environments, themes and creatures found in it. These describe parts of the book, not the
-  whole book, so they never change its details. **Scan again** has the AI read it again.
+- **What's inside**: themes, style, environments, monsters and items, then, once the AI has
+  [scanned the whole book](ai.md#scanning-whole-books), the first three chapters it found something in, with their
+  pages and the settings, environments, themes and creatures found there. **Show all** lists every chapter. The
+  chapters describe parts of the book, not the whole book, so they never change its fields. **Scan again** has the AI
+  read it again.
 - **Collections**, as chips you can remove, with **Add to collection**.
-- **Details**: title, game system, edition, type, levels, players, includes, duration, style, setting, themes,
-  environments, monsters, items, publisher, authors, artists, series, year, mechanics, your tags, where else you own it (**Also own**, with the book's page online if you
-  like) and where to get it (**Get it from**, a store with an optional link). Empty fields are hidden until you click
-  **More fields**, except the main ones, and **Players** on an adventure, so you can say who it's for straight away.
-  **Suggested** marks values nobody has confirmed yet. Open one to see where it came from, with the page and quote.
-- **About the file**: its format, when it was added, its folders and what the file says of itself. It includes the
-  **ISBN** and **Product code** the book prints, as it prints them. Bibliotaph finds
-  these on the first pages and the back cover, from the text it already has, and from an e-book's own information.
-- **Where it is**: the file's folder, with **Show in File Explorer** and **Reprocess**.
+- **Publication**: title, publisher, authors, artists, series, year, mechanics, where else you own it (**Also own**,
+  with the book's page online if you like) and where to get it (**Get it from**, a store with an optional link), then
+  its [RPGGeek record](#look-up-from-an-rpggeek-link).
+- **The file**: the file's folder, with **Show in File Explorer** and **Reprocess**, then its format, when it was
+  added, its folders and what the file says of itself. That includes the **ISBN** and **Product code** the book
+  prints, as it prints them. Bibliotaph finds these on the first pages and the back cover, from the text it already
+  has, and from an e-book's own information.
 - **Copies**, when the book is in more than one file.
-- **Indexing**: how far reading the book has got, step by step.
+- **How it was read**: how far reading the book has got, step by step, and what its last
+  [online lookup](#books-a-search-by-title-misses) did.
+
+In the three sections that hold fields, empty fields are hidden until you click **More fields**, except the main ones,
+and **Players** on an adventure, so you can say who it's for straight away. **Suggested** marks values nobody has
+confirmed yet. Open one to see where it came from, with the page and quote. **Cataloged wrong…** opens all three.
 
 The **Notes** tab has a note for the whole book, saved as you type, and the notes on its pages.
 
@@ -154,7 +164,7 @@ for the title a file gives finds nothing. Bibliotaph tries these too, wherever R
   settles the others from that catalogue as not this book; Undo brings them back. More than three and none is asked
   about.
 
-A book's details show what its last lookup did, under **Online lookup** at the end of **Details**: the ISBN, product
+A book's details show what its last lookup did, under **Online lookup** in **How it was read**: the ISBN, product
 code or titles it was looked up by, the lines searched, where it was asked, how many items were found by name, and
 which record it uses or Needs review asks about.
 

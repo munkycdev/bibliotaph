@@ -156,7 +156,7 @@ public sealed class IndexingTests(SyntheticPdfs pdfs) : IDisposable
         Assert.Equal("PDF", details.Eyebrow);
         Assert.Contains(details.Fields, f => f.Key == MetadataFields.Title.Key && f.Primary);
         Assert.Contains(details.Facts, f => f.Label == "Search" && f.Value.StartsWith("Text searchable", StringComparison.Ordinal));
-        Assert.Equal("ABOUT THE FILE", details.FactsHeading);
+        Assert.Equal("THE FILE", details.FactsHeading);
         var location = Assert.Single(details.Locations);
         Assert.EndsWith("RPG › known.pdf", location.Path, StringComparison.Ordinal);
         Assert.Equal("OneDrive", location.Service);

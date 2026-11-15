@@ -108,7 +108,7 @@ static partial class SmokeTest
         await library.RefreshAsync();
         await WaitUntilAsync(window, () => library.Items.Any(i => i.DocumentId == book.DocumentId), () => "The storage folder's book isn't in the Library.");
         await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.DocumentId == book.DocumentId));
-        library.Inspector!.Pane!.Where = true;
+        library.Inspector!.Pane!.File = true;
         await WaitUntilAsync(window, () => library.Inspector is { CanKeepOffline: true, Locations.Count: > 0 }
             && Descendants<CheckBox>(window).Any(c => c.Name == "KeepOffline" && c.IsVisible),
             () => "The storage folder's book's details offer no Keep offline.");

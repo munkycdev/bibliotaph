@@ -160,17 +160,10 @@
         }
         else
         {
-            @* What the book holds first: a compilation's adventures or the file an adventure is in, a pack's files, and what the AI found inside. *@
-            @* Blazor needs sibling keys to differ whatever the component, so each section pairs its own name with the book: another book starts every section afresh. *@
-            <AdventuresSection @key="(nameof(AdventuresSection), book.Card.EntryId)" Book="book" Host="this" Note="_arrived" />
-            <GoesWithSection @key="(nameof(GoesWithSection), book.Card.EntryId)" Book="book" Host="this" />
-            @if (book.PackFiles.Count > 0)
-            {
-                <PackSection @key="(nameof(PackSection), book.Card.EntryId)" Book="book" Host="this" />
-            }
-            <FoundInsideSection @key="(nameof(FoundInsideSection), book.Card.EntryId)" Book="book" Host="this" />
-            <CollectionsSection @key="(nameof(CollectionsSection), book.Card.EntryId)" Book="book" Host="this" />
-
+            @* What a game master asks first: what it's for and who, what's in it and what goes with it, then where it came
+               from, then its file and how it was read, folded until opened. Cataloged wrong… opens every group of fields.
+               Blazor needs sibling keys to differ whatever the component, so each section pairs its own name with the
+               book: another book starts every section afresh. *@
             @if (_correcting)
             {
                 <div class="bt-banner" aria-label="Correcting this book">
@@ -193,39 +186,78 @@
                 </div>
             }
 
-            <FieldsSection @key="(nameof(FieldsSection), book.Card.EntryId)" Book="book" Host="this" View="_fields" Correcting="_correcting" Decided="() => _decided = true"
-                           Offered="o => _offer = o" />
+            <FieldsSection @key="(DetailSections.Glance, book.Card.EntryId)" Group="@DetailSections.Glance" Heading="@DetailSections.GlanceHeading"
+                           Book="book" Host="this" View="_fields" Correcting="_correcting" Decided="() => _decided = true" Offered="o => _offer = o" />
 
-            <DetailSection Section="@DetailSections.File" Heading="@book.FactsHeading">
-                <dl class="bt-facts">
-                    @foreach (var fact in book.Facts)
-                    {
-                        <dt>@fact.Label</dt>
-                        <dd>@fact.Value</dd>
-                    }
-                </dl>
-            </DetailSection>
-
-            @if (book.ShowsLocations)
+            <AdventuresSection @key="(nameof(AdventuresSection), book.Card.EntryId)" Book="book" Host="this" Note="_arrived" />
+            <GoesWithSection @key="(nameof(GoesWithSection), book.Card.EntryId)" Book="book" Host="this" />
+            @if (book.PackFiles.Count > 0)
             {
-                <WhereSection @key="(nameof(WhereSection), book.Card.EntryId)" Book="book" Host="this" />
+                <PackSection @key="(nameof(PackSection), book.Card.EntryId)" Book="book" Host="this" />
             }
+
+            @if (book.Chapters.Count > 0 || _correcting || book.Fields.Any(f => f.Section == DetailSections.Inside && (f.Known || _fields.All)))
+            {
+                <FieldsSection @key="(DetailSections.Inside, book.Card.EntryId)" Group="@DetailSections.Inside" Heading="@DetailSections.InsideHeading"
+                               Book="book" Host="this" View="_fields" Correcting="_correcting" Decided="() => _decided = true" Offered="o => _offer = o">
+                    <Actions>
+                        @if (book.Chapters.Count > 0)
+                        {
+                            <button class="bt-link bt-iconlink" title="Forget what the AI found in this book and read it again" aria-label="Scan this book again"
+                                    @onclick="ScanAgainAsync"><Icon Name="RotateCcw" Size="13" />Scan again</button>
+                        }
+                    </Actions>
+                    <ChildContent>
+                        <ChaptersList @key="(nameof(ChaptersList), book.Card.EntryId)" Book="book" />
+                    </ChildContent>
+                </FieldsSection>
+            }
+            @if (_scanned is { } scanned)
+            {
+                <div class="bt-small bt-foundnote" role="status">@scanned</div>
+            }
+
+            <CollectionsSection @key="(nameof(CollectionsSection), book.Card.EntryId)" Book="book" Host="this" />
+
+            <FieldsSection @key="(DetailSections.Publication, book.Card.EntryId)" Group="@DetailSections.Publication" Heading="@DetailSections.PublicationHeading"
+                           Book="book" Host="this" View="_fields" Correcting="_correcting" Decided="() => _decided = true" Offered="o => _offer = o">
+                <RpgGeekRecord @key="(nameof(RpgGeekRecord), book.Card.EntryId)" Book="book" Host="this" Decided="() => _decided = true" />
+            </FieldsSection>
+
+            <FileSection @key="(nameof(FileSection), book.Card.EntryId)" Book="book" Host="this" />
 
             @if (book.Copies.Count > 0)
             {
                 <CopiesSection Book="book" Host="this" />
             }
 
-            @if (book.Stages.Count > 0)
+            @if (book.Stages.Count > 0 || book.Lookup is { Count: > 0 })
             {
-                <DetailSection Section="@DetailSections.Indexing" Heading="INDEXING">
-                    <dl class="bt-facts">
-                        @foreach (var stage in book.Stages)
-                        {
-                            <dt>@stage.Label</dt>
-                            <dd>@stage.Value</dd>
-                        }
-                    </dl>
+                <DetailSection Section="@DetailSections.Read" Heading="@DetailSections.ReadHeading">
+                    @if (book.Stages.Count > 0)
+                    {
+                        <dl class="bt-facts" aria-label="Indexing">
+                            @foreach (var stage in book.Stages)
+                            {
+                                <dt>@stage.Label</dt>
+                                <dd>@stage.Value</dd>
+                            }
+                        </dl>
+                    }
+                    @if (book.Lookup is { Count: > 0 } lookup)
+                    {
+                        @* What the last online lookup searched for and what came of it. *@
+                        <div class="bt-lookup" aria-label="@book.LookupHeading">
+                            <strong>@book.LookupHeading</strong>
+                            <dl>
+                                @foreach (var line in lookup)
+                                {
+                                    <dt>@line.Label</dt>
+                                    <dd>@line.Value</dd>
+                                }
+                            </dl>
+                        </div>
+                    }
                 </DetailSection>
             }
         }
@@ -291,6 +323,7 @@
         _notesTab = false;
         _notes = null;
         _offer = null;
+        _scanned = null;
         // The file an adventure was removed from shows what was done, with its Undo.
         _arrived = _carried;
         _carried = null;
@@ -528,6 +561,17 @@
         await Done.InvokeAsync(new ActionResult("Changing…"));
         var result = await TryAsync(() => LibraryApi.RunHeldAsync(offer.Token));
         if (result is not null) await Done.InvokeAsync(result);
+    }
+
+    /// <summary>What Scan again said it would do, until another book's details open.</summary>
+    string? _scanned;
+
+    /// <summary>Forgets what the AI found inside the book and reads it again; the book's own details are left alone.</summary>
+    async Task ScanAgainAsync()
+    {
+        if (await TryAsync(() => BooksApi.ScanAgainAsync(EntryId)) is not { } result) return;
+        if (result.Details is { } details) _details = details;
+        _scanned = result.Message;
     }
 
     /// <summary>The library shows what Add to binder did, with its Undo.</summary>
