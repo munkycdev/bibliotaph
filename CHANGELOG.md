@@ -4,8 +4,8 @@
 
 - **The tour and the keyboard shortcuts know Organize mode.** The Library step of the first-run tour mentions
   **Organize**, and the web tour no longer offers Box, which was taken out in 1.6. **Ctrl+/** lists Organize mode's
-  keys, **Ctrl+Z** and the Menu key that opens a book's details in it included. An empty collection says to choose
-  **Organize** rather than Select. On Windows and the web.
+  keys, **Ctrl+Z** included. An empty collection says to choose **Organize** rather than Select. On Windows and the
+  web.
 
 ## 1.6 · 9 November 2026
 
