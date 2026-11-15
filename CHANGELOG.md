@@ -6,6 +6,9 @@
   the top bar down over the page instead of jumping back to the top. Type, and the results show from their start;
   press Esc or click away with the box empty, and you're left where you were. The Windows app's top bar already stays
   in place.
+- **Right-click opens the book's menu again in Organize mode**, as it does everywhere else, rather than going
+  straight to its details; **Details** is in the menu. On a touch screen, holding a finger on a card and lifting it
+  without moving opens the menu too. On Windows and the web.
 
 ## 1.6 · 9 November 2026
 

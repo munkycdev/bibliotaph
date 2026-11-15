@@ -36,7 +36,6 @@ public partial class LibraryView
         {
             list.PreviewMouseLeftButtonDown += List_PreviewMouseLeftButtonDown;
             list.PreviewMouseMove += List_PreviewMouseMove;
-            list.ContextMenuOpening += List_ContextMenuOpening;
             list.DragOver += List_DragOver;
             list.DragLeave += List_DragLeave;
             list.Drop += List_Drop;
@@ -77,17 +76,6 @@ public partial class LibraryView
         for (var current = source as DependencyObject; current is not null and not ListBoxItem; current = VisualTreeHelper.GetParent(current))
             if (current is ButtonBase) return true;
         return false;
-    }
-
-    /// <summary>
-    /// In Organize mode a click ticks a card, so right-click (or the Menu key, Shift+F10, or a press and hold) opens
-    /// its details instead of the book's menu, whose one-book actions would sit beside the bar's ticked-book ones.
-    /// </summary>
-    void List_ContextMenuOpening(object sender, ContextMenuEventArgs e)
-    {
-        if (_model is not { Selection.Books.IsActive: true } model || CardAt((ItemsControl)sender, e.OriginalSource) is not { } card) return;
-        e.Handled = true;
-        model.OpenDetailsCommand.Execute(card);
     }
 
     void List_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
