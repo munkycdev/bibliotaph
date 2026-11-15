@@ -63,7 +63,7 @@ public sealed partial class InspectorViewModel
 
     /// <summary>What the book's last online lookup searched for and what came of it, a labelled line each.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasLookupFacts))]
+    [NotifyPropertyChangedFor(nameof(HasLookupFacts), nameof(ShowsRead))]
     public partial IReadOnlyList<LookupFact> LookupFacts { get; private set; } = [];
 
     public bool HasLookupFacts => LookupFacts.Count > 0;

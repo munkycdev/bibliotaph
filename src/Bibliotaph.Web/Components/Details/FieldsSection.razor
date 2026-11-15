@@ -1,19 +1,21 @@
-@* A book's fields, each editable, with where its values came from and the other suggestions. While correcting, the
-   guesses are marked and the section can't fold. *@
+@* One group of a book's fields (at a glance, what's inside, or publication), each editable, with where its values came
+   from and the other suggestions, then what the group adds below them. While correcting, the guesses are marked and the
+   section can't fold. *@
 @implements IDisposable
 @using Bibliotaph.Core
 @inject BooksClient BooksApi
 
-<DetailSection Section="@DetailSections.Details" Heading="DETAILS" ForceOpen="Correcting">
+<DetailSection Section="@Group" Heading="@Heading" ForceOpen="Correcting">
     <Actions>
-        @if (Book.Fields.Any(f => !f.Known && !f.Primary))
+        @Actions
+        @if (Fields.Any(f => !f.Known && !f.Primary))
         {
             <button class="bt-link" @onclick="() => View.All = !View.All">@(View.All ? "Fewer fields" : "More fields")</button>
         }
     </Actions>
     <ChildContent>
         <div class="bt-fields">
-            @foreach (var field in Book.Fields.Where(f => View.All || f.Known || f.Primary))
+            @foreach (var field in Fields.Where(f => View.All || f.Known || f.Primary))
             {
                 var editing = _editing == field.Key;
                 <div class="bt-fieldrow @(_busy == field.Key ? "busy" : "")" @key="field.Key" aria-label="@field.Label">
@@ -118,59 +120,8 @@
                     }
                 </div>
             }
-            @if (Book.RpgGeek is not null || Book.RpgGeekOffer is not null)
-            {
-                @* The book's record on RPGGeek, and the box that gives it one by its page's address. *@
-                <div class="bt-rpggeek" aria-label="RPGGeek">
-                    @if (Book.RpgGeek is { } record)
-                    {
-                        <div class="bt-evidenceline">
-                            <a class="bt-link bt-storelink" href="@record.Url" target="_blank" rel="noopener noreferrer" title="@record.Url">
-                                <Icon Name="SquareArrowOutUpRight" Size="12" />@record.Text
-                            </a>
-                            <button class="bt-link" aria-label="The RPGGeek record is not this book" disabled="@_linkBusy" @onclick="NotOnRpgGeekAsync">Not this book</button>
-                        </div>
-                    }
-                    @if (Book.RpgGeekOffer is { } offer && !_linking)
-                    {
-                        <button class="bt-link" @onclick="StartLink"><Icon Name="Search" Size="12" />@offer</button>
-                    }
-                    @if (_linking)
-                    {
-                        <div class="bt-fieldedit">
-                            <input class="bt-input" aria-label="RPGGeek page address" placeholder="https://rpggeek.com/rpgitem/…" value="@_link" disabled="@_linkBusy"
-                                   @oninput="e => _link = e.Value as string ?? string.Empty" @onkeydown="LinkKeyDown" @onkeydown:stopPropagation="true" @ref="_linkBox" />
-                            <div class="bt-small bt-edithint">@Book.RpgGeekHint</div>
-                            @if (_linkProblem is { } problem) { <div class="bt-problem" role="alert">@problem</div> }
-                            <div class="bt-boxactions">
-                                <button class="bt-button primary" disabled="@_linkBusy" @onclick="LinkAsync"><Icon Name="Search" Size="14" />@(_linkBusy ? "Looking it up…" : "Look up")</button>
-                                <button class="bt-button" disabled="@_linkBusy" @onclick="CancelLink">Cancel</button>
-                            </div>
-                        </div>
-                    }
-                </div>
-            }
-            @if (Book.Lookup is { Count: > 0 } lookup)
-            {
-                @* What the last online lookup searched for and what came of it. *@
-                <div class="bt-lookup" aria-label="@Book.LookupHeading">
-                    <strong>@Book.LookupHeading</strong>
-                    <dl>
-                        @foreach (var line in lookup)
-                        {
-                            <dt>@line.Label</dt>
-                            <dd>@line.Value</dd>
-                        }
-                    </dl>
-                </div>
-            }
-            @if (Book.FromRpgGeek)
-            {
-                @* BoardGameGeek's terms ask for its logo where its data is shown. *@
-                <a class="bt-poweredby bt-detailsbgg" href="https://boardgamegeek.com" target="_blank" rel="noopener"
-                   title="Details looked up on RPGGeek come from BoardGameGeek" aria-label="Powered by BGG"></a>
-            }
         </div>
+        @ChildContent
     </ChildContent>
 </DetailSection>
 
@@ -178,6 +129,19 @@
     [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
     [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
     [Parameter, EditorRequired] public FieldsView View { get; set; } = default!;
+
+    /// <summary>The section in <see cref="DetailSections"/> whose fields these are.</summary>
+    [Parameter, EditorRequired] public string Group { get; set; } = "";
+
+    [Parameter, EditorRequired] public string Heading { get; set; } = "";
+
+    /// <summary>The section's own links, beside More fields.</summary>
+    [Parameter] public RenderFragment? Actions { get; set; }
+
+    /// <summary>What the section shows under its fields.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    IEnumerable<DetailField> Fields => Book.Fields.Where(f => f.Section == Group);
 
     /// <summary>Cataloged wrong… is on: the guesses are marked.</summary>
     [Parameter] public bool Correcting { get; set; }
@@ -197,101 +161,11 @@
     bool _focusEditor;
     CancellationTokenSource? _resolving;
 
-    // Look up from an RPGGeek link.
-    bool _linking;
-    bool _linkBusy;
-    bool _focusLink;
-    string _link = "";
-    string? _linkProblem;
-    ElementReference _linkBox;
-    long _linkedBook;
-
-    protected override void OnParametersSet()
-    {
-        // Another book's details: the box and what was typed in it were the last book's.
-        if (_linkedBook == Host.EntryId) return;
-        _linkedBook = Host.EntryId;
-        CancelLink();
-    }
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_focusLink)
-        {
-            _focusLink = false;
-            await _linkBox.FocusAsync();
-        }
         if (!_focusEditor) return;
         _focusEditor = false;
         await _editor.FocusAsync();
-    }
-
-    void StartLink()
-    {
-        _linking = true;
-        _link = "";
-        _linkProblem = null;
-        _focusLink = true;
-    }
-
-    void CancelLink()
-    {
-        _linking = false;
-        _link = "";
-        _linkProblem = null;
-    }
-
-    async Task LinkKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape") CancelLink();
-        else if (e.Key == "Enter") await LinkAsync();
-    }
-
-    /// <summary>Reads the item whose page was pasted: RPGGeek is asked one request at a time, so it can take some seconds.</summary>
-    async Task LinkAsync()
-    {
-        if (_linkBusy) return;
-        _linkBusy = true;
-        _linkProblem = null;
-        try
-        {
-            var entryId = Host.EntryId;
-            if (await Host.TryAsync(() => BooksApi.LinkRpgGeekAsync(entryId, _link)) is not { } result || entryId != Host.EntryId) return;
-            if (result.Problem is { } problem)
-            {
-                _linkProblem = problem;
-                return;
-            }
-            CancelLink();
-            await ShowAsync(result);
-        }
-        finally
-        {
-            _linkBusy = false;
-        }
-    }
-
-    async Task NotOnRpgGeekAsync()
-    {
-        if (_linkBusy) return;
-        _linkBusy = true;
-        try
-        {
-            var entryId = Host.EntryId;
-            if (await Host.TryAsync(() => BooksApi.UnlinkRpgGeekAsync(entryId)) is { } result && entryId == Host.EntryId) await ShowAsync(result);
-        }
-        finally
-        {
-            _linkBusy = false;
-        }
-    }
-
-    /// <summary>The book's fields as its record left them; its card may read differently now too.</summary>
-    async Task ShowAsync(EditResult result)
-    {
-        await Decided.InvokeAsync();
-        if (result.Details is { } details) Host.Replace(details);
-        await Host.ChangedAsync();
     }
 
     void StartEdit(DetailField field)

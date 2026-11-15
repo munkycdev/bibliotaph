@@ -55,12 +55,13 @@ public sealed record DetailChapter(string Title, string Pages, IReadOnlyList<str
 /// <summary>
 /// One field under Details: its values as they read, where each came from and the other suggestions, and how it is
 /// edited. <see cref="Primary"/> fields show even when nothing is known; the rest wait behind More fields. <see
-/// cref="Choices"/> are a term field's vocabulary, to pick from.
+/// cref="Choices"/> are a term field's vocabulary, to pick from. <see cref="Section"/> is the <c>DetailSections</c>
+/// section it shows in (at a glance, what's inside, or publication).
 /// </summary>
 public sealed record DetailField(
     string Key, string Label, bool Primary, string Display, bool Known, bool Suggested, bool NeedsReview, string EvidenceLabel, bool CanReset,
     IReadOnlyList<DetailValue> Values, IReadOnlyList<DetailValue> Alternatives, bool Multiple, string EditHint, string ChoicesLabel,
-    IReadOnlyList<string> Choices);
+    IReadOnlyList<string> Choices, string Section = "");
 
 /// <summary>A value with its sources: "From the folder name “D&amp;D 5e”", "You set this". <see cref="Url"/> is a store's link.</summary>
 public sealed record DetailValue(string Text, string Value, string Normalized, bool Confirmed, string? Url, string? LinkText, IReadOnlyList<string> Sources);

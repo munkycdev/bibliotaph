@@ -21,17 +21,17 @@ public sealed partial class DetailsPaneViewModel(SettingsStore store, ILogger<De
 
     [ObservableProperty] public partial double Width { get; set; } = NarrowestWidth;
 
+    [ObservableProperty] public partial bool Glance { get; set; } = true;
     [ObservableProperty] public partial bool Adventures { get; set; } = true;
     [ObservableProperty] public partial bool InFile { get; set; } = true;
     [ObservableProperty] public partial bool GoesWith { get; set; } = true;
     [ObservableProperty] public partial bool Pack { get; set; } = true;
-    [ObservableProperty] public partial bool Found { get; set; } = true;
+    [ObservableProperty] public partial bool Inside { get; set; } = true;
     [ObservableProperty] public partial bool Collections { get; set; } = true;
-    [ObservableProperty] public partial bool Details { get; set; } = true;
-    [ObservableProperty] public partial bool AboutFile { get; set; }
-    [ObservableProperty] public partial bool Where { get; set; }
+    [ObservableProperty] public partial bool Publication { get; set; }
+    [ObservableProperty] public partial bool File { get; set; }
     [ObservableProperty] public partial bool Copies { get; set; }
-    [ObservableProperty] public partial bool Indexing { get; set; }
+    [ObservableProperty] public partial bool Read { get; set; }
 
     /// <summary>Reads how the pane was left, the first time any book's details open.</summary>
     public async Task LoadAsync()
@@ -49,20 +49,20 @@ public sealed partial class DetailsPaneViewModel(SettingsStore store, ILogger<De
             log.LogWarning(ex, "Reading how the details pane was left failed");
             return;
         }
-        var shut = DetailSections.Read(folded);
+        var shut = DetailSections.ReadFolded(folded);
         _loading = true;
         if (double.TryParse(width, NumberStyles.Float, CultureInfo.InvariantCulture, out var wide)) Width = Math.Clamp(wide, NarrowestWidth, WidestWidth);
+        Glance = !shut.Contains(DetailSections.Glance);
         Adventures = !shut.Contains(DetailSections.Adventures);
         InFile = !shut.Contains(DetailSections.InFile);
         GoesWith = !shut.Contains(DetailSections.GoesWith);
         Pack = !shut.Contains(DetailSections.Pack);
-        Found = !shut.Contains(DetailSections.Found);
+        Inside = !shut.Contains(DetailSections.Inside);
         Collections = !shut.Contains(DetailSections.Collections);
-        Details = !shut.Contains(DetailSections.Details);
-        AboutFile = !shut.Contains(DetailSections.File);
-        Where = !shut.Contains(DetailSections.Where);
+        Publication = !shut.Contains(DetailSections.Publication);
+        File = !shut.Contains(DetailSections.File);
         Copies = !shut.Contains(DetailSections.Copies);
-        Indexing = !shut.Contains(DetailSections.Indexing);
+        Read = !shut.Contains(DetailSections.Read);
         _loading = false;
     }
 
@@ -71,17 +71,17 @@ public sealed partial class DetailsPaneViewModel(SettingsStore store, ILogger<De
 
     IEnumerable<string> Folded()
     {
+        if (!Glance) yield return DetailSections.Glance;
         if (!Adventures) yield return DetailSections.Adventures;
         if (!InFile) yield return DetailSections.InFile;
         if (!GoesWith) yield return DetailSections.GoesWith;
         if (!Pack) yield return DetailSections.Pack;
-        if (!Found) yield return DetailSections.Found;
+        if (!Inside) yield return DetailSections.Inside;
         if (!Collections) yield return DetailSections.Collections;
-        if (!Details) yield return DetailSections.Details;
-        if (!AboutFile) yield return DetailSections.File;
-        if (!Where) yield return DetailSections.Where;
+        if (!Publication) yield return DetailSections.Publication;
+        if (!File) yield return DetailSections.File;
         if (!Copies) yield return DetailSections.Copies;
-        if (!Indexing) yield return DetailSections.Indexing;
+        if (!Read) yield return DetailSections.Read;
     }
 
     // A drag changes the width many times a second, so it's kept once the drag ends.
