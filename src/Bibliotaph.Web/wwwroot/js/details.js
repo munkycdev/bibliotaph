@@ -66,3 +66,37 @@
     }
   };
 })();
+// A book picker's box on a phone or tablet: the on-screen keyboard covers the lower half of the screen, and the browser
+// only scrolls far enough to show the box, so the books it finds open below it, behind the keyboard, and typing seems
+// to do nothing. Once the keyboard is up, the picker is scrolled to the top of what's still visible.
+window.bibliotaphPicker = {
+  attach: function (box) {
+    if (!box || box.dataset.pickerAttached) return;
+    box.dataset.pickerAttached = '1';
+    if (!window.matchMedia || !window.matchMedia('(pointer: coarse)').matches) return;
+    var view = window.visualViewport;
+    var timer = 0;
+
+    function lift() {
+      if (document.activeElement !== box) return;
+      (box.closest('[data-picker]') || box).scrollIntoView({ block: 'start' });
+    }
+
+    // The keyboard slides in after the focus, and the viewport settles over a few frames.
+    function soon() {
+      clearTimeout(timer);
+      timer = setTimeout(lift, 120);
+    }
+
+    box.addEventListener('focus', function () {
+      if (view) view.addEventListener('resize', soon);
+      window.addEventListener('resize', soon);
+      timer = setTimeout(lift, 350);
+    });
+    box.addEventListener('blur', function () {
+      clearTimeout(timer);
+      if (view) view.removeEventListener('resize', soon);
+      window.removeEventListener('resize', soon);
+    });
+  }
+};

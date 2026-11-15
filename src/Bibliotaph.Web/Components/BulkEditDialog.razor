@@ -2,6 +2,7 @@
    what the books have in it, then Review changes, then Apply. Esc goes back from the review, or closes it. *@
 @inject BooksClient BooksApi
 @inject SelectionClient SelectionApi
+@inject IJSRuntime JS
 
 <div class="bt-backdrop fixed bt-dialogback"></div>
 <div class="bt-dialog bt-wide" role="dialog" aria-modal="true" aria-label="@Form.Heading" @onkeydown="KeyDown">
@@ -49,10 +50,10 @@
                     </div>
                     @if (_picking)
                     {
-                        <div class="bt-fieldedit">
+                        <div class="bt-fieldedit" data-picker>
                             <div class="bt-pickerhead">
                                 <input class="bt-pickerinput" aria-label="Type part of the book's title" placeholder="Type part of the book's title"
-                                       @bind="BookQuery" @bind:event="oninput" @onkeydown="PickerKeyDown" @onkeydown:stopPropagation="true" />
+                                       @bind="BookQuery" @bind:event="oninput" @onkeydown="PickerKeyDown" @onkeydown:stopPropagation="true" @ref="_bookBox" />
                                 <button class="bt-icon" title="Close" aria-label="Close the book picker" @onclick="ClosePicker"><Icon Name="X" Size="14" /></button>
                             </div>
                             <div class="bt-pickerlist" aria-label="Books to choose from">
@@ -190,6 +191,8 @@
 
     BulkGoesWithEdit? _goesWith;
     bool _picking;
+    bool _attachPicker;
+    ElementReference _bookBox;
     string _bookQuery = "";
     List<BookChoice> _bookChoices = [];
     // Each search moves this on, so an older search's answer, arriving late, is dropped.
@@ -208,6 +211,7 @@
     async Task OpenPickerAsync()
     {
         _picking = true;
+        _attachPicker = true;
         _bookQuery = "";
         await FindBooksAsync("");
     }
@@ -259,6 +263,11 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_attachPicker && _picking)
+        {
+            _attachPicker = false;
+            await PickerScript.AttachAsync(JS, _bookBox);
+        }
         if (_focus is not null)
         {
             _focus = null;

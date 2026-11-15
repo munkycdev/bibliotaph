@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Fixed: choosing the book a map goes with seemed not to search on a phone.** On the web on a phone or tablet, the
+  books found for **Goes with** opened below the box, behind the on-screen keyboard, so typing seemed to do nothing.
+  The picker now moves to the top of the screen while you type, in a map's details and in **Edit metadata**.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1251 (13 November 2026):

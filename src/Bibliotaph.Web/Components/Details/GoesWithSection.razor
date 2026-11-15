@@ -2,6 +2,7 @@
    takes, with Keep, Not from this book and a picker to choose another; or, on a book, the cards that go with it. *@
 @using Bibliotaph.Core
 @inject BooksClient BooksApi
+@inject IJSRuntime JS
 
 @if (Book.GoesWith is { } goes)
 {
@@ -51,10 +52,10 @@
                 }
                 @if (_picking)
                 {
-                    <div class="bt-detailbox" aria-label="Choose a book">
+                    <div class="bt-detailbox" aria-label="Choose a book" data-picker>
                         <div class="bt-pickerhead">
                             <input class="bt-pickerinput" aria-label="Type part of the book's title" placeholder="Type part of the book's title" @bind="Query" @bind:event="oninput"
-                                   @onkeydown="PickerKeyDown" />
+                                   @onkeydown="PickerKeyDown" @ref="_box" />
                             <button class="bt-icon" title="Close (Esc)" aria-label="Close the book picker" @onclick="ClosePicker"><Icon Name="X" Size="14" /></button>
                         </div>
                         <div class="bt-pickerlist" aria-label="Books to choose from">
@@ -99,6 +100,8 @@
 
     ActionResult? _note;
     bool _picking;
+    bool _attach;
+    ElementReference _box;
     string _query = "";
     List<BookChoice> _choices = [];
     // Each search moves this on, so an older search's answer, arriving late, is dropped.
@@ -118,8 +121,16 @@
     {
         _note = null;
         _picking = true;
+        _attach = true;
         _query = "";
         await FindAsync("");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_attach || !_picking) return;
+        _attach = false;
+        await PickerScript.AttachAsync(JS, _box);
     }
 
     void ClosePicker()
