@@ -1365,12 +1365,12 @@
                         <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="8,0,0,0"
                                 ToolTip="Close" AutomationProperties.Name="Close the book picker" Command="{Binding CancelPickingBookCommand}" />
                         <TextBox x:Name="SourceBookQuery" Style="{StaticResource Bt.TextBox}" Text="{Binding BookQuery, UpdateSourceTrigger=PropertyChanged}"
-                                 AutomationProperties.Name="Type part of the book's title" ToolTip="Type part of the book's title" />
+                                 AutomationProperties.Name="Type part of the book's title" ToolTip="Type part of the book's title" c:Ui.FocusWhenVisible="True" />
                       </DockPanel>
                       <ItemsControl x:Name="SourceBookChoices" ItemsSource="{Binding BookChoices}" Focusable="False" Margin="0,8,0,0" AutomationProperties.Name="Books to choose from">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate DataType="{x:Type p:SourceBookChoice}">
-                            <Button Style="{StaticResource Bt.Link}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,0,0,6"
+                            <Button Style="{StaticResource Bt.PickerChoice}"
                                     AutomationProperties.Name="{Binding Title, StringFormat='Goes with {0}'}"
                                     Command="{Binding DataContext.PickSourceBookCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
                               <StackPanel>

@@ -401,6 +401,40 @@
     </Setter>
   </Style>
 
+  <!-- .bt-pickerchoice: a book in a picker's list, its title over its details, filling the row. Bt.Link draws only text,
+       so a choice that holds more than a string needs a template that presents its content. -->
+  <Style x:Key="Bt.PickerChoice" TargetType="Button">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+    <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Padding" Value="8,6" />
+    <Setter Property="Margin" Value="0,0,0,2" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
+              <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.5" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <Style x:Key="Bt.ProgressBar" TargetType="ProgressBar">
     <Setter Property="Height" Value="6" />
     <Setter Property="Minimum" Value="0" />

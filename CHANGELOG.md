@@ -12,6 +12,11 @@
   - The bar shows **Loose maps and handouts** or **Suggested links** (with **Keep these**), and the **Books** panel
     lists the books near the card you picked up, those you dropped on lately, and any you find by title.
   - On Windows and the web, where a finger held on a card picks it up on a phone or tablet.
+- **Fixed: the Goes with book picker showed no books on Windows.** Choosing the book a map goes with, in its details or
+  in **Edit metadata**, found the books but drew each one blank, so typing seemed to do nothing. Each book now shows its
+  title and details, highlights under the mouse, and the box takes the keyboard as the picker opens. On the web on a
+  phone or tablet, the books it finds no longer hide behind the on-screen keyboard: the picker moves to the top of the
+  screen while you type.
 - **A change in Select mode unticks the books.** After **Edit metadata**, **Add to collection**, **Add to binder** or
   any other change from the Select bar, the books you ticked are unticked so the next change starts fresh, and you stay
   in Select mode. **Undo** still puts the change back. **Export these** changes nothing, so it leaves them ticked. On

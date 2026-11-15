@@ -281,7 +281,7 @@
                   <ItemsControl x:Name="BulkBookChoices" ItemsSource="{Binding Choices}" Focusable="False" Margin="0,8,0,0" AutomationProperties.Name="Books to choose from">
                     <ItemsControl.ItemTemplate>
                       <DataTemplate DataType="{x:Type p:SourceBookChoice}">
-                        <Button Style="{StaticResource Bt.Link}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="0,0,0,6"
+                        <Button Style="{StaticResource Bt.PickerChoice}"
                                 AutomationProperties.Name="{Binding Title, StringFormat='Goes with {0}'}"
                                 Command="{Binding DataContext.PickCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}">
                           <StackPanel>
