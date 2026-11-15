@@ -450,7 +450,7 @@ else if (_list)
             {
                 <div class="bt-foldergroup" role="heading" aria-level="3"><Icon Name="Folder" Size="14" />@heading</div>
             }
-            <div class="bt-listitem @DropClass(book)" @key="book.Id" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_select.On)"
+            <div class="bt-listitem @DropClass(book)" @key="book.Id" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="true"
                  data-organize-card="@(_select.On ? book.Id : null)" data-drop="@(_select.On ? $"card:{book.Id}" : null)">
             <button class="bt-listrow @(_select.On ? "selecting" : "")" title="@book.Title" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" data-popout="@PopOutUrl(book)"
                     @onclick="e => CardClickAsync(book, e)" @ondblclick="() => OpenBook(book)">
@@ -490,7 +490,7 @@ else
             {
                 <div class="bt-foldergroup" role="heading" aria-level="3"><Icon Name="Folder" Size="14" />@heading</div>
             }
-            <div class="bt-book @DropClass(book)" @key="book.Id" title="@book.Title" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="@(!_select.On)"
+            <div class="bt-book @DropClass(book)" @key="book.Id" title="@book.Title" @oncontextmenu="() => OpenCardMenu(book)" @oncontextmenu:preventDefault="true"
                  data-organize-card="@(_select.On ? book.Id : null)" data-drop="@(_select.On ? $"card:{book.Id}" : null)">
                 <button class="bt-bookbutton @(_select.On ? "selecting" : "")" aria-label="@CardLabel(book)" aria-pressed="@Pressed(book)" data-popout="@PopOutUrl(book)" @onclick="e => CardClickAsync(book, e)"
                         @ondblclick="() => OpenBook(book)">
@@ -936,10 +936,14 @@ else
         _correct = false;
     }
 
-    /// <summary>A card's right-click menu; Select mode keeps the browser's own.</summary>
+    /// <summary>
+    /// A card's right-click menu. In Organize mode, where a click ticks the card, right-click opens its details
+    /// instead, as the bar's actions already cover the ticked books.
+    /// </summary>
     void OpenCardMenu(BookCard book)
     {
-        if (!_select.On) _cardMenu = book;
+        if (_select.On) ShowDetails(book);
+        else _cardMenu = book;
     }
 
     /// <summary>Cataloged wrong… from a card's menu: its details, with every guess marked.</summary>
@@ -1283,6 +1287,16 @@ else
         _dropMenu = null;
         StateHasChanged();
         return OrganizeRules.Dragging(_dragged.Count);
+    }
+
+    /// <summary>A finger held on a card and lifted without moving, touch's right-click: the card's details.</summary>
+    [JSInvokable]
+    public void Held(string cardId)
+    {
+        _dragged = [];
+        _dragTarget = null;
+        if (_select.On && CardOf(cardId) is { } card) ShowDetails(card);
+        StateHasChanged();
     }
 
     /// <summary>What dropping the dragged cards on <paramref name="target"/> would do, for the words beside the pointer.</summary>

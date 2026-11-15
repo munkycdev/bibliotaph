@@ -145,6 +145,7 @@ window.bibliotaphOrganize = (function () {
       return;
     }
     e.preventDefault();
+    if (moved > MOVE * 2) drag.far = true;
     place(e.clientX, e.clientY);
     over(e.clientX, e.clientY);
   }, true);
@@ -156,6 +157,8 @@ window.bibliotaphOrganize = (function () {
     if (!drag) return;
     clearTimeout(drag.timer);
     if (!drag.started) { drag = null; return; }
+    // A finger held still and lifted is touch's right-click: the card's details, not a drop on itself.
+    var held = drag.touch && !drag.far ? drag.id : null;
     var target = targetAt(e.clientX, e.clientY);
     var key = target ? target.getAttribute('data-drop') : '';
     var name = target ? target.getAttribute('data-drop-name') || '' : '';
@@ -164,7 +167,8 @@ window.bibliotaphOrganize = (function () {
     drag = null;
     swallowClick = true;
     setTimeout(function () { swallowClick = false; }, 0);
-    page.invokeMethodAsync('Drop', key, name, e.clientX, e.clientY);
+    if (held) page.invokeMethodAsync('Held', held);
+    else page.invokeMethodAsync('Drop', key, name, e.clientX, e.clientY);
   }, true);
 
   document.addEventListener('pointercancel', cancel, true);
@@ -175,8 +179,9 @@ window.bibliotaphOrganize = (function () {
   // A cover's image would otherwise be dragged as an image, which ends the pointer's events.
   document.addEventListener('dragstart', function (e) { if (page && cardAt(e.target)) e.preventDefault(); }, true);
 
-  // A held finger doesn't open the browser's own menu, nor a long press the link's.
-  document.addEventListener('contextmenu', function (e) { if (drag && drag.touch) e.preventDefault(); }, true);
+  // A held finger doesn't open the browser's own menu, nor a long press the link's, nor the page's right-click,
+  // which lifting the finger in place does.
+  document.addEventListener('contextmenu', function (e) { if (drag && drag.touch) { e.preventDefault(); e.stopPropagation(); } }, true);
 
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && drag && drag.started) { e.stopPropagation(); cancel(); } }, true);
 
