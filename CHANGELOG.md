@@ -9,6 +9,9 @@
   **Organize**, and the web tour no longer offers Box, which was taken out in 1.6. **Ctrl+/** lists Organize mode's
   keys, **Ctrl+Z** included. An empty collection says to choose **Organize** rather than Select. On Windows and the
   web.
+- **Fixed: taking the README's screenshots synced the demo library into your web library.** A screenshot or
+  measurement run, even with a data folder of its own, used the PC's connection to bibliotaph.online and synced as that
+  PC. It now never connects.
 
 ## 1.6 · 9 November 2026
 
