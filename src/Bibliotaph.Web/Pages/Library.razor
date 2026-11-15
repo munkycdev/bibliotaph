@@ -307,67 +307,68 @@
         {
             <div class="bt-small bt-viewnote">@viewNote</div>
         }
-        @if (_select.On)
-        {
-            @* Select mode: how many are ticked, and what can be done to them all. *@
-            <div class="bt-selectbar" role="toolbar" aria-label="Selection">
-                <span class="bt-selectsummary" role="status">@(_select.Info?.Summary ?? "")</span>
-                <button class="bt-button primary" title="Change fields on every selected book at once" disabled="@(_select.Ticked.Count == 0 || _working)"
-                        @onclick="EditSelectedAsync"><Icon Name="Pencil" />Edit metadata</button>
-                <div class="bt-menuanchor">
-                    <button class="bt-button" title="Add every selected book to a collection" aria-haspopup="menu" aria-expanded="@(_selectionMenu is not null)"
-                            disabled="@(_select.Ticked.Count == 0)" @onclick="ToggleCollectionMenuAsync"><Icon Name="FolderPlus" />Add to collection</button>
-                    @if (_selectionMenu is { } menu)
-                    {
-                        <div class="bt-backdrop fixed bt-menuback" @onclick="() => _selectionMenu = null"></div>
-                        <div class="bt-menu bt-menuleft" role="menu" aria-label="Add to collection">
-                            @foreach (var item in menu)
-                            {
-                                <button class="bt-menuitem" role="menuitem" title="@item.Path" @onclick="() => AddSelectedToCollectionAsync(item)">@item.Label</button>
-                            }
-                        </div>
-                    }
-                </div>
-                <AddToBinder What="@(_select.Info?.Books ?? "")" Add="() => new BinderAdd([.. _select.Ticked])" Added="AfterSelectionChangeAsync" Done="ShowDone" Label="Add to binder" MenuClass="bt-menuleft"
-                             Title="Add every selected book to a binder" Disabled="@(_select.Ticked.Count == 0)" />
-                @if (_select.Info is { CanJoin: true })
-                {
-                    <button class="bt-button" title="Join the selected cards as one book: copies, or versions of it" aria-label="Join the selected cards as one book"
-                            disabled="@_working" @onclick="JoinSelectedAsync"><Icon Name="Copy" />Same book</button>
-                }
-                @if (_select.Info is { CanPack: true })
-                {
-                    <button class="bt-button" title="Put the selected images and packs into one pack" aria-label="Put the selected images and packs into one pack"
-                            disabled="@_working" @onclick="PackSelectedAsync"><Icon Name="LayoutGrid" />Pack together</button>
-                }
-                @if (_select.Info is { CanRemoveAdventures: true })
-                {
-                    <button class="bt-button" title="Take away the selected adventures' cards. Their pages stay in their files." aria-label="Remove the selected adventures"
-                            disabled="@_working" @onclick="RemoveSelectedAdventuresAsync"><Icon Name="Trash2" />Remove adventures</button>
-                }
-                @if (_query.Collection is not null)
-                {
-                    <button class="bt-button" title="Take the selected books out of this collection. They stay in your library."
-                            disabled="@(_select.Ticked.Count == 0 || _working)" @onclick="RemoveSelectedFromCollectionAsync">Remove from collection</button>
-                }
-                <button class="bt-button" title="Save the selected books as a CSV file, for a spreadsheet" aria-label="Export the selected books"
-                        disabled="@(_select.Ticked.Count == 0 || _working)" @onclick="ExportSelectedAsync"><Icon Name="SquareArrowOutUpRight" />Export these</button>
-                <button class="bt-button" aria-label="Clear the selection" disabled="@(_select.Ticked.Count == 0)" @onclick="ClearSelectionAsync">Clear</button>
-                <button class="bt-button" title="Leave Select mode (Esc)" aria-label="Done selecting" @onclick="StopSelectingAsync">Done</button>
-            </div>
-        }
-        @if (_results.Empty is null)
-        {
-            <div class="bt-countline">
-                <span><strong>@_results.CountText</strong> @_results.CountLabel</span>
-                @if (_results.Coverage is not null) { <span class="bt-coverage">@_results.Coverage</span> }
-            </div>
-        }
-        @if (_results.Issue is not null)
-        {
-            <div class="bt-issue">@_results.Issue</div>
-        }
     </div>
+    @if (_select.On)
+    {
+        @* Select mode: how many are ticked, and what can be done to them all. It sits outside the block above so it can
+           stay pinned to the top of the window all the way down the listing. *@
+        <div class="bt-selectbar bt-stickybar" role="toolbar" aria-label="Selection">
+            <span class="bt-selectsummary" role="status">@(_select.Info?.Summary ?? "")</span>
+            <button class="bt-button primary" title="Change fields on every selected book at once" disabled="@(_select.Ticked.Count == 0 || _working)"
+                    @onclick="EditSelectedAsync"><Icon Name="Pencil" />Edit metadata</button>
+            <div class="bt-menuanchor">
+                <button class="bt-button" title="Add every selected book to a collection" aria-haspopup="menu" aria-expanded="@(_selectionMenu is not null)"
+                        disabled="@(_select.Ticked.Count == 0)" @onclick="ToggleCollectionMenuAsync"><Icon Name="FolderPlus" />Add to collection</button>
+                @if (_selectionMenu is { } menu)
+                {
+                    <div class="bt-backdrop fixed bt-menuback" @onclick="() => _selectionMenu = null"></div>
+                    <div class="bt-menu bt-menuleft" role="menu" aria-label="Add to collection">
+                        @foreach (var item in menu)
+                        {
+                            <button class="bt-menuitem" role="menuitem" title="@item.Path" @onclick="() => AddSelectedToCollectionAsync(item)">@item.Label</button>
+                        }
+                    </div>
+                }
+            </div>
+            <AddToBinder What="@(_select.Info?.Books ?? "")" Add="() => new BinderAdd([.. _select.Ticked])" Added="AfterSelectionChangeAsync" Done="ShowDone" Label="Add to binder" MenuClass="bt-menuleft"
+                         Title="Add every selected book to a binder" Disabled="@(_select.Ticked.Count == 0)" />
+            @if (_select.Info is { CanJoin: true })
+            {
+                <button class="bt-button" title="Join the selected cards as one book: copies, or versions of it" aria-label="Join the selected cards as one book"
+                        disabled="@_working" @onclick="JoinSelectedAsync"><Icon Name="Copy" />Same book</button>
+            }
+            @if (_select.Info is { CanPack: true })
+            {
+                <button class="bt-button" title="Put the selected images and packs into one pack" aria-label="Put the selected images and packs into one pack"
+                        disabled="@_working" @onclick="PackSelectedAsync"><Icon Name="LayoutGrid" />Pack together</button>
+            }
+            @if (_select.Info is { CanRemoveAdventures: true })
+            {
+                <button class="bt-button" title="Take away the selected adventures' cards. Their pages stay in their files." aria-label="Remove the selected adventures"
+                        disabled="@_working" @onclick="RemoveSelectedAdventuresAsync"><Icon Name="Trash2" />Remove adventures</button>
+            }
+            @if (_query.Collection is not null)
+            {
+                <button class="bt-button" title="Take the selected books out of this collection. They stay in your library."
+                        disabled="@(_select.Ticked.Count == 0 || _working)" @onclick="RemoveSelectedFromCollectionAsync">Remove from collection</button>
+            }
+            <button class="bt-button" title="Save the selected books as a CSV file, for a spreadsheet" aria-label="Export the selected books"
+                    disabled="@(_select.Ticked.Count == 0 || _working)" @onclick="ExportSelectedAsync"><Icon Name="SquareArrowOutUpRight" />Export these</button>
+            <button class="bt-button" aria-label="Clear the selection" disabled="@(_select.Ticked.Count == 0)" @onclick="ClearSelectionAsync">Clear</button>
+            <button class="bt-button" title="Leave Select mode (Esc)" aria-label="Done selecting" @onclick="StopSelectingAsync">Done</button>
+        </div>
+    }
+    @if (_results.Empty is null)
+    {
+        <div class="bt-countline">
+            <span><strong>@_results.CountText</strong> @_results.CountLabel</span>
+            @if (_results.Coverage is not null) { <span class="bt-coverage">@_results.Coverage</span> }
+        </div>
+    }
+    @if (_results.Issue is not null)
+    {
+        <div class="bt-issue">@_results.Issue</div>
+    }
 }
 
 @if (_done is not null)

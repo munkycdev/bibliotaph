@@ -6,6 +6,9 @@
   any other change from the Select bar, the books you ticked are unticked so the next change starts fresh, and you stay
   in Select mode. **Undo** still puts the change back. **Export these** changes nothing, so it leaves them ticked. On
   Windows and the web.
+- **The Select bar stays in view on the web.** It's pinned to the top of the window as you scroll down the Library, so
+  **Edit metadata** and the other actions are in reach from any row, on a phone too. The Windows app already kept it
+  above the books.
 
 ## 1.6 · 9 November 2026
 

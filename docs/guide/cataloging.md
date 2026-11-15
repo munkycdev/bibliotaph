@@ -187,6 +187,9 @@ shown), and click **Edit metadata**. Change any field but the title. A field the
 looking blank, and fields you don't touch stay as they are. **Review changes** shows what will change before it's
 saved, and **Undo** puts it back afterwards.
 
+The Select bar stays in view while you scroll through the books, at the top of the Library on Windows and pinned to
+the top of the window on the web, so its buttons are always in reach.
+
 Once a change is applied, the books are unticked so the next change starts fresh, and you stay in **Select** mode.
 That goes for every change from the Select bar: **Edit metadata**, **Add to collection**, **Add to binder**, **Same
 book**, **Pack together**, **Remove adventures** and **Remove from collection**. **Export these** changes nothing, so

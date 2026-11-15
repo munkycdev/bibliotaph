@@ -666,6 +666,11 @@ button.bt-heart{color:var(--bt-accent)}
    files. */
 .bt-selectbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 14px;margin:0 0 14px;border-radius:6px;background:var(--bt-soft)}
 .bt-selectsummary{font-size:12px;margin-right:8px}
+/* A mode's bar stays pinned to the top of the window while the listing scrolls under it, so its actions are in reach
+   from any row. It sits above the cards' ticks but below the filter boxes' suggestions, drawers and dialogs. */
+.bt-stickybar{position:sticky;top:0;z-index:4;box-shadow:0 6px 14px -10px #00000059}
+/* Keyboard focus moving down the listing stops below the pinned bar rather than behind it. */
+html:has(.bt-stickybar){scroll-padding-top:72px}
 .bt-menu.bt-menuleft{left:0;right:auto}
 .bt-tick{display:flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:5px;background:var(--bt-panel);border:1.5px solid var(--bt-muted);color:var(--bt-accent-text)}
 .bt-tick.on{background:var(--bt-accent);border-color:var(--bt-accent)}
