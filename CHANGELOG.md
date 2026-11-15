@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Right-click opens the book's menu again in Organize mode**, as it does everywhere else, rather than going
+  straight to its details; **Details** is in the menu. On a touch screen, holding a finger on a card and lifting it
+  without moving opens the menu too. On Windows and the web.
 - **The tour and the keyboard shortcuts know Organize mode.** The Library step of the first-run tour mentions
   **Organize**, and the web tour no longer offers Box, which was taken out in 1.6. **Ctrl+/** lists Organize mode's
   keys, **Ctrl+Z** included. An empty collection says to choose **Organize** rather than Select. On Windows and the
