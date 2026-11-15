@@ -10,6 +10,7 @@
     <!-- Native code (Skia, and PDFium in the worker) comes per runtime from the packages, so the server itself is AnyCPU. -->
     <PlatformTarget>AnyCPU</PlatformTarget>
     <UserSecretsId>bibliotaph-server-dev</UserSecretsId>
+    <EnableRequestDelegateGenerator>true</EnableRequestDelegateGenerator>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Bibliotaph.Api.Contracts\Bibliotaph.Api.Contracts.csproj" />

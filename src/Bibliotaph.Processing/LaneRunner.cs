@@ -12,12 +12,19 @@ namespace Bibliotaph.Processing;
 /// can't be done right now (a model endpoint that isn't running) waits a while with the reason before trying again.
 /// <paramref name="changed"/> is called when something a progress display would show has moved, and
 /// <paramref name="fileStageDone"/> when a stage that reads the file is done with it, so it may go back to online-only.
+/// Each lane counts in <paramref name="work"/> while it has a job, or one due within <see cref="Soon"/>.
 /// </summary>
 internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IStageCatalog stages, IndexingOptions options, ILogger log,
-    TimeProvider clock, Action changed, Action fileStageDone) : IDisposable
+    TimeProvider clock, Action changed, Action fileStageDone, WorkInHand work) : IDisposable
 {
+    /// <summary>
+    /// A job due sooner than this is still work in hand, as a whole-book scan waiting a moment for the AI to be quiet;
+    /// one due later waits on something else (another stage, a retry after a failure) and the lane counts as idle.
+    /// </summary>
+    static readonly TimeSpan Soon = TimeSpan.FromSeconds(5);
+
     readonly Lock _lock = new();
-    readonly Dictionary<Lane, Signal> _signals = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new Signal());
+    readonly Dictionary<Lane, Signal> _signals = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new Signal(work));
     readonly Dictionary<Lane, LaneControl> _lanes = Enum.GetValues<Lane>().ToDictionary(l => l, _ => new LaneControl());
 
     /// <summary>
@@ -50,6 +57,9 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IStageCat
     {
         lock (_lock) return _lanes[lane].Paused;
     }
+
+    /// <summary>The signal a lane's loop waits on.</summary>
+    public Signal SignalOf(Lane lane) => _signals[lane];
 
     /// <summary>Wakes a lane to look for work, as when some was queued for it.</summary>
     public void Wake(Lane lane) => _signals[lane].Set();
@@ -167,8 +177,9 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IStageCat
             {
                 var next = await queue.NextReadyAsync(names, stoppingToken);
                 var wait = next is null ? options.IdleRecheck : next.Value - clock.GetUtcNow();
+                var idle = next is null || wait > Soon;
                 wait = wait < TimeSpan.Zero ? TimeSpan.Zero : wait > options.IdleRecheck ? options.IdleRecheck : wait;
-                await _signals[lane].WaitAsync(wait, stoppingToken);
+                await _signals[lane].WaitAsync(wait, stoppingToken, idle);
                 continue;
             }
 
@@ -294,7 +305,6 @@ internal sealed class LaneRunner(JobBoard queue, LibraryStore library, IStageCat
     public void Dispose()
     {
         foreach (var control in _lanes.Values) control.Dispose();
-        foreach (var signal in _signals.Values) signal.Dispose();
     }
 
     sealed class LaneControl : IDisposable

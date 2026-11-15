@@ -13,11 +13,11 @@ namespace Bibliotaph.Processing;
 /// <paramref name="changed"/> is called when something a progress display would show has moved.
 /// </summary>
 internal sealed class HashingLoop(LibraryStore library, JobBoard queue, IndexingFiles files, PackService packs, FolderCollections folderCollections,
-    LaneRunner lanes, IndexingActivityState activity, IndexingOptions options, ILogger log, TimeProvider clock, Action changed) : IDisposable
+    LaneRunner lanes, IndexingActivityState activity, IndexingOptions options, ILogger log, TimeProvider clock, Action changed, WorkInHand work)
 {
-    readonly Signal _hashSignal = new();
+    readonly Signal _hashSignal = new(work);
     /// <summary>Set when a file may be done with: a file stage finished, a batch was hashed, a lane paused, the setting changed.</summary>
-    readonly Signal _returnSignal = new();
+    readonly Signal _returnSignal = new(work);
     readonly Lock _lock = new();
     readonly Dictionary<long, UnreadableFile> _unreadable = [];
 
@@ -36,6 +36,11 @@ internal sealed class HashingLoop(LibraryStore library, JobBoard queue, Indexing
     {
         get { lock (_lock) return [.. _unreadable.Values]; }
     }
+
+    /// <summary>The signals the hasher and the returns to online-only wait on.</summary>
+    public Signal HashSignal => _hashSignal;
+
+    public Signal ReturnSignal => _returnSignal;
 
     /// <summary>Wakes the hasher to look for files to hash.</summary>
     public void Wake() => _hashSignal.Set();
@@ -259,11 +264,5 @@ internal sealed class HashingLoop(LibraryStore library, JobBoard queue, Indexing
             await Task.Delay(options.SpaceSettle, clock, ct);
             _hashSignal.Set();
         }
-    }
-
-    public void Dispose()
-    {
-        _hashSignal.Dispose();
-        _returnSignal.Dispose();
     }
 }
