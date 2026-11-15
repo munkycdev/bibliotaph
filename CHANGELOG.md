@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A newly connected PC no longer pulls your packs apart.** A PC that packed your folders by itself before its
+  files met your packs (a new install, or one that indexed its own copies before it synced) sent those folder packs
+  out as newer than yours, splitting packs you made with **Pack together** back into one pack per folder on the web
+  and every PC. It now takes the packs you already have.
 - **A book's next step no longer stalls after another one finishes.** When a book's scanned pages were read while the
   AI was already looking at it, the AI could wait five minutes before trying again (and matching 30 seconds after its
   name hints). It now goes on at once. On Windows and the web.
