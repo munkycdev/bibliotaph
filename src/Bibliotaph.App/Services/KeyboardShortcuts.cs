@@ -35,12 +35,13 @@ public static class KeyboardShortcuts
         ]),
         new("Library",
         [
-            new("Enter", "Open the details of the book in focus; in Select mode, tick or untick it"),
+            new("Enter", "Open the details of the book in focus; in Organize mode, tick or untick it"),
             new("Shift+Enter, or middle-click", "Open a book in a new window"),
             new("Menu key or Shift+F10", "A book's menu"),
-            new("Ctrl+A", "In Select mode, select every book shown"),
-            new("Shift+click", "In Select mode, select every book from the last one clicked"),
-            new("Esc", "Close a dialog, the bulk editor or the details, then leave Select mode"),
+            new("Ctrl+A", "In Organize mode, tick every book shown"),
+            new("Shift+click", "In Organize mode, tick every book from the last one clicked"),
+            new("Ctrl+Z", "In Organize mode, take back its last change"),
+            new("Esc", "Close a dialog, the bulk editor or the details, then leave Organize mode"),
         ]),
         new("Reader",
         [

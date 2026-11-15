@@ -23,7 +23,7 @@ OneDrive, Google Drive, Dropbox or a WebDAV server such as Nextcloud. It looks a
 keeps your catalog, never a copy of your books. It's invite-only for now. Connect the Windows app to it and your work
 is the same on every PC and browser. See [Bibliotaph on the web](docs/guide/web.md).
 
-This is version 1.5. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
+This is version 1.6. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
 
 <p align="center">
   <img src="docs/images/library.png" width="860" alt="The Library: a grid of book covers with a search box, filters and the sidebar">
@@ -119,7 +119,8 @@ and, if you turn it on, AI. Every suggestion shows where it came from; your own 
 review spots the terms in your lists that are one thing under two names. Your own tags can find their books by the words you give them,
 and with AI on, whole books are read chapter by chapter, so `creature:owlbear` finds the books with an owlbear in one
 of their chapters. Copies of the same book share one card, folders of maps become one image pack (a party's character
-sheets can be packed together too), and a search finds each adventure inside an anthology on its own.
+sheets can be packed together too), maps and handouts go with the book they came with and take its details, and a
+search finds each adventure inside an anthology on its own.
 [Cataloging](docs/guide/cataloging.md)
 
 **Knows the books you own online.** Bring in your D&D Beyond and Demiplane libraries, and the books waiting in your
@@ -128,7 +129,8 @@ yourself in Bibliotaph's own browser, then read a book online in Bibliotaph's re
 into your library. Bibliotaph never stores your passwords. [Online libraries](docs/guide/online-libraries.md)
 
 **Keeps you organized.** Mark favorites, gather books into collections, save searches you use often, and pin any of
-them to the sidebar. Needs review offers to make your folders of books into collections, and suggests books for the
+them to the sidebar. **Organize** mode ticks many books to edit, collect or export together, and lets you drag a map
+onto its book or a book into a pinned collection. Needs review offers to make your folders of books into collections, and suggests books for the
 collections you have. [Collections, favorites and pins](docs/guide/organizing.md)
 
 **Gathers the pages you need.** A binder holds books and pages in your order, with your notes: a focused set of
@@ -152,8 +154,8 @@ The guide is on the web too, a page per chapter, at [bibliotaph.online/guide](ht
 2. [Searching](docs/guide/searching.md): search words, fields, Ask in plain English, questions to your library,
    filters and saved searches.
 3. [Reading](docs/guide/reading.md): the reader, notes, Ask this book and pop-out windows.
-4. [Cataloging](docs/guide/cataloging.md): details, corrections, Needs review, copies, packs, adventures and your
-   tags.
+4. [Cataloging](docs/guide/cataloging.md): details, corrections, editing many books at once, Needs review, copies,
+   packs, adventures, maps and handouts that go with a book, and your tags.
 5. [Collections, favorites and pins](docs/guide/organizing.md)
 6. [Binders](docs/guide/binders.md): gather books and pages and step through them.
 7. [Your library in numbers](docs/guide/summary.md): the Summary page, what you have and where it came from.

@@ -54,13 +54,13 @@ public partial class App : Application
             var restored = await PendingRestore.ApplyIfRequestedAsync(paths);
             if (restored is not null) Log.Information("Restore of {Backup}: {Result}", restored.Request?.Backup, restored.Problem ?? "restored");
             foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
-            _host = BuildHost(paths, pilot, dev, _smokeTest);
+            var everyday = !_smokeTest && !measureSearch && !measureViewer && screenshots is null;
+            _host = BuildHost(paths, pilot, dev, _smokeTest, everyday);
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
 
             var services = _host.Services;
             ProjectMetadataInBackground(services);
-            var everyday = !_smokeTest && !measureSearch && !measureViewer && screenshots is null;
             if (everyday) BackUpWeeklyInBackground(services);
             if (everyday) DownloadEngineInBackground(services);
             if (measureSearch)
@@ -124,7 +124,7 @@ public partial class App : Application
         return at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
     }
 
-    static IHost BuildHost(AppPaths paths, bool pilot, bool dev, bool smokeTest)
+    static IHost BuildHost(AppPaths paths, bool pilot, bool dev, bool smokeTest, bool everyday)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -142,7 +142,7 @@ public partial class App : Application
             .AddIndex(paths)
             .AddPdfWorkers()
             .AddLibrary(smokeTest)
-            .AddWebLibrary(smokeTest)
+            .AddWebLibrary(smokeTest, everyday)
             .AddStorage(smokeTest)
             .AddAi(paths, pilot, smokeTest)
             .AddStages()

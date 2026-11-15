@@ -9,10 +9,12 @@ namespace Bibliotaph.App;
 static partial class Composition
 {
     /// <summary>This PC's connection to bibliotaph.online, and the web library's folders and copies.</summary>
-    public static IServiceCollection AddWebLibrary(this IServiceCollection services, bool smokeTest)
+    public static IServiceCollection AddWebLibrary(this IServiceCollection services, bool smokeTest, bool everyday)
     {
-        // This PC's connection to bibliotaph.online; the smoke test's key stays in memory.
-        if (smokeTest) services.AddSingleton<IWebLibraryKey, MemoryWebLibraryKey>();
+        // This PC's connection to bibliotaph.online. The key in Credential Manager belongs to the Windows account, not
+        // the data root, so a smoke test, measurement or screenshot run keeps its own in memory: otherwise it would sync
+        // its throwaway library into the user's web library as this PC.
+        if (!everyday) services.AddSingleton<IWebLibraryKey, MemoryWebLibraryKey>();
         else services.AddSingleton<IWebLibraryKey, WebLibraryKeyVault>();
         // The smoke test's bibliotaph.online is a stand-in, which it connects to only to show the web library's books. Each
         // request sets how long it waits (WebLibrary.Patience), since a lookup can wait its turn far longer than the rest.

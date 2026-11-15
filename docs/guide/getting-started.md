@@ -120,6 +120,11 @@ In the Library, double-click a cover to open the book. Click it once to see its 
 and the rest of what you can do with it. Click anywhere outside the details, or press **Esc**, to close them.
 Right-click a cover for everything else you can do with it, including **Open** and **Open in new window**.
 
+To work on many books at once, click **Organize** in the Library's toolbar: a click then ticks a book, the bar offers
+**Edit metadata**, **Add to collection** and the rest for the ticked books, and you can drag a map or handout onto the
+book it goes with. See [Edit many books at once](cataloging.md#edit-many-books-at-once) and
+[Drag maps onto their books](cataloging.md#drag-maps-onto-their-books).
+
 **Ctrl+/** lists every keyboard shortcut. **Settings > Preferences** switches between light, dark and Windows'
 own setting, and its **Start on** chooses whether Bibliotaph opens on Home or the Library.
 

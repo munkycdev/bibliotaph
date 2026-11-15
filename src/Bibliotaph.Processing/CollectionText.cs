@@ -21,7 +21,7 @@ public static class CollectionText
 
     public const string EmptyTitle = "Nothing in this collection yet.";
 
-    public const string EmptyMessage = "Add books from the Library: right-click a book, or choose Select and tick several, then add them to this collection.";
+    public const string EmptyMessage = "Add books from the Library: right-click a book, or choose Organize and tick several, then add them to this collection.";
 
     public const string TopLevel = "Collections (the top level)";
 

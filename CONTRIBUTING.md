@@ -213,7 +213,8 @@ again, fetch the books (the first time), then run a Release build with an empty 
 ```
 
 It indexes the books, then saves the Library and the named book open at that PDF page, in the light theme at 1440 by
-900. Run it again on the same data root to retake them without indexing again.
+900. Run it again on the same data root to retake them without indexing again. A screenshot or measurement run never
+uses the PC's web library connection, so it can't sync the demo library into yours.
 
 ## Contributing
 
