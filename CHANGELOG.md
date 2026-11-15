@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6 · 9 November 2026
+
+New in 1.6.1265 (14 November 2026):
+
 - **Drag maps onto their books in Organize mode.** **Select** is now **Organize**, and in it you can drag a map,
   handout or pack onto its book's card to link them, or tick several and drag them together. Dropping on a pack adds
   to it, on a picture packs them together, on a pinned collection or binder adds them, on a book asks whether it goes
@@ -27,8 +31,6 @@
 - **The Select bar stays in view on the web.** It's pinned to the top of the window as you scroll down the Library, so
   **Edit metadata** and the other actions are in reach from any row, on a phone too. The Windows app already kept it
   above the books.
-
-## 1.6 · 9 November 2026
 
 New in 1.6.1251 (13 November 2026):
 
