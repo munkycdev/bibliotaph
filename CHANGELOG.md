@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Right-click opens a book's details in Organize mode.** A click still ticks the card; right-clicking it, or
+  holding a finger on it and lifting without moving on a touch screen, shows its details, on Windows and the web.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1265 (14 November 2026):
