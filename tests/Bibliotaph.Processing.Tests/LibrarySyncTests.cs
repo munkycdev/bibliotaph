@@ -609,6 +609,84 @@ public sealed class LibrarySyncTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_new_PC_that_packs_folders_by_itself_before_its_files_meet_the_synced_packs_takes_the_user_s_packs()
+    {
+        // The desk packed two folders and merged them into one named pack, as a map maker's packs often are.
+        var deskFiles = await _desk.AddFilesAsync([.. Images("Maps/Desert", 20), .. Images("Maps/Forest", 20)]);
+        await _desk.Packs.PlanAsync(Ct);
+        var packs = await _desk.PackCardsAsync();
+        Assert.Equal(2, packs.Count);
+        var merged = (await _desk.Packs.PackTogetherAsync([.. packs.Select(p => p.EntryId)], Ct))!;
+        await _desk.Metadata.SetValuesAsync(merged.PackId, MetadataFields.Title, ["Desert and forest maps"], Ct);
+        await _desk.Sync.SyncNowAsync(Ct);
+
+        // A new PC merges before its files are indexed, so the desk's records wait; then indexing packs each folder by
+        // itself, as it does in any new library, and it syncs again.
+        _laptop.Later(1);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        await _laptop.AddFilesAsync([.. Images("Maps/Desert", 20), .. Images("Maps/Forest", 20)]);
+        await _laptop.Packs.PlanAsync(Ct);
+        _laptop.Later(1);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        _desk.Later(3);
+        await RoundAsync();
+        await RoundAsync();
+
+        // The folders it packed by itself said nothing the user did, so the user's pack stands on both.
+        var desk = Assert.Single(await _desk.PackCardsAsync());
+        Assert.Equal(merged.PackId, desk.EntryId);
+        Assert.Equal(40, desk.Members!.Count);
+        Assert.Equal("Desert and forest maps", (await _desk.Metadata.GetAsync(desk.EntryId, Ct)).Compute()[MetadataFields.Title].First?.Value);
+        var laptop = Assert.Single(await _laptop.PackCardsAsync());
+        Assert.Equal(40, laptop.Members!.Count);
+        Assert.Equal("Desert and forest maps", (await _laptop.Metadata.GetAsync(laptop.EntryId, Ct)).Compute()[MetadataFields.Title].First?.Value);
+        Assert.Contains(deskFiles["Maps/Forest/Token 7.png"], desk.Members!.Select(m => m.EntryId));
+    }
+
+    [Fact]
+    public async Task A_new_PC_that_indexed_and_packed_its_folders_before_its_first_sync_takes_the_user_s_packs()
+    {
+        await _desk.AddFilesAsync([.. Images("Maps/Desert", 20), .. Images("Maps/Forest", 20)]);
+        await _desk.Packs.PlanAsync(Ct);
+        var merged = (await _desk.Packs.PackTogetherAsync([.. (await _desk.PackCardsAsync()).Select(p => p.EntryId)], Ct))!;
+        await _desk.Sync.SyncNowAsync(Ct);
+
+        // Its own copies of the folders, packed one by one before it ever synced, so every record is new and newer.
+        _laptop.Later(1);
+        await _laptop.AddFilesAsync([.. Images("Maps/Desert", 20), .. Images("Maps/Forest", 20)]);
+        await _laptop.Packs.PlanAsync(Ct);
+        _laptop.Later(1);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        _desk.Later(3);
+        await RoundAsync();
+        await RoundAsync();
+
+        var desk = Assert.Single(await _desk.PackCardsAsync());
+        Assert.Equal(merged.PackId, desk.EntryId);
+        Assert.Equal(40, desk.Members!.Count);
+        Assert.Equal(40, Assert.Single(await _laptop.PackCardsAsync()).Members!.Count);
+    }
+
+    [Fact]
+    public async Task Packing_a_folder_on_a_PC_that_synced_before_still_reaches_the_others()
+    {
+        await _desk.AddFilesAsync(Images("Tokens/Undead", 20));
+        await _laptop.AddFilesAsync(Images("Tokens/Undead", 20));
+        await RoundAsync();
+
+        // The desk packs the folder by itself after both synced, which still reaches the laptop; splitting it there is
+        // a choice, and reaches the desk.
+        await _desk.Packs.PlanAsync(Ct);
+        await RoundAsync();
+        Assert.Equal(20, Assert.Single(await _laptop.PackCardsAsync()).Members!.Count);
+        _laptop.Later(5);
+        await _laptop.Packs.SplitAsync(Assert.Single(await _laptop.PackCardsAsync()).EntryId, Ct);
+        await RoundAsync();
+
+        Assert.Empty(await _desk.PackCardsAsync());
+    }
+
+    [Fact]
     public async Task A_folder_proposed_on_both_PCs_and_answered_on_one_is_answered_on_the_other()
     {
         await _desk.AddFilesAsync([.. Images("Maps/Harbor", 6), .. Images("Maps/Docks", 6)]);

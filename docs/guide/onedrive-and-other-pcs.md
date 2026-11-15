@@ -136,7 +136,8 @@ term or turn it down on the web or on any PC, and the same card goes from Needs 
 that were waiting on it. Terms you kept apart in **Find overlaps** stay apart everywhere too. Packs travel as well: files you **Pack together**,
 a pack you split, a folder you answered **Make a pack** or **Keep separate** for, and the cover you chose for a pack
 are the same on the web and every PC that has those files. Where two devices made a pack of the same folder by
-themselves, they settle on one. So do the files you said are the same book (or a new version of one), a file you
+themselves, they settle on one, and a PC you connect for the first time keeps the packs you made rather than its
+own. So do the files you said are the same book (or a new version of one), a file you
 matched to a book you own elsewhere, and **Not the same book**, which parts them everywhere. Adventures you mark in a
 file travel with their pages, levels and everything else on them, and so does removing one; your answers to an
 adventure proposal and to "You own this elsewhere. Is this its file?" travel too. So does what you chose for each

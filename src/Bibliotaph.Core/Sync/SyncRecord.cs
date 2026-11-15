@@ -93,6 +93,12 @@ public static class SyncMerge
         return changed ? known with { Fields = fields } : known;
     }
 
+    /// <summary>
+    /// When a value nobody chose changed: before any choice, so a choice made on any device wins over it, and two such
+    /// values settle on the greater, as equal times do.
+    /// </summary>
+    public static readonly DateTime Unchosen = new(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
     /// <summary>A new record of this PC's: every field changed <paramref name="now"/>.</summary>
     public static SyncRecord Create(string key, IReadOnlyDictionary<string, string> current, DateTime now) =>
         new(key, current.ToDictionary(f => f.Key, f => new SyncField(f.Value, now), StringComparer.Ordinal));

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **A newly connected PC no longer pulls your packs apart.** A PC that packed your folders by itself before its
+  files met your packs (a new install, or one that indexed its own copies before it synced) sent those folder packs
+  out as newer than yours, splitting packs you made with **Pack together** back into one pack per folder on the web
+  and every PC. It now takes the packs you already have.
 - **Ctrl+K finds the search box wherever you've scrolled to, on the web.** Far down the Library, Ctrl+K or / brings
   the top bar down over the page instead of jumping back to the top. Type, and the results show from their start;
   press Esc or click away with the box empty, and you're left where you were. The Windows app's top bar already stays

@@ -34,6 +34,12 @@ public sealed record SyncSnapshot(
     /// <summary>The entry a key names here, by its own key or any alias of it.</summary>
     public long? FindCard(string key) => Cards.TryGetValue(key, out var id) ? id : null;
 
+    /// <summary>
+    /// The cards of files in a pack made from their folder or ZIP and never merged with another, which this PC's
+    /// indexing could have made by itself, so their pack is no one's choice until another device says otherwise.
+    /// </summary>
+    public IReadOnlySet<string> PackedByFolder { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+
     /// <summary>The key this catalog names the card <paramref name="key"/> stands for, if it has it.</summary>
     public string? LocalKey(string key) => FindCard(key) is { } id ? CardKeys.GetValueOrDefault(id) : null;
 }
@@ -127,6 +133,10 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
             if (entry.ParentEntryId is { } parent && packSyncIds.TryGetValue(parent, out var pack)) cardFields[entry.Id][SyncFields.InPack] = Json(Id(pack));
             else if (entry.ParentEntryId is null && separate.Contains(entry.Id)) cardFields[entry.Id][SyncFields.InPack] = Json("");
         }
+        var byFolder = (await db.PackDecisions.AsNoTracking().Where(d => d.Answer == PackAnswer.Packed).Select(d => d.EntryId).ToListAsync(ct)).ToHashSet();
+        byFolder.ExceptWith(await db.EntryJoins.AsNoTracking().Select(j => j.EntryId).Distinct().ToListAsync(ct));
+        var packedByFolder = entries.Where(e => e.Kind == EntryKind.Whole && e.ParentEntryId is { } parent && byFolder.Contains(parent) && cardKeys.ContainsKey(e.Id))
+            .Select(e => cardKeys[e.Id]).ToHashSet(StringComparer.Ordinal);
         foreach (var entry in entries.Where(e => e.Kind == EntryKind.Pack && e.CoverEntryId is not null && cardFields.ContainsKey(e.Id)))
             if (cardKeys.TryGetValue(entry.CoverEntryId!.Value, out var cover)) cardFields[entry.Id][SyncFields.Cover] = Json(cover);
 
@@ -355,7 +365,7 @@ public sealed partial class LibrarySyncStore(IDbContextFactory<CatalogDbContext>
             records[SyncKeys.Setting + setting.Key] = Fields((SyncFields.Value, Json(setting.Value)));
 
         foreach (var (entryId, fields) in cardFields) records[cardKeys[entryId]] = fields;
-        return new SyncSnapshot(records, aliases, cards, cardKeys);
+        return new SyncSnapshot(records, aliases, cards, cardKeys) { PackedByFolder = packedByFolder };
     }
 
     /// <summary>

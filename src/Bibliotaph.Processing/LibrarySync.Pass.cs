@@ -159,6 +159,10 @@ public sealed partial class LibrarySync
                 // A card nobody has done anything with has nothing to say.
                 if (inherited is null && card && fields.Count == 0) continue;
                 var record = inherited is null ? SyncMerge.Create(key, fields, now) : SyncMerge.Stamp(inherited, fields, now);
+                // A file this PC first sees in a pack of its folder was packed by indexing, not by the user, so the
+                // pack another device has it in wins: a newly connected PC doesn't pull the user's packs apart.
+                if (inherited is null && snapshot.PackedByFolder.Contains(key) && record.Fields.TryGetValue(SyncFields.InPack, out var pack))
+                    record = record with { Fields = new Dictionary<string, SyncField>(record.Fields, StringComparer.Ordinal) { [SyncFields.InPack] = pack with { ChangedUtc = SyncMerge.Unchosen } } };
                 state[key] = new Known(record with { Aliases = aliases }, pending: false) { Dirty = true };
                 removed.Remove(key);
                 continue;
@@ -167,7 +171,11 @@ public sealed partial class LibrarySync
             {
                 // Waiting to be used here, and the catalog doesn't show it yet: what is here doesn't clear it. What the
                 // user did here meanwhile is kept, as this PC's newer change.
-                var mine = fields.Where(f => known.Record.Fields.GetValueOrDefault(f.Key).Value != f.Value).ToDictionary(StringComparer.Ordinal);
+                // Except the pack a file is in: indexing packs a new library's folders by itself before the other
+                // device's packs can be used, so that says nothing the user did, and taken as newer it would pull the
+                // user's packs apart on every device.
+                var mine = fields.Where(f => f.Key != SyncFields.InPack && known.Record.Fields.GetValueOrDefault(f.Key).Value != f.Value)
+                    .ToDictionary(StringComparer.Ordinal);
                 var met = Same(known.Record.Values, fields);
                 if (mine.Count == 0 && !met) continue;
                 if (mine.Count > 0) known.Record = SyncMerge.Merge(known.Record, SyncMerge.Create(key, mine, now)) with { Aliases = aliases };
