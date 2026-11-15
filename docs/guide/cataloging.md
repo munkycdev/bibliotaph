@@ -200,8 +200,8 @@ saved, and **Undo** puts it back afterwards.
 The Organize bar stays in view while you scroll through the books, at the top of the Library on Windows and pinned to
 the top of the window on the web, so its buttons are always in reach.
 
-In Organize mode a click ticks a book rather than opening it, so to see a book's details, right-click its card. On a
-touch screen, hold your finger on the card and lift it without moving. Its details open beside the books, and the books
+In Organize mode a click ticks a book rather than opening it. Right-click a card for the book's usual menu, where
+**Details** opens its details; on a touch screen, hold your finger on the card and lift it without moving. The books
 you ticked stay ticked.
 
 Once a change is applied, the books are unticked so the next change starts fresh, and you stay in **Organize** mode.
