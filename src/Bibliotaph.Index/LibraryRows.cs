@@ -37,7 +37,9 @@ internal static class LibraryRows
             PackTitle = r.PackTitle,
             SourceEntryId = r.SourceId is { } source ? new EntryId(source) : null,
             SourceTitle = r.SourceTitle,
+            SourceSuggested = r.SourceSuggested != 0,
             Companions = (int)r.Companions,
+            LooseType = r.LooseType != 0,
         })];
 
     /// <summary>
@@ -121,7 +123,9 @@ internal static class LibraryRows
         public long? PackFile { get; init; }
         public string? PackTitle { get; init; }
         public long? SourceId { get; init; }
+        public long SourceSuggested { get; init; }
         public long Companions { get; init; }
+        public long LooseType { get; init; }
         public string? SourceTitle { get; init; }
     }
 

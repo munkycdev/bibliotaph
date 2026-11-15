@@ -71,7 +71,22 @@ internal sealed class LibraryWhere
         if (filter.HideParts) _sql.Append(" AND e.kind <> 'Part'");
         // Kept inside their books, adventures show only when a search finds them; browsing lists them in their files.
         else if (filter.PartsInBooks && plan.IsEmpty) _sql.Append(" AND e.kind <> 'Part'");
-        if (filter.HideCompanions || (filter.CompanionsInBooks && plan.IsEmpty)) _sql.Append(" AND e.source_id IS NULL");
+        // Suggested links are what Organize shows to be kept or undone, so they show even while companions stay in their books.
+        if (filter.HideCompanions || (filter.CompanionsInBooks && plan.IsEmpty && filter.Links != LinkFilter.Suggested)) _sql.Append(" AND e.source_id IS NULL");
+        switch (filter.Links)
+        {
+            case LinkFilter.Loose:
+                Add("""
+                    e.source_id IS NULL AND e.companions = 0 AND e.kind NOT IN ('Elsewhere', 'Part') AND (e.kind = 'Pack' OR e.pack_file IS NOT NULL
+                        OR d.format IN (SELECT value FROM json_each(@looseFormats))
+                        OR e.entry_id IN (SELECT entry_id FROM entry_facet WHERE field = 'type' AND value IN (SELECT value FROM json_each(@looseTypes))))
+                    """, "looseFormats", JsonSerializer.Serialize(SourceFormats.Pictures));
+                Parameters.Add("looseTypes", JsonSerializer.Serialize(OrganizeCard.LooseTypes));
+                break;
+            case LinkFilter.Suggested:
+                _sql.Append(" AND e.source_suggested = 1");
+                break;
+        }
 
         // A collection's whole scope is "collection:<id>"; its own-books scope ("collection-own:") is the same books or fewer.
         if (filter.Collections != CollectionFilter.All)

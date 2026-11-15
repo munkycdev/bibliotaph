@@ -60,7 +60,8 @@ else
                 }
             </nav>
             @* Books, Favorites, collections, binders and saved searches, in order. A pin is dragged to a new place, or moved
-               with Alt+Up and Alt+Down or its right-click menu, which also unpins it, and renames or deletes a saved search. *@
+               with Alt+Up and Alt+Down or its right-click menu, which also unpins it, and renames or deletes a saved search.
+               A pinned collection or binder takes the books Organize mode drops on it. *@
             <div class="bt-sidegroup bt-pins">
                 <span class="bt-eyebrow">PINNED</span>
                 @if (Pins.Items.Count == 0)
@@ -74,7 +75,8 @@ else
                         var at = i;
                         var active = IsShown(pin);
                         <div class="bt-pinrow @(_dropAt == at && _dragging is not null ? "drop" : "")" role="listitem" @key="(pin.Kind, pin.Id)"
-                             @ondragover="() => _dropAt = at" @ondragover:preventDefault="true" @ondrop="() => DropAsync(at)">
+                             @ondragover="() => _dropAt = at" @ondragover:preventDefault="true" @ondrop="() => DropAsync(at)"
+                             data-drop="@(pin.Kind is PinKinds.Collection or PinKinds.Binder && pin.Id is { } pinId ? $"{pin.Kind}:{pinId}" : null)" data-drop-name="@pin.Label">
                             <a class="bt-nav @(active ? "active" : "") @(pin.Dimmed ? "dimmed" : "")" href="@pin.Href" title="@(_folded ? pin.Label : pin.Tip)" aria-current="@(active ? "page" : null)"
                                draggable="true" @ondragstart="() => _dragging = pin" @ondragend="EndDrag"
                                @oncontextmenu="() => _pinMenu = pin" @oncontextmenu:preventDefault="true" @onkeydown="e => PinKeyAsync(pin, at, e)">

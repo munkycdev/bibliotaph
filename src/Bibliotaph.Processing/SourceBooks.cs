@@ -94,6 +94,27 @@ public sealed class SourceBooksService(CompanionStore store, EntryStore entries,
             .Select(e => new SourceBookChoice(e.EntryId, e.Title, CardText.Byline(e)))];
     }
 
+    /// <summary>
+    /// Organize's Books panel: the books in the folder <paramref name="card"/>'s files are in, by title, or in the folder
+    /// above when there are none there, as a book's maps often sit in a folder of their own beside it. Never a pack, a
+    /// picture, a card that goes with a book, or the card itself.
+    /// </summary>
+    public async Task<IReadOnlyList<SourceBookChoice>> FindNearAsync(EntryId card, int limit = 12, CancellationToken ct = default)
+    {
+        foreach (var start in (await store.GetCardFoldersAsync([card], ct)).Select(f => f.Folder).Distinct())
+        {
+            for (var folder = start; ; folder = folder.Parent)
+            {
+                var scope = await files.GetVisibleEntryIdsAsync(folder, ct);
+                var found = await library.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.Title, HideCompanions: true, HideParts: true), ct: ct);
+                var books = found.Where(e => e.EntryId != card && !e.IsPack && !SourceFormats.IsPicture(e.Format)).Take(limit).ToList();
+                if (books.Count > 0) return [.. books.Select(e => new SourceBookChoice(e.EntryId, e.Title, CardText.Byline(e)))];
+                if (folder.Folder.Length == 0) break;
+            }
+        }
+        return [];
+    }
+
     /// <summary>"Goes with": each of <paramref name="companions"/> goes with <paramref name="book"/>, set by the user.</summary>
     public async Task<SourceBookChange> LinkAsync(IReadOnlyCollection<EntryId> companions, EntryId book, CancellationToken ct = default)
     {

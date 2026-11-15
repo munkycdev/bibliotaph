@@ -128,6 +128,7 @@ CREATE TABLE entry_doc (
     cover        TEXT,                           -- a book owned elsewhere's cover, from its online library (cache/covers)
     cover_member INTEGER,                        -- a pack's file whose cover its card shows instead of the mosaic (entry_member.member_entry_id)
     source_id    INTEGER,                        -- a companion (a map, handout or pack): the book it goes with
+    source_suggested INTEGER NOT NULL DEFAULT 0, -- and 1 while that book was only suggested by the rules
     companions   INTEGER NOT NULL DEFAULT 0      -- a book's companions: "12 maps and handouts"
 );
 
@@ -377,4 +378,4 @@ CREATE TABLE shared_state (
     value           TEXT    NOT NULL
 );
 
-PRAGMA user_version = 25;
+PRAGMA user_version = 26;

@@ -44,6 +44,7 @@ public static class LibraryUrl
         Add("adventures", q.Adventures);
         Add("companions", q.Companions);
         Add("collections", q.Collections);
+        Add("links", q.Links);
         Add("picked", q.Picked);
         Add("collection", q.Collection?.ToString(CultureInfo.InvariantCulture));
         Add("addedHere", q.Collection is not null && q.AddedHere ? "true" : null);
@@ -128,6 +129,7 @@ public static class LibraryUrl
             Adventures = Text("adventures"),
             Companions = Text("companions"),
             Collections = Text("collections"),
+            Links = Text("links"),
             Picked = Text("picked"),
             Collection = long.TryParse(Text("collection"), NumberStyles.None, CultureInfo.InvariantCulture, out var collection) ? collection : null,
             AddedHere = Text("addedHere") == "true",

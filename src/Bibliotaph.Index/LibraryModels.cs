@@ -107,8 +107,18 @@ public sealed record LibraryEntry(
     /// <summary>For a companion, the title of the book it goes with.</summary>
     public string? SourceTitle { get; init; }
 
+    /// <summary>For a companion, whether its book was only suggested by the rules rather than chosen or kept.</summary>
+    public bool SourceSuggested { get; init; }
+
     /// <summary>For a book, how many companions go with it: "12 maps and handouts".</summary>
     public int Companions { get; init; }
+
+    /// <summary>Typed as a map pack, handout or character sheet: something that goes with a book rather than being one.</summary>
+    public bool LooseType { get; init; }
+
+    /// <summary>What Organize mode's drops go by: a picture, a video or a pack is loose too.</summary>
+    public OrganizeCard Organize => new(EntryId.Value, PackFile is not null ? PackTitle ?? Title : Title, Format, IsPack || IsPackFile, IsElsewhere, IsPart,
+        Parts, LooseType || IsPack || IsPackFile || SourceFormats.IsPicture(Format), SourceEntryId is not null, Companions);
 
     /// <summary>"goes with The Big Adventure", for a companion's card; null for any other.</summary>
     public string? SourceLine => SourceEntryId is null ? null : $"goes with {SourceTitle ?? "a book"}";
@@ -133,6 +143,9 @@ public enum LibrarySort
     Publisher,
     /// <summary>The last opened first, then those never opened, newest first.</summary>
     RecentlyOpened,
+
+    /// <summary>By the folders a card's file is in, then by title: a book and its maps and handouts side by side, under the folder's name.</summary>
+    Folder,
 }
 
 /// <summary>Kind choices in the filter panel. The format: field gives finer control.</summary>
@@ -215,7 +228,19 @@ public sealed record LibraryFilter(
     IReadOnlyCollection<string>? Found = null,
     bool OnlyWithoutStore = false,
     bool CompanionsInBooks = false,
-    bool HideCompanions = false);
+    bool HideCompanions = false,
+    LinkFilter Links = LinkFilter.All);
+
+/// <summary>
+/// Organize mode's choice of cards: every card; the loose ones (maps, handouts, character sheets, pictures and packs)
+/// that go with no book and have none going with them; or those whose book was only suggested by the rules.
+/// </summary>
+public enum LinkFilter
+{
+    All,
+    Loose,
+    Suggested,
+}
 
 /// <summary>How many entries have a value, for the filter panel. <see cref="Value"/> is <see cref="SearchQuery.Unknown"/> for those with none.</summary>
 public sealed record FacetCount(string Value, string Label, long Count);

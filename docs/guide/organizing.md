@@ -17,14 +17,14 @@ A collection gathers books around a campaign, a setting or an idea, such as "Win
 
 - **Make one**: **New collection** on the **Collections** page. Give it a name and, if you like, a description.
 - **Add books**: **Add to collection** on a book's right-click menu or in its details. To add many at once, tick them
-  in the Library's **Select** mode and click **Add to collection**.
+  in the Library's **Organize** mode and click **Add to collection**.
 - **Open one**: click its card. You see its books in the Library, ready to search and filter, with any collections
   inside it as cards above them.
 - **Collections inside collections**: **New collection** inside a collection makes one there, and **Move to…** moves a
   collection inside another, or back to the top. A book in an inner collection counts as in the outer one too;
   **Only books added here** hides those.
 - **Tidy up**: **Rename**, **Move to…** and **Delete** are at the top of a collection's page. Deleting a collection
-  never removes its books from your library. **Remove from collection** (in **Select** mode) takes books out.
+  never removes its books from your library. **Remove from collection** (in **Organize** mode) takes books out.
 
 Collections, the collections inside each one, and the **Add to collection** menu are in name order. Every change shows
 **Undo** for a moment.
@@ -78,7 +78,7 @@ See [Saved searches](searching.md#saved-searches).
 
 ## Export a list
 
-In **Select** mode, **Export these** saves the ticked books as a CSV file for a spreadsheet. **Settings > Backup** can
+In **Organize** mode, **Export these** saves the ticked books as a CSV file for a spreadsheet. **Settings > Backup** can
 export the whole library the same way; see [OneDrive, drives and other PCs](onedrive-and-other-pcs.md#backups).
 
 ---

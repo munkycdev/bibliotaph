@@ -2,7 +2,7 @@ using Bibliotaph.Api.Contracts;
 
 namespace Bibliotaph.Web.Services;
 
-/// <summary>Select mode's actions on the ticked books.</summary>
+/// <summary>Organize mode's actions on the ticked books, and what its drops do.</summary>
 public sealed class SelectionClient(ApiHttp http)
 {
     public Task<SelectionInfo> SelectionAsync(SelectionQuery query, CancellationToken ct = default) =>
@@ -37,4 +37,19 @@ public sealed class SelectionClient(ApiHttp http)
 
     public Task<BulkApplyResult> BulkApplyAsync(BulkEditRequest request, CancellationToken ct = default) =>
         http.SendAsync<BulkApplyResult>(HttpMethod.Post, "api/library/selection/edit/apply", request, ct);
+
+    public Task<ActionResult> GoesWithAsync(IReadOnlyList<long> cards, long book, CancellationToken ct = default) =>
+        http.SendAsync<ActionResult>(HttpMethod.Post, "api/library/organize/goes-with", new OrganizeGoesWith(cards, book), ct);
+
+    public Task<ActionResult> NotWithABookAsync(IReadOnlyList<long> cards, CancellationToken ct = default) =>
+        http.SendAsync<ActionResult>(HttpMethod.Post, "api/library/organize/not-with-a-book", new SelectedBooks(cards), ct);
+
+    public Task<ActionResult> KeepSuggestionsAsync(IReadOnlyList<long> cards, CancellationToken ct = default) =>
+        http.SendAsync<ActionResult>(HttpMethod.Post, "api/library/organize/keep", new SelectedBooks(cards), ct);
+
+    public Task<ActionResult> JoinPackAsync(IReadOnlyList<long> cards, long pack, CancellationToken ct = default) =>
+        http.SendAsync<ActionResult>(HttpMethod.Post, "api/library/organize/join-pack", new OrganizeJoinPack(cards, pack), ct);
+
+    public Task<IReadOnlyList<BookChoice>> BooksNearAsync(long card, CancellationToken ct = default) =>
+        http.SendAsync<IReadOnlyList<BookChoice>>(HttpMethod.Get, $"api/library/organize/near/{card.ToString(System.Globalization.CultureInfo.InvariantCulture)}", null, ct);
 }

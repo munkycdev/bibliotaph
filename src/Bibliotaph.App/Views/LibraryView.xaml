@@ -7,12 +7,15 @@
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
              xmlns:v="clr-namespace:Bibliotaph.App.Views"
              xmlns:p="clr-namespace:Bibliotaph.Processing;assembly=Bibliotaph.Processing"
+             xmlns:idx="clr-namespace:Bibliotaph.Index;assembly=Bibliotaph.Index"
              xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:LibraryViewModel}">
   <UserControl.InputBindings>
     <KeyBinding Key="Escape" Command="{Binding EscapeCommand}" />
     <KeyBinding Gesture="Ctrl+A" Command="{Binding Selection.SelectAllCommand}" />
+    <!-- Organize mode: takes back its changes one at a time, newest first. A text box keeps its own Ctrl+Z. -->
+    <KeyBinding Gesture="Ctrl+Z" Command="{Binding Selection.UndoLastCommand}" />
   </UserControl.InputBindings>
 
   <UserControl.Resources>
@@ -129,6 +132,71 @@
         </DataTrigger>
       </DataTemplate.Triggers>
     </DataTemplate>
+    <c:IconByName x:Key="IconByName" />
+
+    <!--
+      A card's mark: an icon and a number, with its words in the tooltip. In Organize mode the mark for the book a map
+      goes with names the book, so a wrong link shows without opening the details. A suggested link is fainter.
+    -->
+    <DataTemplate x:Key="CardBadge" DataType="{x:Type idx:CardBadge}">
+      <Border x:Name="Badge" Padding="5,1,6,1" Margin="0,0,0,3" CornerRadius="9" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
+              BorderThickness="1" HorizontalAlignment="Right" ToolTip="{Binding Tip}" AutomationProperties.Name="{Binding Tip}">
+        <StackPanel Orientation="Horizontal">
+          <c:LucideIcon Data="{Binding Icon, Converter={StaticResource IconByName}}" Size="11" StrokeThickness="2.2" Foreground="{DynamicResource Bt.Muted}"
+                        VerticalAlignment="Center" Margin="0,0,3,0" />
+          <TextBlock x:Name="Words" Text="{Binding Count}" FontSize="10" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center"
+                     TextTrimming="CharacterEllipsis" MaxWidth="110" />
+        </StackPanel>
+      </Border>
+      <DataTemplate.Triggers>
+        <DataTrigger Binding="{Binding Suggested}" Value="True">
+          <Setter TargetName="Badge" Property="Opacity" Value="0.75" />
+          <Setter TargetName="Badge" Property="Background" Value="{DynamicResource Bt.Side}" />
+        </DataTrigger>
+        <MultiDataTrigger>
+          <MultiDataTrigger.Conditions>
+            <Condition Binding="{Binding DataContext.Selection.Books.IsActive, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True" />
+            <Condition Binding="{Binding Count}" Value="" />
+          </MultiDataTrigger.Conditions>
+          <Setter TargetName="Words" Property="Text" Value="{Binding Wide}" />
+        </MultiDataTrigger>
+      </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <!-- The heading over each folder's cards while the Library goes by folder. -->
+    <GroupStyle x:Key="FolderGroups" x:Shared="False" HidesIfEmpty="True">
+      <GroupStyle.HeaderTemplate>
+        <DataTemplate>
+          <Border Margin="0,14,30,10" Padding="0,0,0,5" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal">
+              <c:LucideIcon Data="{StaticResource Icon.Folder}" Size="13" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center" Margin="0,0,7,0" />
+              <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </GroupStyle.HeaderTemplate>
+    </GroupStyle>
+
+    <!--
+      A book in Organize's Books panel: maps and handouts dropped on it go with it, and its Goes with gives it the ticked
+      cards, for the keyboard.
+    -->
+    <DataTemplate x:Key="PanelBook" DataType="{x:Type p:SourceBookChoice}">
+      <Border x:Name="PanelBookRow" Padding="10,7" Margin="0,0,0,5" CornerRadius="5" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
+              BorderThickness="1" AllowDrop="True" DragOver="PanelBook_DragOver" DragLeave="PanelBook_DragLeave" Drop="PanelBook_Drop">
+        <DockPanel>
+          <Button DockPanel.Dock="Right" Content="Goes with" c:Ui.Icon="{StaticResource Icon.Link}" Margin="8,0,0,0" VerticalAlignment="Center"
+                  ToolTip="The ticked cards go with this book" AutomationProperties.Name="{Binding Title, StringFormat='The ticked cards go with {0}'}"
+                  IsEnabled="{Binding DataContext.Selection.Books.HasAny, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                  Command="{Binding DataContext.Selection.Panel.LinkCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}" />
+          <StackPanel VerticalAlignment="Center">
+            <TextBlock Text="{Binding Title}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+    </DataTemplate>
   </UserControl.Resources>
 
   <Grid>
@@ -225,8 +293,8 @@
             </Grid.ColumnDefinitions>
             <WrapPanel Grid.Column="1" HorizontalAlignment="Right" Margin="0,0,0,-8">
               <Border Margin="0,0,0,8" Visibility="{Binding ShowLayoutChoice, Converter={StaticResource Bt.VisibleWhenTrue}}">
-                <Button Content="Select" c:Ui.Icon="{StaticResource Icon.CopyCheck}" Command="{Binding Selection.StartSelectingCommand}" Margin="0,0,8,0"
-                        ToolTip="Tick books to edit their metadata together" AutomationProperties.Name="Select books"
+                <Button x:Name="OrganizeButton" Content="Organize" c:Ui.Icon="{StaticResource Icon.LayoutGrid}" Command="{Binding Selection.StartSelectingCommand}" Margin="0,0,8,0"
+                        ToolTip="Tick, edit and drag books to organize your library" AutomationProperties.Name="Organize books"
                         Visibility="{Binding Selection.Books.IsActive, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
               </Border>
               <Button x:Name="SaveView" Content="Save search" c:Ui.Icon="{StaticResource Icon.Plus}" Command="{Binding SmartViews.SaveViewCommand}" Margin="0,0,8,8"
@@ -606,14 +674,16 @@
       </Grid>
     </ScrollViewer>
 
-    <!-- Select mode's bar and the count stay in view while the head scrolls. -->
+    <!-- Organize mode's bar and the count stay in view while the head scrolls. -->
     <StackPanel x:Name="PageFoot" Grid.Row="1" Margin="0,0,42,17">
       <!--
-        Select mode: how many are ticked, Edit metadata, Clear and Done. The buttons wrap onto another row on a narrow
-        window (at 200% scaling, say) rather than run off its edge.
+        Organize mode: how many are ticked, what can be done to them all, Clear and Done; then which cards to show, Keep
+        these, where to drop a card that shouldn't go with a book, and the Books panel. The buttons wrap onto another row
+        on a narrow window (at 200% scaling, say) rather than run off its edge.
       -->
-      <Border Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,4" Margin="0,0,0,14" AutomationProperties.Name="Selection"
+      <Border Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,4" Margin="0,0,0,14" AutomationProperties.Name="Organize"
               Visibility="{Binding Selection.Books.IsActive, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <StackPanel>
         <WrapPanel>
           <TextBlock Text="{Binding Selection.Books.Summary}" FontSize="12" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center"
                      Margin="0,4,16,4" />
@@ -648,8 +718,27 @@
                   Command="{Binding Selection.ExportSelectedCommand}" ToolTip="Save the selected books as a CSV file, for a spreadsheet"
                   AutomationProperties.Name="Export the selected books" />
           <Button Content="Clear" Command="{Binding Selection.ClearSelectionCommand}" Margin="0,4,8,4" AutomationProperties.Name="Clear the selection" />
-          <Button Content="Done" Command="{Binding Selection.StopSelectingCommand}" Margin="0,4,0,4" ToolTip="Leave Select mode (Esc)" AutomationProperties.Name="Done selecting" />
+          <Button Content="Done" Command="{Binding Selection.StopSelectingCommand}" Margin="0,4,0,4" ToolTip="Leave Organize mode (Esc)" AutomationProperties.Name="Done organizing" />
         </WrapPanel>
+        <WrapPanel x:Name="OrganizeRow">
+          <ComboBox Style="{StaticResource Bt.Select}" ItemsSource="{Binding Selection.LinkChoices}" SelectedItem="{Binding Selection.LinkChoice}" Margin="0,4,8,4"
+                    ToolTip="Which cards to show while you organize" AutomationProperties.Name="Show" />
+          <Button x:Name="KeepShown" Content="{Binding Selection.KeepLabel}" c:Ui.Icon="{StaticResource Icon.Check}" Command="{Binding Selection.KeepShownCommand}" Margin="0,4,8,4"
+                  ToolTip="The books the rules suggested become your own choice"
+                  Visibility="{Binding Selection.ShowsSuggested, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Border x:Name="NotWithABookZone" Margin="0,4,8,4" Padding="10,5" CornerRadius="6" BorderThickness="1.5" BorderBrush="{DynamicResource Bt.Muted}"
+                  Background="Transparent" AllowDrop="True" ToolTip="Drop maps and handouts here when they don't go with a book"
+                  AutomationProperties.Name="Not with a book">
+            <StackPanel Orientation="Horizontal">
+              <c:LucideIcon Data="{StaticResource Icon.Unlink}" Size="14" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
+              <TextBlock Text="Not with a book" FontSize="12" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <Button x:Name="ToggleBooksPanel" Content="Books" c:Ui.Icon="{StaticResource Icon.LibraryBig}" Command="{Binding Selection.Panel.ToggleCommand}" Margin="0,4,8,4"
+                  ToolTip="Books to drop maps and handouts on, without scrolling to them" AutomationProperties.Name="Books panel"
+                  AutomationProperties.ItemStatus="{Binding Selection.Panel.IsOpen, StringFormat='Open: {0}'}" />
+        </WrapPanel>
+        </StackPanel>
       </Border>
       <Border Background="{DynamicResource Bt.Side}" CornerRadius="6" Padding="14,10" Margin="0,0,0,14"
               Visibility="{Binding Selection.Undo.Message, Converter={StaticResource Bt.VisibleWhenSet}}">
@@ -673,13 +762,21 @@
     </StackPanel>
 
     <Grid Grid.Row="2">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
       <!-- .bt-books: the cover grid. Only the covers in view are created. -->
       <ListBox x:Name="CoverGrid" Style="{StaticResource Bt.PlainList}" ItemsSource="{Binding Items}" Padding="0,0,30,0"
                AutomationProperties.Name="Books" c:Ui.TourAnchor="FirstBooks" c:ItemActivation.Command="{Binding ActivateCommand}"
                c:ItemActivation.RangeCommand="{Binding Selection.SelectRangeCommand}"
                c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource CoverItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
+               VirtualizingPanel.IsVirtualizingWhenGrouping="True" AllowDrop="True"
                Visibility="{Binding ShowGrid, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <ListBox.GroupStyle>
+          <StaticResource ResourceKey="FolderGroups" />
+        </ListBox.GroupStyle>
         <ListBox.ItemsPanel>
           <ItemsPanelTemplate>
             <vwp:VirtualizingWrapPanel ItemSize="172,318" SpacingMode="BetweenItemsOnly" StretchItems="False" />
@@ -700,12 +797,30 @@
                 <ContentControl Content="{Binding}" ContentTemplate="{StaticResource Tick}" Focusable="False" Margin="8"
                                 HorizontalAlignment="Left" VerticalAlignment="Top"
                                 Visibility="{Binding DataContext.Selection.Books.IsActive, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <!-- How the card is put together, down its right edge under the AI mark. -->
+                <ItemsControl x:Name="Badges" ItemsSource="{Binding Badges}" ItemTemplate="{StaticResource CardBadge}" Focusable="False" MaxWidth="138"
+                              HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0" AutomationProperties.Name="How it's put together"
+                              Visibility="{Binding HasBadges, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <!-- While cards are dragged over it in Organize mode: solid when dropping them here does something, dashed when not. -->
+                <Rectangle x:Name="DropRing" Height="216" Margin="-4,-4,-4,0" VerticalAlignment="Top" RadiusX="6" RadiusY="6" StrokeThickness="2"
+                           Stroke="{DynamicResource Bt.Accent}" IsHitTestVisible="False" Visibility="Collapsed" />
               </Grid>
               <TextBlock Text="{Binding Title}" Margin="0,12,0,0" FontSize="12" FontWeight="SemiBold" TextWrapping="Wrap"
                          TextTrimming="CharacterEllipsis" MaxHeight="34" LineHeight="17" LineStackingStrategy="BlockLineHeight" />
               <TextBlock Text="{Binding Meta}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
             </StackPanel>
             <DataTemplate.Triggers>
+              <DataTrigger Binding="{Binding IsAiRead}" Value="True">
+                <Setter TargetName="Badges" Property="Margin" Value="0,26,4,0" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding DropMark}" Value="ok">
+                <Setter TargetName="DropRing" Property="Visibility" Value="Visible" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding DropMark}" Value="no">
+                <Setter TargetName="DropRing" Property="Visibility" Value="Visible" />
+                <Setter TargetName="DropRing" Property="Stroke" Value="{DynamicResource Bt.Muted}" />
+                <Setter TargetName="DropRing" Property="StrokeDashArray" Value="3 2" />
+              </DataTrigger>
               <Trigger SourceName="Card" Property="IsMouseOver" Value="True">
                 <Setter TargetName="Heart" Property="Visibility" Value="Visible" />
               </Trigger>
@@ -727,7 +842,11 @@
                c:ItemActivation.RangeCommand="{Binding Selection.SelectRangeCommand}"
                c:ItemActivation.DoubleCommand="{Binding OpenFromCardCommand}"
                ItemContainerStyle="{StaticResource BookItem}" c:NewWindowGesture.Command="{Binding OpenBookInNewWindowCommand}"
+               VirtualizingPanel.IsVirtualizingWhenGrouping="True" AllowDrop="True"
                Visibility="{Binding ShowList, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <ListBox.GroupStyle>
+          <StaticResource ResourceKey="FolderGroups" />
+        </ListBox.GroupStyle>
         <ListBox.ItemTemplate>
           <DataTemplate DataType="{x:Type vm:LibraryItemViewModel}">
             <Border x:Name="Row" Padding="0,14" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Background="Transparent"
@@ -755,6 +874,19 @@
                 <StackPanel Grid.Column="1" Margin="15,0" VerticalAlignment="Center">
                   <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                   <TextBlock Text="{Binding Byline}" Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                  <ItemsControl ItemsSource="{Binding Badges}" ItemTemplate="{StaticResource CardBadge}" Focusable="False" Margin="0,5,0,-3"
+                                AutomationProperties.Name="How it's put together" Visibility="{Binding HasBadges, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <WrapPanel />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemContainerStyle>
+                      <Style TargetType="ContentPresenter">
+                        <Setter Property="Margin" Value="0,0,4,0" />
+                      </Style>
+                    </ItemsControl.ItemContainerStyle>
+                  </ItemsControl>
                 </StackPanel>
                 <TextBlock Grid.Column="2" Text="{Binding SystemLabel}" Style="{StaticResource Text.Small}" VerticalAlignment="Center" Margin="0,0,10,0"
                            TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip="Game system" />
@@ -784,6 +916,14 @@
                 <Setter TargetName="Row" Property="Background" Value="{DynamicResource Bt.Side}" />
                 <Setter TargetName="Heart" Property="Visibility" Value="Visible" />
               </Trigger>
+              <DataTrigger Binding="{Binding DropMark}" Value="ok">
+                <Setter TargetName="Row" Property="Background" Value="{DynamicResource Bt.Soft}" />
+                <Setter TargetName="Row" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+                <Setter TargetName="Row" Property="BorderThickness" Value="0,0,0,2" />
+              </DataTrigger>
+              <DataTrigger Binding="{Binding DropMark}" Value="no">
+                <Setter TargetName="Row" Property="Opacity" Value="0.6" />
+              </DataTrigger>
             </DataTemplate.Triggers>
           </DataTemplate>
         </ListBox.ItemTemplate>
@@ -864,6 +1004,77 @@
         <c:EmptyState Margin="0,0,42,0" Title="{Binding EmptyTitle}" Message="{Binding EmptyMessage}" ActionText="{Binding EmptyActionText}"
                       Command="{Binding EmptyCommand}" />
       </ScrollViewer>
+
+      <!--
+        Organize's Books panel, beside the covers: the books in the folder of the card ticked or picked up last, those
+        dropped on lately, and any found by their title, each a place to drop maps and handouts.
+      -->
+      <Border x:Name="BooksPanel" Grid.Column="1" Width="300" Margin="0,0,30,0" Padding="14" CornerRadius="6" Background="{DynamicResource Bt.Side}"
+              DataContext="{Binding Selection.Panel}" AutomationProperties.Name="Books to drop on"
+              Visibility="{Binding IsOpen, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <DockPanel>
+          <DockPanel DockPanel.Dock="Top">
+            <Button DockPanel.Dock="Right" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Command="{Binding CloseCommand}"
+                    ToolTip="Close the Books panel" AutomationProperties.Name="Close the Books panel" />
+            <TextBlock Text="BOOKS" Style="{StaticResource Text.Eyebrow}" VerticalAlignment="Center" />
+          </DockPanel>
+          <TextBox x:Name="BooksPanelQuery" DockPanel.Dock="Top" Style="{StaticResource Bt.TextBox}" Margin="0,10,0,12" Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
+                   ToolTip="Find a book by its title" AutomationProperties.Name="Find a book by its title" />
+          <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+            <StackPanel>
+              <StackPanel Visibility="{Binding IsFinding, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                <TextBlock Text="FOUND" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
+                <TextBlock Text="No book has those words in its title." Style="{StaticResource Text.Small}" TextWrapping="Wrap"
+                           Visibility="{Binding NoneFound, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+                <ItemsControl ItemsSource="{Binding Found}" ItemTemplate="{StaticResource PanelBook}" Focusable="False" AutomationProperties.Name="Found" />
+              </StackPanel>
+              <StackPanel Visibility="{Binding IsFinding, Converter={StaticResource Bt.CollapsedWhenTrue}}">
+                <StackPanel Visibility="{Binding HasNear, Converter={StaticResource Bt.VisibleWhenTrue}}" Margin="0,0,0,10">
+                  <TextBlock Text="IN THIS FOLDER" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
+                  <TextBlock Text="No books beside it." Style="{StaticResource Text.Small}"
+                             Visibility="{Binding HasNearBooks, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+                  <ItemsControl ItemsSource="{Binding NearBooks}" ItemTemplate="{StaticResource PanelBook}" Focusable="False" AutomationProperties.Name="In this folder" />
+                </StackPanel>
+                <StackPanel Visibility="{Binding HasRecent, Converter={StaticResource Bt.VisibleWhenTrue}}">
+                  <TextBlock Text="DROPPED ON LATELY" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,6" />
+                  <ItemsControl ItemsSource="{Binding Recent}" ItemTemplate="{StaticResource PanelBook}" Focusable="False" AutomationProperties.Name="Dropped on lately" />
+                </StackPanel>
+                <TextBlock Text="Tick or drag a map, and the books in its folder show here. Or find a book by its title." Style="{StaticResource Text.Small}"
+                           TextWrapping="Wrap" Visibility="{Binding ShowsHint, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+        </DockPanel>
+      </Border>
+
+      <!-- Books dropped on a book: the menu at the pointer asks whether they go with it or are the same book. -->
+      <Popup x:Name="DropChoiceMenu" Placement="MousePoint" StaysOpen="False" AllowsTransparency="True"
+             IsOpen="{Binding Selection.IsChoosingDrop}">
+        <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="6" Padding="6" Margin="0,0,8,8"
+                AutomationProperties.Name="What are they?">
+          <Border.Effect>
+            <DropShadowEffect BlurRadius="16" ShadowDepth="2" Opacity="0.15" />
+          </Border.Effect>
+          <StackPanel>
+            <Button x:Name="ChooseGoesWith" Style="{StaticResource Bt.Link}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6"
+                    c:Ui.Icon="{StaticResource Icon.Link}" Content="{Binding Selection.DropChoice.GoesWithLabel}" Command="{Binding Selection.ChooseGoesWithCommand}" />
+            <Button Style="{StaticResource Bt.Link}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6"
+                    c:Ui.Icon="{StaticResource Icon.Copy}" Content="{Binding Selection.DropChoice.SameBookLabel}" Command="{Binding Selection.ChooseSameBookCommand}" />
+            <Button Style="{StaticResource Bt.Link}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="8,6" Content="Cancel"
+                    Command="{Binding Selection.CancelDropChoiceCommand}" />
+          </StackPanel>
+        </Border>
+      </Popup>
+
+      <!-- Beside the pointer while cards are dragged in Organize mode: how many, and what letting go will do. -->
+      <Popup x:Name="DragLabel" Placement="Absolute" AllowsTransparency="True" IsHitTestVisible="False" Focusable="False">
+        <Border x:Name="DragLabelBox" Background="{DynamicResource Bt.Text}" CornerRadius="6" Padding="10,6" MaxWidth="280" IsHitTestVisible="False">
+          <StackPanel>
+            <TextBlock x:Name="DragCount" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource Bt.Bg}" />
+            <TextBlock x:Name="DragWhat" FontSize="12" Foreground="{DynamicResource Bt.Bg}" TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
+      </Popup>
     </Grid>
 
     <!-- .bt-drawer: the inspector, over the page. Esc, the close button or a click outside closes it. -->

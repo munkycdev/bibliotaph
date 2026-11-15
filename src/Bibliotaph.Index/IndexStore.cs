@@ -75,6 +75,9 @@ public sealed record EntryDocRow(EntryId EntryId, long? DocumentId, EntryKind Ki
     /// <summary>For a companion, the book it goes with.</summary>
     public EntryId? SourceEntryId { get; init; }
 
+    /// <summary>For a companion, whether its book was only suggested.</summary>
+    public bool SourceSuggested { get; init; }
+
     /// <summary>For a book, how many companions go with it.</summary>
     public int Companions { get; init; }
 }
@@ -360,12 +363,14 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                 c.Execute(
                     """
                     INSERT INTO entry_doc (entry_id, document_id, kind, copies, name, members, added_utc, parent_id, first_page, last_page, parts, cover, cover_member,
-                        source_id, companions)
-                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members, @added, @parent, @first, @last, @parts, @cover, @coverMember, @source, @companions)
+                        source_id, source_suggested, companions)
+                    VALUES (@entryId, @documentId, @kind, @copies, @name, @members, @added, @parent, @first, @last, @parts, @cover, @coverMember, @source, @suggested,
+                        @companions)
                     ON CONFLICT (entry_id) DO UPDATE SET document_id = excluded.document_id, kind = excluded.kind, copies = excluded.copies,
                         name = excluded.name, members = excluded.members, added_utc = excluded.added_utc, parent_id = excluded.parent_id,
                         first_page = excluded.first_page, last_page = excluded.last_page, parts = excluded.parts, cover = excluded.cover,
-                        cover_member = excluded.cover_member, source_id = excluded.source_id, companions = excluded.companions
+                        cover_member = excluded.cover_member, source_id = excluded.source_id,
+                        source_suggested = excluded.source_suggested, companions = excluded.companions
                     """,
                     new
                     {
@@ -383,6 +388,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                         cover = entry.Cover,
                         coverMember = entry.CoverMember?.Value,
                         source = entry.SourceEntryId?.Value,
+                        suggested = entry.SourceSuggested,
                         companions = entry.Companions,
                     }, t);
                 RemoveMembers(c, t, entryId);

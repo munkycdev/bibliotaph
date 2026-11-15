@@ -71,7 +71,7 @@ Right-click it and choose **Cataloged wrong…**. See [Fixing a value](catalogin
 
 **The same book shows twice.**
 Identical files share a card by themselves. Files that differ (a reprint, a corrected edition) are asked about in
-Needs review, or tick both cards in **Select** mode and click **Same book**.
+Needs review, or tick both cards in **Organize** mode and click **Same book**.
 
 **Search doesn't find words I can see on a page.**
 The book may still be being read, or it's a scan whose text came out badly. Check **Settings > Processing**, then try

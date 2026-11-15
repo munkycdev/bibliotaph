@@ -8,6 +8,7 @@ using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
+using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.Logging;
@@ -266,6 +267,15 @@ public partial class MainWindow : Window
     void Pin_DragOver(object sender, DragEventArgs e)
     {
         e.Handled = true;
+        if (e.Data.GetData(typeof(OrganizeDrag)) is OrganizeDrag cards)
+        {
+            // Cards dragged from the Library in Organize mode: a collection or a binder takes them; other pins don't.
+            var plan = sender is FrameworkElement { DataContext: PinnedItemViewModel pin }
+                ? LibrarySelectionViewModel.PlanOnPin(pin.Target, pin.Label) : DropPlan.Nothing("");
+            cards.Plan = plan.CanDrop ? plan : DropPlan.Nothing("Only a collection or a binder takes books.");
+            e.Effects = plan.CanDrop ? DragDropEffects.Link : DragDropEffects.None;
+            return;
+        }
         if (e.Data.GetData(typeof(PinnedItemViewModel)) is not PinnedItemViewModel dragged || sender is not FrameworkElement { DataContext: PinnedItemViewModel over } target
             || ReferenceEquals(dragged, over))
         {
@@ -277,11 +287,21 @@ public partial class MainWindow : Window
         DropLine.Show(target, IsBelow(target, e));
     }
 
-    void Pin_DragLeave(object sender, DragEventArgs e) => DropLine.Hide();
+    void Pin_DragLeave(object sender, DragEventArgs e)
+    {
+        DropLine.Hide();
+        if (e.Data.GetData(typeof(OrganizeDrag)) is OrganizeDrag cards) cards.Plan = null;
+    }
 
     async void Pin_Drop(object sender, DragEventArgs e)
     {
         DropLine.Hide();
+        if (e.Data.GetData(typeof(OrganizeDrag)) is OrganizeDrag cards)
+        {
+            e.Handled = true;
+            if (sender is FrameworkElement { DataContext: PinnedItemViewModel pin }) cards.Organize.DropOnPin(cards, pin.Target, pin.Label);
+            return;
+        }
         if (e.Data.GetData(typeof(PinnedItemViewModel)) is not PinnedItemViewModel dragged || sender is not FrameworkElement { DataContext: PinnedItemViewModel over } target
             || DataContext is not ShellViewModel shell)
             return;

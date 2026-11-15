@@ -182,16 +182,16 @@ suggestion. Folder rules can be switched off in **Settings > Library**.
 
 ### Edit many books at once
 
-In the Library, click **Select**, tick the books (**Shift**+click ticks a run of them, **Ctrl+A** ticks every book
+In the Library, click **Organize**, tick the books (**Shift**+click ticks a run of them, **Ctrl+A** ticks every book
 shown), and click **Edit metadata**. Change any field but the title. A field the books disagree on says so instead of
 looking blank, and fields you don't touch stay as they are. **Review changes** shows what will change before it's
 saved, and **Undo** puts it back afterwards.
 
-The Select bar stays in view while you scroll through the books, at the top of the Library on Windows and pinned to
+The Organize bar stays in view while you scroll through the books, at the top of the Library on Windows and pinned to
 the top of the window on the web, so its buttons are always in reach.
 
-Once a change is applied, the books are unticked so the next change starts fresh, and you stay in **Select** mode.
-That goes for every change from the Select bar: **Edit metadata**, **Add to collection**, **Add to binder**, **Same
+Once a change is applied, the books are unticked so the next change starts fresh, and you stay in **Organize** mode.
+That goes for every change from the Organize bar: **Edit metadata**, **Add to collection**, **Add to binder**, **Same
 book**, **Pack together**, **Remove adventures** and **Remove from collection**. **Export these** changes nothing, so
 the books stay ticked after it.
 
@@ -278,14 +278,14 @@ file its own card again.
 A file that shares most of its pages with a book you have, or its title and publisher, is asked about as a new
 version instead. Nothing is ever joined without asking unless the text is identical.
 
-To join cards yourself, tick them in **Select** mode and click **Same book**. You choose which file opens.
+To join cards yourself, tick them in **Organize** mode and click **Same book**. You choose which file opens.
 
 ## Packs
 
 A folder (or ZIP) of 20 or more images and no PDFs, such as a map pack or a set of handouts, becomes one card: an
 image pack, named after the folder. A smaller set is offered in Needs review instead. **Split into separate images**
 gives each image its own card again, and Bibliotaph remembers that. To make a pack by hand, tick images or packs in
-**Select** mode and click **Pack together**.
+**Organize** mode and click **Pack together**.
 
 WebM videos, such as the animated versions of a map, count as images here, so a folder of maps and their animated
 versions is one pack. A video's cover is the image beside it whose name is most like its own (map makers ship a still
@@ -293,7 +293,7 @@ of each animated map); with no image beside it, its card shows the placeholder.
 
 Packs can hold PDFs too, such as a party's character sheets or a set of pregenerated characters with their
 portraits. Bibliotaph never puts a PDF in a pack by itself: tick the PDFs (and any images or packs to go with them) in
-**Select** mode and click **Pack together**. The card then says "Pack · 6 files" instead of "Image pack · 6 images",
+**Organize** mode and click **Pack together**. The card then says "Pack · 6 files" instead of "Image pack · 6 images",
 and its cover is still a mosaic of the first four. Opening the pack steps through its files with the arrows at the
 top (**Previous file** and **Next file**): PDFs open as PDFs and images as images. Its details list every file, PDFs
 shown by their first page, and **Split into separate files** gives each one its own card back, with everything you had
@@ -338,7 +338,7 @@ To see every adventure as a card of its own, even while browsing, set **Adventur
 show. A search you saved with adventures hidden keeps them hidden.
 
 **Remove adventure** in an adventure's details takes its card away; its pages are only the file's again, and the file
-itself is never changed. To remove several at once, tick their cards in **Select** mode and click
+itself is never changed. To remove several at once, tick their cards in **Organize** mode and click
 **Remove adventures**. Either way, **Undo** brings them back.
 
 ## Maps and handouts that go with a book
@@ -376,6 +376,40 @@ While you browse, maps and handouts stay inside their book, as adventures do: th
 ("12 maps and handouts") and a search still finds them, each card saying which book it goes with. **Maps and
 handouts** in the Library's **More filters** shows them as cards of their own instead, or **Hide** leaves them out
 altogether. To link many at once, use **Goes with** in [Edit many books at once](#edit-many-books-at-once).
+
+### Drag maps onto their books
+
+The quickest way to link maps and handouts by hand is to drag them. Click **Organize** in the Library's toolbar, then
+drag a map's card onto its book's card and let go: it goes with that book. Dragging only works in Organize mode, so
+you can't link files by accident while you browse. A ticked card brings every ticked card with it, so tick a folder's
+worth of maps and drag one of them.
+
+What happens depends on where you let go, and the words beside the pointer say so before you do:
+
+- **On a book**: the cards go with it. When the cards are books too, a menu asks whether they **go with** it or are
+  the **same book** (copies or versions), which opens the **Same book** dialog.
+- **On a pack**: the images or PDFs join the pack, which keeps its name.
+- **On a picture**: the pictures become a new pack, named in the **Pack together** dialog.
+- **On a collection or binder pinned in the sidebar**: they are added to it.
+- **On Not with a book**, in the bar: they no longer go with the book they did, and it won't be suggested for them
+  again.
+
+Where a drop can't work, the words say why, such as "A picture can't be the book." Every drop has **Undo** in the
+note under the bar, and **Ctrl+Z** takes back the changes made in Organize mode one at a time, newest first.
+
+Organize mode also helps you find what to link:
+
+- **Badges** down the right of each cover say how a card is put together: the book a map goes with, the files in a
+  pack, the adventures in a file, the maps and handouts that go with a book, and its copies. Point at one for its
+  words. In Organize mode a map's badge names its book, so a wrong link stands out; a link the rules only suggested is
+  fainter.
+- **Folder** in the toolbar's order lists the cards folder by folder, under each folder's name, so a book and its
+  maps sit together and a drag is short.
+- The bar's second row shows **Everything**, only the **Loose maps and handouts** that go with no book yet, or the
+  **Suggested links** the rules made, which **Keep these** makes your own all at once.
+- **Books** opens a panel beside the covers with the books in the folder of the card you ticked or picked up last,
+  the books you dropped on lately, and a box to find any book by its title. Drop cards on a book there, or tick them
+  and click its **Goes with**, which also works from the keyboard.
 
 ## Books you own elsewhere
 

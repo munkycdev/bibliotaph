@@ -1468,3 +1468,39 @@ a.bt-sumrow:hover>span:first-child{color:var(--bt-accent)}
 .bt-sumticks{display:flex;justify-content:space-between;font-size:10px;color:var(--bt-muted);margin-top:5px}
 @media(max-width:620px){.bt-sumhero{font-size:22px}.bt-sumrow{grid-template-columns:minmax(0,110px) minmax(0,1fr) auto}}
 @media(forced-colors:active){.bt-sumbar rect,.bt-sumstrip rect,.bt-sumswatch{fill:Highlight;background:Highlight}.bt-sumbar rect.soft,.bt-sumswatch.soft{fill:GrayText;background:GrayText}.bt-sumgrowth .line{stroke:Highlight}.bt-sumgrowth .area{fill:Canvas}}
+/* A card's badges down its cover's right edge, under the AI badge when it has one; along a list row under its title. */
+.bt-badges{position:absolute;right:4px;top:4px;display:flex;flex-direction:column;align-items:flex-end;gap:3px;max-width:calc(100% - 12px)}
+.bt-badges.below-ai{top:26px}
+.bt-badges.inline{position:static;flex-direction:row;flex-wrap:wrap;align-items:center;margin-top:5px}
+.bt-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;line-height:1.4;padding:1px 6px 1px 5px;border-radius:9px;background:var(--bt-panel);border:1px solid var(--bt-line);color:var(--bt-text);white-space:nowrap;max-width:100%;overflow:hidden}
+.bt-badge svg{width:11px;height:11px;stroke-width:2.2;flex:none;color:var(--bt-muted)}
+.bt-badge.suggested{border-style:dashed}
+.bt-badge span{overflow:hidden;text-overflow:ellipsis;max-width:120px}
+/* Organize mode: cards are picked up and dropped, so their text isn't selected as they move. */
+.bt-bookbutton.selecting,.bt-listrow.selecting{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.bt-bookbutton.selecting img,.bt-listrow.selecting img{-webkit-user-drag:none}
+.bt-book.dropok .bt-coverarea,.bt-listitem.dropok{outline:2px solid var(--bt-accent);outline-offset:3px;border-radius:5px}
+.bt-book.dropno .bt-coverarea,.bt-listitem.dropno{outline:2px dashed var(--bt-muted);outline-offset:3px;border-radius:5px}
+.bt-dragghost{position:fixed;z-index:60;pointer-events:none;display:flex;flex-direction:column;gap:2px;max-width:260px;padding:6px 10px;border-radius:6px;background:var(--bt-text);color:var(--bt-bg);font-size:12px;box-shadow:0 8px 24px #0003}
+.bt-dragghost span:empty{display:none}
+.bt-dragghost.no{opacity:.75}
+.bt-organizerow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex-basis:100%}
+.bt-linkschoice{display:flex;flex-wrap:wrap;gap:6px}
+.bt-dropzone{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:6px 12px;border:1.5px dashed var(--bt-muted);border-radius:6px;color:var(--bt-muted)}
+.bt-dropzone.dropok{border-color:var(--bt-accent);color:var(--bt-text);background:var(--bt-panel)}
+.bt-dropzone.dropno{opacity:.6}
+.bt-dropmenu{position:fixed;z-index:40}
+/* Organize's folder headings, across the whole row of covers. */
+.bt-foldergroup{grid-column:1/-1;display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600;color:var(--bt-muted);padding:8px 0 4px;border-bottom:1px solid var(--bt-line)}
+.bt-booklist .bt-foldergroup{margin-top:14px}
+/* The Books panel: beside the covers on a wide window, along the bottom on a phone. */
+.bt-organizepanel{position:fixed;right:16px;top:90px;bottom:16px;width:300px;z-index:15;overflow:auto;padding:16px;border-radius:8px;background:var(--bt-panel);border:1px solid var(--bt-line);box-shadow:-12px 0 40px #00000012;display:flex;flex-direction:column;gap:8px}
+.bt-organizehead{display:flex;align-items:center;justify-content:space-between}
+.bt-organizebook{display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;border:1px solid var(--bt-line);margin-bottom:6px}
+.bt-organizebook.dropok{border-color:var(--bt-accent);outline:1px solid var(--bt-accent)}
+.bt-organizebook.dropno{border-style:dashed}
+.bt-organizebooktext{display:flex;flex-direction:column;min-width:0;flex:1}
+.bt-organizebooktext .bt-row,.bt-organizebooktext .bt-small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+main:has(.bt-organizepanel) .bt-books,main:has(.bt-organizepanel) .bt-booklist{margin-right:316px}
+@media(max-width:850px){.bt-organizepanel{left:0;right:0;top:auto;bottom:0;width:auto;max-height:50vh;border-radius:12px 12px 0 0}
+main:has(.bt-organizepanel) .bt-books,main:has(.bt-organizepanel) .bt-booklist{margin-right:0;margin-bottom:52vh}}

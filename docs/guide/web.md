@@ -324,13 +324,13 @@ books and Favorites. Drag one to move it, or use Alt+Up and Alt+Down; right-clic
 **Unpin**, and for a saved search **Rename…** and **Delete**. A book's details have a pin button too. A pinned book
 whose file can't be opened right now is dimmed.
 
-### Select mode
+### Organize mode
 
-**Select** in the Library's toolbar ticks books instead of opening them, as in the Windows app. Click a book to tick
-it, **Shift**+click to tick a run of them, and **Ctrl+A** to tick every book shown; **Esc** or **Done** leaves Select
-mode and **Clear** unticks them all. The Select bar says how many are ticked and offers what fits them. It stays
-pinned to the top of the window as you scroll down the Library, so you can tick books far down the list and act on
-them without scrolling back up, on a phone too:
+**Organize** in the Library's toolbar ticks books instead of opening them, and lets you drag them onto each other, as
+in the Windows app. Click a book to tick it, **Shift**+click to tick a run of them, and **Ctrl+A** to tick every book
+shown; **Esc** or **Done** leaves Organize mode and **Clear** unticks them all. The Organize bar says how many are
+ticked and offers what fits them. It stays pinned to the top of the window as you scroll down the Library, so you can
+tick books far down the list and act on them without scrolling back up, on a phone too:
 
 - **Edit metadata** changes fields on every ticked book at once (see below).
 - **Add to collection** adds them to a collection, and inside a collection **Remove from collection** takes them out.
@@ -341,7 +341,15 @@ them without scrolling back up, on a phone too:
 - **Export these** saves the ticked books as a CSV file for a spreadsheet, with the Windows app's columns.
 
 Each change says what it did, with **Undo**, and unticks the books so the next change starts fresh; you stay in
-Select mode. **Export these** changes nothing, so the books stay ticked after it.
+Organize mode. **Export these** changes nothing, so the books stay ticked after it.
+
+In Organize mode you can also drag a card onto another, with the mouse or, on a phone or tablet, by holding a finger
+on it until it lifts; a ticked card brings every ticked card with it. The words beside the pointer say what letting go
+will do, as described in [Drag maps onto their books](cataloging.md#drag-maps-onto-their-books), and the page scrolls
+when you near its top or bottom. **Esc** puts the cards down. The second row of the bar has the same **Everything**,
+**Loose maps and handouts** and **Suggested links** choices, **Keep these**, the **Not with a book** drop zone and
+the **Books** panel, which slides up from the bottom on a phone. **Ctrl+Z** takes back the changes made in Organize
+mode one at a time.
 
 **Edit metadata** shows every field but the title with what the ticked books have in it: the value they share, "Mixed
 (3 values)" with how many have each, or "Not set". The pencil sets one value on every book, typed or picked from the
@@ -404,7 +412,7 @@ there, with **In** and the binder's name on a chip; **Find resources** opens the
 the Windows app shows.
 
 **Add to binder** adds books as in the Windows app: the notebook button in a book's details adds that book (a file
-in a pack shown on its own card goes in on its own), and **Add to binder** in the Select bar adds every ticked book.
+in a pack shown on its own card goes in on its own), and **Add to binder** in the Organize bar adds every ticked book.
 Its menu leads with the binder you worked on last, then **Add to another binder…**, which lists them all and narrows as
 you type, and **Add to a new binder…**, which makes one first. While searching, the **+** beside a matching page on the
 **Pages** tab adds that page to the binder you worked on last. Each says what it added, with **Undo**.

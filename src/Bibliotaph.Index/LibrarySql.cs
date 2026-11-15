@@ -50,7 +50,9 @@ internal static class LibrarySql
         CASE WHEN e.kind = 'Part' THEN (SELECT lp.label FROM page lp WHERE lp.document_id = e.document_id AND lp.pdf_page = e.last_page) END AS LastLabel,
         CASE WHEN e.kind = 'Part' THEN d.cover END AS FileCover,
         e.pack_file AS PackFile, CASE WHEN e.pack_file IS NOT NULL THEN coalesce(m.title, e.name) END AS PackTitle,
-        e.source_id AS SourceId, e.companions AS Companions,
+        e.source_id AS SourceId, e.source_suggested AS SourceSuggested, e.companions AS Companions,
+        EXISTS (SELECT 1 FROM entry_facet lf WHERE lf.entry_id = e.entry_id AND lf.field = 'type'
+            AND lf.value IN ('map-pack', 'handout', 'character-sheet')) AS LooseType,
         CASE WHEN e.source_id IS NOT NULL THEN (
             SELECT coalesce(sm.title, se.name, sd.display_title) FROM entry_doc se
             LEFT JOIN entry_meta sm ON sm.entry_id = se.entry_id LEFT JOIN doc sd ON sd.document_id = se.document_id
@@ -71,10 +73,10 @@ internal static class LibrarySql
     public static string Cards(bool packFiles) => packFiles
         ? """
             (SELECT entry_id, document_id, kind, copies, name, members, added_utc, parent_id, first_page, last_page, parts, cover, cover_member,
-                    source_id, companions, NULL AS pack_file
+                    source_id, source_suggested, companions, NULL AS pack_file
              FROM entry_doc WHERE kind <> 'Pack'
              UNION ALL
-             SELECT p.entry_id, em.document_id, 'Whole', 1, p.name, 0, p.added_utc, NULL, NULL, NULL, 0, NULL, NULL, p.source_id, 0, em.member_entry_id
+             SELECT p.entry_id, em.document_id, 'Whole', 1, p.name, 0, p.added_utc, NULL, NULL, NULL, 0, NULL, NULL, p.source_id, p.source_suggested, 0, em.member_entry_id
              FROM entry_doc p JOIN entry_member em ON em.entry_id = p.entry_id
              WHERE p.kind = 'Pack')
             """
@@ -127,6 +129,7 @@ internal static class LibrarySql
     {
         LibrarySort.Title => $"{Title} COLLATE NOCASE, e.entry_id",
         LibrarySort.Publisher => $"m.publisher IS NULL, m.publisher COLLATE NOCASE, {Title} COLLATE NOCASE, e.entry_id",
+        LibrarySort.Folder => $"d.folder_hint IS NULL, d.folder_hint COLLATE NOCASE, {Title} COLLATE NOCASE, e.entry_id",
         LibrarySort.RecentlyOpened => "o.opened_utc IS NULL, o.opened_utc DESC, coalesce(d.added_utc, e.added_utc) DESC, e.entry_id DESC",
         LibrarySort.Relevance when relevance is not null => $"{relevance}, e.entry_id",
         _ => "coalesce(d.added_utc, e.added_utc) DESC, e.entry_id DESC",

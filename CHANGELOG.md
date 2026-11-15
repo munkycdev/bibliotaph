@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Drag maps onto their books in Organize mode.** **Select** is now **Organize**, and in it you can drag a map,
+  handout or pack onto its book's card to link them, or tick several and drag them together. Dropping on a pack adds
+  to it, on a picture packs them together, on a pinned collection or binder adds them, on a book asks whether it goes
+  with it or is the same book, and on **Not with a book** unlinks them. The words beside the pointer say what letting
+  go will do. Every drop has **Undo**, and **Ctrl+Z** takes back Organize's changes one at a time.
+  - Covers show badges for the book a map goes with, a pack's files, adventures inside, maps and handouts, and copies.
+  - **Folder** order groups the Library by folder, so a book and its maps sit together.
+  - The bar shows **Loose maps and handouts** or **Suggested links** (with **Keep these**), and the **Books** panel
+    lists the books near the card you picked up, those you dropped on lately, and any you find by title.
+  - On Windows and the web, where a finger held on a card picks it up on a phone or tablet.
 - **Fixed: the Goes with book picker showed no books on Windows.** Choosing the book a map goes with, in its details or
   in **Edit metadata**, found the books but drew each one blank, so typing seemed to do nothing. Each book now shows its
   title and details, highlights under the mouse, and the box takes the keyboard as the picker opens. On the web on a

@@ -38,6 +38,9 @@ public sealed record EntryDocument(EntryId EntryId, long? DocumentId, EntryKind 
     /// <summary>For a companion, the book it goes with by a link in effect.</summary>
     public EntryId? SourceEntryId { get; init; }
 
+    /// <summary>For a companion, whether its book was only suggested by the rules, so Organize can offer to keep it.</summary>
+    public bool SourceSuggested { get; init; }
+
     /// <summary>For a book, how many companions go with it.</summary>
     public int Companions { get; init; }
 }
@@ -217,17 +220,18 @@ public sealed class EntryStore(IDbContextFactory<CatalogDbContext> contexts, Tim
     {
         if (current.Count == 0) return current;
         var live = db.CompanionLinks.AsNoTracking().Where(l => l.State == CompanionState.Suggested || l.State == CompanionState.Confirmed);
-        List<(long EntryId, long BookEntryId)> links = [];
+        List<(long EntryId, long BookEntryId, bool Suggested)> links = [];
         var ids = current.Select(c => c.EntryId.Value).ToList();
         foreach (var chunk in ids.Chunk(500))
             links.AddRange((await live.Where(l => chunk.Contains(l.EntryId) || chunk.Contains(l.BookEntryId))
-                .Select(l => new { l.EntryId, l.BookEntryId }).ToListAsync(ct)).Select(l => (l.EntryId, l.BookEntryId)));
+                .Select(l => new { l.EntryId, l.BookEntryId, l.State }).ToListAsync(ct)).Select(l => (l.EntryId, l.BookEntryId, l.State == CompanionState.Suggested)));
         if (links.Count == 0) return current;
-        var sources = links.DistinctBy(l => l.EntryId).ToDictionary(l => l.EntryId, l => l.BookEntryId);
+        var sources = links.DistinctBy(l => l.EntryId).ToDictionary(l => l.EntryId);
         var counts = links.Distinct().GroupBy(l => l.BookEntryId).ToDictionary(g => g.Key, g => g.Count());
         return [.. current.Select(c => c with
         {
-            SourceEntryId = sources.TryGetValue(c.EntryId.Value, out var book) ? new EntryId(book) : null,
+            SourceEntryId = sources.TryGetValue(c.EntryId.Value, out var link) ? new EntryId(link.BookEntryId) : null,
+            SourceSuggested = sources.TryGetValue(c.EntryId.Value, out var suggested) && suggested.Suggested,
             Companions = counts.GetValueOrDefault(c.EntryId.Value),
         })];
     }

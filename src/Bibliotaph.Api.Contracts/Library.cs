@@ -59,6 +59,9 @@ public sealed record LibraryQuery
 
     public string? Collections { get; init; }
 
+    /// <summary>Organize mode's choice of cards, by the names in <see cref="LibraryChoices.Links"/>: every card, the loose ones, or those only suggested for a book.</summary>
+    public string? Links { get; init; }
+
     /// <summary>
     /// The values picked in the type-ahead filters, as JSON: an object of arrays by field key,
     /// <c>{"setting":["the-marches"]}</c>, as a saved search keeps them.
@@ -96,7 +99,21 @@ public sealed record BookCard(
     string Initial, bool Favorite, string? AiTip, string TextMark, string? TextMarkTip, bool Elsewhere, string Badge,
     bool Part, bool FoundInBook, string Availability, string? AvailabilityTip,
     string? OnlineLink = null, string? OnlineLabel = null, bool HasText = false, bool CanForgetText = false, bool CanReadAgain = false,
-    bool Protected = false);
+    bool Protected = false, IReadOnlyList<BookBadge>? Badges = null, OrganizeFacts? Organize = null, string Folder = "");
+
+/// <summary>
+/// A mark down a card's cover that says how it is put together: its <see cref="Kind"/>, the Lucide <see cref="Icon"/>,
+/// the number beside it, the words in its tooltip, and the longer words Organize mode shows. <see cref="Suggested"/>
+/// marks a book the rules only suggested, drawn dashed.
+/// </summary>
+public sealed record BookBadge(string Kind, string Icon, string Count, string Tip, string Wide, bool Suggested);
+
+/// <summary>
+/// What Organize mode's drops go by, for a card: its title (a pack's, for one of its files) and format; a pack or one of its files; owned elsewhere; an adventure inside a
+/// file, or a file with some; loose (a map, handout, character sheet, picture or pack); going with a book; and how
+/// many cards go with it.
+/// </summary>
+public sealed record OrganizeFacts(string Title, string Format, bool Pack, bool Elsewhere, bool Part, int Parts, bool Loose, bool GoesWithBook, int Companions);
 
 /// <summary>
 /// A page that matched. <see cref="Snippet"/> has its hits between <see cref="LibraryChoices.HitStart"/> and <see
@@ -163,7 +180,8 @@ public static class LibraryChoices
     public const char HitEnd = '\u0003';
 
     public static IReadOnlyList<FilterChoice> SearchSorts { get; } =
-        [new("Relevance", "Best match"), new("RecentlyAdded", "Recently added"), new("RecentlyOpened", "Recently opened"), new("Title", "Title A–Z"), new("Publisher", "Publisher A–Z")];
+        [new("Relevance", "Best match"), new("RecentlyAdded", "Recently added"), new("RecentlyOpened", "Recently opened"), new("Title", "Title A–Z"), new("Publisher", "Publisher A–Z"),
+            new("Folder", "Folder")];
 
     public static IReadOnlyList<FilterChoice> BrowseSorts { get; } = [.. SearchSorts.Skip(1)];
 
@@ -187,6 +205,10 @@ public static class LibraryChoices
     public static IReadOnlyList<FilterChoice> Companions { get; } = [new("", "Inside their book"), new("Cards", "Show as cards"), new("Hidden", "Hide")];
 
     public static IReadOnlyList<FilterChoice> Collections { get; } = [new("", "All books"), new("InOne", "In a collection"), new("NotInOne", "Not in a collection")];
+
+    /// <summary>Organize mode's choice of cards, in its bar.</summary>
+    public static IReadOnlyList<FilterChoice> Links { get; } =
+        [new("", "Everything"), new("Loose", "Loose maps and handouts"), new("Suggested", "Suggested links")];
 }
 
 /// <summary>

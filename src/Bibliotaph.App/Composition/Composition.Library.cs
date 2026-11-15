@@ -22,6 +22,7 @@ static partial class Composition
         services.AddSingleton<PartsService>();
         services.AddSingleton<CompanionStore>();
         services.AddSingleton<SourceBooksService>();
+        services.AddSingleton<OrganizeService>();
         services.AddSingleton<PartProposalStore>();
         services.AddSingleton<PartProposalService>();
         services.AddSingleton<PackService>();
