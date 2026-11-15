@@ -524,7 +524,7 @@ else
 {
     @* Books dropped on a book: they go with it, or they're the same book. *@
     <div class="bt-backdrop fixed bt-menuback" @onclick="() => _dropMenu = null"></div>
-    <div class="bt-menu bt-dropmenu" role="menu" aria-label="What to do" style="@dropMenu.Style">
+    <div class="bt-menu bt-dropmenu" role="menu" aria-label="What to do" @ref="_dropMenuBox">
         <button class="bt-menuitem" role="menuitem" @onclick="() => DropMenuAsync(DropAction.GoesWith)">@OrganizeRules.GoesWith(dropMenu.Target.Title)</button>
         <button class="bt-menuitem" role="menuitem" @onclick="() => DropMenuAsync(DropAction.SameBook)">Same book as “@dropMenu.Target.Title”…</button>
     </div>
@@ -611,7 +611,14 @@ else
     /// <summary>Books dropped on a book: the menu that asks whether they go with it or are the same book.</summary>
     DropMenu? _dropMenu;
 
-    sealed record DropMenu(BookCard Target, IReadOnlyList<long> Dragged, string Style);
+    // Where the pointer let go, in the window; the page places the menu there itself, since its security policy refuses
+    // positions written into the markup.
+    sealed record DropMenu(BookCard Target, IReadOnlyList<long> Dragged, double X, double Y)
+    {
+        public bool Placed { get; set; }
+    }
+
+    ElementReference _dropMenuBox;
 
     /// <summary>A saved search keeps its own order; elsewhere the order is the browser's to remember.</summary>
     string Sort => _query.Sort ?? (_viewId is null ? _query.IsSearching ? _searchSort : _browseSort : null) ?? (_query.IsSearching ? "Relevance" : "RecentlyAdded");
@@ -738,6 +745,20 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_dropMenu is { Placed: false } menu)
+        {
+            menu.Placed = true;
+            try
+            {
+                await JS.InvokeVoidAsync("bibliotaphOrganize.placeMenu", _dropMenuBox, menu.X, menu.Y);
+            }
+            catch (JSException)
+            {
+                // A menu that can't be placed would stay hidden; the drop is dropped instead of hanging there.
+                _dropMenu = null;
+                StateHasChanged();
+            }
+        }
         if (_watch is not null || _results is null) return;
         _self ??= DotNetObjectReference.Create(this);
         try
@@ -1294,10 +1315,7 @@ else
         {
             case "card" when CardOf(id) is { } card:
                 if (plan.Action == DropAction.GoesWithOrSameBook)
-                {
-                    var at = $"left:{Math.Round(x).ToString(System.Globalization.CultureInfo.InvariantCulture)}px;top:{Math.Round(y).ToString(System.Globalization.CultureInfo.InvariantCulture)}px";
-                    _dropMenu = new DropMenu(card, dragged, at);
-                }
+                    _dropMenu = new DropMenu(card, dragged, x, y);
                 else await DropOnCardAsync(plan.Action, dragged, card);
                 break;
             case "book":

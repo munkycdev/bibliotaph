@@ -182,7 +182,17 @@ window.bibliotaphOrganize = (function () {
 
   return {
     start: function (p) { page = p; },
-    stop: function () { cancel(); page = null; }
+    stop: function () { cancel(); page = null; },
+    // The menu for books dropped on a book opens where the pointer let go, kept inside the window.
+    placeMenu: function (menu, x, y) {
+      if (!menu) return;
+      var r = menu.getBoundingClientRect(), gap = 8;
+      menu.style.left = Math.max(gap, Math.min(x, window.innerWidth - r.width - gap)) + 'px';
+      menu.style.top = Math.max(gap, Math.min(y, window.innerHeight - r.height - gap)) + 'px';
+      menu.style.visibility = 'visible';
+      var first = menu.querySelector('[role=menuitem]');
+      if (first) first.focus();
+    }
   };
 })();
 // A file made in the browser, such as Export these' CSV, saved where the browser saves downloads. A CSV starts with a

@@ -346,7 +346,9 @@ Organize mode. **Export these** changes nothing, so the books stay ticked after 
 In Organize mode you can also drag a card onto another, with the mouse or, on a phone or tablet, by holding a finger
 on it until it lifts; a ticked card brings every ticked card with it. The words beside the pointer say what letting go
 will do, as described in [Drag maps onto their books](cataloging.md#drag-maps-onto-their-books), and the page scrolls
-when you near its top or bottom. **Esc** puts the cards down. The second row of the bar has the same **Everything**,
+when you near its top or bottom. Cards dropped on a book that could be the same book open a small menu where you let go,
+to choose whether they go with it or are the same book. Once a map goes with its book it leaves the list, counted on the
+book's badge. **Esc** puts the cards down. The second row of the bar has the same **Everything**,
 **Loose maps and handouts** and **Suggested links** choices, **Keep these**, the **Not with a book** drop zone and
 the **Books** panel, which slides up from the bottom on a phone. **Ctrl+Z** takes back the changes made in Organize
 mode one at a time.
