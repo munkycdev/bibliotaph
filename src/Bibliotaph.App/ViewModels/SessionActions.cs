@@ -31,12 +31,15 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
 
     public SessionDirectory Directory { get; } = directory;
 
-    /// <summary>One of a menu's Add to session items, for these books: "Ghost Tower" or "3 books" in the note.</summary>
-    public void Add(IReadOnlyList<EntryId> books, string what, SessionMenuChoice choice)
+    /// <summary>
+    /// One of a menu's Add to session items, for these books: "Ghost Tower" or "3 books" in the note.
+    /// <paramref name="added"/> runs once they are in, and not when a dialog is cancelled or the add fails.
+    /// </summary>
+    public void Add(IReadOnlyList<EntryId> books, string what, SessionMenuChoice choice, Action? added = null)
     {
         if (books.Count == 0) return;
         IReadOnlyList<NewSessionItem> items = [.. books.Select(b => new NewSessionItem(b))];
-        AddTo(choice, what, id => sessions.AddAsync(id, items));
+        AddTo(choice, what, id => sessions.AddAsync(id, items), added);
     }
 
     /// <summary>
@@ -60,20 +63,20 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
     SessionMenuChoice CurrentChoice() =>
         Directory.Current is { } current ? new(SessionMenuKind.Session, current.Id, "") : new(SessionMenuKind.New, null, "");
 
-    void AddTo(SessionMenuChoice choice, string what, Func<long, Task<IReadOnlyList<long>>> add)
+    void AddTo(SessionMenuChoice choice, string what, Func<long, Task<IReadOnlyList<long>>> add, Action? added = null)
     {
         switch (choice.Kind)
         {
             case SessionMenuKind.Session when choice.PackId is { } id:
-                AddToAsync(id, what, () => add(id)).FireAndForget();
+                AddToAsync(id, what, () => add(id), added).FireAndForget();
                 break;
             case SessionMenuKind.New:
-                NewThen(BinderText.NewHeading, BinderText.NewAction, pack => AddToAsync(pack.Id, what, () => add(pack.Id)));
+                NewThen(BinderText.NewHeading, BinderText.NewAction, pack => AddToAsync(pack.Id, what, () => add(pack.Id), added));
                 break;
             case SessionMenuKind.Choose:
                 Open(SessionDialogViewModel.Picking(BinderText.PickHeading(what), Directory.All), async result =>
                 {
-                    if (result.PackId is { } picked) await AddToAsync(picked, what, () => add(picked));
+                    if (result.PackId is { } picked) await AddToAsync(picked, what, () => add(picked), added);
                 });
                 break;
         }
@@ -101,13 +104,14 @@ public sealed partial class SessionActions(SessionsService sessions, SessionDire
             });
     }
 
-    async Task AddToAsync(long packId, string what, Func<Task<IReadOnlyList<long>>> add)
+    async Task AddToAsync(long packId, string what, Func<Task<IReadOnlyList<long>>> add, Action? then = null)
     {
         var added = await Run(add, "Adding to a session failed");
         if (added is null) return;
         var name = Directory.Find(packId)?.Title ?? "the binder";
         await FinishAsync(added.Count == 0 ? BinderText.NotAdded : BinderText.Added(what, name),
             added.Count == 0 ? null : async () => await sessions.RemoveItemsAsync(added));
+        then?.Invoke();
     }
 
     /// <summary>New session: a title and a date, then the pack opens (<see cref="Created"/>).</summary>

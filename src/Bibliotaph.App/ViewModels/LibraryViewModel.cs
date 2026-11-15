@@ -1228,10 +1228,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         if (item is not null) Collections.Add([item.EntryId], item.Entry.PackTitle ?? item.Title, request.Choice);
     }
 
-    /// <summary>Select mode's Add to collection: every ticked book, shown or not.</summary>
+    /// <summary>Select mode's Add to collection: every ticked book, shown or not, unticked once they are in.</summary>
     [RelayCommand]
     void AddSelectedToCollection(CollectionRequest request) =>
-        Collections.Add(Selection.Books.EntryIds, SelectionRules.Books(Selection.Books.Count), request.Choice);
+        Collections.Add(Selection.Books.EntryIds, SelectionRules.Books(Selection.Books.Count), request.Choice, Selection.Books.Clear);
 
     bool CanRemoveSelected => IsCollection && Selection.Books.HasAny;
 
@@ -1271,10 +1271,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         if (item is not null) Sessions.Add([item.Entry.PackFile ?? item.EntryId], item.Title, request.Choice);
     }
 
-    /// <summary>Select mode's Add to session: every ticked book, shown or not.</summary>
+    /// <summary>Select mode's Add to binder: every ticked book, shown or not, unticked once they are in.</summary>
     [RelayCommand]
     void AddSelectedToSession(SessionRequest request) =>
-        Sessions.Add(Selection.Books.EntryIds, SelectionRules.Books(Selection.Books.Count), request.Choice);
+        Sessions.Add(Selection.Books.EntryIds, SelectionRules.Books(Selection.Books.Count), request.Choice, Selection.Books.Clear);
 
     /// <summary>A matching page's Add: that page to the current session pack.</summary>
     [RelayCommand]

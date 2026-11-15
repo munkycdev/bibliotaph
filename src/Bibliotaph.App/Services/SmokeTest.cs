@@ -731,6 +731,7 @@ static partial class SmokeTest
         await bulk.ApplyCommand.ExecuteAsync(null);
         await WaitUntilAsync(window, () => page.Selection.BulkEdit is null && page.Selection.Undo.HasUndo, () => $"Applying the bulk edit didn't finish ({page.Selection.Undo.Message}).");
         if (page.Selection.Undo.Message != "Edited 2 books.") throw new InvalidOperationException($"The bulk edit says {page.Selection.Undo.Message}");
+        if (page.Selection.Books is not { IsActive: true, HasAny: false }) throw new InvalidOperationException($"After the bulk edit, Select mode has {page.Selection.Books.Summary}.");
         search.Search("tag:shelved");
         await WaitUntilAsync(window, () => page.Items.Select(i => i.Title).Order(StringComparer.Ordinal).SequenceEqual(["Dragon Lairs", "Gazetteer of the Marches"]),
             () => $"Searching by the new tag found {string.Join(", ", page.Items.Select(i => i.Title))}.");
@@ -1914,7 +1915,8 @@ static partial class SmokeTest
         addSelected!.ContextMenu!.IsOpen = false;
         var toMaps = ((ICollectionChoices)campaign).MenuChoices.Single(c => c.CollectionId == mapsId);
         campaign.AddSelectedToCollectionCommand.Execute(new CollectionRequest(campaign, toMaps));
-        await WaitUntilAsync(window, () => campaign.Collections.Undo.Message == "Added 2 books to Maps.", () => $"Adding the selection said “{campaign.Collections.Undo.Message}”.");
+        await WaitUntilAsync(window, () => campaign.Collections.Undo.Message == "Added 2 books to Maps." && !campaign.Selection.Books.HasAny,
+            () => $"Adding the selection said “{campaign.Collections.Undo.Message}” and left {campaign.Selection.Books.Summary}.");
         campaign.Selection.StopSelectingCommand.Execute(null);
 
         // A card's menu: a third book into the campaign itself, undone and done again.
