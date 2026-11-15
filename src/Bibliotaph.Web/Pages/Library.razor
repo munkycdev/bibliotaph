@@ -936,15 +936,8 @@ else
         _correct = false;
     }
 
-    /// <summary>
-    /// A card's right-click menu. In Organize mode, where a click ticks the card, right-click opens its details
-    /// instead, as the bar's actions already cover the ticked books.
-    /// </summary>
-    void OpenCardMenu(BookCard book)
-    {
-        if (_select.On) ShowDetails(book);
-        else _cardMenu = book;
-    }
+    /// <summary>A card's right-click menu, in Organize mode too, where a click only ticks the card.</summary>
+    void OpenCardMenu(BookCard book) => _cardMenu = book;
 
     /// <summary>Cataloged wrong… from a card's menu: its details, with every guess marked.</summary>
     async Task CorrectBook(BookCard book)
@@ -1289,13 +1282,13 @@ else
         return OrganizeRules.Dragging(_dragged.Count);
     }
 
-    /// <summary>A finger held on a card and lifted without moving, touch's right-click: the card's details.</summary>
+    /// <summary>A finger held on a card and lifted without moving, touch's right-click: the card's menu.</summary>
     [JSInvokable]
     public void Held(string cardId)
     {
         _dragged = [];
         _dragTarget = null;
-        if (_select.On && CardOf(cardId) is { } card) ShowDetails(card);
+        if (_select.On && CardOf(cardId) is { } card) _cardMenu = card;
         StateHasChanged();
     }
 
