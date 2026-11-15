@@ -328,7 +328,9 @@ whose file can't be opened right now is dimmed.
 
 **Select** in the Library's toolbar ticks books instead of opening them, as in the Windows app. Click a book to tick
 it, **Shift**+click to tick a run of them, and **Ctrl+A** to tick every book shown; **Esc** or **Done** leaves Select
-mode and **Clear** unticks them all. The Select bar says how many are ticked and offers what fits them:
+mode and **Clear** unticks them all. The Select bar says how many are ticked and offers what fits them. It stays
+pinned to the top of the window as you scroll down the Library, so you can tick books far down the list and act on
+them without scrolling back up, on a phone too:
 
 - **Edit metadata** changes fields on every ticked book at once (see below).
 - **Add to collection** adds them to a collection, and inside a collection **Remove from collection** takes them out.
