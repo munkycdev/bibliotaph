@@ -29,7 +29,6 @@ public sealed partial class SessionPackViewModel : PageViewModel
     readonly SessionPages _sessionPages;
     readonly LibraryPages _pages;
     readonly LibraryQueries _queries;
-    readonly CoverImages _covers;
     readonly ReaderWindows _readers;
     readonly OnlineReaders _online;
     readonly INavigationService _navigation;
@@ -46,7 +45,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     bool _notesDirty;
 
     public SessionPackViewModel(SessionActions actions, SessionsService sessions, SessionPages sessionPages, LibraryPages pages, LibraryQueries queries,
-        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell, IUiThread ui,
+        ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell, IUiThread ui,
         TimeProvider time, ILogger<SessionPackViewModel> log, LibraryStore library, NornisWorldStore? worlds = null, IndexQueries? index = null, WebLibrary? web = null)
     {
         _ui = ui;
@@ -61,7 +60,6 @@ public sealed partial class SessionPackViewModel : PageViewModel
         _sessionPages = sessionPages;
         _pages = pages;
         _queries = queries;
-        _covers = covers;
         _readers = readers;
         _navigation = navigation;
         _log = log;
@@ -169,7 +167,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
                 IsLoaded = true;
                 return;
             }
-            var rows = await SessionPackRows.BuildAsync(_sessions, _queries, _covers, contents);
+            var rows = await SessionPackRows.BuildAsync(_sessions, _queries, contents);
             if (version != _version) return;
             Pack = contents.Pack;
             if (!_notesDirty)

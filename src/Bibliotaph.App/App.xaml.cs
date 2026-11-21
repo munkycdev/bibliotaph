@@ -56,6 +56,7 @@ public partial class App : Application
             foreach (var directory in paths.Directories) System.IO.Directory.CreateDirectory(directory);
             var everyday = !_smokeTest && !measureSearch && !measureViewer && screenshots is null;
             _host = BuildHost(paths, pilot, dev, _smokeTest, everyday);
+            Controls.CoverSource.Use(_host.Services.GetRequiredService<CoverImages>());
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
 

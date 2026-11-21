@@ -1659,7 +1659,7 @@
                                 <Border x:Name="Thumb" Height="88" CornerRadius="4" Background="{DynamicResource Bt.Warm}" BorderBrush="{DynamicResource Bt.Line}"
                                         BorderThickness="1" ClipToBounds="True">
                                   <Grid>
-                                    <Image Source="{Binding Tile.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <Image c:CoverSource.Cover="{Binding Tile.Name}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
                                     <!-- A PDF in the pack shows its first page, marked as a PDF; it opens in the reader. -->
                                     <Border Padding="4,1" Margin="4" CornerRadius="3" HorizontalAlignment="Left" VerticalAlignment="Bottom"
                                             Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"

@@ -1263,7 +1263,7 @@ static partial class SmokeTest
         library = shell.CurrentPage as LibraryViewModel ?? throw new InvalidOperationException("Back didn't return to the Library.");
         // The card shows the chosen image in place of its mosaic; its details mark it, and Use the mosaic undoes it.
         await library.RefreshAsync();
-        await WaitUntilAsync(window, () => library.Items.Any(i => i.EntryId == pack.EntryId && i is { ShowsMosaic: false, HasCover: true }),
+        await WaitUntilAsync(window, () => library.Items.Any(i => i.EntryId == pack.EntryId && i is { ShowsMosaic: false, CoverName: not null }),
             () => "The pack's card didn't show the image chosen as its cover.");
         await library.OpenDetailsCommand.ExecuteAsync(library.Items.First(i => i.EntryId == pack.EntryId));
         await WaitUntilAsync(window, () => library.Inspector is { IsPack: true, HasPackCover: true } chosen && chosen.PackImages[2].IsCover,
@@ -2489,7 +2489,7 @@ static partial class SmokeTest
         if (await services.GetRequiredService<ChosenCovers>().KeepAsync(card.EntryId, Picture()) is { } coverProblem)
             throw new InvalidOperationException($"Choosing a cover said: {coverProblem}");
         await page.RefreshAsync();
-        await WaitUntilAsync(window, () => IsChosen(card) && card.HasCover, () => $"The card doesn't show the chosen cover ({card.Entry.Cover}).");
+        await WaitUntilAsync(window, () => IsChosen(card) && card.CoverName is not null, () => $"The card doesn't show the chosen cover ({card.Entry.Cover}).");
 
         await page.OpenDetailsCommand.ExecuteAsync(card);
         await Settle(window);
@@ -2579,7 +2579,8 @@ static partial class SmokeTest
         await page.RefreshAsync();
         await WaitUntilAsync(window, () => card.OpensOnline && card.BadgeLabel == "D&D Beyond",
             () => $"The card has no online link after Also own got one (badge “{card.BadgeLabel}”).");
-        await WaitUntilAsync(window, () => card.SiteIcon is not null, () => "The card's badge has no site icon.");
+        await WaitUntilAsync(window, () => Descendants<Image>(window).Any(i => i.Name == "SiteIcon" && i.DataContext == card && i.Source is not null),
+            () => "The card's badge has no site icon.");
         if (!page.OpenBookCommand.CanExecute(card)) throw new InvalidOperationException("A book owned online can't be opened.");
 
         var launcher = services.GetRequiredService<IShellLauncher>() as SmokeShellLauncher

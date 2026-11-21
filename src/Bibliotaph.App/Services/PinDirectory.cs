@@ -54,14 +54,13 @@ public sealed class PinDirectory : IPinState
     readonly SmartViewDirectory _views;
     readonly LibraryQueries _queries;
     readonly LibraryStore _library;
-    readonly CoverImages _covers;
     readonly ILogger<PinDirectory> _log;
     HashSet<PinTarget> _pinned = [];
     List<PinTarget> _order = [];
     int _version;
 
     public PinDirectory(PinsService pins, CollectionDirectory collections, SessionDirectory binders, SmartViewDirectory views, LibraryQueries queries,
-        LibraryStore library, CoverImages covers, LibraryActivity activity, IUiThread ui, ILogger<PinDirectory> log)
+        LibraryStore library, LibraryActivity activity, IUiThread ui, ILogger<PinDirectory> log)
     {
         _pins = pins;
         _collections = collections;
@@ -69,7 +68,6 @@ public sealed class PinDirectory : IPinState
         _views = views;
         _queries = queries;
         _library = library;
-        _covers = covers;
         _log = log;
         pins.Changed += (_, _) => ui.Post(LoadAsync);
         // A target deleted takes its pin with it, renamed shows its new name; a book's title or file can change too.
@@ -184,7 +182,7 @@ public sealed class PinDirectory : IPinState
             case PinKind.SavedSearch when _views.Find(id) is { } view:
                 return new(target, view.Name, "SlidersHorizontal", LibraryViewModel.SmartViewKey(id));
             case PinKind.Entry when books.TryGetValue(new EntryId(id), out var entry):
-                var book = new LibraryItemViewModel(entry, _covers);
+                var book = new LibraryItemViewModel(entry);
                 book.ShowAvailability(away.GetValueOrDefault(entry.EntryId));
                 return new(target, entry.Title, "BookOpen", "entry:" + id.ToString(CultureInfo.InvariantCulture), book);
             default:

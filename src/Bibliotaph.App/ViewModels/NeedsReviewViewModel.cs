@@ -96,7 +96,6 @@ public sealed partial class NeedsReviewViewModel(
     INavigationService navigation,
     SettingsLinks links,
     ReaderWindows readers,
-    CoverImages covers,
     BookTextActions text,
     PartsService parts,
     PartProposalService proposals,
@@ -677,7 +676,7 @@ public sealed partial class NeedsReviewViewModel(
         foreach (var documentId in proposal.Images)
         {
             if (tiles.Count == 4) break;
-            if (await queries.GetCoverAsync(documentId) is { } cover) tiles.Add(new CoverTile(cover, covers));
+            if (await queries.GetCoverAsync(documentId) is { } cover) tiles.Add(new CoverTile(cover));
         }
         return tiles;
     }

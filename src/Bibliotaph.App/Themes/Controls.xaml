@@ -884,7 +884,7 @@
     <Border CornerRadius="2,5,5,2" Background="{DynamicResource Bt.Warm}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
             SnapsToDevicePixels="True">
       <Grid ClipToBounds="True">
-        <Grid x:Name="Placeholder">
+        <Grid x:Name="Placeholder" Visibility="Collapsed">
           <Grid.RowDefinitions>
             <RowDefinition Height="*" />
             <RowDefinition Height="2*" />
@@ -894,7 +894,7 @@
             <TextBlock Text="{Binding Initial}" FontFamily="{StaticResource Font.Display}" Foreground="{DynamicResource Bt.Muted}" />
           </Viewbox>
         </Grid>
-        <Image x:Name="SingleCover" Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+        <Image x:Name="SingleCover" c:CoverSource.Cover="{Binding CoverName}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
         <!-- A pack: its first four images' covers, two by two, unless one of its files was chosen as its cover. -->
         <ItemsControl x:Name="Mosaic" ItemsSource="{Binding Mosaic}" Focusable="False" Visibility="Collapsed" IsHitTestVisible="False">
           <ItemsControl.ItemsPanel>
@@ -905,7 +905,7 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate DataType="{x:Type vm:CoverTile}">
               <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0.5" ClipToBounds="True">
-                <Image Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                <Image c:CoverSource.Cover="{Binding Name}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
               </Border>
             </DataTemplate>
           </ItemsControl.ItemTemplate>
@@ -918,8 +918,9 @@
                   AutomationProperties.Name="{Binding BadgeLabel, StringFormat='Owned elsewhere: {0}'}">
             <StackPanel Orientation="Horizontal">
               <Grid Width="12" Height="12" Margin="0,0,4,0" VerticalAlignment="Center">
-                <c:LucideIcon x:Name="ElsewhereGlyph" Data="{StaticResource Icon.Cloud}" Size="12" StrokeThickness="2" Foreground="{DynamicResource Bt.Muted}" />
-                <Image x:Name="SiteIcon" Source="{Binding SiteIcon}" Width="12" Height="12" Visibility="Collapsed"
+                <c:LucideIcon x:Name="ElsewhereGlyph" Data="{StaticResource Icon.Cloud}" Size="12" StrokeThickness="2" Foreground="{DynamicResource Bt.Muted}"
+                              Visibility="Collapsed" />
+                <Image x:Name="SiteIcon" c:CoverSource.Site="{Binding SiteIconLink}" Width="12" Height="12"
                        RenderOptions.BitmapScalingMode="HighQuality" />
               </Grid>
               <TextBlock Text="{Binding BadgeLabel}" FontSize="10" Foreground="{DynamicResource Bt.Text}" VerticalAlignment="Center" />
@@ -969,19 +970,21 @@
       </Grid>
     </Border>
     <DataTemplate.Triggers>
-      <DataTrigger Binding="{Binding HasCover}" Value="True">
-        <Setter TargetName="Placeholder" Property="Visibility" Value="Collapsed" />
-      </DataTrigger>
+      <!-- The placeholder shows until the cover has loaded, and stays for a book with none. -->
+      <Trigger SourceName="SingleCover" Property="Image.Source" Value="{x:Null}">
+        <Setter TargetName="Placeholder" Property="Visibility" Value="Visible" />
+      </Trigger>
       <DataTrigger Binding="{Binding IsAiRead}" Value="True">
         <Setter TargetName="AiBadge" Property="Visibility" Value="Visible" />
       </DataTrigger>
       <DataTrigger Binding="{Binding IsElsewhere}" Value="True">
         <Setter TargetName="ElsewhereMark" Property="Visibility" Value="Visible" />
       </DataTrigger>
-      <DataTrigger Binding="{Binding HasSiteIcon}" Value="True">
-        <Setter TargetName="SiteIcon" Property="Visibility" Value="Visible" />
-        <Setter TargetName="ElsewhereGlyph" Property="Visibility" Value="Collapsed" />
-      </DataTrigger>
+      <!-- The cloud stands in until the site's icon has loaded, and for good when icons are off or it has none. -->
+      <Trigger SourceName="SiteIcon" Property="Image.Source" Value="{x:Null}">
+        <Setter TargetName="SiteIcon" Property="Visibility" Value="Collapsed" />
+        <Setter TargetName="ElsewhereGlyph" Property="Visibility" Value="Visible" />
+      </Trigger>
       <DataTrigger Binding="{Binding HasTextMark}" Value="True">
         <Setter TargetName="TextMark" Property="Visibility" Value="Visible" />
       </DataTrigger>
