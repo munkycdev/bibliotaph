@@ -13,7 +13,16 @@ sealed class InspectorController(LibraryViewModel library, Covers covers) : NSVi
         title.Font = NSFont.SystemFontOfSize(20, NSFontWeight.Bold);
         var kind = NSTextField.CreateLabel("");
         kind.TextColor = NSColor.SecondaryLabel;
-        var grid = NSGridView.Create(new NSView[0][]);
+        // Built once and only retexted: NSGridView.RemoveRow leaves the row's views on screen.
+        var (folder, where, path, modified, content) = (Value(), Value(), Value(), Value(), Value());
+        var grid = NSGridView.Create(
+        [
+            [Name("Folder"), folder],
+            [Name("Where"), where],
+            [Name("Path"), path],
+            [Name("Modified"), modified],
+            [Name("Content"), content],
+        ]);
         grid.RowSpacing = 8;
         grid.ColumnSpacing = 10;
         var empty = NSTextField.CreateLabel("Select a book");
@@ -53,12 +62,11 @@ sealed class InspectorController(LibraryViewModel library, Covers covers) : NSVi
             if (book is null) return;
             title.StringValue = book.Title;
             kind.StringValue = $"{book.Kind} · {book.SizeBytes / 1024.0 / 1024.0:N1} MB";
-            while (grid.RowCount > 0) grid.RemoveRow(0);
-            Field(grid, "Folder", book.FolderName);
-            Field(grid, "Where", book.Location);
-            Field(grid, "Path", book.Path);
-            Field(grid, "Modified", book.ModifiedUtc.ToLocalTime().ToString("d MMM yyyy"));
-            Field(grid, "Content", book.ContentHash[..12] + "…");
+            folder.StringValue = book.FolderName;
+            where.StringValue = book.Location;
+            path.StringValue = book.Path;
+            modified.StringValue = book.ModifiedUtc.ToLocalTime().ToString("d MMM yyyy");
+            content.StringValue = book.ContentHash[..12] + "…";
             cover.Image = covers.Cached(book.ContentHash)!;
             if (cover.Image is not null) return;
             var image = await covers.GetAsync(book.ContentHash);
@@ -69,13 +77,18 @@ sealed class InspectorController(LibraryViewModel library, Covers covers) : NSVi
         });
     }
 
-    static void Field(NSGridView grid, string name, string value)
+    static NSTextField Name(string name)
     {
         var label = NSTextField.CreateLabel(name);
         label.TextColor = NSColor.SecondaryLabel;
-        var text = NSTextField.CreateWrappingLabel(value);
+        return label;
+    }
+
+    static NSTextField Value()
+    {
+        var text = NSTextField.CreateWrappingLabel("");
         text.PreferredMaxLayoutWidth = 200;
         text.Selectable = true;
-        grid.AddRow([label, text]);
+        return text;
     }
 }
