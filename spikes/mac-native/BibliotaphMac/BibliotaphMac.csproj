@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0-macos</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
+    <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
+    <ApplicationId>online.bibliotaph.macspike</ApplicationId>
+    <ApplicationTitle>Bibliotaph</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
+    <RootNamespace>Bibliotaph.MacSpike</RootNamespace>
+    <AssemblyName>Bibliotaph</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The two contract files the spike speaks, linked rather than referenced: the contracts project builds with the
+      repository's x64 rules, which an arm64 app can't load.
+    -->
+    <Compile Include="../../../src/Bibliotaph.Api.Contracts/Devices.cs" Link="Contracts/Devices.cs" />
+    <Compile Include="../../../src/Bibliotaph.Api.Contracts/WebShelf.cs" Link="Contracts/WebShelf.cs" />
+  </ItemGroup>
+</Project>

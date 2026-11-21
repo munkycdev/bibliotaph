@@ -1,0 +1,8 @@
+<Project>
+  <!-- Throwaway code for the native Mac spike; see README.md. Stops the root build rules (x64, warnings as errors). -->
+  <PropertyGroup>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+</Project>
