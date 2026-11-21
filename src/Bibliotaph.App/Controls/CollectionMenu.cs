@@ -1,32 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Bibliotaph.App.ViewModels;
 
 namespace Bibliotaph.App.Controls;
-
-public enum CollectionMenuKind
-{
-    /// <summary>"Add to Maps": one of the recent collections.</summary>
-    Collection,
-
-    /// <summary>"Add to a new collection…": names one, then adds to it.</summary>
-    New,
-
-    /// <summary>"Add to another collection…": picks one from all of them.</summary>
-    Choose,
-}
-
-/// <summary>One of the Add to collection items in a menu.</summary>
-public sealed record CollectionMenuChoice(CollectionMenuKind Kind, long? CollectionId, string Label, string? Path);
-
-/// <summary>What an Add to collection item runs with: the menu's context (a book, the details, the page) and the item.</summary>
-public sealed record CollectionRequest(object? Target, CollectionMenuChoice Choice);
-
-/// <summary>The Add to collection items a menu shows, in order: the collection directory's, through the page.</summary>
-public interface ICollectionChoices
-{
-    IReadOnlyList<CollectionMenuChoice> MenuChoices { get; }
-}
 
 /// <summary>
 /// Puts the Add to collection items at the end of a menu each time it opens, so they follow the collections as they

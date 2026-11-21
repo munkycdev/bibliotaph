@@ -1,4 +1,3 @@
-using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;

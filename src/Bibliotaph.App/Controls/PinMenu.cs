@@ -1,13 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
+using Bibliotaph.App.ViewModels;
 
 namespace Bibliotaph.App.Controls;
-
-/// <summary>Whether a book menu's context (a book's card) is pinned: the pin directory knows, through the page.</summary>
-public interface IPinState
-{
-    bool IsPinned(object? context);
-}
 
 /// <summary>
 /// Names a book menu's Pin item each time the menu opens: Pin, or Unpin for a book in the sidebar's Pinned group. Set

@@ -1,7 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Windows;
-using System.Windows.Data;
 using Bibliotaph.App.Services;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -156,16 +154,6 @@ public sealed partial class BuiltInAiViewModel(
     }
 
     public ObservableCollection<BuiltInModelItem> Models { get; } = [];
-
-    /// <summary>The models as the list shows them, under their headings: those that fit this computer's graphics card first.</summary>
-    public ICollectionView ModelList => field ??= Grouped(Models);
-
-    static ListCollectionView Grouped(ObservableCollection<BuiltInModelItem> models)
-    {
-        var view = new ListCollectionView(models);
-        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(BuiltInModelItem.Group)));
-        return view;
-    }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(LicenceText), nameof(DownloadLabel), nameof(IsListedChosen), nameof(FileText))]

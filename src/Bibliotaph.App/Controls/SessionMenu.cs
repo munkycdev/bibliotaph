@@ -1,32 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using Bibliotaph.App.ViewModels;
 
 namespace Bibliotaph.App.Controls;
-
-public enum SessionMenuKind
-{
-    /// <summary>"Add to The midnight bell": the current session pack, or another listed one.</summary>
-    Session,
-
-    /// <summary>"Add to a new binder…": names one, then adds to it.</summary>
-    New,
-
-    /// <summary>"Add to another binder…": picks one from all of them.</summary>
-    Choose,
-}
-
-/// <summary>One of the Add to session items in a menu.</summary>
-public sealed record SessionMenuChoice(SessionMenuKind Kind, long? PackId, string Label);
-
-/// <summary>What an Add to session item runs with: the menu's context (a book, the details, the page) and the item.</summary>
-public sealed record SessionRequest(object? Target, SessionMenuChoice Choice);
-
-/// <summary>The Add to session items a menu shows, in order: the session directory's, through the page.</summary>
-public interface ISessionChoices
-{
-    IReadOnlyList<SessionMenuChoice> MenuChoices { get; }
-}
 
 /// <summary>
 /// Puts the Add to session items in a menu each time it opens, before any Add to collection items: the current

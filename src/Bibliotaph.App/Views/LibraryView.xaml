@@ -133,7 +133,6 @@
         </DataTrigger>
       </DataTemplate.Triggers>
     </DataTemplate>
-    <c:IconByName x:Key="IconByName" />
 
     <!--
       A card's mark: an icon and a number, with its words in the tooltip. In Organize mode the mark for the book a map

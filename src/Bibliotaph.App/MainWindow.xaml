@@ -106,7 +106,7 @@
                           AutomationProperties.Name="Main navigation">
               <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="{x:Type vm:NavItemViewModel}">
-                  <Button Style="{StaticResource Bt.NavButton}" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}"
+                  <Button Style="{StaticResource Bt.NavButton}" Content="{Binding Label}" c:Ui.Icon="{Binding Icon, Converter={StaticResource IconByName}}"
                           c:Ui.IsActive="{Binding IsActive}" c:Ui.Count="{Binding Count}" c:Ui.TourAnchor="{Binding Anchor}" AutomationProperties.Name="{Binding Label}"
                           AutomationProperties.ItemStatus="{Binding Count}"
                           Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -146,7 +146,7 @@
                         Every pin moves and unpins from its right-click menu, and a saved search also renames and deletes there; Tag
                         carries the shell for the menu's commands. A long name is trimmed, with the whole name in the tooltip.
                       -->
-                      <Button x:Name="Pin" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}" ToolTip="{Binding Tip}"
+                      <Button x:Name="Pin" Content="{Binding Label}" c:Ui.Icon="{Binding Icon, Converter={StaticResource IconByName}}" ToolTip="{Binding Tip}"
                               c:Ui.IsActive="{Binding IsActive}" AutomationProperties.Name="{Binding Label}"
                               Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Window}}"
                               Command="{Binding DataContext.OpenPinCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -281,7 +281,7 @@
                     Command="{Binding ToggleSidebarCommand}" ToolTip="{Binding SidebarToggleLabel}" AutomationProperties.Name="{Binding SidebarToggleLabel}"
                     c:Ui.Icon="{StaticResource Icon.PanelLeft}" Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
             <Button Style="{StaticResource Bt.NavButton}" DataContext="{Binding Settings}" Content="{Binding Label}"
-                    c:Ui.Icon="{Binding Icon}" c:Ui.IsActive="{Binding IsActive}" c:Ui.TourAnchor="{Binding Anchor}"
+                    c:Ui.Icon="{Binding Icon, Converter={StaticResource IconByName}}" c:Ui.IsActive="{Binding IsActive}" c:Ui.TourAnchor="{Binding Anchor}"
                     Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                     CommandParameter="{Binding Route}" />
           </DockPanel>

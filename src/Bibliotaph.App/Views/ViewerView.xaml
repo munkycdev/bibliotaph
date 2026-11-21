@@ -283,7 +283,7 @@
                 <DataTemplate DataType="{x:Type vm:OutlineEntry}">
                   <!-- A bookmark inside the adventure being read stands out; any can be indexed as an adventure. -->
                   <Border x:Name="Shade" BorderThickness="0">
-                    <DockPanel x:Name="Row" Margin="{Binding Indent}" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}">
+                    <DockPanel x:Name="Row" Margin="{Binding Indent, Converter={StaticResource Bt.LeftMargin}}" Background="Transparent" Cursor="Hand" ToolTip="{Binding Title}">
                       <DockPanel.ContextMenu>
                         <ContextMenu Style="{StaticResource Bt.Menu}">
                           <MenuItem Header="Index as its own adventure…" Click="IndexBookmark_Click" />
