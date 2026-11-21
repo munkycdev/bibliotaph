@@ -1,4 +1,3 @@
-using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
@@ -110,7 +109,7 @@ public class PageNotesViewModelTests
     readonly FakeReader _reader = new();
     readonly PageNotesViewModel _panel;
 
-    public PageNotesViewModelTests() => _panel = new PageNotesViewModel(_notes, _reader, Dispatcher.CurrentDispatcher, NullLogger.Instance);
+    public PageNotesViewModelTests() => _panel = new PageNotesViewModel(_notes, _reader, ImmediateUiThread.Instance, NullLogger.Instance);
 
     static PageNoteInfo Note(long id, long documentId, int page, string text = "The bell rings at midnight.") =>
         new(id, Book, new PageRange(documentId, page, page), text, Made, Made);

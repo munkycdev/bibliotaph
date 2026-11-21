@@ -66,12 +66,12 @@ public sealed partial class EntryNotesViewModel : ObservableObject
     bool _loading;
     bool _dirty;
 
-    public EntryNotesViewModel(EntryId entryId, NotesService notes, TimeProvider time, ILogger log)
+    public EntryNotesViewModel(EntryId entryId, NotesService notes, IUiThread ui, TimeProvider time, ILogger log)
     {
         EntryId = entryId;
         _notes = notes;
         _log = log;
-        _saveTimer = new UiTimer(time, TimeSpan.FromMilliseconds(700), repeat: false, SaveAsync);
+        _saveTimer = new UiTimer(ui, time, TimeSpan.FromMilliseconds(700), repeat: false, SaveAsync);
     }
 
     public EntryId EntryId { get; }

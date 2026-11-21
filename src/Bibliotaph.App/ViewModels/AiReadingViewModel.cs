@@ -13,7 +13,7 @@ namespace Bibliotaph.App.ViewModels;
 /// the last 20 books with what the evidence check kept and dropped. The page looks at the feed four times a second,
 /// since an answer streams faster than it is worth redrawing.
 /// </summary>
-public sealed partial class AiReadingViewModel(AiReadingFeed feed, AiService ai, LibraryActivity activity, SettingsLinks links, TimeProvider time)
+public sealed partial class AiReadingViewModel(AiReadingFeed feed, AiService ai, LibraryActivity activity, SettingsLinks links, IUiThread ui, TimeProvider time)
     : PageViewModel
 {
     UiTimer? _timer;
@@ -67,7 +67,7 @@ public sealed partial class AiReadingViewModel(AiReadingFeed feed, AiService ai,
         _vocabulary = await ai.VocabularyAsync();
         feed.Changed -= OnChanged;
         feed.Changed += OnChanged;
-        _timer ??= new UiTimer(time, TimeSpan.FromMilliseconds(250), repeat: true, Tick);
+        _timer ??= new UiTimer(ui, time, TimeSpan.FromMilliseconds(250), repeat: true, Tick);
         _timer.Start();
         _recentShown = null;
         Refresh();

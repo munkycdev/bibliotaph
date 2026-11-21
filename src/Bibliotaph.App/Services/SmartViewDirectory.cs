@@ -1,4 +1,3 @@
-using System.Windows;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Index;
@@ -31,7 +30,7 @@ public interface ISmartViewDirectory
 /// Every saved Smart View, kept in memory for the sidebar, Home and the Library, listed by name. Changes go through
 /// here, and <see cref="Changed"/> is raised on the UI thread after each.
 /// </summary>
-public sealed class SmartViewDirectory(SmartViewStore store, ILogger<SmartViewDirectory> log) : ISmartViewDirectory
+public sealed class SmartViewDirectory(SmartViewStore store, IUiThread ui, ILogger<SmartViewDirectory> log) : ISmartViewDirectory
 {
     /// <summary>Raised on the UI thread after the views were reloaded.</summary>
     public event EventHandler? Changed;
@@ -66,8 +65,7 @@ public sealed class SmartViewDirectory(SmartViewStore store, ILogger<SmartViewDi
     async Task<T> ThenLoad<T>(Func<Task<T>> change)
     {
         var result = await Task.Run(change);
-        if (Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess()) await dispatcher.InvokeAsync(LoadAsync).Task.Unwrap();
-        else await LoadAsync();
+        await ui.RunAsync(LoadAsync);
         return result;
     }
 }

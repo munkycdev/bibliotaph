@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows.Threading;
 using Bibliotaph.Classification;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -48,7 +47,7 @@ public sealed class AskTurnRow(AskTurnView turn)
 public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
 {
     readonly AskService _ask;
-    readonly Dispatcher _dispatcher;
+    readonly IUiThread _ui;
     readonly ILogger _log;
     readonly Func<int, string?, Task> _show;
     long? _documentId;
@@ -57,13 +56,13 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
     AskTurnView? _current;
 
     /// <param name="ask">Finds the pages and answers from them.</param>
-    /// <param name="dispatcher">The reader's, for changes raised on other threads.</param>
+    /// <param name="ui">For changes raised on other threads.</param>
     /// <param name="log">Failures; never the question, the answer or the book's text.</param>
     /// <param name="show">Shows a PDF page with a word marked on it.</param>
-    public AskPanelViewModel(AskService ask, Dispatcher dispatcher, ILogger log, Func<int, string?, Task> show)
+    public AskPanelViewModel(AskService ask, IUiThread ui, ILogger log, Func<int, string?, Task> show)
     {
         _ask = ask;
-        _dispatcher = dispatcher;
+        _ui = ui;
         _log = log;
         _show = show;
         IsOn = ask.IsOn;
@@ -225,11 +224,11 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
     /// <summary>Stops an answer being written. The panel can still ask again: the reader comes back to it with Back.</summary>
     public void Dispose() => StopAnswering();
 
-    void OnAiChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(() => IsOn = _ask.IsOn);
+    void OnAiChanged(object? sender, EventArgs e) => _ui.Post(() => IsOn = _ask.IsOn);
 
     void OnFillChanged(object? sender, long documentId)
     {
-        if (documentId == _documentId) _dispatcher.InvokeAsync(ShowMeaning);
+        if (documentId == _documentId) _ui.Post(ShowMeaning);
     }
 
     bool CanAsk() => !IsAsking && _documentId is not null && Question.Trim().Length > 0;
@@ -370,11 +369,11 @@ public sealed partial class AskPanelViewModel : ObservableObject, IDisposable
         {
             Interlocked.Exchange(ref _latest, value);
             if (Interlocked.Exchange(ref _pending, 1) == 1) return;
-            panel._dispatcher.InvokeAsync(() =>
+            panel._ui.Post(() =>
             {
                 Interlocked.Exchange(ref _pending, 0);
                 if (Volatile.Read(ref _latest) is { } latest) panel.ShowProgress(version, latest, pages);
-            }, DispatcherPriority.Background);
+            }, UiPriority.Background);
         }
     }
 

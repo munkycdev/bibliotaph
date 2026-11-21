@@ -79,7 +79,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         PackService packs, ElsewhereService elsewhere, FavoritesService favorites, CollectionActions collections, SessionActions sessions,
         SmartViewDirectory views, LibraryPages pages, BookTextActions text, PinDirectory pins, CorrectionService corrections, AskService ask,
         ChosenCovers chosenCovers, LibraryAskScope askScope, IFilePicker files, InspectorFactory inspectors, LibrarySelectionFactory selection,
-        LibrarySorts sorts, LibraryPackView packView, WebShelfCache shelf, TourViewModel tour, MeaningSearchService meaning, TimeProvider time,
+        LibrarySorts sorts, LibraryPackView packView, WebShelfCache shelf, TourViewModel tour, MeaningSearchService meaning, IUiThread ui, TimeProvider time,
         ILogger<LibraryViewModel> log)
         : base(roots, activity)
     {
@@ -120,7 +120,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         SortChoice = RememberedSort();
         Filters.Changed += (_, _) => Refresh();
         // While indexing runs, a search is re-run at most this often rather than on every progress tick.
-        _staleTimer = new UiTimer(time, TimeSpan.FromSeconds(3), repeat: true, RefreshIfStaleAsync);
+        _staleTimer = new UiTimer(ui, time, TimeSpan.FromSeconds(3), repeat: true, RefreshIfStaleAsync);
         Selection.Books.Changed += (_, _) => RemoveSelectedFromCollectionCommand.NotifyCanExecuteChanged();
     }
 

@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Search;
@@ -29,14 +28,17 @@ public sealed partial class ShellViewModel : ObservableObject
     readonly LibrarySync _sync;
     readonly ILogger<ShellViewModel> _log;
     readonly UiTimer _searchDelay;
+    readonly IUiThread _ui;
 
     /// <summary>The pin just moved, which gets the keyboard back once the sidebar shows it in its new place.</summary>
     PinTarget? _focusAfterMove;
 
     public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
         LibraryPages library, SmartViewDirectory views, PinDirectory pins, PinOpener opener, CollectionDirectory collections, SessionDirectory binders,
-        SettingsStore store, IUpdateService updates, LibrarySync sync, PlainSearchViewModel plainSearch, TimeProvider time, ILogger<ShellViewModel> log)
+        SettingsStore store, IUpdateService updates, LibrarySync sync, PlainSearchViewModel plainSearch, IUiThread ui, TimeProvider time,
+        ILogger<ShellViewModel> log)
     {
+        _ui = ui;
         _sync = sync;
         PlainSearch = plainSearch;
         plainSearch.SearchRequested += (_, text) =>
@@ -63,7 +65,7 @@ public sealed partial class ShellViewModel : ObservableObject
         _settings = settings;
         _log = log;
         // Search as you type, once typing pauses.
-        _searchDelay = new UiTimer(time, TimeSpan.FromMilliseconds(300), repeat: false, SubmitSearch, DispatcherPriority.Input);
+        _searchDelay = new UiTimer(ui, time, TimeSpan.FromMilliseconds(300), repeat: false, SubmitSearch, UiPriority.Input);
         _search.PropertyChanged += OnSearchChanged;
 
         NavItems =
@@ -213,8 +215,7 @@ public sealed partial class ShellViewModel : ObservableObject
         await _binders.LoadAsync();
         await _pins.LoadAsync();
         // Another PC's collections, binders, saved searches and pins, once merged in; the library refreshes on its own.
-        var dispatcher = Dispatcher.CurrentDispatcher;
-        _sync.Merged += (_, _) => dispatcher.InvokeAsync(ReloadMergedAsync);
+        _sync.Merged += (_, _) => _ui.Post(ReloadMergedAsync);
         IsSidebarCollapsed = await SidebarCollapsedAsync();
         var start = await StartPageAsync();
         _navigation.NavigateTo(start);

@@ -79,7 +79,7 @@ public sealed partial class BuiltInModelItem : ObservableObject
 /// </summary>
 public sealed partial class BuiltInAiViewModel(
     AiService ai, BuiltInEngine engine, BuiltInEngineDownload engineDownload, BuiltInModelDownloads downloads, GraphicsMemory graphics, AiTestBox tester,
-    IFilePicker files, IUserPrompts prompts, IDesktopShell shell, [FromKeyedServices(BuiltInEngine.EmbeddingKey)] BuiltInEngine embeddingEngine)
+    IFilePicker files, IUserPrompts prompts, IDesktopShell shell, [FromKeyedServices(BuiltInEngine.EmbeddingKey)] BuiltInEngine embeddingEngine, IUiThread ui)
     : ObservableObject
 {
     // Ask this book's embedding model, downloaded like a chat model and run by a second engine.
@@ -251,7 +251,7 @@ public sealed partial class BuiltInAiViewModel(
         engineDownload.Changed -= OnDownloadsChanged;
     }
 
-    void OnDownloadsChanged(object? sender, EventArgs e) => Application.Current?.Dispatcher.InvokeAsync(Refresh);
+    void OnDownloadsChanged(object? sender, EventArgs e) => ui.Post(Refresh);
 
     void Refresh()
     {

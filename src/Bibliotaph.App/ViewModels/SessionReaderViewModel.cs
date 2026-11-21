@@ -1,7 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
-using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -34,7 +33,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly SessionDirectory _directory;
     readonly PinDirectory _pins;
     readonly ILogger<SessionReaderViewModel> _log;
-    readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    readonly IUiThread _ui;
     readonly UiTimer _notesTimer;
     int _version;
     int _ownWrites;
@@ -44,8 +43,10 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     ViewerRequest? _startAt;
 
     public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, CoverImages covers, ReaderWindows readers,
-        SessionDirectory directory, PinDirectory pins, OnlineReaders online, TimeProvider time, ILogger<SessionReaderViewModel> log)
+        SessionDirectory directory, PinDirectory pins, OnlineReaders online, IUiThread ui, TimeProvider time,
+        ILogger<SessionReaderViewModel> log)
     {
+        _ui = ui;
         _online = online;
         _directory = directory;
         _pins = pins;
@@ -55,7 +56,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         _covers = covers;
         _readers = readers;
         _log = log;
-        _notesTimer = new UiTimer(time, TimeSpan.FromMilliseconds(700), repeat: false, SaveNotesAsync);
+        _notesTimer = new UiTimer(ui, time, TimeSpan.FromMilliseconds(700), repeat: false, SaveNotesAsync);
     }
 
     public long PackId { get; set; }
@@ -319,7 +320,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     void OnSessionsChanged(object? sender, EventArgs e)
     {
         if (Volatile.Read(ref _ownWrites) > 0) return;
-        _dispatcher.InvokeAsync(async () =>
+        _ui.Post(async () =>
         {
             if (IsLoaded) await RefreshRowsAsync();
         });

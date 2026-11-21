@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Classification;
@@ -41,18 +40,20 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
     readonly LibraryStore _library;
     readonly ReaderWindows _readers;
     readonly ILogger<LibraryAskViewModel> _log;
-    readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    readonly IUiThread _ui;
     int _version;
     CancellationTokenSource? _answering;
 
-    public LibraryAskViewModel(LibraryAskService ask, LibraryAskScope scope, LibraryStore library, ReaderWindows readers, ILogger<LibraryAskViewModel> log)
+    public LibraryAskViewModel(LibraryAskService ask, LibraryAskScope scope, LibraryStore library, ReaderWindows readers, IUiThread ui,
+        ILogger<LibraryAskViewModel> log)
     {
+        _ui = ui;
         _ask = ask;
         _scope = scope;
         _library = library;
         _readers = readers;
         _log = log;
-        _scope.Changed += (_, _) => _dispatcher.InvokeAsync(() => OnPropertyChanged(nameof(ScopeText)));
+        _scope.Changed += (_, _) => _ui.Post(() => OnPropertyChanged(nameof(ScopeText)));
     }
 
     /// <summary>A question has been asked: the answer area shows.</summary>
@@ -238,11 +239,11 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
         {
             Interlocked.Exchange(ref _latest, value);
             if (Interlocked.Exchange(ref _pending, 1) == 1) return;
-            panel._dispatcher.InvokeAsync(() =>
+            panel._ui.Post(() =>
             {
                 Interlocked.Exchange(ref _pending, 0);
                 if (Volatile.Read(ref _latest) is { } latest) panel.ShowProgress(version, latest, pages, evidence);
-            }, DispatcherPriority.Background);
+            }, UiPriority.Background);
         }
     }
 
