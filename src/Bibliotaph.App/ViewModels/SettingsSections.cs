@@ -158,7 +158,7 @@ public sealed partial class ProcessingSectionViewModel(SourceRootStore roots, Li
 /// Settings > Preferences: light, dark or as Windows is; whether Bibliotaph opens on Home or the Library; and whether
 /// every unconfirmed suggestion waits in Needs review, or only those worth a second look.
 /// </summary>
-public sealed partial class PreferencesSectionViewModel(ThemeService theme, SettingsStore settings, ReviewService review, TourViewModel tour,
+public sealed partial class PreferencesSectionViewModel(IThemeService theme, SettingsStore settings, ReviewService review, TourViewModel tour,
     ILogger<PreferencesSectionViewModel> log) : SettingsSectionViewModel
 {
     bool _loading;

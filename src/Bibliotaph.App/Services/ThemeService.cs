@@ -14,7 +14,7 @@ namespace Bibliotaph.App.Services;
 /// contrast theme is on, the system's own colours replace both palettes, and the light or dark choice waits for it to
 /// go off again.
 /// </summary>
-public sealed class ThemeService(SettingsStore settings, ILogger<ThemeService> log)
+public sealed class ThemeService(SettingsStore settings, ILogger<ThemeService> log) : IThemeService
 {
     static readonly Uri LightTokens = new("pack://application:,,,/Themes/Tokens.Light.xaml");
     static readonly Uri DarkTokens = new("pack://application:,,,/Themes/Tokens.Dark.xaml");

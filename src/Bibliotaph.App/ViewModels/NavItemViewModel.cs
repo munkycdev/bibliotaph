@@ -1,16 +1,17 @@
-using System.Windows.Media;
 using Bibliotaph.App.Services;
 using Bibliotaph.Core;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace Bibliotaph.App.ViewModels;
 
-public sealed partial class NavItemViewModel(Route route, string label, Geometry icon) : ObservableObject
+public sealed partial class NavItemViewModel(Route route, string label, string icon) : ObservableObject
 {
     public Route Route { get; } = route;
 
     public string Label { get; } = label;
-    public Geometry Icon { get; } = icon;
+
+    /// <summary>Its icon's name in Icons.xaml ("House" is Icon.House), which the view looks up.</summary>
+    public string Icon { get; } = icon;
 
     /// <summary>The tour's callout for this page, which its button is the target of.</summary>
     public TourAnchor Anchor { get; } = route switch

@@ -15,6 +15,7 @@ static partial class Composition
         services.AddSingleton(new DevMode(dev));
         // Shell
         services.AddSingleton<ThemeService>();
+        services.AddSingleton<IThemeService>(sp => sp.GetRequiredService<ThemeService>());
         services.AddSingleton<LibrarySorts>();
         services.AddSingleton<LibraryPackView>();
         services.AddSingleton<IFilePicker, WindowsFilePicker>();

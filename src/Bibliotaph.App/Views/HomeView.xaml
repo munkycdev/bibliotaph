@@ -222,7 +222,7 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate DataType="{x:Type services:PinnedItemViewModel}">
-                  <Button x:Name="HomePin" Content="{Binding Label}" c:Ui.Icon="{Binding Icon}" Margin="0,0,8,8" ToolTip="{Binding Tip}"
+                  <Button x:Name="HomePin" Content="{Binding Label}" c:Ui.Icon="{Binding Icon, Converter={StaticResource IconByName}}" Margin="0,0,8,8" ToolTip="{Binding Tip}"
                           AutomationProperties.Name="{Binding Label}" CommandParameter="{Binding}"
                           Command="{Binding DataContext.OpenPinCommand, RelativeSource={RelativeSource AncestorType=UserControl}}">
                     <Button.Style>

@@ -93,7 +93,7 @@
               <DataTemplate DataType="{x:Type vm:CollectionChoice}">
                 <Button Style="{StaticResource ChoiceRow}" AutomationProperties.Name="{Binding Path}" ToolTip="{Binding Path}"
                         Command="{Binding DataContext.PickCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" CommandParameter="{Binding}">
-                  <StackPanel Orientation="Horizontal" Margin="{Binding Indent}">
+                  <StackPanel Orientation="Horizontal" Margin="{Binding Indent, Converter={StaticResource Bt.LeftMargin}}">
                     <c:LucideIcon Data="{StaticResource Icon.Folder}" Size="14" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,10,0" VerticalAlignment="Center" />
                     <TextBlock Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource Bt.Text}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                   </StackPanel>

@@ -1,5 +1,6 @@
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
+using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 
 namespace Bibliotaph.App.Tests;

@@ -1,8 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Windows;
-using System.Windows.Media;
-using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -17,13 +14,14 @@ namespace Bibliotaph.App.Services;
 /// A pin as the sidebar and Home show it: its name and icon, and for a book, the book's card, dimmed while its file
 /// can't be opened.
 /// </summary>
-public sealed partial class PinnedItemViewModel(PinTarget target, string label, Geometry icon, string key, LibraryItemViewModel? book = null) : ObservableObject
+public sealed partial class PinnedItemViewModel(PinTarget target, string label, string icon, string key, LibraryItemViewModel? book = null) : ObservableObject
 {
     public PinTarget Target { get; } = target;
 
     public string Label { get; } = label;
 
-    public Geometry Icon { get; } = icon;
+    /// <summary>Its icon's name in Icons.xaml ("Heart" is Icon.Heart), which the view looks up.</summary>
+    public string Icon { get; } = icon;
 
     /// <summary>What <see cref="PageViewModel.PinKey"/> reads while this pin's page is shown.</summary>
     public string Key { get; } = key;
@@ -154,8 +152,7 @@ public sealed class PinDirectory : IPinState
             IReadOnlyList<LibraryEntry> books = [];
             IReadOnlyDictionary<EntryId, EntryAvailability> away = new Dictionary<EntryId, EntryAvailability>();
             if (entryIds.Count > 0) (books, away) = await Task.Run(async () => (await _queries.GetEntriesAsync(entryIds), await _library.GetUnavailableAsync()));
-            // A reload that finishes as the app closes has no sidebar left to fill, nor its icons.
-            if (version != _version || Application.Current is null) return;
+            if (version != _version) return;
             _pinned = [.. pins.Select(p => p.Target)];
             _order = [.. pins.Select(p => p.Target)];
             var cards = books.ToDictionary(b => b.EntryId);
@@ -179,17 +176,17 @@ public sealed class PinDirectory : IPinState
         switch (target.Kind)
         {
             case PinKind.Favorites:
-                return new(target, LibraryScope.Favorites.Name, Icon("Icon.Heart"), LibraryScope.Favorites.Key);
+                return new(target, LibraryScope.Favorites.Name, "Heart", LibraryScope.Favorites.Key);
             case PinKind.Collection when _collections.Find(id) is { } collection:
-                return new(target, collection.Name, Icon("Icon.Folders"), ScopeKeys.Collection(id));
+                return new(target, collection.Name, "Folders", ScopeKeys.Collection(id));
             case PinKind.Binder when _binders.All.FirstOrDefault(b => b.Id == id) is { } binder:
-                return new(target, binder.Title, Icon("Icon.NotebookTabs"), BinderKey(id));
+                return new(target, binder.Title, "NotebookTabs", BinderKey(id));
             case PinKind.SavedSearch when _views.Find(id) is { } view:
-                return new(target, view.Name, Icon("Icon.SlidersHorizontal"), LibraryViewModel.SmartViewKey(id));
+                return new(target, view.Name, "SlidersHorizontal", LibraryViewModel.SmartViewKey(id));
             case PinKind.Entry when books.TryGetValue(new EntryId(id), out var entry):
                 var book = new LibraryItemViewModel(entry, _covers);
                 book.ShowAvailability(away.GetValueOrDefault(entry.EntryId));
-                return new(target, entry.Title, Icon("Icon.BookOpen"), "entry:" + id.ToString(CultureInfo.InvariantCulture), book);
+                return new(target, entry.Title, "BookOpen", "entry:" + id.ToString(CultureInfo.InvariantCulture), book);
             default:
                 return null;
         }
@@ -198,5 +195,4 @@ public sealed class PinDirectory : IPinState
     /// <summary>What a binder's page reads as its <see cref="PageViewModel.PinKey"/>.</summary>
     public static string BinderKey(long packId) => "binder:" + packId.ToString(CultureInfo.InvariantCulture);
 
-    static Geometry Icon(string key) => (Geometry)Application.Current.FindResource(key);
 }

@@ -1,7 +1,5 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Windows;
-using System.Windows.Media;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Search;
@@ -15,7 +13,7 @@ namespace Bibliotaph.App.ViewModels;
 public sealed partial class ShellViewModel : ObservableObject
 {
     readonly INavigationService _navigation;
-    readonly ThemeService _theme;
+    readonly IThemeService _theme;
     readonly SearchState _search;
     readonly SettingsLinks _settings;
     readonly LibraryPages _library;
@@ -33,7 +31,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>The pin just moved, which gets the keyboard back once the sidebar shows it in its new place.</summary>
     PinTarget? _focusAfterMove;
 
-    public ShellViewModel(INavigationService navigation, ThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
+    public ShellViewModel(INavigationService navigation, IThemeService theme, LibraryActivity activity, SearchState search, SettingsLinks settings,
         LibraryPages library, SmartViewDirectory views, PinDirectory pins, PinOpener opener, CollectionDirectory collections, SessionDirectory binders,
         SettingsStore store, IUpdateService updates, LibrarySync sync, PlainSearchViewModel plainSearch, IUiThread ui, TimeProvider time,
         ILogger<ShellViewModel> log)
@@ -70,12 +68,12 @@ public sealed partial class ShellViewModel : ObservableObject
 
         NavItems =
         [
-            new(Route.Home, "Home", Icon("Icon.House")),
-            new(Route.Library, "Library", Icon("Icon.LibraryBig")),
-            new(Route.Collections, "Collections", Icon("Icon.Folders")),
-            new(Route.Sessions, "Binders", Icon("Icon.NotebookTabs")),
-            new(Route.NeedsReview, "Needs review", Icon("Icon.Inbox")),
-            new(Route.Summary, "Summary", Icon("Icon.ChartNoAxesColumn")),
+            new(Route.Home, "Home", "House"),
+            new(Route.Library, "Library", "LibraryBig"),
+            new(Route.Collections, "Collections", "Folders"),
+            new(Route.Sessions, "Binders", "NotebookTabs"),
+            new(Route.NeedsReview, "Needs review", "Inbox"),
+            new(Route.Summary, "Summary", "ChartNoAxesColumn"),
         ];
         _pins.Changed += (_, _) =>
         {
@@ -89,7 +87,7 @@ public sealed partial class ShellViewModel : ObservableObject
             MovePinUpCommand.NotifyCanExecuteChanged();
             MovePinDownCommand.NotifyCanExecuteChanged();
         };
-        Settings = new NavItemViewModel(Route.Settings, "Settings", Icon("Icon.Settings2"));
+        Settings = new NavItemViewModel(Route.Settings, "Settings", "Settings2");
         var review = NavItems.Single(n => n.Route == Route.NeedsReview);
         Activity.PropertyChanged += (_, e) =>
         {
@@ -381,6 +379,4 @@ public sealed partial class ShellViewModel : ObservableObject
             OpenSectionCommand.NotifyCanExecuteChanged();
         }
     }
-
-    static Geometry Icon(string key) => (Geometry)Application.Current.FindResource(key);
 }

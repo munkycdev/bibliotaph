@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -57,7 +56,7 @@ public sealed record PageTarget(int PageIndex, double? PdfTop);
 /// </summary>
 public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string Page)
 {
-    public System.Windows.Thickness Indent => new(Depth * 14, 0, 0, 0);
+    public double Indent => Depth * 14;
 
     public bool InPart { get; init; }
 

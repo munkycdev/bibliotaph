@@ -1,4 +1,3 @@
-using System.Windows;
 using Bibliotaph.Catalog;
 
 namespace Bibliotaph.App.ViewModels;
@@ -42,5 +41,5 @@ public sealed class CollectionCardViewModel(CollectionInfo collection, string co
 /// <summary>A collection in a picker: indented under the one it sits in, or listed by its path while filtering.</summary>
 public sealed record CollectionChoice(long? Id, string Name, string Path, int Depth)
 {
-    public Thickness Indent => new(Depth * 18, 0, 0, 0);
+    public double Indent => Depth * 18;
 }
