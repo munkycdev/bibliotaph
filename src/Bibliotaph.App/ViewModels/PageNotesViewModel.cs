@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Reading;
@@ -48,7 +47,7 @@ public sealed partial class PageNotesViewModel : ObservableObject
 {
     readonly IPageNotes _notes;
     readonly IPageNotesReader _reader;
-    readonly Dispatcher _dispatcher;
+    readonly IUiThread _ui;
     readonly ILogger _log;
     long? _documentId;
     EntryId? _entry;
@@ -57,13 +56,13 @@ public sealed partial class PageNotesViewModel : ObservableObject
 
     /// <param name="notes">The notes, read and changed.</param>
     /// <param name="reader">The reader the panel sits beside.</param>
-    /// <param name="dispatcher">The reader's, for changes raised on other threads.</param>
+    /// <param name="ui">For changes raised on other threads.</param>
     /// <param name="log">Failures; never a note's text.</param>
-    public PageNotesViewModel(IPageNotes notes, IPageNotesReader reader, Dispatcher dispatcher, ILogger log)
+    public PageNotesViewModel(IPageNotes notes, IPageNotesReader reader, IUiThread ui, ILogger log)
     {
         _notes = notes;
         _reader = reader;
-        _dispatcher = dispatcher;
+        _ui = ui;
         _log = log;
         Undo = new UndoSlot(log);
     }
@@ -232,7 +231,7 @@ public sealed partial class PageNotesViewModel : ObservableObject
     void OnPageNotesChanged(object? sender, EntryId entryId)
     {
         if (entryId != _entry) return;
-        if (_dispatcher.CheckAccess()) LoadAsync().FireAndForget();
-        else _dispatcher.InvokeAsync(LoadAsync);
+        if (_ui.IsCurrent) LoadAsync().FireAndForget();
+        else _ui.Post(LoadAsync);
     }
 }

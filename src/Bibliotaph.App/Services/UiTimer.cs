@@ -1,13 +1,11 @@
 using System.Runtime.CompilerServices;
-using System.Windows.Threading;
 
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// A timer that ticks on the thread that made it, as a DispatcherTimer does: one made on the UI thread ticks there, at
-/// its priority, behind input and layout unless it says otherwise.
-/// Its time comes from a <see cref="TimeProvider"/>, so a test can move it on by hand; one made where there is no
-/// <see cref="SynchronizationContext"/>, as in a test, ticks inline when its time comes.
+/// A timer that ticks on the UI thread, as a DispatcherTimer does, at its priority: behind input and layout unless it
+/// says otherwise. Its time comes from a <see cref="TimeProvider"/>, so a test can move it on by hand; with an
+/// <see cref="ImmediateUiThread"/>, as in a test, it ticks inline when its time comes.
 /// </summary>
 /// <remarks>
 /// It holds a timer only while it runs, and Stop lets that go, so there is nothing to dispose: a page stops its
@@ -16,8 +14,9 @@ namespace Bibliotaph.App.Services;
 /// </remarks>
 public sealed class UiTimer
 {
+    readonly IUiThread _ui;
     readonly TimeProvider _time;
-    readonly SynchronizationContext? _context;
+    readonly UiPriority _priority;
     readonly TimeSpan _interval;
     readonly Action _tick;
     readonly bool _repeat;
@@ -29,30 +28,30 @@ public sealed class UiTimer
     int _fired;
     int _posted;
 
+    /// <param name="ui">The thread it ticks on.</param>
     /// <param name="time">Where the time comes from.</param>
     /// <param name="interval">How long after Start it ticks, and between ticks.</param>
     /// <param name="repeat">True to tick every <paramref name="interval"/> until stopped; false to tick once and stop.</param>
-    /// <param name="tick">The work to do, on the thread that made the timer.</param>
+    /// <param name="tick">The work to do, on the UI thread.</param>
     /// <param name="priority">Where a tick waits among the UI thread's other work.</param>
-    public UiTimer(TimeProvider time, TimeSpan interval, bool repeat, Action tick, DispatcherPriority priority = DispatcherPriority.Background)
+    public UiTimer(IUiThread ui, TimeProvider time, TimeSpan interval, bool repeat, Action tick, UiPriority priority = UiPriority.Background)
     {
+        ArgumentNullException.ThrowIfNull(ui);
         ArgumentNullException.ThrowIfNull(time);
         ArgumentNullException.ThrowIfNull(tick);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
+        _ui = ui;
         _time = time;
         _interval = interval;
         _repeat = repeat;
         _tick = tick;
-        // The UI thread's own context posts at Normal, ahead of input; this keeps the priority a DispatcherTimer had.
-        _context = SynchronizationContext.Current is DispatcherSynchronizationContext
-            ? new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher, priority)
-            : SynchronizationContext.Current;
+        _priority = priority;
     }
 
     /// <summary>A timer whose tick is work it doesn't wait for, logged if it fails (<see cref="BackgroundWork.FireAndForget"/>).</summary>
-    public UiTimer(TimeProvider time, TimeSpan interval, bool repeat, Func<Task> tick, DispatcherPriority priority = DispatcherPriority.Background,
+    public UiTimer(IUiThread ui, TimeProvider time, TimeSpan interval, bool repeat, Func<Task> tick, UiPriority priority = UiPriority.Background,
         [CallerArgumentExpression(nameof(tick))] string what = "")
-        : this(time, interval, repeat, Logged(tick, what), priority)
+        : this(ui, time, interval, repeat, Logged(tick, what), priority)
     {
     }
 
@@ -84,8 +83,7 @@ public sealed class UiTimer
     void Fire(int generation)
     {
         Volatile.Write(ref _fired, generation);
-        if (_context is null) Tick();
-        else if (Interlocked.Exchange(ref _posted, 1) == 0) _context.Post(static state => ((UiTimer)state!).Tick(), this);
+        if (Interlocked.Exchange(ref _posted, 1) == 0) _ui.Post(Tick, _priority);
     }
 
     void Tick()

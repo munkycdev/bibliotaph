@@ -1,4 +1,3 @@
-using System.Windows;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
@@ -25,7 +24,7 @@ public sealed class CollectionDirectory : ICollectionChoices
     Dictionary<long, CollectionInfo> _byId = [];
 
     public CollectionDirectory(CollectionsService collections, PinsService pins, LibraryStore library, LibraryQueries queries, CoverImages covers,
-        NornisWorldStore worlds, ILogger<CollectionDirectory> log)
+        NornisWorldStore worlds, IUiThread ui, ILogger<CollectionDirectory> log)
     {
         _collections = collections;
         _library = library;
@@ -33,9 +32,9 @@ public sealed class CollectionDirectory : ICollectionChoices
         _covers = covers;
         _worlds = worlds;
         _log = log;
-        collections.Changed += (_, _) => Application.Current?.Dispatcher.InvokeAsync(LoadAsync);
+        collections.Changed += (_, _) => ui.Post(LoadAsync);
         // A collection pinned or unpinned moves among the others.
-        pins.Changed += (_, _) => Application.Current?.Dispatcher.InvokeAsync(LoadAsync);
+        pins.Changed += (_, _) => ui.Post(LoadAsync);
     }
 
     /// <summary>Raised on the UI thread after the collections were reloaded.</summary>

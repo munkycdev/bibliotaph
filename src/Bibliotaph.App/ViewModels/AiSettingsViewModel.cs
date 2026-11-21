@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Windows;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
@@ -33,7 +32,7 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 public sealed partial class AiSettingsViewModel(
     AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
     PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, SettingsLinks links, LibraryVectors libraryVectors, ILogger<AiSettingsViewModel> log,
-    ChapterScanService chapters, WebShelfCache shelf)
+    ChapterScanService chapters, WebShelfCache shelf, IUiThread ui)
     : SettingsSectionViewModel
 {
     bool _loading;
@@ -308,7 +307,7 @@ public sealed partial class AiSettingsViewModel(
 
     void OnActivityRefreshed(object? sender, EventArgs e) => RefreshProgressAsync().FireAndForget();
 
-    void OnLibraryVectorsChanged(object? sender, EventArgs e) => Application.Current?.Dispatcher.InvokeAsync(ShowLibraryVectors);
+    void OnLibraryVectorsChanged(object? sender, EventArgs e) => ui.Post(ShowLibraryVectors);
 
     /// <summary>With an embedding model set, the library is read for meaning in the background, and this section says how far it has got.</summary>
     [ObservableProperty]

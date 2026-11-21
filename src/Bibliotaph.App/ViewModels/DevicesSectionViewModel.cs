@@ -15,9 +15,8 @@ namespace Bibliotaph.App.ViewModels;
 /// the room for the downloads not kept offline.
 /// </summary>
 public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync sync, WebShelfSync shelf, WebLibraryCopies copies, IDesktopShell shell,
-    TimeProvider clock, Bibliotaph.Storage.Desktop.PcConnections storage, ILogger<DevicesSectionViewModel> log) : SettingsSectionViewModel
+    IUiThread ui, TimeProvider clock, Bibliotaph.Storage.Desktop.PcConnections storage, ILogger<DevicesSectionViewModel> log) : SettingsSectionViewModel
 {
-    System.Windows.Threading.Dispatcher? _dispatcher;
     // Stops the wait; the wait itself owns its token source.
     Action? _stopWaiting;
     string? _approveUrl;
@@ -73,7 +72,6 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
 
     public override async Task LoadAsync()
     {
-        _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
         sync.StatusChanged -= OnSyncStatusChanged;
         sync.StatusChanged += OnSyncStatusChanged;
         if (IsWaiting) return;
@@ -86,7 +84,7 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
         _stopWaiting?.Invoke();
     }
 
-    void OnSyncStatusChanged(object? sender, EventArgs e) => _dispatcher?.InvokeAsync(ShowSync);
+    void OnSyncStatusChanged(object? sender, EventArgs e) => ui.Post(ShowSync);
 
     void ShowSync() => SyncLine = IsConnected ? LibrarySync.DescribeWeb(sync.Status, clock.GetUtcNow(), clock.LocalTimeZone) : null;
 

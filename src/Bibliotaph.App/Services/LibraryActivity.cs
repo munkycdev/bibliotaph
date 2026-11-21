@@ -116,7 +116,7 @@ public sealed partial class LibraryActivity : ObservableObject
     bool _refreshing;
 
     public LibraryActivity(IIndexingStatus indexing, IJobControl jobs, IStageCatalog stages, IndexQueries queries, LibraryStore library,
-        MetadataProjector metadata, ReviewService review, ChapterScanService chapters, WebLibrary web, RunAgainService runAgain, TimeProvider time,
+        MetadataProjector metadata, ReviewService review, ChapterScanService chapters, WebLibrary web, RunAgainService runAgain, IUiThread ui, TimeProvider time,
         ILogger<LibraryActivity> log, SourceBookFinder? sourceBooks = null)
     {
         _indexing = indexing;
@@ -130,7 +130,7 @@ public sealed partial class LibraryActivity : ObservableObject
         _review = review;
         _log = log;
         _time = time;
-        _timer = new UiTimer(time, Tick, repeat: true, OnTickAsync);
+        _timer = new UiTimer(ui, time, Tick, repeat: true, OnTickAsync);
         _indexing.Changed += (_, _) => Interlocked.Exchange(ref _dirty, 1);
         // Metadata edits and projections change what the library shows without any indexing.
         metadata.Projected += (_, _) => Interlocked.Exchange(ref _dirty, 1);

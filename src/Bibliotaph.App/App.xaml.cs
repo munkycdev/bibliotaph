@@ -136,6 +136,8 @@ public partial class App : Application
         builder.Services.AddSerilog();
         builder.Services.AddSingleton(paths);
         builder.Services.AddSingleton(TimeProvider.System);
+        // The app has one UI thread, and every window runs on it.
+        builder.Services.AddSingleton<IUiThread>(new DispatcherUiThread(Current.Dispatcher));
 
         builder.Services
             .AddCatalog(paths)

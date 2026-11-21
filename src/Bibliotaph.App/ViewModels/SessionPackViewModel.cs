@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Reading;
@@ -40,16 +39,17 @@ public sealed partial class SessionPackViewModel : PageViewModel
     readonly IndexQueries? _index;
     readonly WebLibrary? _web;
     readonly LibraryStore _library;
-    readonly Dispatcher _dispatcher = Dispatcher.CurrentDispatcher;
+    readonly IUiThread _ui;
     readonly UiTimer _notesTimer;
     int _version;
     int _ownWrites;
     bool _notesDirty;
 
     public SessionPackViewModel(SessionActions actions, SessionsService sessions, SessionPages sessionPages, LibraryPages pages, LibraryQueries queries,
-        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell, TimeProvider time,
-        ILogger<SessionPackViewModel> log, LibraryStore library, NornisWorldStore? worlds = null, IndexQueries? index = null, WebLibrary? web = null)
+        CoverImages covers, ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell, IUiThread ui,
+        TimeProvider time, ILogger<SessionPackViewModel> log, LibraryStore library, NornisWorldStore? worlds = null, IndexQueries? index = null, WebLibrary? web = null)
     {
+        _ui = ui;
         _library = library;
         _worlds = worlds;
         _index = index;
@@ -66,7 +66,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
         _navigation = navigation;
         _log = log;
         // Notes are saved as they are typed, once typing pauses.
-        _notesTimer = new UiTimer(time, TimeSpan.FromMilliseconds(700), repeat: false, SaveNotesAsync);
+        _notesTimer = new UiTimer(ui, time, TimeSpan.FromMilliseconds(700), repeat: false, SaveNotesAsync);
     }
 
     public long PackId { get; set; }
@@ -147,7 +147,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     void OnSessionsChanged(object? sender, EventArgs e)
     {
         if (Volatile.Read(ref _ownWrites) > 0) return;
-        _dispatcher.InvokeAsync(async () =>
+        _ui.Post(async () =>
         {
             if (IsLoaded || IsMissing) await RefreshAsync();
         });

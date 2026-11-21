@@ -75,7 +75,7 @@ public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries
     IJobControl Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
     NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
-    IUserPrompts UserPrompts, IDesktopShell Shell, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null, PackService? Packs = null,
+    IUserPrompts UserPrompts, IDesktopShell Shell, IUiThread Ui, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null, PackService? Packs = null,
     EbookBrowser? Ebooks = null, WebLibraryCopies? WebCopies = null, NornisScope? Nornis = null, WebLibrary? Web = null);
 
 /// <summary>
@@ -126,6 +126,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     /// <summary>The open file's content, by which the web library finds its own copy for Send to Nornis.</summary>
     string? _nornisHash;
     readonly ILogger<ViewerViewModel> _log;
+    readonly IUiThread _ui;
+    // The page renderer makes WPF bitmaps, so it takes WPF's own.
     readonly Dispatcher _dispatcher;
     readonly UiTimer _noticeTimer;
     readonly UiTimer _placeTimer;
@@ -196,13 +198,14 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         ShowStrip = windows.ShowsStrip;
         IsPoppedOut = poppedOut;
         Zoom = request?.Zoom ?? PdfPagesView.FitWidth;
+        _ui = services.Ui;
         _dispatcher = Dispatcher.CurrentDispatcher;
-        Ask = new AskPanelViewModel(services.Ask, _dispatcher, services.Log, ShowPhraseAsync);
+        Ask = new AskPanelViewModel(services.Ask, _ui, services.Log, ShowPhraseAsync);
         Find = new FindViewModel(() => CurrentPageIndex, () => _request?.Part?.Pages, GoTo, _log);
-        Notes = new PageNotesViewModel(services.Notes, this, _dispatcher, _log);
-        _noticeTimer = new UiTimer(services.Time, TimeSpan.FromSeconds(5), repeat: false, () => Notice = null);
+        Notes = new PageNotesViewModel(services.Notes, this, _ui, _log);
+        _noticeTimer = new UiTimer(_ui, services.Time, TimeSpan.FromSeconds(5), repeat: false, () => Notice = null);
         // The page is kept once reading settles on it, so it survives the app closing with the book open.
-        _placeTimer = new UiTimer(services.Time, TimeSpan.FromSeconds(2), repeat: false, () =>
+        _placeTimer = new UiTimer(_ui, services.Time, TimeSpan.FromSeconds(2), repeat: false, () =>
         {
             if (HasPages) KeepPlace(CurrentPageIndex);
         });
@@ -958,7 +961,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
 
     void OnPinsChanged(object? sender, EventArgs e) => ShowPinned();
 
-    void OnWebDownload(object? sender, WebDownload download) => _dispatcher.InvokeAsync(() =>
+    void OnWebDownload(object? sender, WebDownload download) => _ui.Post(() =>
     {
         if (IsOpening && string.Equals(_source?.ContentHash, download.ContentHash, StringComparison.OrdinalIgnoreCase))
             OpeningText = download.Total > 0 ? $"Downloading from {download.From}… {download.Percent.ToString(CultureInfo.CurrentCulture)}%"
@@ -1118,7 +1121,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         ShowSessionBanner();
     }
 
-    void OnSessionsChanged(object? sender, EventArgs e) => _dispatcher.InvokeAsync(FollowSessionItemAsync);
+    void OnSessionsChanged(object? sender, EventArgs e) => _ui.Post(FollowSessionItemAsync);
 
     /// <summary>
     /// The session item open here, outside a binder (whose list does this itself), where it opens now: its banner

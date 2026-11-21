@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Windows;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
@@ -24,14 +23,14 @@ public sealed class SessionDirectory : ISessionChoices
     readonly TimeProvider _clock;
     readonly ILogger<SessionDirectory> _log;
 
-    public SessionDirectory(SessionsService sessions, LibraryQueries queries, CoverImages covers, TimeProvider clock, ILogger<SessionDirectory> log)
+    public SessionDirectory(SessionsService sessions, LibraryQueries queries, CoverImages covers, IUiThread ui, TimeProvider clock, ILogger<SessionDirectory> log)
     {
         _sessions = sessions;
         _queries = queries;
         _covers = covers;
         _clock = clock;
         _log = log;
-        sessions.Changed += (_, _) => Application.Current?.Dispatcher.InvokeAsync(LoadAsync);
+        sessions.Changed += (_, _) => ui.Post(LoadAsync);
     }
 
     /// <summary>Raised on the UI thread after the packs were reloaded.</summary>

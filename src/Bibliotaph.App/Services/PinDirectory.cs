@@ -63,7 +63,7 @@ public sealed class PinDirectory : IPinState
     int _version;
 
     public PinDirectory(PinsService pins, CollectionDirectory collections, SessionDirectory binders, SmartViewDirectory views, LibraryQueries queries,
-        LibraryStore library, CoverImages covers, LibraryActivity activity, ILogger<PinDirectory> log)
+        LibraryStore library, CoverImages covers, LibraryActivity activity, IUiThread ui, ILogger<PinDirectory> log)
     {
         _pins = pins;
         _collections = collections;
@@ -73,7 +73,7 @@ public sealed class PinDirectory : IPinState
         _library = library;
         _covers = covers;
         _log = log;
-        pins.Changed += (_, _) => Application.Current?.Dispatcher.InvokeAsync(LoadAsync);
+        pins.Changed += (_, _) => ui.Post(LoadAsync);
         // A target deleted takes its pin with it, renamed shows its new name; a book's title or file can change too.
         collections.Changed += async (_, _) => await LoadAsync();
         binders.Changed += async (_, _) => await LoadAsync();
