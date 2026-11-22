@@ -8,10 +8,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bibliotaph.Mac.Views;
 
 /// <summary>
-/// Settings (⌘,) with the sections the Mac has so far: Library, its folders with what each holds, and Preferences,
-/// light or dark and what waits in Needs review. Each section is the Windows one's view model, loaded while it shows.
+/// Settings (⌘,): Library, its folders with what each holds; Processing; AI; Preferences, light or dark and what
+/// waits in Needs review; Passwords; and Backup. Each section is the Windows one's view model, loaded while it shows.
 /// </summary>
-public sealed class SettingsWindow : NSWindowController
+public sealed partial class SettingsWindow : NSWindowController
 {
     readonly IServiceProvider _services;
     readonly FolderAdding _adding;
@@ -28,9 +28,23 @@ public sealed class SettingsWindow : NSWindowController
         window.WillClose += (_, _) => Closed();
     }
 
-    public void Open()
+    NSTabViewController? _tabs;
+
+    /// <summary>Opens Settings at a section, as a link into Settings does on Windows, or where it was.</summary>
+    public void Open(Presentation.Services.SettingsSection? section = null)
     {
         if (_open.Count == 0) Build();
+        var at = section switch
+        {
+            Presentation.Services.SettingsSection.Library => 0,
+            Presentation.Services.SettingsSection.Processing => 1,
+            Presentation.Services.SettingsSection.Ai => 2,
+            Presentation.Services.SettingsSection.Preferences => 3,
+            Presentation.Services.SettingsSection.Passwords => 4,
+            Presentation.Services.SettingsSection.Backup => 5,
+            _ => -1,
+        };
+        if (at >= 0 && _tabs is { } tabs) tabs.SelectedTabViewItemIndex = at;
         Window!.Center();
         Window.MakeKeyAndOrderFront(null);
     }
@@ -39,8 +53,12 @@ public sealed class SettingsWindow : NSWindowController
     {
         var tabs = new NSTabViewController { TabStyle = NSTabViewControllerTabStyle.Toolbar };
         tabs.AddTabViewItem(Tab("Library", "books.vertical", LibraryTab()));
+        tabs.AddTabViewItem(Tab("Processing", "gauge.with.dots.needle.33percent", ProcessingTab()));
         tabs.AddTabViewItem(Tab("AI", "sparkles", AiTab()));
         tabs.AddTabViewItem(Tab("Preferences", "gearshape", PreferencesTab()));
+        tabs.AddTabViewItem(Tab("Passwords", "key", PasswordsTab()));
+        tabs.AddTabViewItem(Tab("Backup", "externaldrive", BackupTab()));
+        _tabs = tabs;
         Window!.ContentViewController = tabs;
         Window.SetContentSize(new CGSize(640, 600));
     }

@@ -64,7 +64,12 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
 
         try
         {
-            _host = BuildHost(paths, everyday: DataRoot(args) is null);
+            // A restore chosen before the restart swaps its catalog in now, once the copy that chose it has closed it.
+            await MacAppLifetime.WaitForAsync(args);
+            var restored = await PendingRestore.ApplyIfRequestedAsync(paths);
+            if (restored is not null) Log.Information("Restore of {Backup}: {Result}", restored.Request?.Backup, restored.Problem ?? "restored");
+            var everyday = DataRoot(args) is null;
+            _host = BuildHost(paths, everyday);
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
             var services = _host.Services;
@@ -83,6 +88,8 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
             await services.GetRequiredService<ShellViewModel>().StartAsync();
             await DevArguments.ApplyAsync(args, services, _main);
             _main.CheckConnectionAsync(offer: DataRoot(args) is null).FireAndForget();
+            if (restored is not null) MacAppLifetime.Tell(restored, _main.Window);
+            if (everyday) BackUpWeeklyInBackground(services);
         }
         catch (Exception ex)
         {
@@ -152,6 +159,20 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
             .AddMacPdfWorker();
         return builder.Build();
     }
+
+    static void BackUpWeeklyInBackground(IServiceProvider services) =>
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (await services.GetRequiredService<BackupService>().BackUpWeeklyIfDueAsync() is { } backup)
+                    Log.Information("Weekly backup saved to {Backup}", backup.Path);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "The weekly backup failed");
+            }
+        });
 
     static async Task PrepareDatabasesAsync(IServiceProvider services)
     {

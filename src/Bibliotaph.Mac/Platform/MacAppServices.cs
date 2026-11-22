@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.ComponentModel;
 using AppKit;
 using Bibliotaph.Catalog;
@@ -77,14 +78,67 @@ public sealed class NoUpdates : IUpdateService
     }
 }
 
-/// <summary>Restart relaunches the bundle; Start over isn't offered on the Mac yet.</summary>
-public sealed class MacAppLifetime(IUserPrompts prompts) : IAppLifetime
+/// <summary>
+/// Restart relaunches the bundle, which waits for this copy to have closed its databases before it starts, as a
+/// restore swaps them in then. Start over isn't offered on the Mac yet.
+/// </summary>
+public sealed class MacAppLifetime(IUserPrompts prompts, AppPaths paths) : IAppLifetime
 {
+    public const string WaitFor = "--wait-for";
+
     public void Restart()
     {
-        var bundle = NSBundle.MainBundle.BundlePath;
-        using var process = System.Diagnostics.Process.Start("/usr/bin/open", ["-n", bundle]);
+        List<string> arguments = ["-n", NSBundle.MainBundle.BundlePath, "--args", WaitFor, Environment.ProcessId.ToString(CultureInfo.InvariantCulture)];
+        // Only a data folder of its own is named, as naming one turns off what an everyday start does.
+        if (paths.Root != AppPaths.ForCurrentUser().Root) arguments.AddRange(["--data-root", paths.Root]);
+        using var process = System.Diagnostics.Process.Start("/usr/bin/open", arguments);
         NSApplication.SharedApplication.Terminate(null);
+    }
+
+    /// <summary>After a restart, waits for the copy that asked for it to have quit.</summary>
+    public static async Task WaitForAsync(string[] args)
+    {
+        var at = Array.IndexOf(args, WaitFor);
+        if (at < 0 || at + 1 >= args.Length || !int.TryParse(args[at + 1], CultureInfo.InvariantCulture, out var id)) return;
+        try
+        {
+            using var earlier = System.Diagnostics.Process.GetProcessById(id);
+            using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await earlier.WaitForExitAsync(limit.Token);
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OperationCanceledException)
+        {
+            // Gone already, or still closing after the wait: the restore checks the databases itself.
+        }
+    }
+
+    /// <summary>After the restart: what the restore did, or why the catalog in use was kept.</summary>
+    public static void Tell(RestoreOutcome outcome, NSWindow? window)
+    {
+        var made = outcome.Request is { } request ? request.BackupCreatedUtc.ToLocalTime().ToString("d MMMM yyyy", CultureInfo.CurrentCulture) : null;
+        var alert = new NSAlert();
+        if (!outcome.Restored)
+        {
+            alert.AlertStyle = NSAlertStyle.Warning;
+            alert.MessageText = "Restore";
+            alert.InformativeText = $"Bibliotaph couldn't restore the backup{(made is null ? "" : $" from {made}")}, so your catalog is as it was.\n\n{outcome.Problem}";
+        }
+        else
+        {
+            var lines = new List<string> { $"Your library is back as it was on {made}." };
+            if (outcome.Request is { IncludesIndex: false })
+                lines.Add("Bibliotaph is reading your books again for search, in the background. Settings › Processing shows how far it has got.");
+            if (outcome.Request is { OfflineFolders: > 0 } offline)
+                lines.Add(offline.OfflineFolders == 1
+                    ? "One library folder wasn't found, so its books are marked offline. Settings › Library can point it to its new place."
+                    : $"{offline.OfflineFolders} library folders weren't found, so their books are marked offline. Settings › Library can point each to its new place.");
+            lines.Add("Passwords for protected PDFs and AI keys aren't in backups: Bibliotaph asks for them again when it needs them.");
+            if (outcome.PreviousCatalogBackup is { } kept) lines.Add($"The catalog you had before is kept in the backups folder as {Path.GetFileName(kept)}.");
+            alert.MessageText = "Restored";
+            alert.InformativeText = string.Join("\n\n", lines);
+        }
+        if (window is not null) alert.BeginSheet(window, _ => alert.Dispose());
+        else alert.RunModal();
     }
 
     public void StartOver() =>

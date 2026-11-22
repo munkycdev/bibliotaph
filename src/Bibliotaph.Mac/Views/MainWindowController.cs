@@ -25,6 +25,7 @@ public sealed class MainWindowController : NSWindowController
     readonly Bindings _bindings = new();
     readonly DevicesWindow _devices;
     readonly SettingsWindow _settings;
+    readonly Presentation.Services.SettingsLinks _links;
     readonly WebLibrary _web;
     readonly SourceRootStore _roots;
     PageViewModel? _shown;
@@ -36,6 +37,7 @@ public sealed class MainWindowController : NSWindowController
         var folders = new FolderAdding(services);
         _devices = new DevicesWindow(services);
         _settings = new SettingsWindow(services, folders);
+        _links = services.GetRequiredService<Presentation.Services.SettingsLinks>();
         _sidebar = new SidebarController(_shell.Activity, folders, services.GetRequiredService<SourceRootStore>(), services.GetRequiredService<WebShelfCache>(),
             services.GetRequiredService<INavigationService>(), _shell);
         // A folder just added is a new choice in the Library's folder filter, which it lists as it loads.
@@ -83,7 +85,7 @@ public sealed class MainWindowController : NSWindowController
 
     public void ShowDevices() => _devices.Open();
 
-    public void ShowSettings() => _settings.Open();
+    public void ShowSettings(Presentation.Services.SettingsSection? section = null) => _settings.Open(section);
 
     /// <summary>For --screenshot, which pictures the window it was asked to open.</summary>
     public NSWindow? SettingsWindow => _settings.Window;
@@ -121,7 +123,10 @@ public sealed class MainWindowController : NSWindowController
         if (page is SettingsViewModel && _navigation.CanGoBack)
         {
             _navigation.GoBack();
-            ShowSettings();
+            // At the section the link asked for; Devices is a window of its own on the Mac.
+            var section = _links.TakeRequest();
+            if (section == Presentation.Services.SettingsSection.Devices) ShowDevices();
+            else _settings.Open(section);
             return;
         }
         _shown?.Unload();
