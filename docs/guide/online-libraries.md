@@ -134,6 +134,12 @@ site's own icon. Bibliotaph fetches each site's icon once and keeps it. Untick *
 Bibliotaph's browser keeps you signed in between visits, apart from your everyday browser. **Sign out of all services**
 in **Settings > Online libraries** forgets every sign-in, cookie and page it kept.
 
+## Book catalogues
+
+At the bottom of **Settings > Online libraries**, **Book catalogues** is where you save your own RPGGeek token and
+Google Books API key, so a PC that isn't connected to bibliotaph.online looks books up there too. See
+[Cataloging](cataloging.md#your-own-rpggeek-token-and-google-books-key).
+
 ---
 
 Previous: [Binders](binders.md) · Next: [AI](ai.md)

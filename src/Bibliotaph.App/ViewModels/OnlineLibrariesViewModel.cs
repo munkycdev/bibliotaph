@@ -21,8 +21,11 @@ namespace Bibliotaph.App.ViewModels;
 /// </summary>
 public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, ElsewhereService elsewhere, OnlineBrowsers browsers,
     INavigationService navigation, SettingsLinks links, SiteIconImages siteIcons, OnlineReaders onlineReaders, IFilePicker files,
-    ILogger<OnlineLibrariesViewModel> log) : OnlineLibrariesSection
+    CatalogueKeysViewModel lookups, IDesktopShell shell, ILogger<OnlineLibrariesViewModel> log) : OnlineLibrariesSection
 {
+    /// <summary>The user's own RPGGeek token and Google Books key, for looking books up while not connected.</summary>
+    public CatalogueKeysViewModel Lookups => lookups;
+
     OnlinePage? _page;
 
     /// <summary>The service whose browser read the page shown, so its next page adds to it.</summary>
@@ -197,6 +200,13 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
         {
             log.LogError(ex, "Saving the online reader setting failed");
         }
+    }
+
+    /// <summary>Opens where a catalogue's token or key is made, in the everyday browser.</summary>
+    [RelayCommand]
+    void OpenSite(Uri address)
+    {
+        if (shell.Open(address.AbsoluteUri) is { } error) log.LogWarning(error, "Opening {Address} failed", address);
     }
 
     /// <summary>Choose a downloads folder: a library folder or one inside it, so what is downloaded joins the library.</summary>
