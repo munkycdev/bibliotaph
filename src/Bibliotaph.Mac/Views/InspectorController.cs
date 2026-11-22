@@ -224,7 +224,7 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
             nameof(MetadataFieldViewModel.IsBusy)], () =>
         {
             value.StringValue = field.IsKnown ? field.Display + (field.IsSuggested ? $"  ·  {field.EvidenceLabel}" : "") : "—";
-            value.TextColor = field.IsSuggested ? NSColor.SystemPurple : NSColor.Label;
+            value.TextColor = field.IsSuggested ? NSColor.ControlAccent : NSColor.Label;
             editRow.Hidden = !field.IsEditing;
             buttons.Hidden = field.IsEditing;
             keep.Hidden = !correcting || !field.IsKnown || !field.IsSuggested;
@@ -264,7 +264,7 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         name.Font = NSFont.SystemFontOfSize(11)!;
         var text = NSTextField.CreateWrappingLabel(evidence is null ? value : $"{value}  ·  {evidence}");
         text.Selectable = true;
-        if (evidence is not null) text.TextColor = NSColor.SystemPurple;
+        if (evidence is not null) text.TextColor = NSColor.ControlAccent;
         var pair = NSStackView.FromViews([name, text]);
         pair.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
         pair.Alignment = NSLayoutAttribute.Leading;

@@ -146,7 +146,7 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
         body.AddArrangedSubview(Label($"{card.Title} · {card.FieldLabel}", bold: true));
         if (card.Reason.Length > 0) body.AddArrangedSubview(Label(card.Reason, secondary: true));
         body.AddArrangedSubview(Label($"{card.CurrentLabel}: {Or(card.CurrentText)}{(card.CurrentSource.Length > 0 ? $"  ·  {card.CurrentSource}" : "")}"));
-        if (card.HasSuggestion) body.AddArrangedSubview(Label($"{card.SuggestedLabel}: {card.SuggestedText}", tint: NSColor.SystemPurple));
+        if (card.HasSuggestion) body.AddArrangedSubview(Label($"{card.SuggestedLabel}: {card.SuggestedText}", tint: NSColor.ControlAccent));
         if (card.HasEvidence) body.AddArrangedSubview(Label(card.Evidence, secondary: true, italic: true));
 
         var accept = Button("Accept", card.AcceptCommand);
