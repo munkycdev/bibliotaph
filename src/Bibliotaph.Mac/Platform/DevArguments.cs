@@ -11,7 +11,7 @@ namespace Bibliotaph.Mac.Platform;
 
 /// <summary>
 /// Arguments for checking a build with nobody at the Mac, as the Windows app's --screenshots: <c>--add-folder</c>
-/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> and <c>--settings</c> open those windows, <c>--page</c> shows a page by its route, <c>--quit-after</c> quits after that many seconds, <c>--details-first</c> shows the first book's details, <c>--zoom</c> zooms the book opened, <c>--list</c> shows the Library as a list, and <c>--screenshot</c> saves the
+/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> and <c>--settings</c> open those windows, <c>--page</c> shows a page by its route, <c>--quit-after</c> quits after that many seconds, <c>--details-first</c> shows the first book's details, <c>--zoom</c> zooms the book opened, <c>--list</c> shows the Library as a list, <c>--organize</c> ticks that many books in Organize mode (and <c>--bulk-edit</c> opens the editor for them), and <c>--screenshot</c> saves the
 /// key window as a PNG every few seconds. The
 /// app draws the picture itself, so it needs no Screen Recording permission; AppKit leaves the sidebar's glass and what's on
 /// it out of such a picture.
@@ -33,7 +33,12 @@ static class DevArguments
         }
         if (Enum.TryParse<Presentation.Services.Route>(Value(args, "--page"), out var route)) services.GetRequiredService<INavigationService>().NavigateTo(route);
         if (int.TryParse(Value(args, "--quit-after"), out var quitAfter))
-            _ = Task.Delay(TimeSpan.FromSeconds(quitAfter)).ContinueWith(_ => Bindings.OnMain(() => NSApplication.SharedApplication.Terminate(null)), TaskScheduler.Default);
+            _ = Task.Delay(TimeSpan.FromSeconds(quitAfter)).ContinueWith(_ => Bindings.OnMain(() =>
+            {
+                // AppKit won't quit under a sheet.
+                if (main.Window?.AttachedSheet is { } sheet) main.Window.EndSheet(sheet);
+                NSApplication.SharedApplication.Terminate(null);
+            }), TaskScheduler.Default);
         if (Value(args, "--add-folder") is { } folder)
         {
             var root = await services.GetRequiredService<SourceRootStore>().AddAsync(Path.GetFullPath(folder));
@@ -49,6 +54,7 @@ static class DevArguments
             {
                 if (services.GetRequiredService<INavigationService>().Current is Presentation.ViewModels.LibraryViewModel library) library.Layout = Index.LibraryLayout.List;
             }), TaskScheduler.Default);
+        if (int.TryParse(Value(args, "--organize"), out var tick)) OrganizeAsync(services, tick, args.Contains("--bulk-edit")).FireAndForget();
         if (args.Contains("--details-first")) ShowFirstDetailsAsync(services).FireAndForget();
         if (Value(args, "--screenshot") is { } file)
         {
@@ -67,6 +73,23 @@ static class DevArguments
             {
                 await Task.Delay(3000);
                 reader.Zoom = zoom;
+                return;
+            }
+        }
+    }
+
+    /// <summary>Organize mode with the first books ticked, once the Library has listed them.</summary>
+    static async Task OrganizeAsync(IServiceProvider services, int count, bool edit)
+    {
+        for (var tries = 0; tries < 40; tries++)
+        {
+            await Task.Delay(250);
+            if (services.GetRequiredService<INavigationService>().Current is Presentation.ViewModels.LibraryViewModel { Items.Count: > 0 } library)
+            {
+                await Task.Delay(2000);
+                library.Selection.StartSelectingCommand.Execute(null);
+                foreach (var item in library.Items.Take(count)) library.ActivateCommand.Execute(item);
+                if (edit) library.Selection.EditSelectedCommand.Execute(null);
                 return;
             }
         }
@@ -91,7 +114,8 @@ static class DevArguments
         while (window.IsVisible)
         {
             await Task.Delay(every);
-            Take(NSApplication.SharedApplication.KeyWindow ?? window, file);
+            var shown = NSApplication.SharedApplication.KeyWindow ?? window;
+            Take(shown.AttachedSheet ?? shown, file);
         }
     }
 

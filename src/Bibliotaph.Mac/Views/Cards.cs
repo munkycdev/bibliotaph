@@ -153,7 +153,6 @@ static class PageParts
 /// <summary>Lays its views out left to right, wrapping to a new row when the next wouldn't fit.</summary>
 sealed class WrapView : NSView
 {
-    const double Gap = 22;
     readonly List<NSView> _items = [];
     NSLayoutConstraint? _height;
 
@@ -163,6 +162,9 @@ sealed class WrapView : NSView
     }
 
     public override bool IsFlipped => true;
+
+    /// <summary>Between items and rows: wide for cards, narrow for chips.</summary>
+    public double Gap { get; init; } = 22;
 
     public void SetItems(IEnumerable<NSView> items)
     {

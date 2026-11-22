@@ -77,7 +77,8 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
             _main = new MainWindowController(services);
             NSApplication.SharedApplication.MainMenu = Menus.Build(_main);
             _main.ShowWindow(this);
-            NSApplication.SharedApplication.Activate();
+            // A copy checking a build stays behind what the person at the Mac is doing, so it can't take their typing.
+            if (!args.Contains("--screenshot")) NSApplication.SharedApplication.Activate();
             // Opens Home, or the Library when Settings says to start there, as on Windows.
             await services.GetRequiredService<ShellViewModel>().StartAsync();
             await DevArguments.ApplyAsync(args, services, _main);

@@ -64,7 +64,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         empty.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
         empty.Spacing = 10;
 
-        var bar = FilterBar();
+        var bar = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 6 };
+        foreach (var part in new NSView[] { FilterBar(), OrganizeBar(), UndoLine() }) bar.AddArrangedSubview(part);
         _list = new BookList(this);
         var listScroll = new NSScrollView { DocumentView = _list, HasVerticalScroller = true, DrawsBackground = false };
 
@@ -127,6 +128,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         };
 
         DialogSheet.Follow(_bindings, library.Collections, () => View.Window);
+        OrganizeSheets.Follow(_bindings, library.Selection, () => View.Window);
+        _bindings.Properties(library.Selection.Books, [nameof(BookSelection.IsActive), nameof(BookSelection.Count)], ShowTicks);
         DialogSheet.Follow(_bindings, library.Sessions, () => View.Window);
 
         // The page replaces its list as it refreshes, and changes it in place as books change.
@@ -154,6 +157,120 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         _list.ReloadData();
     }
 
+    internal bool Organizing => library.Selection.Books.IsActive;
+
+    /// <summary>The ticks on the covers and rows shown, as Organize mode starts, ends, or a book is ticked.</summary>
+    void ShowTicks()
+    {
+        if (_grid is null) return;
+        if (Organizing) _grid.DeselectAll(null);
+        foreach (var item in _grid.VisibleItems)
+            if (item is CoverItem cover) cover.ShowTick(Organizing);
+        _list.ShowTicks(Organizing);
+    }
+
+    /// <summary>
+    /// A click on a book in Organize mode ticks it, and with Shift every book from the last one clicked, as on Windows;
+    /// otherwise it shows the book's details.
+    /// </summary>
+    internal void Clicked(LibraryItemViewModel item)
+    {
+        var selection = library.Selection;
+        var shift = NSApplication.SharedApplication.CurrentEvent?.ModifierFlags.HasFlag(NSEventModifierMask.ShiftKeyMask) == true;
+        if (Organizing && shift && selection.SelectRangeCommand.CanExecute(item)) selection.SelectRangeCommand.Execute(item);
+        else if (library.ActivateCommand.CanExecute(item)) library.ActivateCommand.Execute(item);
+    }
+
+    /// <summary>
+    /// Organize mode's bar, as the Windows Library's: how many are ticked, what to do to them all, which cards to show
+    /// while organizing, Clear and Done.
+    /// </summary>
+    NSStackView OrganizeBar()
+    {
+        var selection = library.Selection;
+        var books = selection.Books;
+        var summary = NSTextField.CreateLabel("");
+        summary.Font = NSFont.SystemFontOfSize(12, NSFontWeight.Medium)!;
+        var edit = Small("Edit metadata…", selection.EditSelectedCommand);
+        var toCollection = Small("Add to collection", null);
+        toCollection.Activated += (_, _) => Pop(toCollection, ((ICollectionChoices)library).MenuChoices.Select(choice =>
+            new NSMenuItem(choice.Label, (_, _) => library.AddSelectedToCollectionCommand.Execute(new CollectionRequest(library, choice)))));
+        var toBinder = Small("Add to binder", null);
+        toBinder.Activated += (_, _) => Pop(toBinder, ((ISessionChoices)library).MenuChoices.Select(choice =>
+            new NSMenuItem(choice.Label, (_, _) => library.AddSelectedToSessionCommand.Execute(new SessionRequest(library, choice)))));
+        var join = Small("Same book…", selection.JoinSelectedCommand);
+        var pack = Small("Pack together…", selection.PackSelectedCommand);
+        var removeParts = Small("Remove adventures", selection.RemoveSelectedPartsCommand);
+        var removeFromCollection = Small("Remove from collection", library.RemoveSelectedFromCollectionCommand);
+        var export = Small("Export these…", selection.ExportSelectedCommand);
+        var clear = Small("Clear", selection.ClearSelectionCommand);
+        var done = Small("Done", selection.StopSelectingCommand);
+        var actions = NSStackView.FromViews([summary, edit, toCollection, toBinder, join, pack, removeParts, removeFromCollection, export, clear, done]);
+        actions.Spacing = 8;
+        actions.SetCustomSpacing(16, summary);
+
+        var links = ChoicePopup.Create(_bindings, selection, nameof(LibrarySelectionViewModel.LinkChoice), () => selection.LinkChoices,
+            () => selection.LinkChoice, c => selection.LinkChoice = c);
+        var keep = Small("", selection.KeepShownCommand);
+        var organize = NSStackView.FromViews([NSTextField.CreateLabel("Show"), links, keep]);
+        organize.Spacing = 8;
+
+        var bar = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 6 };
+        bar.AddArrangedSubview(actions);
+        bar.AddArrangedSubview(organize);
+        _bindings.Properties(books, [nameof(BookSelection.IsActive), nameof(BookSelection.Summary), nameof(BookSelection.HasAny)], () =>
+        {
+            bar.Hidden = !books.IsActive;
+            summary.StringValue = books.Summary;
+            toCollection.Enabled = toBinder.Enabled = books.HasAny;
+        });
+        _bindings.Properties(selection, [nameof(LibrarySelectionViewModel.CanJoinSelected), nameof(LibrarySelectionViewModel.CanPackSelected),
+            nameof(LibrarySelectionViewModel.CanRemoveSelectedParts), nameof(LibrarySelectionViewModel.ShowsSuggested), nameof(LibrarySelectionViewModel.KeepLabel)], () =>
+        {
+            join.Hidden = !selection.CanJoinSelected;
+            pack.Hidden = !selection.CanPackSelected;
+            removeParts.Hidden = !selection.CanRemoveSelectedParts;
+            keep.Hidden = !selection.ShowsSuggested;
+            keep.Title = selection.KeepLabel;
+        });
+        _bindings.Property(library, nameof(LibraryViewModel.IsCollection), () => removeFromCollection.Hidden = !library.IsCollection);
+        return bar;
+    }
+
+    /// <summary>What the last change to many books did, with its Undo.</summary>
+    NSStackView UndoLine()
+    {
+        var undo = library.Selection.Undo;
+        var message = NSTextField.CreateWrappingLabel("");
+        message.Font = NSFont.SystemFontOfSize(12)!;
+        var button = Small("Undo", undo.UndoCommand);
+        var line = NSStackView.FromViews([message, button]);
+        line.Spacing = 10;
+        _bindings.Properties(undo, [nameof(UndoSlot.Message), nameof(UndoSlot.HasUndo)], () =>
+        {
+            message.StringValue = undo.Message ?? "";
+            line.Hidden = undo.Message is null;
+            button.Hidden = !undo.HasUndo;
+        });
+        return line;
+    }
+
+    NSButton Small(string title, System.Windows.Input.ICommand? command)
+    {
+        var button = NSButton.CreateButton(title, () => { });
+        button.ControlSize = NSControlSize.Small;
+        if (command is not null) _bindings.Command(button, command);
+        return button;
+    }
+
+    static void Pop(NSButton under, IEnumerable<NSMenuItem> items)
+    {
+        var menu = new NSMenu();
+        foreach (var item in items) menu.AddItem(item);
+        if (menu.Count == 0) menu.AddItem(new NSMenuItem("None yet") { Enabled = false });
+        menu.PopUpMenu(null, new CGPoint(0, under.Bounds.Height + 4), under);
+    }
+
     /// <summary>
     /// Sort, the filters most used (kind, game system, type, folder), Clear, and grid or list: what the Windows
     /// Library's bar offers first, each the page's own choice.
@@ -179,7 +296,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         layout.ControlSize = NSControlSize.Small;
         layout.Activated += (_, _) => library.Layout = layout.SelectedSegment == 1 ? Bibliotaph.Index.LibraryLayout.List : Bibliotaph.Index.LibraryLayout.Grid;
         _bindings.Property(library, nameof(LibraryViewModel.Layout), () => layout.SelectedSegment = library.Layout == Bibliotaph.Index.LibraryLayout.List ? 1 : 0);
-        var bar = NSStackView.FromViews([sort, kind, system, type, folder, clear, layout]);
+        var organize = Small("Organize", library.Selection.StartSelectingCommand);
+        _bindings.Property(library.Selection.Books, nameof(BookSelection.IsActive), () => organize.Hidden = library.Selection.Books.IsActive);
+        var bar = NSStackView.FromViews([sort, kind, system, type, folder, clear, layout, organize]);
         bar.Spacing = 8;
         return bar;
     }
@@ -254,6 +373,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             UsesAlternatingRowBackgroundColors = true;
             RowHeight = 22;
             ColumnAutoresizingStyle = NSTableViewColumnAutoresizingStyle.FirstColumnOnly;
+            AddColumn(new NSTableColumn("tick") { Title = "", Width = 22, Hidden = true });
             foreach (var (id, title, width) in new[] { ("title", "Title", 320.0), ("byline", "By", 200.0), ("system", "System", 150.0),
                 ("kind", "Kind", 130.0), ("levels", "Levels", 90.0), ("size", "Size", 170.0) })
                 AddColumn(new NSTableColumn(id) { Title = title, Width = (nfloat)width });
@@ -280,6 +400,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         public override NSView GetViewForItem(NSTableView tableView, NSTableColumn tableColumn, nint row)
         {
             var item = list.Owner.Library.Items[(int)row];
+            if (tableColumn.Identifier == "tick") return CoverItem.Tick(item.IsSelected);
             var text = tableColumn.Identifier switch
             {
                 "title" => item.Title,
@@ -300,8 +421,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         {
             var library = list.Owner.Library;
             if (list.SelectedRow < 0 || list.SelectedRow >= library.Items.Count) return;
-            var item = library.Items[(int)list.SelectedRow];
-            if (library.ActivateCommand.CanExecute(item)) library.ActivateCommand.Execute(item);
+            list.Owner.Clicked(library.Items[(int)list.SelectedRow]);
+            if (list.Owner.Organizing) list.DeselectAll(null);
         }
         }
 
@@ -311,6 +432,20 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             if (ClickedRow < 0 || ClickedRow >= _owner.Library.Items.Count) return;
             var item = _owner.Library.Items[(int)ClickedRow];
             if (_owner.Library.OpenFromCardCommand.CanExecute(item)) _owner.Library.OpenFromCardCommand.Execute(item);
+        }
+
+        public override void KeyDown(NSEvent theEvent)
+        {
+            if (!BookGrid.OrganizeKey(_owner, theEvent)) base.KeyDown(theEvent);
+        }
+
+        public override bool PerformKeyEquivalent(NSEvent theEvent) => BookGrid.OrganizeKey(_owner, theEvent) || base.PerformKeyEquivalent(theEvent);
+
+        /// <summary>A tick column, there in Organize mode only.</summary>
+        public void ShowTicks(bool organizing)
+        {
+            if (FindTableColumn((NSString)"tick") is { } column) column.Hidden = !organizing;
+            ReloadData();
         }
 
         public override NSMenu? MenuForEvent(NSEvent theEvent)
@@ -323,6 +458,30 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     /// <summary>The grid, which gives a right-click on a cover that book's menu.</summary>
     sealed class BookGrid(LibraryController owner) : NSCollectionView
     {
+        public override void KeyDown(NSEvent theEvent)
+        {
+            if (!OrganizeKey(owner, theEvent)) base.KeyDown(theEvent);
+        }
+
+        public override bool PerformKeyEquivalent(NSEvent theEvent) => OrganizeKey(owner, theEvent) || base.PerformKeyEquivalent(theEvent);
+
+        /// <summary>In Organize mode, Esc leaves it and Cmd-A ticks every book shown, as Ctrl+A does on Windows.</summary>
+        internal static bool OrganizeKey(LibraryController owner, NSEvent theEvent)
+        {
+            if (!owner.Organizing) return false;
+            var selection = owner.Library.Selection;
+            if (theEvent.KeyCode == 53)
+            {
+                selection.StopSelectingCommand.Execute(null);
+                return true;
+            }
+            if (theEvent.ModifierFlags.HasFlag(NSEventModifierMask.CommandKeyMask) && theEvent.CharactersIgnoringModifiers == "a")
+            {
+                if (selection.SelectAllCommand.CanExecute(null)) selection.SelectAllCommand.Execute(null);
+                return true;
+            }
+            return false;
+        }
         public override NSMenu? MenuForEvent(NSEvent theEvent)
         {
             var point = ConvertPointFromView(theEvent.LocationInWindow, null);
@@ -341,6 +500,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         {
             var item = (CoverItem)collectionView.MakeItem(CoverItem.Id, indexPath);
             item.Show(owner.Library.Items[(int)indexPath.Item], owner.Covers);
+            item.ShowTick(owner.Organizing);
             return item;
         }
 
@@ -348,8 +508,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         public override void ItemsSelected(NSCollectionView collectionView, NSSet indexPaths)
         {
             if (indexPaths.AnyObject is not NSIndexPath path || (int)path.Item >= owner.Library.Items.Count) return;
-            var item = owner.Library.Items[(int)path.Item];
-            if (owner.Library.ActivateCommand.CanExecute(item)) owner.Library.ActivateCommand.Execute(item);
+            owner.Clicked(owner.Library.Items[(int)path.Item]);
+            // In Organize mode a click is a tick, so nothing stays selected for the next click on it to miss.
+            if (owner.Organizing) collectionView.DeselectAll(null);
         }
     }
 }
@@ -365,6 +526,8 @@ sealed class CoverItem : NSCollectionViewItem
     NSTextField _initial = null!;
     NSTextField _title = null!;
     NSTextField _meta = null!;
+    NSImageView _tick = null!;
+    LibraryItemViewModel? _book;
     string? _coverName;
 
     public CoverItem()
@@ -396,11 +559,13 @@ sealed class CoverItem : NSCollectionViewItem
         _meta.TextColor = NSColor.SecondaryLabel;
         _meta.LineBreakMode = NSLineBreakMode.TruncatingTail;
 
+        _tick = Tick(false);
+
         var root = new NSView();
-        foreach (var view in new NSView[] { _frame, _initial, _cover, _title, _meta })
+        foreach (var view in new NSView[] { _frame, _initial, _cover, _tick, _title, _meta })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
-            (view == _cover || view == _initial ? _frame : root).AddSubview(view);
+            (view == _cover || view == _initial || view == _tick ? _frame : root).AddSubview(view);
         }
         NSLayoutConstraint.ActivateConstraints(
         [
@@ -414,6 +579,10 @@ sealed class CoverItem : NSCollectionViewItem
             _cover.BottomAnchor.ConstraintEqualTo(_frame.BottomAnchor),
             _initial.CenterXAnchor.ConstraintEqualTo(_frame.CenterXAnchor),
             _initial.CenterYAnchor.ConstraintEqualTo(_frame.CenterYAnchor),
+            _tick.TopAnchor.ConstraintEqualTo(_frame.TopAnchor, 8),
+            _tick.LeadingAnchor.ConstraintEqualTo(_frame.LeadingAnchor, 8),
+            _tick.WidthAnchor.ConstraintEqualTo(22),
+            _tick.HeightAnchor.ConstraintEqualTo(22),
             _title.TopAnchor.ConstraintEqualTo(_frame.BottomAnchor, 8),
             _title.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
             _title.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
@@ -424,8 +593,37 @@ sealed class CoverItem : NSCollectionViewItem
         View = root;
     }
 
+    /// <summary>A tick, filled when the book is ticked, on a cover or a row in Organize mode.</summary>
+    internal static NSImageView Tick(bool ticked)
+    {
+        var view = new NSImageView { WantsLayer = true };
+        view.Layer!.ShadowOpacity = 0.6f;
+        view.Layer.ShadowRadius = 2;
+        view.Layer.ShadowOffset = CGSize.Empty;
+        SetTick(view, ticked);
+        return view;
+    }
+
+    // A white check on the accent, so it reads on a blue cover as on any other.
+    static void SetTick(NSImageView view, bool ticked)
+    {
+        var image = NSImage.GetSystemSymbol(ticked ? "checkmark.circle.fill" : "circle", ticked ? "Ticked" : "Not ticked")!;
+        view.SymbolConfiguration = NSImageSymbolConfiguration.Create(17, NSFontWeight.Semibold);
+        view.Image = ticked ? image.GetImage(NSImageSymbolConfiguration.Create([NSColor.White, NSColor.ControlAccent]))! : image;
+        view.ContentTintColor = ticked ? null! : NSColor.White;
+    }
+
+    public void ShowTick(bool organizing)
+    {
+        var ticked = _book?.IsSelected == true;
+        _tick.Hidden = !organizing;
+        SetTick(_tick, ticked);
+        if (_frame.Layer is { } layer) layer.BorderWidth = ticked && organizing ? 3 : Selected ? 3 : 0;
+    }
+
     public void Show(LibraryItemViewModel book, MacCovers covers)
     {
+        _book = book;
         _coverName = book.CoverName;
         _title.StringValue = book.Title;
         _meta.StringValue = book.Meta;
