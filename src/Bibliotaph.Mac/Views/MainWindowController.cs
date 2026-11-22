@@ -26,6 +26,7 @@ public sealed class MainWindowController : NSWindowController
     readonly DevicesWindow _devices;
     readonly SettingsWindow _settings;
     readonly Presentation.Services.SettingsLinks _links;
+    readonly List<OnlineBrowserWindow> _browsers = [];
     readonly WebLibrary _web;
     readonly SourceRootStore _roots;
     PageViewModel? _shown;
@@ -38,6 +39,17 @@ public sealed class MainWindowController : NSWindowController
         _devices = new DevicesWindow(services);
         _settings = new SettingsWindow(services, folders);
         _links = services.GetRequiredService<Presentation.Services.SettingsLinks>();
+        var online = services.GetRequiredService<Platform.MacOnlineLibraries>();
+        online.SignOut = OnlineBrowserWindow.SignOutAsync;
+        var browserLog = Microsoft.Extensions.Logging.LoggerFactoryExtensions.CreateLogger<OnlineBrowserWindow>(services.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>());
+        online.BrowserRequested += (_, request) =>
+        {
+            // Kept until it closes, as nothing else holds the window.
+            var browser = new OnlineBrowserWindow(request, online.Downloads, browserLog);
+            _browsers.Add(browser);
+            browser.Window!.WillClose += (_, _) => _browsers.Remove(browser);
+            browser.Show();
+        };
         _sidebar = new SidebarController(_shell.Activity, folders, services.GetRequiredService<SourceRootStore>(), services.GetRequiredService<WebShelfCache>(),
             services.GetRequiredService<INavigationService>(), _shell);
         // A folder just added is a new choice in the Library's folder filter, which it lists as it loads.

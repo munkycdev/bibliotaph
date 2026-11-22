@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bibliotaph.Mac.Views;
 
 /// <summary>
-/// Settings (⌘,): Library, its folders with what each holds; Processing; AI; Vocabulary; Preferences, light or dark and what
+/// Settings (⌘,): Library, its folders with what each holds; Online libraries; Processing; AI; Vocabulary; Preferences, light or dark and what
 /// waits in Needs review; Passwords; and Backup. Each section is the Windows one's view model, loaded while it shows.
 /// </summary>
 public sealed partial class SettingsWindow : NSWindowController
@@ -37,12 +37,13 @@ public sealed partial class SettingsWindow : NSWindowController
         var at = section switch
         {
             Presentation.Services.SettingsSection.Library => 0,
-            Presentation.Services.SettingsSection.Processing => 1,
-            Presentation.Services.SettingsSection.Ai => 2,
-            Presentation.Services.SettingsSection.Vocabulary => 3,
-            Presentation.Services.SettingsSection.Preferences => 4,
-            Presentation.Services.SettingsSection.Passwords => 5,
-            Presentation.Services.SettingsSection.Backup => 6,
+            Presentation.Services.SettingsSection.OnlineLibraries => 1,
+            Presentation.Services.SettingsSection.Processing => 2,
+            Presentation.Services.SettingsSection.Ai => 3,
+            Presentation.Services.SettingsSection.Vocabulary => 4,
+            Presentation.Services.SettingsSection.Preferences => 5,
+            Presentation.Services.SettingsSection.Passwords => 6,
+            Presentation.Services.SettingsSection.Backup => 7,
             _ => -1,
         };
         if (at >= 0 && _tabs is { } tabs) tabs.SelectedTabViewItemIndex = at;
@@ -54,6 +55,7 @@ public sealed partial class SettingsWindow : NSWindowController
     {
         var tabs = new NSTabViewController { TabStyle = NSTabViewControllerTabStyle.Toolbar };
         tabs.AddTabViewItem(Tab("Library", "books.vertical", LibraryTab()));
+        tabs.AddTabViewItem(Tab("Online", "globe", OnlineTab()));
         tabs.AddTabViewItem(Tab("Processing", "gauge.with.dots.needle.33percent", ProcessingTab()));
         tabs.AddTabViewItem(Tab("AI", "sparkles", AiTab()));
         tabs.AddTabViewItem(Tab("Vocabulary", "character.book.closed", VocabularyTab()));

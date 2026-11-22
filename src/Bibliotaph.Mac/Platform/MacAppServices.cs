@@ -193,7 +193,7 @@ public sealed class MacPasswordPrompt : IPasswordPrompt
     }
 }
 
-/// <summary>Importing from online libraries needs the in-app browser, which the Mac doesn't have yet.</summary>
+/// <summary>Books owned online open in the everyday browser: the Mac has no online reader yet.</summary>
 public sealed class NoInAppBrowser : IInAppBrowser
 {
     public bool IsInstalled => false;
@@ -202,13 +202,3 @@ public sealed class NoInAppBrowser : IInAppBrowser
 /// <summary>The e-book reader isn't on the Mac yet.</summary>
 public sealed class NoEbookBrowser : IEbookBrowser;
 
-/// <summary>Settings › Online libraries, which on Windows imports through the in-app browser; that isn't on the Mac yet.</summary>
-public sealed class MacOnlineLibraries(IUserPrompts prompts) : OnlineLibrariesSection
-{
-    public override SettingsSection Section => SettingsSection.OnlineLibraries;
-
-    public override string Label => "Online libraries";
-
-    public override void OpenLibraryPage(IOnlineLibraryReader reader) =>
-        prompts.Tell("Online libraries can't be imported on the Mac yet.", "Bibliotaph", PromptKind.Information);
-}

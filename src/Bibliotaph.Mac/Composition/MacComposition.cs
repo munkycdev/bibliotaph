@@ -85,7 +85,9 @@ static class MacComposition
         services.AddSingleton<IUpdateService, NoUpdates>();
         services.AddSingleton<IAppDialogs, MacAppDialogs>();
         services.AddSingleton<IAppLifetime, MacAppLifetime>();
-        services.AddSingleton<OnlineLibrariesSection, MacOnlineLibraries>();
+        services.AddSingleton<MacOnlineDownloads>();
+        services.AddSingleton<MacOnlineLibraries>();
+        services.AddSingleton<OnlineLibrariesSection>(sp => sp.GetRequiredService<MacOnlineLibraries>());
         services.AddSingleton<MacCovers>();
         services.AddSingleton<IReaderDocuments, MacReaderDocuments>();
         services.AddSingleton<MacReaderWindows>();
