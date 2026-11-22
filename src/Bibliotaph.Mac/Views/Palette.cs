@@ -16,6 +16,12 @@ static class Palette
     /// <summary>A panel on a page: a settings section, a card.</summary>
     public static NSColor Panel { get; } = Dynamic("BibliotaphPanel", 0xfffefc, 0x242925);
 
+    /// <summary>A soft green behind what is marked without shouting: a suggestion, the field a card is about.</summary>
+    public static NSColor Soft { get; } = Dynamic("BibliotaphSoft", 0xe4eadd, 0x303e30);
+
+    /// <summary>Text on the accent: off-white on the deep green, dark green on the sage.</summary>
+    public static NSColor AccentText { get; } = Dynamic("BibliotaphAccentText", 0xfcfcf7, 0x1c3023);
+
     static NSColor Dynamic(string name, int light, int dark) =>
         NSColor.GetColor(name, appearance => Rgb(IsDark(appearance) ? dark : light));
 
@@ -23,4 +29,35 @@ static class Palette
         appearance.FindBestMatch([NSAppearance.NameAqua.ToString(), NSAppearance.NameDarkAqua.ToString()]) == NSAppearance.NameDarkAqua.ToString();
 
     static NSColor Rgb(int rgb) => NSColor.FromSrgb(((rgb >> 16) & 0xff) / 255f, ((rgb >> 8) & 0xff) / 255f, (rgb & 0xff) / 255f, 1);
+}
+
+/// <summary>Text on a rounded fill of the palette's: a field's badge, a suggested value.</summary>
+sealed class Tinted : NSView
+{
+    readonly NSColor _fill;
+
+    public Tinted(NSTextField label, NSColor fill, nfloat radius, NSEdgeInsets padding)
+    {
+        _fill = fill;
+        Label = label;
+        WantsLayer = true;
+        Layer!.CornerRadius = radius;
+        TranslatesAutoresizingMaskIntoConstraints = false;
+        label.TranslatesAutoresizingMaskIntoConstraints = false;
+        AddSubview(label);
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            label.TopAnchor.ConstraintEqualTo(TopAnchor, padding.Top),
+            label.BottomAnchor.ConstraintEqualTo(BottomAnchor, -padding.Bottom),
+            label.LeadingAnchor.ConstraintEqualTo(LeadingAnchor, padding.Left),
+            label.TrailingAnchor.ConstraintEqualTo(TrailingAnchor, -padding.Right),
+        ]);
+    }
+
+    public NSTextField Label { get; }
+
+    public override bool WantsUpdateLayer => true;
+
+    // In the appearance showing, so it follows light and dark.
+    public override void UpdateLayer() => Layer!.BackgroundColor = _fill.CGColor;
 }

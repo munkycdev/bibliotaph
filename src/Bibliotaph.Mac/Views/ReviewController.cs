@@ -143,10 +143,24 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
     CardView MetadataCard(ReviewCardViewModel card)
     {
         var body = Stack();
-        body.AddArrangedSubview(Label($"{card.Title} · {card.FieldLabel}", bold: true));
+        // What the card is about first, as a badge: the field, then the book it's on.
+        var badgeText = NSTextField.CreateLabel(card.FieldLabel);
+        badgeText.Font = NSFont.SystemFontOfSize(12, NSFontWeight.Semibold)!;
+        badgeText.TextColor = Palette.AccentText;
+        var badge = new Tinted(badgeText, NSColor.ControlAccent, 10, new NSEdgeInsets(3, 10, 3, 10));
+        var book = Label(card.Title, secondary: true);
+        var head = Row(badge, book);
+        head.Alignment = NSLayoutAttribute.CenterY;
+        body.AddArrangedSubview(head);
         if (card.Reason.Length > 0) body.AddArrangedSubview(Label(card.Reason, secondary: true));
-        body.AddArrangedSubview(Label($"{card.CurrentLabel}: {Or(card.CurrentText)}{(card.CurrentSource.Length > 0 ? $"  ·  {card.CurrentSource}" : "")}"));
-        if (card.HasSuggestion) body.AddArrangedSubview(Label($"{card.SuggestedLabel}: {card.SuggestedText}", tint: NSColor.ControlAccent));
+        // Now and suggested side by side in a column of their own; the suggestion on the palette's soft green.
+        body.AddArrangedSubview(Compare(card.CurrentLabel, Label($"{Or(card.CurrentText)}{(card.CurrentSource.Length > 0 ? $"  ·  {card.CurrentSource}" : "")}")));
+        if (card.HasSuggestion)
+        {
+            var suggested = Label(card.SuggestedText);
+            suggested.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Medium)!;
+            body.AddArrangedSubview(Compare(card.SuggestedLabel, new Tinted(suggested, Palette.Soft, 6, new NSEdgeInsets(3, 8, 3, 8))));
+        }
         if (card.HasEvidence) body.AddArrangedSubview(Label(card.Evidence, secondary: true, italic: true));
 
         var accept = Button("Accept", card.AcceptCommand);
@@ -182,6 +196,19 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
             if (card.IsEditing && field.CurrentEditor is null) field.StringValue = card.EditText ?? "";
         });
         return Decided(card, body);
+    }
+
+    /// <summary>A value with its name in a narrow column before it: "Current", "Suggested".</summary>
+    static NSStackView Compare(string name, NSView value)
+    {
+        var label = NSTextField.CreateLabel(name);
+        label.Font = NSFont.SystemFontOfSize(11)!;
+        label.TextColor = NSColor.SecondaryLabel;
+        label.WidthAnchor.ConstraintEqualTo(72).Active = true;
+        var row = NSStackView.FromViews([label, value]);
+        row.Spacing = 8;
+        row.Alignment = NSLayoutAttribute.CenterY;
+        return row;
     }
 
     /// <summary>Any other card: its texts, then a button for each answer it offers.</summary>
