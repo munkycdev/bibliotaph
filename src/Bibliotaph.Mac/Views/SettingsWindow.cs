@@ -179,6 +179,7 @@ public sealed class SettingsWindow : NSWindowController
         return bindings;
     }
 
+    /// <summary>The sections stop following the library; the next Open builds them afresh in place of these.</summary>
     void Closed()
     {
         foreach (var (section, bindings) in _open)
@@ -187,7 +188,6 @@ public sealed class SettingsWindow : NSWindowController
             bindings.Dispose();
         }
         _open.Clear();
-        Window!.ContentViewController = null!;
     }
 
     static NSButton Radio(string title, Action chosen)
