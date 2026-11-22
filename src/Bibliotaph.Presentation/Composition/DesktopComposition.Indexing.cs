@@ -1,9 +1,9 @@
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
     /// <summary>Indexing, which runs the stages, and reading the library for meaning.</summary>
     public static IServiceCollection AddIndexing(this IServiceCollection services)

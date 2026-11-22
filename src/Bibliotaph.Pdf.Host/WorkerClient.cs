@@ -237,7 +237,9 @@ public sealed class WorkerClient : IAsyncDisposable
     async Task StartAsync(CancellationToken ct)
     {
         Kill();
-        var pipeName = $"bibliotaph-pdf-{Guid.NewGuid():N}";
+        // Off Windows the pipe is a Unix socket under the temp folder, and macOS's temp folder is long enough that a full
+        // GUID would pass the 104-character socket path limit. Sixteen hex digits are still unique enough per user.
+        var pipeName = OperatingSystem.IsWindows() ? $"bibliotaph-pdf-{Guid.NewGuid():N}" : $"bpdf{Guid.NewGuid():N}"[..20];
         _pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
         var workerPath = Options.WorkerPath ?? WorkerOptions.DefaultWorkerPath;

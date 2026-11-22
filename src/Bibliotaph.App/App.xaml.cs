@@ -5,6 +5,7 @@ using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host;
+using Bibliotaph.Presentation.Composition;
 using Bibliotaph.Presentation.Services;
 using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
