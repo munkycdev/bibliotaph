@@ -18,6 +18,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
     PagesView _pages = null!;
     OutlineList _outline = null!;
     StripView _strip = null!;
+    NotesPane _notesPane = null!;
     OpenPdf? _shownPdf;
 
     public override void LoadView()
@@ -48,9 +49,11 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
 
         var outlineToggle = Button("sidebar.left", "Bookmarks", null);
         var stripToggle = Button("rectangle.bottomthird.inset.filled", "Page thumbnails", null);
+        var notesToggle = Button("note.text", "Notes", null);
+        _bindings.Command(notesToggle, reader.ToggleNotesCommand);
         _bindings.Command(outlineToggle, reader.ToggleOutlineCommand);
         _bindings.Command(stripToggle, reader.ToggleStripCommand);
-        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, Separator(),
+        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, Separator(),
             findStatus, find, findPrevious, findNext]);
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
@@ -84,7 +87,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         }
         _outline = new OutlineList(reader);
         _strip = new StripView(reader.Strip);
-        var row = NSStackView.FromViews([_outline, content]);
+        _notesPane = new NotesPane(reader.Notes);
+        var row = NSStackView.FromViews([_outline, content, _notesPane]);
         row.Spacing = 0;
         row.Alignment = NSLayoutAttribute.Height;
         var column = NSStackView.FromViews([row, _strip]);
@@ -111,6 +115,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             column.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
             column.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
             _outline.WidthAnchor.ConstraintEqualTo(250),
+            _notesPane.WidthAnchor.ConstraintEqualTo(280),
             _strip.HeightAnchor.ConstraintEqualTo(150),
             _pages.TopAnchor.ConstraintEqualTo(content.TopAnchor),
             _pages.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
@@ -164,6 +169,11 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         {
             _strip.Hidden = !reader.StripVisible;
             stripToggle.Hidden = !reader.IsPdf;
+        });
+        _bindings.Properties(reader, [nameof(ViewerViewModel.NotesVisible), nameof(ViewerViewModel.Mode)], () =>
+        {
+            _notesPane.Hidden = !reader.NotesVisible || !reader.HasPages;
+            notesToggle.Hidden = !reader.HasPages;
         });
         _bindings.Properties(reader.Strip, [nameof(PageStripViewModel.Pages), nameof(PageStripViewModel.Current)], () => _strip.Show());
         _bindings.Property(reader, nameof(ViewerViewModel.PageEntry), () =>

@@ -183,3 +183,140 @@ sealed class StripView : NSScrollView
         public override void MouseUp(NSEvent theEvent) => click();
     }
 }
+
+/// <summary>
+/// The book's page notes beside its pages: each note with its pages, a click going there, with Edit and Delete, and Add
+/// note for the page being read. Adding and editing ask for the pages and the note in a sheet.
+/// </summary>
+sealed class NotesPane : NSView
+{
+    readonly PageNotesViewModel _notes;
+    readonly Bindings _bindings = new();
+    readonly NSStackView _list;
+
+    public NotesPane(PageNotesViewModel notes)
+    {
+        _notes = notes;
+        var heading = NSTextField.CreateLabel("Notes");
+        heading.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Semibold)!;
+        var add = NSButton.CreateButton("Add note…", () => { });
+        add.ControlSize = NSControlSize.Small;
+        _bindings.Command(add, notes.AddCommand);
+        var top = NSStackView.FromViews([heading, new NSView(), add]);
+        _list = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 10 };
+        var document = new Flipped();
+        _list.TranslatesAutoresizingMaskIntoConstraints = false;
+        document.AddSubview(_list);
+        var scroll = new NSScrollView { DocumentView = document, HasVerticalScroller = true, DrawsBackground = false };
+        document.TranslatesAutoresizingMaskIntoConstraints = false;
+        foreach (var view in new NSView[] { top, scroll })
+        {
+            view.TranslatesAutoresizingMaskIntoConstraints = false;
+            AddSubview(view);
+        }
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            top.TopAnchor.ConstraintEqualTo(TopAnchor, 10),
+            top.LeadingAnchor.ConstraintEqualTo(LeadingAnchor, 12),
+            top.TrailingAnchor.ConstraintEqualTo(TrailingAnchor, -12),
+            scroll.TopAnchor.ConstraintEqualTo(top.BottomAnchor, 8),
+            scroll.LeadingAnchor.ConstraintEqualTo(LeadingAnchor),
+            scroll.TrailingAnchor.ConstraintEqualTo(TrailingAnchor),
+            scroll.BottomAnchor.ConstraintEqualTo(BottomAnchor),
+            document.WidthAnchor.ConstraintEqualTo(scroll.ContentView.WidthAnchor),
+            _list.TopAnchor.ConstraintEqualTo(document.TopAnchor),
+            _list.LeadingAnchor.ConstraintEqualTo(document.LeadingAnchor, 12),
+            _list.TrailingAnchor.ConstraintEqualTo(document.TrailingAnchor, -12),
+            _list.BottomAnchor.ConstraintEqualTo(document.BottomAnchor),
+        ]);
+        _bindings.Collection(notes.Items, _ => Show());
+        _bindings.Property(notes, nameof(PageNotesViewModel.Dialog), () =>
+        {
+            if (notes.Dialog is { } dialog && Window is { } window) Ask(dialog, window);
+        });
+        Show();
+    }
+
+    public NotesPane(NativeHandle handle) : base(handle)
+    {
+        _notes = null!;
+        _list = null!;
+    }
+
+    void Show()
+    {
+        foreach (var view in _list.ArrangedSubviews) view.RemoveFromSuperview();
+        if (_notes.Items.Count == 0)
+        {
+            var none = NSTextField.CreateWrappingLabel("No notes on this book yet. Add one for the page you're reading.");
+            none.TextColor = NSColor.SecondaryLabel;
+            _list.AddArrangedSubview(none);
+        }
+        foreach (var row in _notes.Items)
+        {
+            var pages = NSButton.CreateButton(row.Pages, () => _notes.GoToCommand.Execute(row));
+            pages.BezelStyle = NSBezelStyle.Inline;
+            var text = NSTextField.CreateWrappingLabel(row.Text);
+            text.Selectable = true;
+            var edit = NSButton.CreateButton("Edit", () => _notes.EditCommand.Execute(row));
+            var delete = NSButton.CreateButton("Delete", () => _notes.DeleteCommand.Execute(row));
+            edit.ControlSize = delete.ControlSize = NSControlSize.Small;
+            var views = new List<NSView> { pages, text };
+            if (row.Reason is { } reason)
+            {
+                var why = NSTextField.CreateWrappingLabel(reason);
+                why.TextColor = NSColor.SystemOrange;
+                views.Add(why);
+            }
+            views.Add(NSStackView.FromViews([edit, delete]));
+            var note = NSStackView.FromViews([.. views]);
+            note.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+            note.Alignment = NSLayoutAttribute.Leading;
+            note.Spacing = 4;
+            _list.AddArrangedSubview(note);
+            text.PreferredMaxLayoutWidth = 240;
+        }
+    }
+
+    static void Ask(PageNoteDialogViewModel dialog, NSWindow window)
+    {
+        var alert = new NSAlert { MessageText = dialog.Heading };
+        var from = new NSTextField(new CGRect(0, 0, 90, 24)) { StringValue = dialog.From, PlaceholderString = "From page" };
+        var to = new NSTextField(new CGRect(0, 0, 90, 24)) { StringValue = dialog.To, PlaceholderString = "To page" };
+        var text = new NSTextField(new CGRect(0, 0, 320, 80)) { StringValue = dialog.Text, PlaceholderString = "Your note" };
+        text.HeightAnchor.ConstraintEqualTo(80).Active = true;
+        text.WidthAnchor.ConstraintEqualTo(320).Active = true;
+        var pages = NSStackView.FromViews([from, NSTextField.CreateLabel("to"), to]);
+        var stack = NSStackView.FromViews([pages, text]);
+        stack.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        stack.Alignment = NSLayoutAttribute.Leading;
+        stack.SetFrameSize(stack.FittingSize);
+        alert.AccessoryView = stack;
+        alert.Window.InitialFirstResponder = text;
+        alert.AddButton(dialog.ActionText).KeyEquivalent = "\r";
+        alert.AddButton("Cancel").KeyEquivalent = "\u001b";
+        alert.BeginSheet(window, response =>
+        {
+            if ((long)response == (long)NSAlertButtonReturn.First)
+            {
+                dialog.From = from.StringValue;
+                dialog.To = to.StringValue;
+                dialog.Text = text.StringValue;
+            }
+            if ((long)response == (long)NSAlertButtonReturn.First && dialog.SaveCommand.CanExecute(null)) dialog.SaveCommand.Execute(null);
+            else dialog.CancelCommand.Execute(null);
+            alert.Dispose();
+        });
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _bindings.Dispose();
+        base.Dispose(disposing);
+    }
+
+    sealed class Flipped : NSView
+    {
+        public override bool IsFlipped => true;
+    }
+}
