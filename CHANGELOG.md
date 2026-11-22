@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed: scanned pages that couldn't be read once are tried again.** A book whose text recognition couldn't run,
+  as before a Windows OCR language was installed, is tried again each time Bibliotaph opens, instead of waiting for
+  Run again.
 - **Fixed: closing a book owned online just as it opened could close Bibliotaph.** Leaving the online reader while
   its browser was still starting is now ignored.
 - **More books found online without the web library.** A PC that isn't connected to bibliotaph.online now searches

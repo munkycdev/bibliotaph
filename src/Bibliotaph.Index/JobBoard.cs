@@ -406,6 +406,25 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
         }, ct);
 
     /// <summary>
+    /// Releases every job of <paramref name="stage"/> that's blocked for a reason other than <paramref name="except"/>,
+    /// as OCR this computer couldn't run is tried again when the app opens: an update may have brought an engine, or a
+    /// language been installed since. Attempts stand.
+    /// </summary>
+    public Task<int> UnblockStageAsync(Stage stage, string except, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            var documentIds = c.Query<long>(
+                "SELECT document_id FROM job WHERE stage = @stage AND status = 'blocked' AND coalesce(last_error, '') <> @except",
+                new { stage = stage.ToString(), except }, t).ToList();
+            c.Execute(
+                "UPDATE job SET status = 'pending', last_error = NULL WHERE stage = @stage AND status = 'blocked' AND coalesce(last_error, '') <> @except",
+                new { stage = stage.ToString(), except }, t);
+            var now = Now();
+            foreach (var documentId in documentIds) SetStatus(c, t, documentId, stage, StageStatus.Pending, null, now);
+            return documentIds.Count;
+        }, ct);
+
+    /// <summary>
     /// Those of <paramref name="documentIds"/> that are done with their file for now: each has been queued, and none of
     /// its jobs for <paramref name="stages"/> is waiting or running. Blocked and failed stages don't keep it, since they
     /// run again only when the user asks; a job waiting to try again after a failure does. A document hashed but not yet
