@@ -16,6 +16,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
 {
     readonly Bindings _bindings = new();
     BookGrid _grid = null!;
+    BookList _list = null!;
     GridSource? _source;
 
     internal LibraryViewModel Library => library;
@@ -63,8 +64,12 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         empty.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
         empty.Spacing = 10;
 
+        var bar = FilterBar();
+        _list = new BookList(this);
+        var listScroll = new NSScrollView { DocumentView = _list, HasVerticalScroller = true, DrawsBackground = false };
+
         var root = new NSView();
-        foreach (var view in new NSView[] { heading, count, issue, scroll, empty })
+        foreach (var view in new NSView[] { heading, count, bar, issue, scroll, listScroll, empty })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
@@ -77,13 +82,20 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             count.FirstBaselineAnchor.ConstraintEqualTo(heading.FirstBaselineAnchor),
             count.LeadingAnchor.ConstraintEqualTo(heading.TrailingAnchor, 10),
             count.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -24),
-            issue.TopAnchor.ConstraintEqualTo(heading.BottomAnchor, 6),
+            bar.TopAnchor.ConstraintEqualTo(heading.BottomAnchor, 8),
+            bar.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24),
+            bar.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -24),
+            issue.TopAnchor.ConstraintEqualTo(bar.BottomAnchor, 6),
             issue.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24),
             issue.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -24),
             scroll.TopAnchor.ConstraintEqualTo(issue.BottomAnchor, 8),
             scroll.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
             scroll.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
             scroll.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
+            listScroll.TopAnchor.ConstraintEqualTo(scroll.TopAnchor),
+            listScroll.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 16),
+            listScroll.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -16),
+            listScroll.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
             empty.CenterXAnchor.ConstraintEqualTo(root.CenterXAnchor),
             empty.CenterYAnchor.ConstraintEqualTo(root.CenterYAnchor),
             empty.WidthAnchor.ConstraintLessThanOrEqualTo(440),
@@ -99,10 +111,11 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             issue.Hidden = library.IssueText is null;
         });
         _bindings.Properties(library, [nameof(LibraryViewModel.IsEmpty), nameof(LibraryViewModel.EmptyTitle), nameof(LibraryViewModel.EmptyMessage),
-            nameof(LibraryViewModel.EmptyActionText)], () =>
+            nameof(LibraryViewModel.EmptyActionText), nameof(LibraryViewModel.Layout)], () =>
         {
             empty.Hidden = !library.IsEmpty;
-            scroll.Hidden = library.IsEmpty;
+            scroll.Hidden = library.IsEmpty || library.Layout == Bibliotaph.Index.LibraryLayout.List;
+            listScroll.Hidden = library.IsEmpty || library.Layout != Bibliotaph.Index.LibraryLayout.List;
             emptyTitle.StringValue = library.EmptyTitle;
             emptyMessage.StringValue = library.EmptyMessage;
             emptyAction.Title = library.EmptyActionText ?? "";
@@ -135,7 +148,48 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         }
     }
 
-    void Reload() => _grid.ReloadData();
+    void Reload()
+    {
+        _grid.ReloadData();
+        _list.ReloadData();
+    }
+
+    /// <summary>
+    /// Sort, the filters most used (kind, game system, type, folder), Clear, and grid or list: what the Windows
+    /// Library's bar offers first, each the page's own choice.
+    /// </summary>
+    NSStackView FilterBar()
+    {
+        var filters = library.Filters;
+        var sort = ChoicePopup.Create(_bindings, library, nameof(LibraryViewModel.SortChoices), () => library.SortChoices, () => library.SortChoice, c => library.SortChoice = c);
+        _bindings.Property(library, nameof(LibraryViewModel.SortChoice), () => sort.SelectItem(IndexOf(library.SortChoices, library.SortChoice)));
+        var kind = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.KindChoice), () => filters.KindChoices, () => filters.KindChoice, c => filters.KindChoice = c);
+        var system = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.SystemChoice), () => filters.SystemChoices, () => filters.SystemChoice, c => filters.SystemChoice = c);
+        var type = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.TypeChoice), () => filters.TypeChoices, () => filters.TypeChoice, c => filters.TypeChoice = c);
+        var folder = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.FolderChoice), () => filters.FolderChoices, () => filters.FolderChoice, c => filters.FolderChoice = c);
+        var clear = NSButton.CreateButton("Clear filters", () => filters.ClearFiltersCommand.Execute(null));
+        clear.ControlSize = NSControlSize.Small;
+        clear.BezelStyle = NSBezelStyle.Inline;
+        _bindings.Property(filters, nameof(LibraryFilterState.IsFiltering), () => clear.Hidden = !filters.IsFiltering);
+        filters.Changed += OnFiltersChanged;
+        _bindings.Add(() => filters.Changed -= OnFiltersChanged);
+        void OnFiltersChanged(object? sender, EventArgs e) => Bindings.OnMain(() => clear.Hidden = !filters.IsFiltering);
+        var layout = NSSegmentedControl.FromImages(
+            [NSImage.GetSystemSymbol("square.grid.2x2", "Grid")!, NSImage.GetSystemSymbol("list.bullet", "List")!], NSSegmentSwitchTracking.SelectOne, () => { });
+        layout.ControlSize = NSControlSize.Small;
+        layout.Activated += (_, _) => library.Layout = layout.SelectedSegment == 1 ? Bibliotaph.Index.LibraryLayout.List : Bibliotaph.Index.LibraryLayout.Grid;
+        _bindings.Property(library, nameof(LibraryViewModel.Layout), () => layout.SelectedSegment = library.Layout == Bibliotaph.Index.LibraryLayout.List ? 1 : 0);
+        var bar = NSStackView.FromViews([sort, kind, system, type, folder, clear, layout]);
+        bar.Spacing = 8;
+        return bar;
+    }
+
+    static nint IndexOf<T>(IReadOnlyList<Choice<T>> list, Choice<T> choice)
+    {
+        for (var i = 0; i < list.Count; i++)
+            if (Equals(list[i], choice)) return i;
+        return -1;
+    }
 
     void OpenClicked(NSClickGestureRecognizer recognizer)
     {
@@ -182,6 +236,88 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var menu = new NSMenu(title);
         foreach (var item in items) menu.AddItem(item);
         return new NSMenuItem(title) { Submenu = menu, Enabled = menu.Count > 0 };
+    }
+
+    /// <summary>
+    /// The Library as a list, as the Windows app's: a row a book with its byline, system, kind, levels and size, in the
+    /// order the bar's sort gives. A click shows its details, a double-click opens it, and a right-click gives its menu.
+    /// </summary>
+    sealed class BookList : NSTableView
+    {
+        readonly LibraryController _owner;
+        // A table holds its data source weakly.
+        readonly ListSource _source;
+
+        public BookList(LibraryController owner)
+        {
+            _owner = owner;
+            UsesAlternatingRowBackgroundColors = true;
+            RowHeight = 22;
+            ColumnAutoresizingStyle = NSTableViewColumnAutoresizingStyle.FirstColumnOnly;
+            foreach (var (id, title, width) in new[] { ("title", "Title", 320.0), ("byline", "By", 200.0), ("system", "System", 150.0),
+                ("kind", "Kind", 130.0), ("levels", "Levels", 90.0), ("size", "Size", 170.0) })
+                AddColumn(new NSTableColumn(id) { Title = title, Width = (nfloat)width });
+            _source = new ListSource(this);
+            DataSource = _source;
+            Delegate = _source;
+            DoubleAction = new ObjCRuntime.Selector("openRow:");
+            Target = this;
+        }
+
+        public BookList(ObjCRuntime.NativeHandle handle) : base(handle)
+        {
+            _owner = null!;
+            _source = null!;
+        }
+
+        internal LibraryController Owner => _owner;
+
+        sealed class ListSource(BookList list) : NSTableViewDelegate, INSTableViewDataSource
+        {
+        [Export("numberOfRowsInTableView:")]
+        public nint GetRowCount(NSTableView tableView) => list.Owner.Library.Items.Count;
+
+        public override NSView GetViewForItem(NSTableView tableView, NSTableColumn tableColumn, nint row)
+        {
+            var item = list.Owner.Library.Items[(int)row];
+            var text = tableColumn.Identifier switch
+            {
+                "title" => item.Title,
+                "byline" => item.Byline,
+                "system" => item.SystemLabel,
+                "kind" => item.KindLabel,
+                "levels" => item.LevelsLabel,
+                _ => item.SizeLabel,
+            };
+            var label = NSTextField.CreateLabel(text);
+            label.LineBreakMode = NSLineBreakMode.TruncatingTail;
+            if (tableColumn.Identifier != "title") label.TextColor = NSColor.SecondaryLabel;
+            if (item.IsAway) label.TextColor = NSColor.TertiaryLabel;
+            return label;
+        }
+
+        public override void SelectionDidChange(NSNotification notification)
+        {
+            var library = list.Owner.Library;
+            if (list.SelectedRow < 0 || list.SelectedRow >= library.Items.Count) return;
+            var item = library.Items[(int)list.SelectedRow];
+            if (library.ActivateCommand.CanExecute(item)) library.ActivateCommand.Execute(item);
+        }
+        }
+
+        [Export("openRow:")]
+        void OpenRow(NSObject sender)
+        {
+            if (ClickedRow < 0 || ClickedRow >= _owner.Library.Items.Count) return;
+            var item = _owner.Library.Items[(int)ClickedRow];
+            if (_owner.Library.OpenFromCardCommand.CanExecute(item)) _owner.Library.OpenFromCardCommand.Execute(item);
+        }
+
+        public override NSMenu? MenuForEvent(NSEvent theEvent)
+        {
+            var row = GetRow(ConvertPointFromView(theEvent.LocationInWindow, null));
+            return row >= 0 && row < _owner.Library.Items.Count ? _owner.MenuFor(_owner.Library.Items[(int)row]) : null;
+        }
     }
 
     /// <summary>The grid, which gives a right-click on a cover that book's menu.</summary>
