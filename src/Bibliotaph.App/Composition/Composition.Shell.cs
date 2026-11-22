@@ -53,6 +53,8 @@ static partial class Composition
         services.AddSingleton<ShortcutsBox>();
         services.AddSingleton<AiTestBox>();
         services.AddSingleton<AppRestart>();
+        services.AddSingleton<IAppDialogs, WpfAppDialogs>();
+        services.AddSingleton<IAppLifetime, AppLifetime>();
         return services;
     }
 }

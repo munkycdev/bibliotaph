@@ -16,7 +16,7 @@ namespace Bibliotaph.App.ViewModels;
 /// </summary>
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
     SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, LibraryPages pages,
-    ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
+    IReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
     PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, TourViewModel tour, LibrarySummaryService summaries,
     OnlineImports onlineImports, OnlineLibrariesViewModel onlineLibraries, ILogger<HomeViewModel> log)
     : LibraryAwarePageViewModel(roots, activity), ICollectionChoices, ISessionChoices, IPinState

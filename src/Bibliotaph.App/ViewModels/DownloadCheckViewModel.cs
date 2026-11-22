@@ -15,7 +15,7 @@ namespace Bibliotaph.App.ViewModels;
 /// New first. One page for the whole app, so a check keeps running while you go back to the library, and its results
 /// are still here when you come back.
 /// </summary>
-public sealed partial class DownloadCheckViewModel(DownloadCheck check, ReaderWindows readers, IFilePicker files, IClipboard clipboard, IDesktopShell shell,
+public sealed partial class DownloadCheckViewModel(DownloadCheck check, IReaderWindows readers, IFilePicker files, IClipboard clipboard, IDesktopShell shell,
     ILogger<DownloadCheckViewModel> log) : PageViewModel
 {
     /// <summary>Stops the running check.</summary>

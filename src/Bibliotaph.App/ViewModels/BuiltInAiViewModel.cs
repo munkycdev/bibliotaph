@@ -76,7 +76,7 @@ public sealed partial class BuiltInModelItem : ObservableObject
 /// downloaded is used as soon as it is chosen.
 /// </summary>
 public sealed partial class BuiltInAiViewModel(
-    AiService ai, BuiltInEngine engine, BuiltInEngineDownload engineDownload, BuiltInModelDownloads downloads, GraphicsMemory graphics, AiTestBox tester,
+    AiService ai, BuiltInEngine engine, BuiltInEngineDownload engineDownload, BuiltInModelDownloads downloads, GraphicsMemory graphics, IAppDialogs dialogs,
     IFilePicker files, IUserPrompts prompts, IDesktopShell shell, [FromKeyedServices(BuiltInEngine.EmbeddingKey)] BuiltInEngine embeddingEngine, IUiThread ui)
     : ObservableObject
 {
@@ -389,7 +389,7 @@ public sealed partial class BuiltInAiViewModel(
     [RelayCommand(CanExecute = nameof(CanTest))]
     void Test()
     {
-        if (Chosen is { } item) tester.ShowBuiltIn(item.Id);
+        if (Chosen is { } item) dialogs.TestBuiltInModel(item.Id);
     }
 
     [RelayCommand]

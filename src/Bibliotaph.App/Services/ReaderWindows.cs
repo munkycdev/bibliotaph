@@ -21,7 +21,7 @@ namespace Bibliotaph.App.Services;
 /// every pop-out; none is reopened at the next launch.
 /// </summary>
 public sealed class ReaderWindows(ViewerServices viewer, INavigationService navigation, ThemeService theme, ShortcutsBox shortcuts,
-    SettingsStore settings, ILogger<ReaderWindows> log)
+    SettingsStore settings, ILogger<ReaderWindows> log) : IReaderWindows
 {
     const int CascadeStep = 32;
     const int MaxCascade = 10;

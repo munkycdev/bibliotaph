@@ -8,15 +8,6 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Whether the app started with --dev, which shows Settings > Start over. Without it nothing leads there, so nobody
-/// else finds a button that deletes everything.
-/// </summary>
-public sealed class DevMode(bool on)
-{
-    public bool IsOn { get; set; } = on;
-}
-
-/// <summary>
 /// Settings > Start over, shown only with --dev, as a development aid. Forgets
 /// remembered PDF passwords, saved endpoint keys and the web library key at once, then restarts; the new process waits for this one to exit and deletes the
 /// library data (<see cref="DataPurge"/>) before it opens anything.
@@ -25,11 +16,6 @@ public sealed class StartOver(AppPaths paths, IPasswordVault vault, ApiKeyVault 
 {
     /// <summary><c>--wait-for &lt;process id&gt;</c>: the app that asked to start over, which must exit first.</summary>
     public const string WaitForArgument = "--wait-for";
-
-    public static bool Confirm(IUserPrompts prompts) => prompts.Confirm(
-        "Bibliotaph will forget your library folders, its index, covers, settings, remembered PDF passwords, AI keys and its web library connection, " +
-        "then restart as if newly installed.\n\nYour books and other files are not touched.",
-        "Start over?", PromptKind.Warning, okByDefault: false);
 
     public void Run()
     {

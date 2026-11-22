@@ -95,7 +95,7 @@ public sealed partial class NeedsReviewViewModel(
     LibraryActivity activity,
     INavigationService navigation,
     SettingsLinks links,
-    ReaderWindows readers,
+    IReaderWindows readers,
     BookTextActions text,
     PartsService parts,
     PartProposalService proposals,

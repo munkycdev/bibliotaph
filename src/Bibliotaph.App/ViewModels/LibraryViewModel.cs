@@ -41,7 +41,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     readonly MetadataService _metadata;
     readonly INavigationService _navigation;
     readonly SettingsLinks _settings;
-    readonly ReaderWindows _readers;
+    readonly IReaderWindows _readers;
     readonly PackService _packs;
     readonly ElsewhereService _elsewhere;
     readonly ChosenCovers _chosenCovers;
@@ -73,7 +73,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     bool _sortSearching;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
-        LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
+        LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, IReaderWindows readers,
         PackService packs, ElsewhereService elsewhere, FavoritesService favorites, CollectionActions collections, SessionActions sessions,
         SmartViewDirectory views, LibraryPages pages, BookTextActions text, PinDirectory pins, CorrectionService corrections, AskService ask,
         ChosenCovers chosenCovers, LibraryAskScope askScope, IFilePicker files, InspectorFactory inspectors, LibrarySelectionFactory selection,

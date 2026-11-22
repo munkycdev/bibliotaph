@@ -13,20 +13,18 @@ namespace Bibliotaph.App.ViewModels;
 public sealed partial class SettingsViewModel : PageViewModel
 {
     readonly SettingsLinks _links;
-    readonly AboutBox _about;
-    readonly ShortcutsBox _shortcuts;
+    readonly IAppDialogs _dialogs;
     readonly ILogger<SettingsViewModel> _log;
     bool _showing;
 
     public SettingsViewModel(
-        SettingsLinks links, AboutBox about, ShortcutsBox shortcuts, LibrarySectionViewModel library, OnlineLibrariesViewModel online,
+        SettingsLinks links, IAppDialogs dialogs, LibrarySectionViewModel library, OnlineLibrariesViewModel online,
         DevicesSectionViewModel devices, ProcessingSectionViewModel processing, PreferencesSectionViewModel preferences, VocabularyViewModel vocabulary,
         AiSettingsViewModel ai, PasswordsSectionViewModel passwords, BackupSectionViewModel backup, StartOverSectionViewModel startOver, DevMode dev,
         ILogger<SettingsViewModel> log)
     {
         _links = links;
-        _about = about;
-        _shortcuts = shortcuts;
+        _dialogs = dialogs;
         _log = log;
         SettingsSectionViewModel[] sections = [library, online, devices, processing, ai, vocabulary, preferences, passwords, backup];
         // Start over only with --dev.
@@ -125,14 +123,14 @@ public sealed partial class SettingsViewModel : PageViewModel
     }
 
     [RelayCommand]
-    void ShowAbout() => _about.Show();
+    void ShowAbout() => _dialogs.ShowAbout();
 
     /// <summary>
     /// The Keyboard shortcuts link. A view-model command rather than Ctrl+/'s routed command, which the window handles:
     /// a button bound to that stays disabled until the command manager happens to look again.
     /// </summary>
     [RelayCommand]
-    void ShowShortcuts() => _shortcuts.Show();
+    void ShowShortcuts() => _dialogs.ShowShortcuts();
 }
 
 /// <summary>A group of the section list: its small-capital label (none over Start over) and the sections under it.</summary>
