@@ -140,7 +140,9 @@ public sealed class UserLibrariesTests : IDisposable
     [Fact]
     public async Task An_idle_library_is_closed_and_opens_again_on_the_next_request()
     {
-        await (await _libraries.OpenAsync(Alice)).DisposeAsync();
+        // Opening starts a scan; until it has run the library counts as busy and stays open, idle or not.
+        await using (var lease = await _libraries.OpenAsync(Alice))
+            await lease.Library.Indexing.WhenIdleAsync(TestContext.Current.CancellationToken);
         _clock.Advance(TimeSpan.FromMinutes(21));
 
         Assert.Equal(1, await _libraries.CloseIdleAsync(TimeSpan.FromMinutes(20)));
