@@ -20,6 +20,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
     StripView _strip = null!;
     NotesPane _notesPane = null!;
     OpenPdf? _shownPdf;
+    OpenEbook? _shownEbook;
+    EbookSurface _ebook = null!;
 
     public override void LoadView()
     {
@@ -89,7 +91,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
 
         // The book's area: the pages, a picture or what's wrong, with its bookmarks beside it and its page strip under it.
         var content = new NSView();
-        foreach (var view in new NSView[] { _pages, pictureScroll, message })
+        _ebook = new EbookSurface();
+        foreach (var view in new NSView[] { _pages, _ebook, pictureScroll, message })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             content.AddSubview(view);
@@ -130,6 +133,10 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             _pages.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
             _pages.TrailingAnchor.ConstraintEqualTo(content.TrailingAnchor),
             _pages.BottomAnchor.ConstraintEqualTo(content.BottomAnchor),
+            _ebook.TopAnchor.ConstraintEqualTo(content.TopAnchor),
+            _ebook.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
+            _ebook.TrailingAnchor.ConstraintEqualTo(content.TrailingAnchor),
+            _ebook.BottomAnchor.ConstraintEqualTo(content.BottomAnchor),
             pictureScroll.TopAnchor.ConstraintEqualTo(content.TopAnchor),
             pictureScroll.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
             pictureScroll.TrailingAnchor.ConstraintEqualTo(content.TrailingAnchor),
@@ -146,12 +153,13 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         {
             _pages.Hidden = !reader.IsPdf;
             pictureScroll.Hidden = !reader.IsImage;
-            message.Hidden = !(reader.IsOpening || reader.ShowEmptyState || reader.IsVideo || reader.IsEbook);
+            _ebook.Hidden = !reader.IsEbook;
+            message.Hidden = !(reader.IsOpening || reader.ShowEmptyState || reader.IsVideo);
             spinner.Hidden = !reader.IsOpening;
             if (reader.IsOpening) spinner.StartAnimation(null);
             else spinner.StopAnimation(null);
             messageTitle.StringValue = reader.IsOpening ? reader.OpeningText
-                : reader.IsVideo || reader.IsEbook ? "This kind of book doesn't open on the Mac yet." : reader.EmptyTitle;
+                : reader.IsVideo ? "Videos don't play on the Mac yet." : reader.EmptyTitle;
             messageBody.StringValue = reader.ShowEmptyState ? reader.EmptyMessage : "";
             action.Title = reader.EmptyActionText ?? "";
             action.Hidden = !reader.ShowEmptyState || reader.EmptyActionText is null || reader.EmptyCommand is null;
@@ -168,7 +176,25 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             picture.Image = (reader.Image as NSImage)!;
             if (reader.Image is NSImage image) picture.SetFrameSize(image.Size);
         });
-        _bindings.Property(reader, nameof(ViewerViewModel.Zoom), () => _pages.SetZoom(reader.Zoom));
+        _bindings.Property(reader, nameof(ViewerViewModel.Zoom), () =>
+        {
+            _pages.SetZoom(reader.Zoom);
+            _ebook.SetZoom(reader.Zoom > 0 ? reader.Zoom : 1, fitPage: reader.Zoom == ZoomSteps.FitPage);
+        });
+        _bindings.Property(reader, nameof(ViewerViewModel.Ebook), ShowEbook);
+        reader.EbookFind = _ebook.FindAsync;
+        reader.EbookTerms = _ebook.MarkTermsAsync;
+        EventHandler<int> ebookPage = (_, page) => reader.CurrentPageIndex = page;
+        _ebook.CurrentPageChanged += ebookPage;
+        EventHandler<int> ebookZoom = (_, step) => reader.StepEbookZoom(step);
+        _ebook.ZoomRequested += ebookZoom;
+        _bindings.Add(() =>
+        {
+            _ebook.CurrentPageChanged -= ebookPage;
+            _ebook.ZoomRequested -= ebookZoom;
+            reader.EbookFind = null;
+            reader.EbookTerms = null;
+        });
         _bindings.Properties(reader, [nameof(ViewerViewModel.OutlineVisible), nameof(ViewerViewModel.Outline), nameof(ViewerViewModel.ShowOutline)], () =>
         {
             _outline.Hidden = !reader.OutlineVisible;
@@ -215,12 +241,21 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         _bindings.Command(findNext, findModel.NextCommand);
         _bindings.Command(findPrevious, findModel.PreviousCommand);
         _bindings.Property(findModel, nameof(FindViewModel.Status), () => findStatus.StringValue = findModel.Status);
-        _bindings.Property(findModel, nameof(FindViewModel.Highlights), () => _pages.ShowHighlights(findModel.Highlights.Items, findModel.Highlights.Current));
+        _bindings.Property(findModel, nameof(FindViewModel.Highlights), () =>
+        {
+            var highlights = findModel.Highlights;
+            if (_shownEbook is not null) _ebook.ShowMatches(highlights.Items.Count == 0 ? null : findModel.ShowsTerms ? "terms" : "find", highlights.Current);
+            else _pages.ShowHighlights(highlights.Items, highlights.Current);
+        });
 
         EventHandler<int> moved = (_, page) => reader.CurrentPageIndex = page;
         _pages.CurrentPageChanged += moved;
         _bindings.Add(() => _pages.CurrentPageChanged -= moved);
-        EventHandler<PageTarget> goTo = (_, target) => Bindings.OnMain(() => _pages.GoToPage(target.PageIndex, target.PdfTop));
+        EventHandler<PageTarget> goTo = (_, target) => Bindings.OnMain(() =>
+        {
+            if (reader.IsEbook || _shownEbook is not null) _ebook.GoTo(target.PageIndex);
+            else _pages.GoToPage(target.PageIndex, target.PdfTop);
+        });
         reader.GoToRequested += goTo;
         _bindings.Add(() => reader.GoToRequested -= goTo);
     }
@@ -239,8 +274,26 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         else _pages.Unload();
     }
 
+    void ShowEbook()
+    {
+        var ebook = reader.Ebook;
+        if (ReferenceEquals(ebook, _shownEbook)) return;
+        _shownEbook = ebook;
+        if (ebook is null) _ebook.Unload();
+        else
+        {
+            _ebook.SetZoom(reader.Zoom > 0 ? reader.Zoom : 1, fitPage: reader.Zoom == ZoomSteps.FitPage);
+            _ebook.Show(ebook.Content, ebook.PageIndex);
+        }
+    }
+
     void StepZoom(int step)
     {
+        if (reader.IsEbook)
+        {
+            reader.StepEbookZoom(step);
+            return;
+        }
         var current = reader.Zoom > 0 ? reader.Zoom : _pages.ZoomInUse;
         reader.Zoom = ZoomSteps.Next(current, up: step > 0);
     }
