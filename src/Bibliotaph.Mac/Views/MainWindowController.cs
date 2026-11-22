@@ -22,6 +22,7 @@ public sealed class MainWindowController : NSWindowController
     readonly PageHost _pages;
     readonly ToolbarDelegate _toolbar;
     readonly Bindings _bindings = new();
+    readonly DevicesWindow _devices;
     PageViewModel? _shown;
 
     public MainWindowController(IServiceProvider services) : base(MakeWindow())
@@ -29,6 +30,7 @@ public sealed class MainWindowController : NSWindowController
         _navigation = services.GetRequiredService<INavigationService>();
         _shell = services.GetRequiredService<ShellViewModel>();
         var folders = new FolderAdding(services);
+        _devices = new DevicesWindow(services);
         _sidebar = new SidebarController(_shell.Activity, folders, services.GetRequiredService<SourceRootStore>(), services.GetRequiredService<WebShelfCache>());
         // A folder just added is a new choice in the Library's folder filter, which it lists as it loads.
         folders.Added += (_, _) => Bindings.OnMain(() =>
@@ -61,6 +63,8 @@ public sealed class MainWindowController : NSWindowController
     public void FocusSearch() => _toolbar.FocusSearch();
 
     public void AddFolder() => _toolbar.AddFolder();
+
+    public void ShowDevices() => _devices.Open();
 
     /// <summary>The page shown is told it's gone, so it can save what it has before the host stops.</summary>
     public void Unload()

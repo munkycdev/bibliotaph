@@ -5,10 +5,7 @@ using Bibliotaph.Storage.Desktop;
 
 namespace Bibliotaph.Mac.Platform;
 
-/// <summary>
-/// Secrets for this sitting only. The Keychain replaces these once the app is signed: an unsigned build changes
-/// signature with every build, and the Keychain would ask the user to allow each one again.
-/// </summary>
+/// <summary>Secrets for this sitting only, for a library kept somewhere else with --data-root (see MacComposition.AddSecrets).</summary>
 public sealed class MemorySecrets : IPasswordVault, IApiKeyStore, IConnectionSecrets
 {
     readonly ConcurrentDictionary<string, string> _passwords = new();

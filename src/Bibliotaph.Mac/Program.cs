@@ -57,7 +57,7 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
 
         try
         {
-            _host = BuildHost(paths);
+            _host = BuildHost(paths, everyday: DataRoot(args) is null);
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
             var services = _host.Services;
@@ -74,7 +74,7 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
             await services.GetRequiredService<ShellViewModel>().StartAsync();
             // The Mac opens on its Library: Home and the other pages come to the Mac later.
             services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
-            await DevArguments.ApplyAsync(args, services, _main.Window!);
+            await DevArguments.ApplyAsync(args, services, _main.Window!, _main.ShowDevices);
         }
         catch (Exception ex)
         {
@@ -124,7 +124,7 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
         return at >= 0 && at + 1 < args.Length ? Path.GetFullPath(args[at + 1]) : null;
     }
 
-    static IHost BuildHost(AppPaths paths)
+    static IHost BuildHost(AppPaths paths, bool everyday)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -139,6 +139,7 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
         builder.Services.AddSingleton<IUiThread, MacUiThread>();
 
         builder.Services
+            .AddSecrets(everyday)
             .AddCatalog(paths)
             .AddIndex(paths)
             .AddPdfWorkers()

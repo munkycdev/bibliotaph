@@ -32,6 +32,36 @@ static class MacComposition
         return services;
     }
 
+    /// <summary>
+    /// The web library key, PDF passwords, endpoint keys and storage sign-ins: in the Keychain, or for a library kept
+    /// somewhere else with --data-root, in memory. The Keychain belongs to the Mac account, not the data folder, so a
+    /// throwaway library would otherwise sync into the user's web library as this Mac, as the Windows app's smoke test
+    /// would.
+    /// </summary>
+    public static IServiceCollection AddSecrets(this IServiceCollection services, bool everyday)
+    {
+        if (everyday)
+        {
+            services.AddSingleton<KeychainSecrets>();
+            services.AddSingleton<IWebLibraryKey>(sp => sp.GetRequiredService<KeychainSecrets>());
+            Forward<KeychainSecrets>(services);
+        }
+        else
+        {
+            services.AddSingleton<MemorySecrets>();
+            services.AddSingleton<IWebLibraryKey, MemoryWebLibraryKey>();
+            Forward<MemorySecrets>(services);
+        }
+        return services;
+
+        static void Forward<T>(IServiceCollection services) where T : class, IPasswordVault, IApiKeyStore, IConnectionSecrets
+        {
+            services.AddSingleton<IPasswordVault>(sp => sp.GetRequiredService<T>());
+            services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<T>());
+            services.AddSingleton<IConnectionSecrets>(sp => sp.GetRequiredService<T>());
+        }
+    }
+
     /// <summary>The library's own stores and services.</summary>
     public static IServiceCollection AddLibrary(this IServiceCollection services)
     {
@@ -92,11 +122,8 @@ static class MacComposition
         services.AddSingleton<MacImageCodec>();
         services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<MacImageCodec>());
         services.AddSingleton<IPictureDecoder>(sp => sp.GetRequiredService<MacImageCodec>());
-        services.AddSingleton<MemorySecrets>();
-        services.AddSingleton<IPasswordVault>(sp => sp.GetRequiredService<MemorySecrets>());
         services.AddSingleton<UnlockedPasswords>();
         services.AddSingleton<IPasswordStore, IndexPasswords>();
-        services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<MemorySecrets>());
         services.AddSingleton<CatalogExport>();
         services.AddSingleton<BackupService>();
         services.AddSingleton<ExportService>();
@@ -109,13 +136,9 @@ static class MacComposition
         return services;
     }
 
-    /// <summary>
-    /// This Mac's connection to bibliotaph.online. The key is held for the sitting only until the Keychain holds it, so
-    /// a Mac connected now is connected again after a restart.
-    /// </summary>
+    /// <summary>This Mac's connection to bibliotaph.online, and the web library's folders and copies.</summary>
     public static IServiceCollection AddWebLibrary(this IServiceCollection services)
     {
-        services.AddSingleton<IWebLibraryKey, MemoryWebLibraryKey>();
         services.AddSingleton(sp => new WebLibrary(new HttpClient { Timeout = Timeout.InfiniteTimeSpan },
             sp.GetRequiredService<IWebLibraryKey>(), sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<WebLibrary>>()));
@@ -136,7 +159,6 @@ static class MacComposition
     /// <summary>Storage connected on this Mac (OneDrive, Dropbox, Google Drive, WebDAV), read through each provider's API.</summary>
     public static IServiceCollection AddStorage(this IServiceCollection services)
     {
-        services.AddSingleton<IConnectionSecrets>(sp => sp.GetRequiredService<MemorySecrets>());
         services.AddSingleton(_ => new DesktopStorageApps());
         services.AddSingleton<IDesktopClients>(sp => sp.GetRequiredService<DesktopStorageApps>());
         services.AddSingleton(_ => new StorageHttp());

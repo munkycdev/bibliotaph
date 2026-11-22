@@ -13,6 +13,8 @@ static class Menus
         bar.AddItem(Top("Bibliotaph",
             Item("About Bibliotaph", "orderFrontStandardAboutPanel:"),
             NSMenuItem.SeparatorItem,
+            new NSMenuItem("Your Web Library…", (_, _) => main.ShowDevices()),
+            NSMenuItem.SeparatorItem,
             Item("Hide Bibliotaph", "hide:", "h"),
             Item("Hide Others", "hideOtherApplications:", "h", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask),
             Item("Show All", "unhideAllApplications:"),

@@ -9,14 +9,16 @@ namespace Bibliotaph.Mac.Platform;
 
 /// <summary>
 /// Arguments for checking a build with nobody at the Mac, as the Windows app's --screenshots: <c>--add-folder</c>
-/// adds a library folder without the picker, <c>--open</c> opens a document by its id, and <c>--screenshot</c> saves the window as a PNG every few seconds. The
+/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> opens Your Web Library, and <c>--screenshot</c> saves the
+/// key window as a PNG every few seconds. The
 /// app draws the picture itself, so it needs no Screen Recording permission; AppKit leaves the sidebar's glass and what's on
 /// it out of such a picture.
 /// </summary>
 static class DevArguments
 {
-    public static async Task ApplyAsync(string[] args, IServiceProvider services, NSWindow window)
+    public static async Task ApplyAsync(string[] args, IServiceProvider services, NSWindow window, Action showDevices)
     {
+        if (args.Contains("--devices")) showDevices();
         if (Value(args, "--add-folder") is { } folder)
         {
             var root = await services.GetRequiredService<SourceRootStore>().AddAsync(Path.GetFullPath(folder));
@@ -37,7 +39,7 @@ static class DevArguments
         while (window.IsVisible)
         {
             await Task.Delay(every);
-            Take(window, file);
+            Take(NSApplication.SharedApplication.KeyWindow ?? window, file);
         }
     }
 
