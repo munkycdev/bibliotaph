@@ -31,33 +31,41 @@ static class Palette
     static NSColor Rgb(int rgb) => NSColor.FromSrgb(((rgb >> 16) & 0xff) / 255f, ((rgb >> 8) & 0xff) / 255f, (rgb & 0xff) / 255f, 1);
 }
 
-/// <summary>Text on a rounded fill of the palette's: a field's badge, a suggested value.</summary>
+/// <summary>Text, or a row of views, on a rounded fill of the palette's: a field's badge, a suggested value, a chip.</summary>
 sealed class Tinted : NSView
 {
-    readonly NSColor _fill;
+    NSColor? _fill;
 
-    public Tinted(NSTextField label, NSColor fill, nfloat radius, NSEdgeInsets padding)
+    public Tinted(NSView content, NSColor? fill, nfloat radius, NSEdgeInsets padding)
     {
         _fill = fill;
-        Label = label;
         WantsLayer = true;
         Layer!.CornerRadius = radius;
         TranslatesAutoresizingMaskIntoConstraints = false;
-        label.TranslatesAutoresizingMaskIntoConstraints = false;
-        AddSubview(label);
+        content.TranslatesAutoresizingMaskIntoConstraints = false;
+        AddSubview(content);
         NSLayoutConstraint.ActivateConstraints(
         [
-            label.TopAnchor.ConstraintEqualTo(TopAnchor, padding.Top),
-            label.BottomAnchor.ConstraintEqualTo(BottomAnchor, -padding.Bottom),
-            label.LeadingAnchor.ConstraintEqualTo(LeadingAnchor, padding.Left),
-            label.TrailingAnchor.ConstraintEqualTo(TrailingAnchor, -padding.Right),
+            content.TopAnchor.ConstraintEqualTo(TopAnchor, padding.Top),
+            content.BottomAnchor.ConstraintEqualTo(BottomAnchor, -padding.Bottom),
+            content.LeadingAnchor.ConstraintEqualTo(LeadingAnchor, padding.Left),
+            content.TrailingAnchor.ConstraintEqualTo(TrailingAnchor, -padding.Right),
         ]);
     }
 
-    public NSTextField Label { get; }
+    /// <summary>The fill, or none, as when a value stops being only a suggestion.</summary>
+    public NSColor? Fill
+    {
+        get => _fill;
+        set
+        {
+            _fill = value;
+            NeedsDisplay = true;
+        }
+    }
 
     public override bool WantsUpdateLayer => true;
 
     // In the appearance showing, so it follows light and dark.
-    public override void UpdateLayer() => Layer!.BackgroundColor = _fill.CGColor;
+    public override void UpdateLayer() => Layer!.BackgroundColor = (_fill ?? NSColor.Clear).CGColor;
 }

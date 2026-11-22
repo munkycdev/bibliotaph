@@ -11,7 +11,7 @@ namespace Bibliotaph.Mac.Platform;
 
 /// <summary>
 /// Arguments for checking a build with nobody at the Mac, as the Windows app's --screenshots: <c>--add-folder</c>
-/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> and <c>--settings</c> open those windows (Settings at a section named after it), <c>--page</c> shows a page by its route, <c>--quit-after</c> quits after that many seconds, <c>--details-first</c> shows the first book's details, <c>--zoom</c> zooms the book opened, <c>--list</c> shows the Library as a list, <c>--online</c> opens a service's browser by its key (at a saved page after it, if given), <c>--organize</c> ticks that many books in Organize mode (and <c>--bulk-edit</c> opens the editor for them), and <c>--screenshot</c> saves the
+/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> and <c>--settings</c> open those windows (Settings at a section named after it), <c>--page</c> shows a page by its route, <c>--quit-after</c> quits after that many seconds, <c>--details-first</c> shows the first book's details (or the one at the index after it; with <c>--notes</c>, at its Notes), <c>--zoom</c> zooms the book opened, <c>--list</c> shows the Library as a list, <c>--online</c> opens a service's browser by its key (at a saved page after it, if given), <c>--organize</c> ticks that many books in Organize mode (and <c>--bulk-edit</c> opens the editor for them), and <c>--screenshot</c> saves the
 /// key window as a PNG every few seconds. The
 /// app draws the picture itself, so it needs no Screen Recording permission; AppKit leaves the sidebar's glass and what's on
 /// it out of such a picture.
@@ -61,7 +61,7 @@ static class DevArguments
             var at = Array.IndexOf(args, "--online") + 2;
             online.OpenBrowser(service.Reader, at < args.Length && !args[at].StartsWith("--", StringComparison.Ordinal) ? new Uri(Path.GetFullPath(args[at])) : null);
         }
-        if (args.Contains("--details-first")) ShowFirstDetailsAsync(services).FireAndForget();
+        if (args.Contains("--details-first")) ShowFirstDetailsAsync(services, int.TryParse(Value(args, "--details-first"), out var at) ? at : 0, args.Contains("--notes")).FireAndForget();
         if (Value(args, "--screenshot") is { } file)
         {
             var every = int.TryParse(Value(args, "--screenshot-every"), out var seconds) ? seconds : 5;
@@ -101,15 +101,17 @@ static class DevArguments
         }
     }
 
-    /// <summary>The first book's details, once the Library has listed it.</summary>
-    static async Task ShowFirstDetailsAsync(IServiceProvider services)
+    /// <summary>The first book's details, once the Library has listed it, at Notes if asked.</summary>
+    static async Task ShowFirstDetailsAsync(IServiceProvider services, int at, bool notes)
     {
         for (var tries = 0; tries < 40; tries++)
         {
             await Task.Delay(250);
-            if (services.GetRequiredService<Presentation.Services.INavigationService>().Current is Presentation.ViewModels.LibraryViewModel { Items.Count: > 0 } library)
+            if (services.GetRequiredService<Presentation.Services.INavigationService>().Current is Presentation.ViewModels.LibraryViewModel library && library.Items.Count > at)
             {
-                library.ActivateCommand.Execute(library.Items[0]);
+                library.ActivateCommand.Execute(library.Items[at]);
+                for (var waits = 0; notes && waits < 40 && library.Inspector is null; waits++) await Task.Delay(100);
+                if (notes && library.Inspector is { } inspector) inspector.IsNotesTab = true;
                 return;
             }
         }
