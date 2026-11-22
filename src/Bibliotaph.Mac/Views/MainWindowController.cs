@@ -159,7 +159,9 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
 {
     const string Search = "search";
     const string Add = "add";
+    const string Ask = "ask";
     NSSearchToolbarItem? _search;
+    AskPopover? _askPopover;
 
     static string[] Items =>
     [
@@ -167,6 +169,7 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
         NSToolbar.NSToolbarSidebarTrackingSeparatorItemIdentifier,
         Add,
         NSToolbar.NSToolbarFlexibleSpaceItemIdentifier,
+        Ask,
         Search,
     ];
 
@@ -188,11 +191,46 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
             add.Activated += (_, _) => AddFolder();
             return add;
         }
+        if (itemIdentifier == Ask)
+        {
+            var ask = new NSToolbarItem(Ask)
+            {
+                Label = "Ask",
+                ToolTip = "Ask in plain English: Return reads it as a search, Option-Return answers it from your books",
+                Image = NSImage.GetSystemSymbol("sparkle.magnifyingglass", "Ask")!,
+                Bordered = true,
+            };
+            ask.Activated += (_, _) => shell.PlainSearch.ToggleCommand.Execute(null);
+            return ask;
+        }
         if (itemIdentifier != Search) return null!;
         var item = new NSSearchToolbarItem(Search);
+        _askPopover = new AskPopover(shell.PlainSearch, () => item.SearchField.StringValue);
         item.SearchField.PlaceholderString = shell.SearchPlaceholder;
         item.SearchField.Changed += (_, _) => shell.SearchText = item.SearchField.StringValue;
-        item.SearchField.Activated += (_, _) => shell.SubmitSearchCommand.Execute(null);
+        item.SearchField.Activated += (_, _) =>
+        {
+            if (!shell.PlainSearch.IsOn)
+            {
+                shell.SubmitSearchCommand.Execute(null);
+                return;
+            }
+            // In Ask mode Return reads the request as a search; Option-Return answers it from the library's pages.
+            var answer = NSApplication.SharedApplication.CurrentEvent?.ModifierFlags.HasFlag(NSEventModifierMask.AlternateKeyMask) == true;
+            var text = item.SearchField.StringValue;
+            (answer ? shell.PlainSearch.AnswerAsync(text) : shell.PlainSearch.InterpretAsync(text)).FireAndForget();
+            _askPopover.ShowUnder(item.SearchField);
+        };
+        shell.PlainSearch.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(PlainSearchViewModel.IsOn)) return;
+            Bindings.OnMain(() =>
+            {
+                item.SearchField.PlaceholderString = shell.SearchPlaceholder;
+                if (!shell.PlainSearch.IsOn) _askPopover.Close();
+                else item.SearchField.Window?.MakeFirstResponder(item.SearchField);
+            });
+        };
         shell.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(ShellViewModel.SearchText) && item.SearchField.StringValue != shell.SearchText)
