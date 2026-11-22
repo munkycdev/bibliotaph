@@ -320,3 +320,234 @@ sealed class NotesPane : NSView
         public override bool IsFlipped => true;
     }
 }
+
+/// <summary>
+/// Ask this book beside its pages: a question, the answer as it comes with each citation a link to its page, the
+/// pages it was read from, and the questions asked before. It needs a model, which Settings › AI sets up.
+/// </summary>
+sealed class AskPane : NSView
+{
+    readonly AskPanelViewModel _ask;
+    readonly Bindings _bindings = new();
+    readonly NSTextView _answer;
+    readonly NSStackView _passages;
+    readonly NSStackView _history;
+
+    public AskPane(AskPanelViewModel ask)
+    {
+        _ask = ask;
+        var heading = NSTextField.CreateLabel("Ask this book");
+        heading.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Semibold)!;
+        var restart = NSButton.CreateButton("New conversation", () => { });
+        restart.ControlSize = NSControlSize.Small;
+        _bindings.Command(restart, ask.NewConversationCommand);
+        var top = NSStackView.FromViews([heading, new NSView(), restart]);
+
+        var question = new NSTextField { PlaceholderString = "Ask a question about this book" };
+        question.Changed += (_, _) => ask.Question = question.StringValue;
+        question.Activated += (_, _) =>
+        {
+            ask.Question = question.StringValue;
+            if (ask.AskCommand.CanExecute(null)) ask.AskCommand.Execute(null);
+        };
+        var go = NSButton.CreateButton("Ask", () => { });
+        _bindings.Command(go, ask.AskCommand);
+        var stop = NSButton.CreateButton("Stop", () => { });
+        _bindings.Command(stop, ask.StopCommand);
+        var row = NSStackView.FromViews([question, go, stop]);
+        row.Spacing = 6;
+        question.SetContentHuggingPriorityForOrientation(100, NSLayoutConstraintOrientation.Horizontal);
+
+        var status = NSTextField.CreateWrappingLabel("");
+        status.TextColor = NSColor.SecondaryLabel;
+        status.Font = NSFont.SystemFontOfSize(11)!;
+        var message = NSTextField.CreateWrappingLabel("");
+        message.TextColor = NSColor.SystemOrange;
+        _answer = new NSTextView { Editable = false, Selectable = true, DrawsBackground = false, Delegate = new Links(this), VerticallyResizable = true };
+        _answer.TextContainer!.WidthTracksTextView = true;
+        _answer.HeightAnchor.ConstraintGreaterThanOrEqualTo(20).Active = true;
+        var passagesTitle = NSTextField.CreateLabel("");
+        passagesTitle.Font = NSFont.SystemFontOfSize(12, NSFontWeight.Semibold)!;
+        _passages = Column(4);
+        var coverage = NSTextField.CreateWrappingLabel("");
+        coverage.TextColor = NSColor.TertiaryLabel;
+        coverage.Font = NSFont.SystemFontOfSize(11)!;
+        _history = Column(10);
+
+        var content = Column(10);
+        foreach (var view in new NSView[] { message, status, _answer, passagesTitle, _passages, coverage, _history }) content.AddArrangedSubview(view);
+        var document = new Flipped();
+        content.TranslatesAutoresizingMaskIntoConstraints = false;
+        document.AddSubview(content);
+        var scroll = new NSScrollView { DocumentView = document, HasVerticalScroller = true, DrawsBackground = false };
+        document.TranslatesAutoresizingMaskIntoConstraints = false;
+        foreach (var view in new NSView[] { top, row, scroll })
+        {
+            view.TranslatesAutoresizingMaskIntoConstraints = false;
+            AddSubview(view);
+        }
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            top.TopAnchor.ConstraintEqualTo(TopAnchor, 10),
+            top.LeadingAnchor.ConstraintEqualTo(LeadingAnchor, 12),
+            top.TrailingAnchor.ConstraintEqualTo(TrailingAnchor, -12),
+            row.TopAnchor.ConstraintEqualTo(top.BottomAnchor, 8),
+            row.LeadingAnchor.ConstraintEqualTo(LeadingAnchor, 12),
+            row.TrailingAnchor.ConstraintEqualTo(TrailingAnchor, -12),
+            scroll.TopAnchor.ConstraintEqualTo(row.BottomAnchor, 8),
+            scroll.LeadingAnchor.ConstraintEqualTo(LeadingAnchor),
+            scroll.TrailingAnchor.ConstraintEqualTo(TrailingAnchor),
+            scroll.BottomAnchor.ConstraintEqualTo(BottomAnchor),
+            document.WidthAnchor.ConstraintEqualTo(scroll.ContentView.WidthAnchor),
+            content.TopAnchor.ConstraintEqualTo(document.TopAnchor),
+            content.LeadingAnchor.ConstraintEqualTo(document.LeadingAnchor, 12),
+            content.TrailingAnchor.ConstraintEqualTo(document.TrailingAnchor, -12),
+            content.BottomAnchor.ConstraintEqualTo(document.BottomAnchor),
+            _answer.WidthAnchor.ConstraintEqualTo(content.WidthAnchor),
+        ]);
+
+        _bindings.Property(ask, nameof(AskPanelViewModel.Question), () =>
+        {
+            if (question.CurrentEditor is null) question.StringValue = ask.Question;
+        });
+        _bindings.Properties(ask, [nameof(AskPanelViewModel.Step), nameof(AskPanelViewModel.Asked), nameof(AskPanelViewModel.LookedFor),
+            nameof(AskPanelViewModel.IsAsking), nameof(AskPanelViewModel.IsAnswering)], () =>
+        {
+            status.StringValue = string.Join("\n", new[] { ask.Asked, ask.LookedFor, ask.Step }.Where(t => t is { Length: > 0 }));
+            status.Hidden = status.StringValue.Length == 0;
+            stop.Hidden = !ask.IsAnswering;
+        });
+        _bindings.Property(ask, nameof(AskPanelViewModel.Message), () =>
+        {
+            message.StringValue = ask.Message ?? "";
+            message.Hidden = ask.Message is null;
+        });
+        _bindings.Property(ask, nameof(AskPanelViewModel.Answer), ShowAnswer);
+        _bindings.Properties(ask, [nameof(AskPanelViewModel.HasPassages), nameof(AskPanelViewModel.PassagesHeading)], () =>
+        {
+            passagesTitle.StringValue = ask.PassagesHeading;
+            passagesTitle.Hidden = !ask.HasPassages;
+        });
+        _bindings.Collection(ask.Passages, _ => ShowPassages());
+        _bindings.Properties(ask, [nameof(AskPanelViewModel.CoverageText), nameof(AskPanelViewModel.MeaningText)], () =>
+        {
+            coverage.StringValue = string.Join("\n", new[] { ask.CoverageText, ask.MeaningText }.Where(t => t is { Length: > 0 }));
+            coverage.Hidden = coverage.StringValue.Length == 0;
+        });
+        _bindings.Collection(ask.History, _ => ShowHistory());
+        ShowPassages();
+        ShowHistory();
+    }
+
+    public AskPane(NativeHandle handle) : base(handle)
+    {
+        _ask = null!;
+        _answer = null!;
+        _passages = null!;
+        _history = null!;
+    }
+
+    static NSStackView Column(double spacing) => new()
+    {
+        Orientation = NSUserInterfaceLayoutOrientation.Vertical,
+        Alignment = NSLayoutAttribute.Leading,
+        Spacing = (nfloat)spacing,
+    };
+
+    /// <summary>The answer's words, its quotes in their marks, and each citation a link that goes to its page.</summary>
+    void ShowAnswer()
+    {
+        var text = new NSMutableAttributedString();
+        var font = NSFont.SystemFontOfSize(13)!;
+        var parts = _ask.Answer;
+        for (var i = 0; i < parts.Count; i++)
+        {
+            var part = parts[i];
+            var attributes = new NSStringAttributes { Font = font, ForegroundColor = NSColor.Label };
+            NSUrl? link = null;
+            switch (part.Kind)
+            {
+                case Bibliotaph.Classification.AnswerPartKind.Quote:
+                    attributes.Font = NSFontManager.SharedFontManager.ConvertFont(font, NSFontTraitMask.Italic);
+                    break;
+                case Bibliotaph.Classification.AnswerPartKind.Citation:
+                    link = new NSUrl($"bt-cite:{i.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+                    break;
+                case Bibliotaph.Classification.AnswerPartKind.Unsupported:
+                    attributes.ForegroundColor = NSColor.SecondaryLabel;
+                    break;
+            }
+            var piece = new NSMutableAttributedString(new NSAttributedString(part.Text, attributes));
+            if (link is not null) piece.AddAttribute(NSStringAttributeKey.Link, link, new NSRange(0, piece.Length));
+            text.Append(piece);
+        }
+        _answer.TextStorage!.SetString(text);
+        _answer.Hidden = parts.Count == 0;
+    }
+
+    internal void Cite(int index)
+    {
+        if (index >= 0 && index < _ask.Answer.Count) _ask.OpenCitationCommand.Execute(_ask.Answer[index]);
+    }
+
+    void ShowPassages()
+    {
+        foreach (var view in _passages.ArrangedSubviews) view.RemoveFromSuperview();
+        foreach (var row in _ask.Passages)
+        {
+            var link = NSButton.CreateButton(row.Link, () => _ask.GoToCommand.Execute(row));
+            link.BezelStyle = NSBezelStyle.Inline;
+            var text = NSTextField.CreateWrappingLabel(row.Text);
+            text.Font = NSFont.SystemFontOfSize(11)!;
+            text.TextColor = NSColor.SecondaryLabel;
+            text.MaximumNumberOfLines = 4;
+            text.PreferredMaxLayoutWidth = 280;
+            _passages.AddArrangedSubview(link);
+            _passages.AddArrangedSubview(text);
+        }
+    }
+
+    void ShowHistory()
+    {
+        foreach (var view in _history.ArrangedSubviews) view.RemoveFromSuperview();
+        if (_ask.History.Count == 0) return;
+        var title = NSTextField.CreateLabel("Asked before");
+        title.Font = NSFont.SystemFontOfSize(12, NSFontWeight.Semibold)!;
+        _history.AddArrangedSubview(title);
+        foreach (var turn in _ask.History)
+        {
+            var question = NSTextField.CreateWrappingLabel(turn.Question);
+            question.Font = NSFont.SystemFontOfSize(12, NSFontWeight.Medium)!;
+            var answer = NSTextField.CreateWrappingLabel(string.Concat(turn.Answer.Select(p => p.Text)));
+            answer.Font = NSFont.SystemFontOfSize(11)!;
+            answer.TextColor = NSColor.SecondaryLabel;
+            answer.MaximumNumberOfLines = 6;
+            question.PreferredMaxLayoutWidth = answer.PreferredMaxLayoutWidth = 280;
+            _history.AddArrangedSubview(question);
+            _history.AddArrangedSubview(answer);
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing) _bindings.Dispose();
+        base.Dispose(disposing);
+    }
+
+    sealed class Flipped : NSView
+    {
+        public override bool IsFlipped => true;
+    }
+
+    /// <summary>A citation's link goes to its page in the book rather than to a browser.</summary>
+    sealed class Links(AskPane owner) : NSTextViewDelegate
+    {
+        public override bool LinkClicked(NSTextView textView, NSObject link, nuint charIndex)
+        {
+            var address = (link as NSUrl)?.AbsoluteString ?? link.ToString() ?? "";
+            if (!address.StartsWith("bt-cite:", StringComparison.Ordinal)) return true;
+            if (int.TryParse(address["bt-cite:".Length..], System.Globalization.CultureInfo.InvariantCulture, out var index)) owner.Cite(index);
+            return true;
+        }
+    }
+}

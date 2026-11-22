@@ -19,6 +19,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
     OutlineList _outline = null!;
     StripView _strip = null!;
     NotesPane _notesPane = null!;
+    AskPane _askPane = null!;
     OpenPdf? _shownPdf;
     OpenEbook? _shownEbook;
     EbookSurface _ebook = null!;
@@ -52,6 +53,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         var outlineToggle = Button("sidebar.left", "Bookmarks", null);
         var stripToggle = Button("rectangle.bottomthird.inset.filled", "Page thumbnails", null);
         var notesToggle = Button("note.text", "Notes", null);
+        var askToggle = Button("bubble.left.and.text.bubble.right", "Ask this book", null);
+        _bindings.Command(askToggle, reader.ToggleAskCommand);
         var addToBinder = Button("book.closed", "Add this page to a binder", null);
         addToBinder.Activated += (_, _) =>
         {
@@ -64,7 +67,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         _bindings.Command(notesToggle, reader.ToggleNotesCommand);
         _bindings.Command(outlineToggle, reader.ToggleOutlineCommand);
         _bindings.Command(stripToggle, reader.ToggleStripCommand);
-        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), addToBinder, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, Separator(),
+        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, Separator(),
             findStatus, find, findPrevious, findNext]);
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
@@ -100,7 +103,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         _outline = new OutlineList(reader);
         _strip = new StripView(reader.Strip);
         _notesPane = new NotesPane(reader.Notes);
-        var row = NSStackView.FromViews([_outline, content, _notesPane]);
+        _askPane = new AskPane(reader.Ask);
+        var row = NSStackView.FromViews([_outline, content, _notesPane, _askPane]);
         row.Spacing = 0;
         row.Alignment = NSLayoutAttribute.Height;
         var column = NSStackView.FromViews([row, _strip]);
@@ -128,6 +132,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             column.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
             _outline.WidthAnchor.ConstraintEqualTo(250),
             _notesPane.WidthAnchor.ConstraintEqualTo(280),
+            _askPane.WidthAnchor.ConstraintEqualTo(320),
             _strip.HeightAnchor.ConstraintEqualTo(150),
             _pages.TopAnchor.ConstraintEqualTo(content.TopAnchor),
             _pages.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
@@ -205,6 +210,11 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         {
             _strip.Hidden = !reader.StripVisible;
             stripToggle.Hidden = !reader.IsPdf;
+        });
+        _bindings.Properties(reader, [nameof(ViewerViewModel.AskVisible), nameof(ViewerViewModel.Mode)], () =>
+        {
+            _askPane.Hidden = !reader.AskVisible || !reader.HasPages;
+            askToggle.Hidden = !reader.HasPages;
         });
         _bindings.Properties(reader, [nameof(ViewerViewModel.NotesVisible), nameof(ViewerViewModel.Mode)], () =>
         {
