@@ -24,7 +24,7 @@ static class DevArguments
         if (args.Contains("--devices"))
         {
             main.ShowDevices();
-            window = main.DevicesWindow ?? window;
+            window = main.SettingsWindow ?? window;
         }
         if (args.Contains("--settings"))
         {

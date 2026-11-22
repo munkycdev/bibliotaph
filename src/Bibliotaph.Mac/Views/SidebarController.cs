@@ -22,8 +22,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
     /// A page (<paramref name="Route"/>), a library folder (<paramref name="RootId"/>, in the Library), a pin
     /// (<paramref name="Pin"/>), or a heading.
     /// </summary>
-    sealed record Row(bool IsHeader, string Title, string Symbol, long? RootId, Route Route = Route.Library, PinnedItemViewModel? Pin = null,
-        Action? Act = null);
+    sealed record Row(bool IsHeader, string Title, string Symbol, long? RootId, Route Route = Route.Library, PinnedItemViewModel? Pin = null);
 
     readonly Bindings _bindings = new();
     Bindings _page = new();
@@ -31,7 +30,6 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
     List<Row> _rows = [];
     IReadOnlyList<SourceRoot> _folders = [];
     NSTableView _table = null!;
-    bool _connected = true;
     Source? _source;
     bool _selecting;
     PageViewModel? _shownPage;
@@ -91,18 +89,6 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         ReloadAsync().FireAndForget();
     }
 
-    /// <summary>Connect to your web library… was chosen.</summary>
-    public event EventHandler? ConnectRequested;
-
-    /// <summary>Whether this Mac is connected to a web library; the sidebar offers to connect it while it isn't.</summary>
-    public void ShowConnected(bool connected)
-    {
-        _ = View;
-        if (_connected == connected) return;
-        _connected = connected;
-        ShowRows();
-    }
-
     /// <summary>The page showing, which the sidebar marks; on the Library, the folder it narrows to.</summary>
     public void Show(PageViewModel? page)
     {
@@ -145,9 +131,6 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
                 [new Row(true, "Pinned", "", null), .. shell.Pinned.Select(p => new Row(false, p.Label, Symbol(p.Icon), null, Pin: p))],
             new Row(true, "Library folders", "", null),
             .. folders.Select(f => new Row(false, shelf.NameOf(f.Path), WebLibraryPaths.IsWebPath(f.Path) ? "globe" : "folder", f.Id)),
-            // In the list rather than at the sidebar's foot, where a window moved low would hide it.
-            .. _connected ? (IEnumerable<Row>)[] :
-                [new Row(true, "Web library", "", null), new Row(false, "Connect…", "link.icloud", null, Act: () => ConnectRequested?.Invoke(this, EventArgs.Empty))],
         ];
         _table.ReloadData();
         SelectCurrent();
@@ -177,8 +160,8 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         var root = _library?.Filters.FolderChoice.Value is { Folder.Length: 0 } folder ? folder.RootId : (long?)null;
         var route = _shownPage?.NavRoute ?? Route.Library;
         var index = route == Route.Library
-            ? _rows.FindIndex(r => !r.IsHeader && r.Pin is null && r.Act is null && r.Route == Route.Library && r.RootId == root)
-            : _rows.FindIndex(r => r.Route == route && !r.IsHeader && r.Pin is null && r.Act is null);
+            ? _rows.FindIndex(r => !r.IsHeader && r.Pin is null && r.Route == Route.Library && r.RootId == root)
+            : _rows.FindIndex(r => r.Route == route && !r.IsHeader && r.Pin is null);
         _selecting = true;
         if (index >= 0) _table.SelectRow(index, false);
         else _table.DeselectAll(this);
@@ -188,13 +171,6 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
     void Choose(Row row)
     {
         if (_selecting) return;
-        if (row.Act is { } act)
-        {
-            // An action, not a place: the page showing stays marked.
-            SelectCurrent();
-            act();
-            return;
-        }
         if (row.Pin is { } pin)
         {
             shell.OpenPinCommand.Execute(pin);

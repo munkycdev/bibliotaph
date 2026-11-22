@@ -25,7 +25,6 @@ public sealed class MainWindowController : NSWindowController
     readonly Bindings _bindings = new();
     Bindings _reader = new();
     readonly IServiceProvider _services;
-    readonly DevicesWindow _devices;
     readonly SettingsWindow _settings;
     readonly Presentation.Services.SettingsLinks _links;
     readonly List<OnlineBrowserWindow> _browsers = [];
@@ -39,7 +38,6 @@ public sealed class MainWindowController : NSWindowController
         _navigation = services.GetRequiredService<INavigationService>();
         _shell = services.GetRequiredService<ShellViewModel>();
         var folders = new FolderAdding(services);
-        _devices = new DevicesWindow(services);
         _settings = new SettingsWindow(services, folders);
         _links = services.GetRequiredService<Presentation.Services.SettingsLinks>();
         var online = services.GetRequiredService<Platform.MacOnlineLibraries>();
@@ -92,8 +90,6 @@ public sealed class MainWindowController : NSWindowController
         services.GetRequiredService<MacReaderWindows>().MainWindow = window;
         _web = services.GetRequiredService<WebLibrary>();
         _roots = services.GetRequiredService<SourceRootStore>();
-        _sidebar.ConnectRequested += (_, _) => ShowDevices();
-        _devices.Finished += (_, _) => CheckConnectionAsync(offer: false).FireAndForget();
         _navigation.Navigated += OnNavigated;
         _bindings.Add(() => _navigation.Navigated -= OnNavigated);
     }
@@ -136,14 +132,14 @@ public sealed class MainWindowController : NSWindowController
 
     public void AddFolder() => _toolbar.AddFolder();
 
-    public void ShowDevices() => _devices.Open();
+    /// <summary>Connecting this Mac to its web library, in Settings.</summary>
+    public void ShowDevices() => _settings.Open(Presentation.Services.SettingsSection.Devices);
 
     public void ShowSettings(Presentation.Services.SettingsSection? section = null) => _settings.Open(section);
 
     /// <summary>For --screenshot, which pictures the window it was asked to open.</summary>
     public NSWindow? SettingsWindow => _settings.Window;
 
-    public NSWindow? DevicesWindow => _devices.Window;
 
     /// <summary>
     /// Whether this Mac is connected to a web library, which the sidebar offers to do while it isn't. A first start with
@@ -153,7 +149,6 @@ public sealed class MainWindowController : NSWindowController
     {
         var status = await _web.CheckAsync();
         var connected = status.State != WebLibraryState.NotConnected;
-        Bindings.OnMain(() => _sidebar.ShowConnected(connected));
         if (offer && !connected && (await _roots.ListAsync()).Count == 0) Bindings.OnMain(ShowDevices);
     }
 
@@ -176,10 +171,9 @@ public sealed class MainWindowController : NSWindowController
         if (page is SettingsViewModel && _navigation.CanGoBack)
         {
             _navigation.GoBack();
-            // At the section the link asked for; Devices is a window of its own on the Mac.
+            // At the section the link asked for.
             var section = _links.TakeRequest();
-            if (section == Presentation.Services.SettingsSection.Devices) ShowDevices();
-            else _settings.Open(section);
+            _settings.Open(section);
             return;
         }
         // A link in Settings to a page (Files needing attention, what the AI is reading) shows that page in this
