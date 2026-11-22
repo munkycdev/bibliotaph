@@ -706,6 +706,48 @@ public sealed class LibrarySyncTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Not_from_this_book_stays_refused_when_the_other_device_doesnt_have_the_book()
+    {
+        var map = await _desk.AddBookAsync('m');
+        var book = await _desk.AddBookAsync('b');
+        await _laptop.AddBookAsync('m');
+        var desk = new CompanionStore(_desk.Contexts, _desk.Clock);
+        var proposal = new FoundSourceBook(map, book, false, new SourceBookEvidence(SourceBookSignal.Name, "XYZ", 0.4));
+        await desk.ReplaceFoundAsync([map], [proposal], Ct);
+        await desk.AnswerAsync(map, null, Ct);
+        await RoundAsync();
+
+        // The laptop can't refuse a book it hasn't got, and that mustn't read as the refusal taken back.
+        for (var i = 0; i < 3; i++)
+        {
+            _laptop.Later(10);
+            _desk.Later(10);
+            await RoundAsync();
+        }
+        await desk.ReplaceFoundAsync([map], [proposal], Ct);
+
+        Assert.Empty(await desk.GetProposedAsync(Ct));
+        Assert.Equal(CompanionState.Rejected, Assert.Single(await desk.GetAllAsync(map, Ct)).State);
+
+        // Once the book is there, the refusal is too.
+        _laptop.Later(10);
+        var there = await _laptop.AddBookAsync('b');
+        await _laptop.Sync.SyncNowAsync(Ct);
+        var laptop = new CompanionStore(_laptop.Contexts, _laptop.Clock);
+        var refused = Assert.Single(await laptop.GetAllAsync(await _laptop.BookAsync('m'), Ct));
+        Assert.Equal((there, CompanionState.Rejected), (refused.Book, refused.State));
+
+        // Taking it back where the book is still reaches the other device.
+        _laptop.Later(10);
+        await laptop.LinkAsync([refused.Companion], there, Ct);
+        await _laptop.Sync.SyncNowAsync(Ct);
+        _desk.Later(10);
+        await _desk.Sync.SyncNowAsync(Ct);
+        var linked = Assert.Single(await desk.GetAllAsync(map, Ct));
+        Assert.Equal((book, CompanionState.Confirmed), (linked.Book, linked.State));
+    }
+
+    [Fact]
     public async Task Two_files_joined_as_one_book_on_one_PC_are_joined_on_the_other_until_Not_the_same_book_parts_them()
     {
         var deskAbbey = await _desk.AddBookAsync('a');

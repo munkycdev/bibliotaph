@@ -27,6 +27,12 @@ public sealed partial class LibrarySync
     DateTime Now => _clock.GetUtcNow().UtcDateTime;
 
     /// <summary>
+    /// The cards the catalog had at the end of the last pass, null before the first: a refusal of a book that has come
+    /// since was never applied here, so its absence isn't the user taking it back.
+    /// </summary>
+    HashSet<long>? _cardsBefore;
+
+    /// <summary>
     /// One pass: what changed here is stamped with the time it was noticed; with <paramref name="merge"/>, the other
     /// PCs' files are merged in and the catalog made to agree, and what couldn't be used yet is kept for later; then
     /// this PC's file is written if it is behind.
@@ -39,7 +45,8 @@ public sealed partial class LibrarySync
         var snapshot = await _store.ReadAsync(ct);
         var state = (await _store.LoadStateAsync(ct)).ToDictionary(k => k.Key, k => new Known(k.Value.Record, k.Value.Pending), StringComparer.Ordinal);
         var removed = new HashSet<string>(StringComparer.Ordinal);
-        StampLocal(state, snapshot, removed);
+        var cardsBefore = _cardsBefore;
+        StampLocal(state, snapshot, removed, arrived: id => cardsBefore?.Contains(id) != true);
 
         string? problem = null;
         var mergedFrom = new List<SyncFileContent>();
@@ -93,6 +100,7 @@ public sealed partial class LibrarySync
             StampLocal(state, snapshot, removed, waiting);
         }
 
+        if (merge) _cardsBefore = [.. snapshot.Cards.Values];
         foreach (var key in removed.Where(state.ContainsKey).ToList()) removed.Remove(key);
         var dirty = state.Values.Where(k => k.Dirty).Select(k => (k.Record, k.Pending)).ToList();
         await _store.SaveStateAsync(dirty, removed, ct);
@@ -138,8 +146,10 @@ public sealed partial class LibrarySync
     /// A pending record the catalog now has a place for isn't cleared by what the catalog shows: before merging, and for
     /// <paramref name="waiting"/> (what applying refused), it keeps waiting; once applied, the catalog's state is its own.
     /// </summary>
-    void StampLocal(Dictionary<string, Known> state, SyncSnapshot snapshot, HashSet<string> removed, HashSet<string>? waiting = null)
+    void StampLocal(Dictionary<string, Known> state, SyncSnapshot snapshot, HashSet<string> removed, HashSet<string>? waiting = null,
+        Func<long, bool>? arrived = null)
     {
+        arrived ??= _ => false;
         var now = Now;
         var elsewhereKeys = snapshot.Cards.Where(c => c.Key.StartsWith(SyncKeys.Elsewhere, StringComparison.Ordinal)).ToDictionary(c => c.Value, c => c.Key);
         foreach (var (key, fields) in snapshot.Records)
@@ -158,7 +168,7 @@ public sealed partial class LibrarySync
                 }
                 // A card nobody has done anything with has nothing to say.
                 if (inherited is null && card && fields.Count == 0) continue;
-                var record = inherited is null ? SyncMerge.Create(key, fields, now) : SyncMerge.Stamp(inherited, fields, now);
+                var record = inherited is null ? SyncMerge.Create(key, fields, now) : SyncMerge.Stamp(inherited, RefusalsKept(inherited, fields, snapshot, state, arrived), now);
                 // A file this PC first sees in a pack of its folder was packed by indexing, not by the user, so the
                 // pack another device has it in wins: a newly connected PC doesn't pull the user's packs apart.
                 if (inherited is null && snapshot.PackedByFolder.Contains(key) && record.Fields.TryGetValue(SyncFields.InPack, out var pack))
@@ -183,7 +193,7 @@ public sealed partial class LibrarySync
                 known.Dirty = true;
                 continue;
             }
-            var stamped = SyncMerge.Stamp(known.Record, fields, now);
+            var stamped = SyncMerge.Stamp(known.Record, card ? RefusalsKept(known.Record, fields, snapshot, state, arrived) : fields, now);
             if (!ReferenceEquals(stamped, known.Record) || known.Pending || !known.Record.Aliases.SequenceEqual(aliases))
             {
                 known.Record = stamped with { Aliases = aliases };
@@ -199,6 +209,29 @@ public sealed partial class LibrarySync
             known.Record = SyncMerge.Delete(known.Record, now);
             known.Dirty = true;
         }
+    }
+
+    /// <summary>
+    /// A card's fields as the catalog shows them, with the books the user said it doesn't go with that this catalog can't
+    /// show yet: a book that isn't here, one that <paramref name="arrived"/> since the last pass and so wasn't refused
+    /// here yet, or one here under another key whose refusal it holds. Without them, a device missing the book would
+    /// take the refusal for undone and clear it on every device, and the book would be proposed again.
+    /// </summary>
+    static IReadOnlyDictionary<string, string> RefusalsKept(SyncRecord known, IReadOnlyDictionary<string, string> fields, SyncSnapshot snapshot,
+        Dictionary<string, Known> state, Func<long, bool> arrived)
+    {
+        Dictionary<string, string>? kept = null;
+        foreach (var (name, field) in known.Fields)
+        {
+            if (field.Value is null || fields.ContainsKey(name) || !name.StartsWith(SyncFields.NotSourcePrefix, StringComparison.Ordinal)) continue;
+            var book = name[SyncFields.NotSourcePrefix.Length..];
+            var local = snapshot.LocalKey(book)
+                ?? (state.TryGetValue(book, out var record) ? record.Record.Aliases.Select(snapshot.LocalKey).FirstOrDefault(k => k is not null) : null);
+            if (local is not null && !arrived(snapshot.FindCard(local)!.Value) && (local == book || !fields.ContainsKey(SyncFields.NotSourcePrefix + local))) continue;
+            kept ??= new Dictionary<string, string>(fields, StringComparer.Ordinal);
+            kept[name] = field.Value;
+        }
+        return kept ?? fields;
     }
 
     /// <summary>

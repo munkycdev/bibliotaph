@@ -115,6 +115,21 @@ public sealed class SourceBookRulesTests
     }
 
     [Fact]
+    public void A_word_every_file_is_called_by_isnt_taken_for_a_books_initials()
+    {
+        // "Ruins of the Pale Gate" has the initials "rpg" (and "rotpg"), and so do many files.
+        var ruins = Book("Ruins of the Pale Gate", "Books");
+        var starfall = Map("Starfall RPG", "Starfall");
+        Assert.Empty(Find([ruins, starfall]));
+
+        // A word several books are titled with is a word of the library too, while on its own it may be initials.
+        var gods = Book("Fallen Old Gods", "Books\\Gods");
+        var tokens = Map("Fog tokens", "Tokens");
+        Assert.Equal(gods.EntryId, Assert.Single(Find([gods, tokens])).Book);
+        Assert.Empty(Find([gods, Book("Fog over Marrow", "Books\\Marrow"), Book("Fog Lanterns", "Books\\Lanterns"), tokens]));
+    }
+
+    [Fact]
     public void Pages_printed_from_a_longer_book_go_with_it()
     {
         var book = Book("Harbor of Shadows", "Books");

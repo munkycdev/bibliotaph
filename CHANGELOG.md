@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Fixed: "Not from these books" didn't stick.** A **Goes with a book?** card you answered could come back when one
+  of your devices (the web library or another PC) didn't have the book you turned down: that device took the refusal
+  as undone and cleared it everywhere. A refusal now stays on every device. Linking a file to a book you'd turned
+  down for it on another device also no longer gets lost on the way. On Windows and the web.
+- **"RPG" no longer counts as a book's initials.** A file named like "Starfall RPG" was proposed for any book whose
+  initials spell RPG. Words files are called everywhere ("RPG", "PDF", "NPC" and the like), and words several of your
+  books are titled with, no longer count as initials.
+
 - **A newly connected PC no longer pulls your packs apart.** A PC that packed your folders by itself before its
   files met your packs (a new install, or one that indexed its own copies before it synced) sent those folder packs
   out as newer than yours, splitting packs you made with **Pack together** back into one pack per folder on the web
