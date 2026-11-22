@@ -139,7 +139,7 @@ sealed class FormBox : NSView
     // In the appearance showing, so it follows light and dark.
     public override void UpdateLayer()
     {
-        Layer!.BackgroundColor = NSColor.QuaternarySystemFill.CGColor;
+        Layer!.BackgroundColor = Palette.Panel.CGColor;
         Layer.BorderColor = NSColor.Separator.CGColor;
         Layer.BorderWidth = 0.5f;
     }

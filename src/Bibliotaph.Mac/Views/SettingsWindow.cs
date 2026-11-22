@@ -27,6 +27,7 @@ public sealed partial class SettingsWindow : NSWindowController
         window.Title = "Settings";
         window.ReleaseWhenClosed(false);
         window.AutorecalculatesKeyViewLoop = true;
+        window.BackgroundColor = Palette.Background;
         window.WillClose += (_, _) => Closed();
     }
 

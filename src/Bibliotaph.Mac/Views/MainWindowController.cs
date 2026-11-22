@@ -83,6 +83,8 @@ public sealed class MainWindowController : NSWindowController
         // Tab goes through the controls as they are now, as pages and panes change them.
         window.AutorecalculatesKeyViewLoop = true;
         window.FrameAutosaveName = "BibliotaphMain";
+        // The Windows app's page colour, under the pages; the sidebar and toolbar keep their glass.
+        window.BackgroundColor = Palette.Background;
 
         services.GetRequiredService<MacReaderWindows>().MainWindow = window;
         _web = services.GetRequiredService<WebLibrary>();
