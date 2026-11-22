@@ -6,6 +6,8 @@
 	<string>Bibliotaph</string>
 	<key>CFBundleDisplayName</key>
 	<string>Bibliotaph</string>
+	<key>CFBundleIconFile</key>
+	<string>Bibliotaph</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSHumanReadableCopyright</key>
