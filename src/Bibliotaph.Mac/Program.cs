@@ -74,7 +74,7 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
             await services.GetRequiredService<ShellViewModel>().StartAsync();
             // The Mac opens on its Library: Home and the other pages come to the Mac later.
             services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
-            await DevArguments.ApplyAsync(args, services, _main.Window!, _main.ShowDevices);
+            await DevArguments.ApplyAsync(args, services, _main);
         }
         catch (Exception ex)
         {

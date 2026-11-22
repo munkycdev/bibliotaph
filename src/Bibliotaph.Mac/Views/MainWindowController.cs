@@ -24,6 +24,7 @@ public sealed class MainWindowController : NSWindowController
     readonly ToolbarDelegate _toolbar;
     readonly Bindings _bindings = new();
     readonly DevicesWindow _devices;
+    readonly SettingsWindow _settings;
     PageViewModel? _shown;
 
     public MainWindowController(IServiceProvider services) : base(MakeWindow())
@@ -32,6 +33,7 @@ public sealed class MainWindowController : NSWindowController
         _shell = services.GetRequiredService<ShellViewModel>();
         var folders = new FolderAdding(services);
         _devices = new DevicesWindow(services);
+        _settings = new SettingsWindow(services, folders);
         _sidebar = new SidebarController(_shell.Activity, folders, services.GetRequiredService<SourceRootStore>(), services.GetRequiredService<WebShelfCache>());
         // A folder just added is a new choice in the Library's folder filter, which it lists as it loads.
         folders.Added += (_, _) => Bindings.OnMain(() =>
@@ -74,6 +76,8 @@ public sealed class MainWindowController : NSWindowController
 
     public void ShowDevices() => _devices.Open();
 
+    public void ShowSettings() => _settings.Open();
+
     /// <summary>The page shown is told it's gone, so it can save what it has before the host stops.</summary>
     public void Unload()
     {
@@ -89,6 +93,13 @@ public sealed class MainWindowController : NSWindowController
     {
         var page = _navigation.Current;
         if (ReferenceEquals(page, _shown)) return;
+        // Settings is a window on the Mac: a link to it from a page opens the window, and the page stays.
+        if (page is SettingsViewModel && _navigation.CanGoBack)
+        {
+            _navigation.GoBack();
+            ShowSettings();
+            return;
+        }
         _shown?.Unload();
         _shown = page;
         _sidebar.Show(page as LibraryViewModel);
