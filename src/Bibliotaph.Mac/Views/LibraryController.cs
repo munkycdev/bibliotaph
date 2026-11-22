@@ -15,7 +15,7 @@ namespace Bibliotaph.Mac.Views;
 public sealed class LibraryController(LibraryViewModel library, MacCovers covers) : NSViewController
 {
     readonly Bindings _bindings = new();
-    NSCollectionView _grid = null!;
+    BookGrid _grid = null!;
     GridSource? _source;
 
     internal LibraryViewModel Library => library;
@@ -38,7 +38,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             MinimumLineSpacing = 22,
             SectionInset = new NSEdgeInsets(8, 24, 24, 24),
         };
-        _grid = new NSCollectionView
+        _grid = new BookGrid(this)
         {
             CollectionViewLayout = layout,
             Selectable = true,
@@ -149,6 +149,50 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     {
         if (disposing) _bindings.Dispose();
         base.Dispose(disposing);
+    }
+
+    /// <summary>A book's menu, as its card's on Windows: open it, its details, add it to a collection or a binder, and so on.</summary>
+    internal NSMenu? MenuFor(LibraryItemViewModel item)
+    {
+        var menu = new NSMenu();
+        void Add(string title, System.Windows.Input.ICommand command, object? parameter = null)
+        {
+            if (!command.CanExecute(parameter ?? item)) return;
+            menu.AddItem(new NSMenuItem(title, (_, _) => command.Execute(parameter ?? item)));
+        }
+        Add("Open", library.OpenFromCardCommand);
+        Add("Open in a new window", library.OpenBookInNewWindowCommand);
+        Add("Show details", library.OpenDetailsCommand);
+        menu.AddItem(NSMenuItem.SeparatorItem);
+        menu.AddItem(Submenu("Add to collection", ((ICollectionChoices)library).MenuChoices
+            .Select(choice => new NSMenuItem(choice.Label, (_, _) => library.AddToCollection(new CollectionRequest(item, choice))))));
+        menu.AddItem(Submenu("Add to binder", ((ISessionChoices)library).MenuChoices
+            .Select(choice => new NSMenuItem(choice.Label, (_, _) => library.AddToSession(new SessionRequest(item, choice))))));
+        Add(item.FavoriteAction, library.ToggleFavoriteCommand);
+        menu.AddItem(NSMenuItem.SeparatorItem);
+        if (item.ShowOpenOnline) Add(item.OnlineAction, library.OpenOnlineCommand);
+        if (item.CanOpenElsewhere) Add("Open in another app", library.OpenElsewhereCommand);
+        Add("Remove from library…", library.RemoveFromLibraryCommand);
+        if (menu.Count > 0 && menu.ItemAt(menu.Count - 1)!.IsSeparatorItem) menu.RemoveItemAt(menu.Count - 1);
+        return menu;
+    }
+
+    static NSMenuItem Submenu(string title, IEnumerable<NSMenuItem> items)
+    {
+        var menu = new NSMenu(title);
+        foreach (var item in items) menu.AddItem(item);
+        return new NSMenuItem(title) { Submenu = menu, Enabled = menu.Count > 0 };
+    }
+
+    /// <summary>The grid, which gives a right-click on a cover that book's menu.</summary>
+    sealed class BookGrid(LibraryController owner) : NSCollectionView
+    {
+        public override NSMenu? MenuForEvent(NSEvent theEvent)
+        {
+            var point = ConvertPointFromView(theEvent.LocationInWindow, null);
+            if (GetIndexPath(point) is not { } path || (int)path.Item >= owner.Library.Items.Count) return null;
+            return owner.MenuFor(owner.Library.Items[(int)path.Item]);
+        }
     }
 
     sealed class GridSource(LibraryController owner) : NSCollectionViewDelegate, INSCollectionViewDataSource
