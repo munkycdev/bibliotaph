@@ -277,7 +277,7 @@ public sealed partial class PreferencesSectionViewModel(IThemeService theme, Set
 }
 
 /// <summary>Settings > Start over: a development aid, shown only with --dev, and last in the list so it isn't chosen by accident.</summary>
-public sealed partial class StartOverSectionViewModel(StartOver startOver, IUserPrompts prompts) : SettingsSectionViewModel
+public sealed partial class StartOverSectionViewModel(IAppLifetime lifetime, IUserPrompts prompts) : SettingsSectionViewModel
 {
     public override SettingsSection Section => SettingsSection.StartOver;
     public override string Label => "Start over";
@@ -286,7 +286,11 @@ public sealed partial class StartOverSectionViewModel(StartOver startOver, IUser
     [RelayCommand]
     void StartOver()
     {
-        if (Services.StartOver.Confirm(prompts)) startOver.Run();
+        if (prompts.Confirm(
+                "Bibliotaph will forget your library folders, its index, covers, settings, remembered PDF passwords, AI keys and its web library connection, " +
+                "then restart as if newly installed.\n\nYour books and other files are not touched.",
+                "Start over?", PromptKind.Warning, okByDefault: false))
+            lifetime.StartOver();
     }
 }
 

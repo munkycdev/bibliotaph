@@ -130,7 +130,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     readonly Dispatcher _dispatcher;
     readonly UiTimer _noticeTimer;
     readonly UiTimer _placeTimer;
-    readonly ReaderWindows _windows;
+    readonly IReaderWindows _windows;
 
     DocumentSource? _source;
     ViewerLease? _lease;
@@ -158,7 +158,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         public Task<PageSeed?> Seed { get; set; } = Task.FromResult<PageSeed?>(null);
     }
 
-    public ViewerViewModel(ViewerRequest? request, ViewerServices services, ReaderWindows windows, bool poppedOut = false)
+    public ViewerViewModel(ViewerRequest? request, ViewerServices services, IReaderWindows windows, bool poppedOut = false)
     {
         _request = request;
         _library = services.Library;

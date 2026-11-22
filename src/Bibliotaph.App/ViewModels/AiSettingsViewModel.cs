@@ -30,7 +30,7 @@ public sealed partial class AiFolderItem(long id, string path, bool send, Func<A
 /// set up and switched on; an endpoint off this computer and network needs the user's say-so as well.
 /// </summary>
 public sealed partial class AiSettingsViewModel(
-    AiService ai, AiTestBox tester, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
+    AiService ai, IAppDialogs dialogs, SourceRootStore roots, SettingsStore settings, LibraryActivity activity, PilotMode pilotMode,
     PilotPanelViewModel pilot, BuiltInAiViewModel builtIn, SettingsLinks links, LibraryVectors libraryVectors, ILogger<AiSettingsViewModel> log,
     ChapterScanService chapters, WebShelfCache shelf, IUiThread ui)
     : SettingsSectionViewModel
@@ -533,7 +533,7 @@ public sealed partial class AiSettingsViewModel(
             SaveNote = "Tick “Send excerpts to this server” first: the test sends a book's excerpt too.";
             return;
         }
-        tester.Show(endpoint, Model.Trim());
+        dialogs.TestModelServer(endpoint, Model.Trim());
     }
 
     /// <summary>Opens AI reading: the book being read now and the last ones read.</summary>

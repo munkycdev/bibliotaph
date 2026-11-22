@@ -38,13 +38,13 @@ public sealed partial class LibraryAskViewModel : ObservableObject, IDisposable
     readonly LibraryAskService _ask;
     readonly LibraryAskScope _scope;
     readonly LibraryStore _library;
-    readonly ReaderWindows _readers;
+    readonly IReaderWindows _readers;
     readonly ILogger<LibraryAskViewModel> _log;
     readonly IUiThread _ui;
     int _version;
     CancellationTokenSource? _answering;
 
-    public LibraryAskViewModel(LibraryAskService ask, LibraryAskScope scope, LibraryStore library, ReaderWindows readers, IUiThread ui,
+    public LibraryAskViewModel(LibraryAskService ask, LibraryAskScope scope, LibraryStore library, IReaderWindows readers, IUiThread ui,
         ILogger<LibraryAskViewModel> log)
     {
         _ui = ui;

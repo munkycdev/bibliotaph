@@ -65,6 +65,7 @@ static partial class Composition
         services.AddSingleton<DocumentOpener>();
         services.AddSingleton<ViewerServices>();
         services.AddSingleton<ReaderWindows>();
+        services.AddSingleton<IReaderWindows>(sp => sp.GetRequiredService<ReaderWindows>());
         return services;
     }
 

@@ -29,7 +29,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     readonly SessionPages _sessionPages;
     readonly LibraryPages _pages;
     readonly LibraryQueries _queries;
-    readonly ReaderWindows _readers;
+    readonly IReaderWindows _readers;
     readonly OnlineReaders _online;
     readonly INavigationService _navigation;
     readonly IDesktopShell _shell;
@@ -45,7 +45,7 @@ public sealed partial class SessionPackViewModel : PageViewModel
     bool _notesDirty;
 
     public SessionPackViewModel(SessionActions actions, SessionsService sessions, SessionPages sessionPages, LibraryPages pages, LibraryQueries queries,
-        ReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell, IUiThread ui,
+        IReaderWindows readers, INavigationService navigation, OnlineReaders online, IDesktopShell shell, IUiThread ui,
         TimeProvider time, ILogger<SessionPackViewModel> log, LibraryStore library, NornisWorldStore? worlds = null, IndexQueries? index = null, WebLibrary? web = null)
     {
         _ui = ui;

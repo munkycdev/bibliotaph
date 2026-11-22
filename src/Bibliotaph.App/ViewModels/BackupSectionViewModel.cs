@@ -49,7 +49,7 @@ public sealed partial class RestoreFolderItem(RestoreFolder folder) : Observable
 /// found or pointed to their new places, and exporting the library as CSV or JSON. The work is
 /// <see cref="BackupService"/>'s and <see cref="ExportService"/>'s; this asks where, and says what happened.
 /// </summary>
-public sealed partial class BackupSectionViewModel(BackupService backups, ExportService export, AppRestart restart, TimeProvider clock,
+public sealed partial class BackupSectionViewModel(BackupService backups, ExportService export, IAppLifetime lifetime, TimeProvider clock,
     IFilePicker files, IUserPrompts prompts, IDesktopShell shell, ILogger<BackupSectionViewModel> log) : SettingsSectionViewModel
 {
     bool _loading;
@@ -264,7 +264,7 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
                 RestoreProblem = problem;
                 return;
             }
-            restart.Run();
+            lifetime.Restart();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException or InvalidOperationException
             or System.ComponentModel.Win32Exception)

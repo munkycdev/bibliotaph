@@ -27,7 +27,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly SessionsService _sessions;
     readonly SessionPages _sessionPages;
     readonly LibraryQueries _queries;
-    readonly ReaderWindows _readers;
+    readonly IReaderWindows _readers;
     readonly OnlineReaders _online;
     readonly SessionDirectory _directory;
     readonly PinDirectory _pins;
@@ -41,7 +41,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     long? _currentId;
     ViewerRequest? _startAt;
 
-    public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, ReaderWindows readers,
+    public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, IReaderWindows readers,
         SessionDirectory directory, PinDirectory pins, OnlineReaders online, IUiThread ui, TimeProvider time,
         ILogger<SessionReaderViewModel> log)
     {

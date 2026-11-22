@@ -203,7 +203,7 @@ public sealed partial class PilotFieldViewModel : ObservableObject
 /// name on them, and the user's answer for each field. Answers are the pilot's answer key and, by default, the user's
 /// own values in the catalog too.
 /// </summary>
-public sealed partial class PilotReviewViewModel(PilotService pilot, PilotSession session, ReaderWindows readers) : PageViewModel
+public sealed partial class PilotReviewViewModel(PilotService pilot, PilotSession session, IReaderWindows readers) : PageViewModel
 {
     IReadOnlyList<PilotBook> _books = [];
     HashSet<long> _answered = [];
