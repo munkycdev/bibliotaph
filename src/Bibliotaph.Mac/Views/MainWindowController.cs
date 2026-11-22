@@ -80,6 +80,8 @@ public sealed class MainWindowController : NSWindowController
         window.SetContentSize(new CGSize(1320, 840));
         window.Center();
         window.ReleaseWhenClosed(false);
+        // Tab goes through the controls as they are now, as pages and panes change them.
+        window.AutorecalculatesKeyViewLoop = true;
         window.FrameAutosaveName = "BibliotaphMain";
 
         services.GetRequiredService<MacReaderWindows>().MainWindow = window;
@@ -92,6 +94,11 @@ public sealed class MainWindowController : NSWindowController
     }
 
     public void FocusSearch() => _toolbar.FocusSearch();
+
+    public void ToggleAsk() => _shell.PlainSearch.ToggleCommand.Execute(null);
+
+    /// <summary>The Library shown, for the View menu's layout and sort.</summary>
+    public LibraryViewModel? Library => _shown as LibraryViewModel;
 
     public void AddFolder() => _toolbar.AddFolder();
 
@@ -171,7 +178,10 @@ public sealed class MainWindowController : NSWindowController
     };
 }
 
-/// <summary>The toolbar: the sidebar's toggle, Add folder, and search, which searches the whole library as typing pauses.</summary>
+/// <summary>
+/// The toolbar: the sidebar's toggle and Add folder at the leading edge; Ask, search, which searches the whole library as
+/// typing pauses, and the inspector's toggle at the trailing edge.
+/// </summary>
 sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToolbarDelegate
 {
     const string Search = "search";
@@ -188,6 +198,9 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
         NSToolbar.NSToolbarFlexibleSpaceItemIdentifier,
         Ask,
         Search,
+        // The inspector's own toggle sits over it, at the trailing edge, as the Mac's apps put it.
+        NSToolbar.NSToolbarInspectorTrackingSeparatorItemIdentifier,
+        NSToolbar.NSToolbarToggleInspectorItemIdentifier,
     ];
 
     public override string[] AllowedItemIdentifiers(NSToolbar toolbar) => Items;

@@ -68,6 +68,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         foreach (var part in new NSView[] { FilterBar(), OrganizeBar(), UndoLine(), SavedSearchLine() }) bar.AddArrangedSubview(part);
         var pageActions = PageActions();
         _list = new BookList(this);
+        _list.ShowSort(library.SortChoice.Value);
         var listScroll = new NSScrollView { DocumentView = _list, HasVerticalScroller = true, DrawsBackground = false };
 
         var root = new NSView();
@@ -248,28 +249,53 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     }
 
     /// <summary>
-    /// The page's own actions beside its heading, as on Windows: a collection's New collection, Rename, Move to, Pin
-    /// and Delete; a saved search's Rename, Pin and Delete; Favorites' Pin.
+    /// The page's own actions beside its heading: Pin, as a symbol that shows whether it is pinned, and a More menu
+    /// with a collection's New collection, Rename, Move to and Delete, or a saved search's Rename and Delete.
     /// </summary>
     NSStackView PageActions()
     {
         var views = library.SmartViews;
-        var newCollection = Small("New collection…", library.NewSubCollectionCommand);
-        var renameCollection = Small("Rename…", library.RenameCollectionCommand);
-        var moveCollection = Small("Move to…", library.MoveCollectionCommand);
-        var deleteCollection = Small("Delete collection", library.DeleteCollectionCommand);
-        var renameView = Small("Rename…", views.RenameViewCommand);
-        var deleteView = Small("Delete search", views.DeleteViewCommand);
-        var pin = Small("Pin", library.TogglePinCommand);
-        var actions = NSStackView.FromViews([newCollection, renameCollection, moveCollection, renameView, pin, deleteCollection, deleteView]);
-        actions.Spacing = 8;
+        var pin = NSButton.CreateButton(NSImage.GetSystemSymbol("pin", "Pin")!, () => library.TogglePinCommand.Execute(null));
+        pin.BezelStyle = NSBezelStyle.Toolbar;
+        var more = NSButton.CreateButton(NSImage.GetSystemSymbol("ellipsis.circle", "More")!, () => { });
+        more.BezelStyle = NSBezelStyle.Toolbar;
+        more.ToolTip = "More";
+        more.Activated += (_, _) =>
+        {
+            var items = new List<NSMenuItem>();
+            void Add(string title, System.Windows.Input.ICommand command)
+            {
+                // What can't be done here is left out rather than dimmed, as the Mac's menus do.
+                if (command.CanExecute(null)) items.Add(new NSMenuItem(title, (_, _) => command.Execute(null)));
+            }
+            if (library.ShowsCollectionActions)
+            {
+                Add("New Collection Inside…", library.NewSubCollectionCommand);
+                Add("Rename…", library.RenameCollectionCommand);
+                Add("Move To…", library.MoveCollectionCommand);
+                items.Add(NSMenuItem.SeparatorItem);
+                Add("Delete Collection", library.DeleteCollectionCommand);
+            }
+            else if (views.IsView)
+            {
+                Add("Rename…", views.RenameViewCommand);
+                items.Add(NSMenuItem.SeparatorItem);
+                Add("Delete Saved Search", views.DeleteViewCommand);
+            }
+            Pop(more, items);
+        };
+        var actions = NSStackView.FromViews([pin, more]);
+        actions.Spacing = 4;
         void Show()
         {
             var collection = library.ShowsCollectionActions;
-            newCollection.Hidden = renameCollection.Hidden = moveCollection.Hidden = deleteCollection.Hidden = !collection;
-            renameView.Hidden = deleteView.Hidden = !views.IsView;
             pin.Hidden = !(collection || views.IsView || library.IsFavoritesPage);
-            pin.Title = library.PinLabel;
+            more.Hidden = !(collection || views.IsView);
+            // Filled while pinned; its tip says what pressing it does.
+            var pinned = library.PinLabel != "Pin";
+            pin.Image = NSImage.GetSystemSymbol(pinned ? "pin.fill" : "pin", library.PinLabel)!;
+            pin.ToolTip = library.PinLabel;
+            pin.ContentTintColor = pinned ? NSColor.ControlAccent : null!;
         }
         _bindings.Properties(library, [nameof(LibraryViewModel.ShowsCollectionActions), nameof(LibraryViewModel.IsFavoritesPage),
             nameof(LibraryViewModel.PinLabel), nameof(LibraryViewModel.Heading)], Show);
@@ -311,7 +337,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         return line;
     }
 
-    /// <summary>Saved searches: open one; each with its Pin, Rename and Delete.</summary>
+    /// <summary>Saved Searches: each one, opened by choosing it, with a pin on those pinned; then saving the search showing.</summary>
     void ShowSavedSearches(NSButton under)
     {
         var views = library.SmartViews;
@@ -319,12 +345,14 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var items = new List<NSMenuItem>();
         foreach (var row in views.SavedSearches)
         {
-            var menu = new NSMenu(row.Name);
-            menu.AddItem(new NSMenuItem("Open", (_, _) => views.OpenSavedSearchCommand.Execute(row)));
-            menu.AddItem(new NSMenuItem(row.IsPinned ? "Unpin" : "Pin", (_, _) => views.TogglePinSavedSearchCommand.Execute(row)));
-            menu.AddItem(new NSMenuItem("Rename…", (_, _) => views.RenameSavedSearchCommand.Execute(row)));
-            menu.AddItem(new NSMenuItem("Delete", (_, _) => views.DeleteSavedSearchCommand.Execute(row)));
-            items.Add(new NSMenuItem(row.Name) { Submenu = menu });
+            var item = new NSMenuItem(row.Name, (_, _) => views.OpenSavedSearchCommand.Execute(row));
+            if (row.IsPinned) item.Image = NSImage.GetSystemSymbol("pin.fill", "Pinned")!;
+            items.Add(item);
+        }
+        if (views.CanSaveView)
+        {
+            if (items.Count > 0) items.Add(NSMenuItem.SeparatorItem);
+            items.Add(new NSMenuItem("Save Current Search…", (_, _) => views.SaveViewCommand.Execute(null)));
         }
         Pop(under, items);
     }
@@ -338,6 +366,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         alert.Window.InitialFirstResponder = name;
         alert.AddButton(dialog.ActionText).KeyEquivalent = "\r";
         alert.AddButton("Cancel").KeyEquivalent = "\u001b";
+        // A question that can wait doesn't stop the app quitting.
+        alert.Window.PreventsApplicationTerminationWhenModal = false;
         alert.BeginSheet(host, response =>
         {
             dialog.Name = name.StringValue;
@@ -389,7 +419,11 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     {
         var filters = library.Filters;
         var sort = ChoicePopup.Create(_bindings, library, nameof(LibraryViewModel.SortChoices), () => library.SortChoices, () => library.SortChoice, c => library.SortChoice = c);
-        _bindings.Property(library, nameof(LibraryViewModel.SortChoice), () => sort.SelectItem(IndexOf(library.SortChoices, library.SortChoice)));
+        _bindings.Property(library, nameof(LibraryViewModel.SortChoice), () =>
+        {
+            sort.SelectItem(IndexOf(library.SortChoices, library.SortChoice));
+            _list?.ShowSort(library.SortChoice.Value);
+        });
         var kind = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.KindChoice), () => filters.KindChoices, () => filters.KindChoice, c => filters.KindChoice = c);
         var system = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.SystemChoice), () => filters.SystemChoices, () => filters.SystemChoice, c => filters.SystemChoice = c);
         var type = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.TypeChoice), () => filters.TypeChoices, () => filters.TypeChoice, c => filters.TypeChoice = c);
@@ -409,15 +443,14 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var organize = Small("Organize", library.Selection.StartSelectingCommand);
         _bindings.Property(library.Selection.Books, nameof(BookSelection.IsActive), () => organize.Hidden = library.Selection.Books.IsActive);
         var views = library.SmartViews;
-        var save = Small("Save search…", views.SaveViewCommand);
-        var saved = Small("Saved searches", null);
+        // One menu for the saved searches and saving this one, as two buttons of text would run together.
+        var saved = Small("Saved Searches", null);
+        saved.Image = NSImage.GetSystemSymbol("chevron.down", null)!;
+        saved.ImagePosition = NSCellImagePosition.ImageTrailing;
         saved.Activated += (_, _) => ShowSavedSearches(saved);
-        _bindings.Properties(views, [nameof(SmartViewsViewModel.CanSaveView), nameof(SmartViewsViewModel.HasSavedSearches)], () =>
-        {
-            save.Hidden = !views.CanSaveView;
-            saved.Hidden = !views.HasSavedSearches;
-        });
-        var bar = NSStackView.FromViews([sort, kind, system, type, folder, clear, layout, organize, save, saved]);
+        _bindings.Properties(views, [nameof(SmartViewsViewModel.CanSaveView), nameof(SmartViewsViewModel.HasSavedSearches)],
+            () => saved.Hidden = !views.CanSaveView && !views.HasSavedSearches);
+        var bar = NSStackView.FromViews([sort, kind, system, type, folder, clear, layout, organize, saved]);
         bar.Spacing = 8;
         return bar;
     }
@@ -495,7 +528,12 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             AddColumn(new NSTableColumn("tick") { Title = "", Width = 22, Hidden = true });
             foreach (var (id, title, width) in new[] { ("title", "Title", 320.0), ("byline", "By", 200.0), ("system", "System", 150.0),
                 ("kind", "Kind", 130.0), ("levels", "Levels", 90.0), ("size", "Size", 170.0) })
-                AddColumn(new NSTableColumn(id) { Title = title, Width = (nfloat)width });
+            {
+                var column = new NSTableColumn(id) { Title = title, Width = (nfloat)width };
+                // A heading that is one of the Library's sorts sorts by it when clicked, as the Mac's tables do.
+                if (SortOf(id) is not null) column.SortDescriptorPrototype = new NSSortDescriptor(id, true);
+                AddColumn(column);
+            }
             _source = new ListSource(this);
             DataSource = _source;
             Delegate = _source;
@@ -510,6 +548,31 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         }
 
         internal LibraryController Owner => _owner;
+
+        bool _showingSort;
+
+        static Bibliotaph.Index.LibrarySort? SortOf(string column) => column switch
+        {
+            "title" => Bibliotaph.Index.LibrarySort.Title,
+            "byline" => Bibliotaph.Index.LibrarySort.Publisher,
+            _ => null,
+        };
+
+        /// <summary>The heading of the sort chosen in the bar, if it has a column, shows it.</summary>
+        public void ShowSort(Bibliotaph.Index.LibrarySort sort)
+        {
+            _showingSort = true;
+            var column = TableColumns().FirstOrDefault(c => SortOf(c.Identifier) == sort);
+            SortDescriptors = column?.SortDescriptorPrototype is { } prototype ? [prototype] : [];
+            _showingSort = false;
+        }
+
+        void SortBy(string column)
+        {
+            var library = _owner.Library;
+            if (_showingSort || SortOf(column) is not { } sort || library.SortChoices.FirstOrDefault(c => c.Value == sort) is not { } choice) return;
+            library.SortChoice = choice;
+        }
 
         sealed class ListSource(BookList list) : NSTableViewDelegate, INSTableViewDataSource
         {
@@ -534,6 +597,12 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             if (tableColumn.Identifier != "title") label.TextColor = NSColor.SecondaryLabel;
             if (item.IsAway) label.TextColor = NSColor.TertiaryLabel;
             return label;
+        }
+
+        [Export("tableView:sortDescriptorsDidChange:")]
+        public void SortDescriptorsChanged(NSTableView tableView, NSSortDescriptor[] oldDescriptors)
+        {
+            if (list.SortDescriptors is [{ Key: { } key }, ..]) list.SortBy(key);
         }
 
         public override void SelectionDidChange(NSNotification notification)

@@ -36,12 +36,23 @@ static class Menus
             Item("Paste", "paste:", "v"),
             Item("Select All", "selectAll:", "a"),
             NSMenuItem.SeparatorItem,
-            new NSMenuItem("Find", "f", (_, _) => main.FocusSearch())));
+            new NSMenuItem("Find", "f", (_, _) => main.FocusSearch()),
+            Shortcut(new NSMenuItem("Ask Your Library", "f", (_, _) => main.ToggleAsk()), NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask)));
 
-        bar.AddItem(Top("View",
-            Item("Show Sidebar", "toggleSidebar:", "s", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask),
+        // The Library's layouts, as Finder's View menu has its own; ticked for the one showing, and off elsewhere.
+        var covers = new NSMenuItem("as Covers", "1", (_, _) => { if (main.Library is { } library) library.Layout = Index.LibraryLayout.Grid; });
+        var list = new NSMenuItem("as List", "2", (_, _) => { if (main.Library is { } library) library.Layout = Index.LibraryLayout.List; });
+        var view = Top("View",
+            covers,
+            list,
             NSMenuItem.SeparatorItem,
-            Item("Enter Full Screen", "toggleFullScreen:", "f", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask)));
+            Item("Show Sidebar", "toggleSidebar:", "s", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask),
+            Item("Show Inspector", "toggleInspector:", "i", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask),
+            NSMenuItem.SeparatorItem,
+            Item("Enter Full Screen", "toggleFullScreen:", "f", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask));
+        covers.ValidateMenuItem = list.ValidateMenuItem = _ => main.Library is not null;
+        view.Submenu!.Delegate = new Layouts(main, covers, list);
+        bar.AddItem(view);
 
         var window = Top("Window",
             Item("Minimize", "performMiniaturize:", "m"),
@@ -52,6 +63,27 @@ static class Menus
         NSApplication.SharedApplication.WindowsMenu = window.Submenu;
 
         return bar;
+    }
+
+    static NSMenuItem Shortcut(NSMenuItem item, NSEventModifierMask modifiers)
+    {
+        item.KeyEquivalentModifierMask = modifiers;
+        return item;
+    }
+
+    /// <summary>Ticks the Library's layout as the View menu opens.</summary>
+    sealed class Layouts(MainWindowController main, NSMenuItem covers, NSMenuItem list) : NSMenuDelegate
+    {
+        public override void MenuWillOpen(NSMenu menu)
+        {
+            var library = main.Library;
+            covers.State = library?.Layout == Index.LibraryLayout.Grid ? NSCellStateValue.On : NSCellStateValue.Off;
+            list.State = library?.Layout == Index.LibraryLayout.List ? NSCellStateValue.On : NSCellStateValue.Off;
+        }
+
+        public override void MenuWillHighlightItem(NSMenu menu, NSMenuItem? item)
+        {
+        }
     }
 
     static NSMenuItem Top(string title, params NSMenuItem[] items)

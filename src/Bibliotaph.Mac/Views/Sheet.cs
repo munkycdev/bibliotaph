@@ -24,6 +24,8 @@ sealed class Sheet : IDisposable
         Content.WidthAnchor.ConstraintEqualTo(width).Active = true;
         _window = new NSWindow(new CGRect(0, 0, width, 200), NSWindowStyle.Titled, NSBackingStore.Buffered, false);
         _window.ReleaseWhenClosed(false);
+        _window.PreventsApplicationTerminationWhenModal = false;
+        _window.AutorecalculatesKeyViewLoop = true;
         var root = new NSView();
         root.AddSubview(Content);
         NSLayoutConstraint.ActivateConstraints(

@@ -122,6 +122,8 @@ sealed class ReaderWindow : NSWindowController
         _owner = owner;
         var window = Window!;
         window.ReleaseWhenClosed(false);
+        // Tab goes through the controls as they are now, as pages and panes change them.
+        window.AutorecalculatesKeyViewLoop = true;
         window.TitlebarAppearsTransparent = false;
         window.ContentViewController = model is ViewerViewModel reader ? new ReaderController(reader, null) : new NSViewController { View = new NSView() };
         window.SetContentSize(new CGSize(980, 1000));

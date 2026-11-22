@@ -43,6 +43,8 @@ static class DialogSheet
         }
         alert.AddButton(dialog.IsNaming ? dialog.ActionText : "Add").KeyEquivalent = "\r";
         alert.AddButton("Cancel").KeyEquivalent = "\u001b";
+        // A question that can wait doesn't stop the app quitting.
+        alert.Window.PreventsApplicationTerminationWhenModal = false;
         alert.BeginSheet(host, response =>
         {
             if ((long)response != (long)NSAlertButtonReturn.First) dialog.CancelCommand.Execute(null);
@@ -96,6 +98,8 @@ static class DialogSheet
         }
         alert.AddButton(dialog.IsNaming ? dialog.ActionText : "Add").KeyEquivalent = "\r";
         alert.AddButton("Cancel").KeyEquivalent = "\u001b";
+        // A question that can wait doesn't stop the app quitting.
+        alert.Window.PreventsApplicationTerminationWhenModal = false;
         alert.BeginSheet(host, response =>
         {
             if ((long)response != (long)NSAlertButtonReturn.First) dialog.CancelCommand.Execute(null);

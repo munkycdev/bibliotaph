@@ -29,10 +29,9 @@ sealed class OnlineBrowserWindow : NSWindowController
     readonly ILogger _log;
     readonly WKWebView _web;
     readonly NSTextField _status;
-    readonly NSTextField _address;
-    readonly NSButton _read;
-    readonly NSButton _back;
-    readonly NSButton _forward;
+    readonly NSToolbarItem _read;
+    readonly NSToolbarItem _back;
+    readonly NSToolbarItem _forward;
     readonly NSTextField _downloaded;
     readonly Bindings _bindings = new();
     readonly List<NSWindow> _popups = [];
@@ -45,8 +44,9 @@ sealed class OnlineBrowserWindow : NSWindowController
     {
         (_request, _reader, _downloads, _log) = (request, request.Reader, downloads, log);
         var window = Window!;
-        window.Title = $"{_reader.Name} · Bibliotaph";
+        window.Title = _reader.Name;
         window.ReleaseWhenClosed(false);
+        window.AutorecalculatesKeyViewLoop = true;
 
         var configuration = new WKWebViewConfiguration { WebsiteDataStore = WKWebsiteDataStore.DefaultDataStore };
         // A library that changes without a new page (a filter chosen, more books drawn) is looked at again too.
@@ -54,19 +54,24 @@ sealed class OnlineBrowserWindow : NSWindowController
         configuration.UserContentController.AddUserScript(new WKUserScript(new NSString(WatchChanges), WKUserScriptInjectionTime.AtDocumentEnd, false));
         _web = new WKWebView(CGRect.Empty, configuration) { NavigationDelegate = new Navigation(this), UIDelegate = new Popups(this) };
 
-        _back = NSButton.CreateButton(NSImage.GetSystemSymbol("chevron.left", "Back")!, () => _web.GoBack());
-        _forward = NSButton.CreateButton(NSImage.GetSystemSymbol("chevron.right", "Forward")!, () => _web.GoForward());
-        var reload = NSButton.CreateButton(NSImage.GetSystemSymbol("arrow.clockwise", "Reload")!, () => _web.Reload());
-        _address = NSTextField.CreateLabel("");
-        _address.LineBreakMode = NSLineBreakMode.TruncatingMiddle;
-        _address.TextColor = NSColor.SecondaryLabel;
-        _address.SetContentCompressionResistancePriority(100, NSLayoutConstraintOrientation.Horizontal);
-        _read = NSButton.CreateButton("Read this page", () => ReadAsync().FireAndForget());
-        _read.BezelColor = NSColor.ControlAccent;
-        _read.Enabled = false;
-        var bar = NSStackView.FromViews([_back, _forward, reload, _address, _read]);
-        bar.Spacing = 8;
-        bar.EdgeInsets = new NSEdgeInsets(8, 12, 8, 12);
+        // A toolbar as Safari's: back and forward at the leading edge, the address under the title, and Read this page
+        // as the one prominent action at the trailing edge.
+        _back = Item("back", "Back", "chevron.left", () => _web.GoBack());
+        _forward = Item("forward", "Forward", "chevron.right", () => _web.GoForward());
+        var reload = Item("reload", "Reload", "arrow.clockwise", () => _web.Reload());
+        _read = new NSToolbarItem("read")
+        {
+            Label = "Read this page",
+            Title = "Read this page",
+            ToolTip = "Hands the books this page lists to Settings › Online libraries, which shows what importing them does",
+            Style = NSToolbarItemStyle.Prominent,
+            Autovalidates = false,
+            Enabled = false,
+            Bordered = true,
+        };
+        _read.Activated += (_, _) => ReadAsync().FireAndForget();
+        window.Toolbar = new NSToolbar("online") { Delegate = new Bar([_back, _forward, reload, _read]), DisplayMode = NSToolbarDisplayMode.Icon };
+        window.ToolbarStyle = NSWindowToolbarStyle.Unified;
         _status = NSTextField.CreateWrappingLabel("");
         _status.Font = NSFont.SystemFontOfSize(12)!;
         _downloaded = NSTextField.CreateWrappingLabel("");
@@ -75,17 +80,14 @@ sealed class OnlineBrowserWindow : NSWindowController
         _downloaded.Hidden = true;
 
         var root = new NSView();
-        foreach (var view in new NSView[] { bar, _status, _web, _downloaded })
+        foreach (var view in new NSView[] { _status, _web, _downloaded })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
         }
         NSLayoutConstraint.ActivateConstraints(
         [
-            bar.TopAnchor.ConstraintEqualTo(root.TopAnchor),
-            bar.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
-            bar.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
-            _status.TopAnchor.ConstraintEqualTo(bar.BottomAnchor),
+            _status.TopAnchor.ConstraintEqualTo(root.TopAnchor, 8),
             _status.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 14),
             _status.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -14),
             _web.TopAnchor.ConstraintEqualTo(_status.BottomAnchor, 8),
@@ -109,6 +111,27 @@ sealed class OnlineBrowserWindow : NSWindowController
     }
 
     /// <summary>Forgets every sign-in, cookie and page the browser kept.</summary>
+    static NSToolbarItem Item(string id, string label, string symbol, Action act)
+    {
+        // Navigational, so it sits before the title at the leading edge, as Safari's back and forward do.
+        var item = new NSToolbarItem(id) { Label = label, ToolTip = label, Image = NSImage.GetSystemSymbol(symbol, label)!, Bordered = true, Autovalidates = false, Navigational = true };
+        item.Activated += (_, _) => act();
+        return item;
+    }
+
+    /// <summary>The browser's toolbar items, in their order.</summary>
+    sealed class Bar(NSToolbarItem[] items) : NSToolbarDelegate
+    {
+        string[] Order => [items[0].Identifier, items[1].Identifier, items[2].Identifier, NSToolbar.NSToolbarFlexibleSpaceItemIdentifier, items[3].Identifier];
+
+        public override string[] AllowedItemIdentifiers(NSToolbar toolbar) => Order;
+
+        public override string[] DefaultItemIdentifiers(NSToolbar toolbar) => Order;
+
+        public override NSToolbarItem WillInsertItem(NSToolbar toolbar, string itemIdentifier, bool willBeInserted) =>
+            items.FirstOrDefault(i => i.Identifier == itemIdentifier)!;
+    }
+
     public static Task SignOutAsync()
     {
         var done = new TaskCompletionSource();
@@ -140,7 +163,7 @@ sealed class OnlineBrowserWindow : NSWindowController
     {
         _back.Enabled = _web.CanGoBack;
         _forward.Enabled = _web.CanGoForward;
-        _address.StringValue = _web.Url?.AbsoluteString ?? "";
+        Window!.Subtitle = _web.Url?.Host ?? "";
     }
 
     /// <summary>Looks at the page once it has settled: a page still drawing is looked at again when it is done.</summary>

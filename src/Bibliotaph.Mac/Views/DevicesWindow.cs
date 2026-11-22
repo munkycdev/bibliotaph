@@ -25,6 +25,8 @@ public sealed class DevicesWindow : NSWindowController
         var window = Window!;
         window.Title = "Devices";
         window.ReleaseWhenClosed(false);
+        // Tab goes through the controls as they are now, as pages and panes change them.
+        window.AutorecalculatesKeyViewLoop = true;
         window.WillClose += (_, _) => Closed();
     }
 

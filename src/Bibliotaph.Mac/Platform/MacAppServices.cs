@@ -137,6 +137,8 @@ public sealed class MacAppLifetime(IUserPrompts prompts, AppPaths paths) : IAppL
             alert.MessageText = "Restored";
             alert.InformativeText = string.Join("\n\n", lines);
         }
+        // A note doesn't stop the app quitting.
+        alert.Window.PreventsApplicationTerminationWhenModal = false;
         if (window is not null) alert.BeginSheet(window, _ => alert.Dispose());
         else alert.RunModal();
     }

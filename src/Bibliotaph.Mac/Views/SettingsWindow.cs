@@ -18,13 +18,15 @@ public sealed partial class SettingsWindow : NSWindowController
     readonly List<(SettingsSectionViewModel Section, Bindings Bindings)> _open = [];
 
     public SettingsWindow(IServiceProvider services, FolderAdding adding)
-        : base(new NSWindow(new CGRect(0, 0, 620, 460), NSWindowStyle.Titled | NSWindowStyle.Closable | NSWindowStyle.Resizable, NSBackingStore.Buffered, false))
+        // No minimize or zoom, as the Mac's own settings windows: ⌘, brings it back, and each pane scrolls in its size.
+        : base(new NSWindow(new CGRect(0, 0, 720, 640), NSWindowStyle.Titled | NSWindowStyle.Closable, NSBackingStore.Buffered, false))
     {
         _services = services;
         _adding = adding;
         var window = Window!;
         window.Title = "Settings";
         window.ReleaseWhenClosed(false);
+        window.AutorecalculatesKeyViewLoop = true;
         window.WillClose += (_, _) => Closed();
     }
 
@@ -46,7 +48,9 @@ public sealed partial class SettingsWindow : NSWindowController
             Presentation.Services.SettingsSection.Backup => 7,
             _ => -1,
         };
-        if (at >= 0 && _tabs is { } tabs) tabs.SelectedTabViewItemIndex = at;
+        // Else the pane last looked at, as the Mac's settings windows reopen where they were.
+        if (at < 0) at = (int)NSUserDefaults.StandardUserDefaults.IntForKey(LastPane);
+        if (_tabs is { } tabs && at >= 0 && at < tabs.TabViewItems.Length) tabs.SelectedTabViewItemIndex = at;
         Window!.Center();
         Window.MakeKeyAndOrderFront(null);
     }
@@ -64,15 +68,31 @@ public sealed partial class SettingsWindow : NSWindowController
         tabs.AddTabViewItem(Tab("Backup", "externaldrive", BackupTab()));
         _tabs = tabs;
         Window!.ContentViewController = tabs;
-        Window.SetContentSize(new CGSize(640, 600));
+        Window.SetContentSize(new CGSize(720, 640));
     }
+
+    const string LastPane = "SettingsPane";
 
     static NSTabViewItem Tab(string label, string symbol, NSView view) => new()
     {
         Label = label,
         Image = NSImage.GetSystemSymbol(symbol, label)!,
-        ViewController = new NSViewController { View = view },
+        ViewController = new Pane { View = view, Title = label },
     };
+
+    /// <summary>A pane, which remembers it was the one looked at last.</summary>
+    sealed class Pane : NSViewController
+    {
+        public override void ViewDidAppear()
+        {
+            base.ViewDidAppear();
+            if (View.Window is not { } window) return;
+            // The window's title names the pane showing.
+            window.Title = Title ?? "Settings";
+            if (window.ContentViewController is NSTabViewController tabs)
+                NSUserDefaults.StandardUserDefaults.SetInt(tabs.SelectedTabViewItemIndex, LastPane);
+        }
+    }
 
     NSView LibraryTab()
     {

@@ -295,6 +295,8 @@ sealed class NotesPane : NSView
         alert.Window.InitialFirstResponder = text;
         alert.AddButton(dialog.ActionText).KeyEquivalent = "\r";
         alert.AddButton("Cancel").KeyEquivalent = "\u001b";
+        // A question that can wait doesn't stop the app quitting.
+        alert.Window.PreventsApplicationTerminationWhenModal = false;
         alert.BeginSheet(window, response =>
         {
             if ((long)response == (long)NSAlertButtonReturn.First)
