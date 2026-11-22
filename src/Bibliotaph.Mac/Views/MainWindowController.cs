@@ -85,6 +85,11 @@ public sealed class MainWindowController : NSWindowController
 
     public void ShowSettings() => _settings.Open();
 
+    /// <summary>For --screenshot, which pictures the window it was asked to open.</summary>
+    public NSWindow? SettingsWindow => _settings.Window;
+
+    public NSWindow? DevicesWindow => _devices.Window;
+
     /// <summary>
     /// Whether this Mac is connected to a web library, which the sidebar offers to do while it isn't. A first start with
     /// no folders opens Your Web Library, as connecting is how most people's books come to a new device.

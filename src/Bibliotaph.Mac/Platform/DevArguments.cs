@@ -21,8 +21,16 @@ static class DevArguments
     public static async Task ApplyAsync(string[] args, IServiceProvider services, Views.MainWindowController main)
     {
         var window = main.Window!;
-        if (args.Contains("--devices")) main.ShowDevices();
-        if (args.Contains("--settings")) main.ShowSettings();
+        if (args.Contains("--devices"))
+        {
+            main.ShowDevices();
+            window = main.DevicesWindow ?? window;
+        }
+        if (args.Contains("--settings"))
+        {
+            main.ShowSettings();
+            window = main.SettingsWindow ?? window;
+        }
         if (Enum.TryParse<Presentation.Services.Route>(Value(args, "--page"), out var route)) services.GetRequiredService<INavigationService>().NavigateTo(route);
         if (int.TryParse(Value(args, "--quit-after"), out var quitAfter))
             _ = Task.Delay(TimeSpan.FromSeconds(quitAfter)).ContinueWith(_ => Bindings.OnMain(() => NSApplication.SharedApplication.Terminate(null)), TaskScheduler.Default);

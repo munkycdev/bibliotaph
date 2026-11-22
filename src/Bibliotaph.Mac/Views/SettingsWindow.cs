@@ -39,9 +39,10 @@ public sealed class SettingsWindow : NSWindowController
     {
         var tabs = new NSTabViewController { TabStyle = NSTabViewControllerTabStyle.Toolbar };
         tabs.AddTabViewItem(Tab("Library", "books.vertical", LibraryTab()));
+        tabs.AddTabViewItem(Tab("AI", "sparkles", AiTab()));
         tabs.AddTabViewItem(Tab("Preferences", "gearshape", PreferencesTab()));
         Window!.ContentViewController = tabs;
-        Window.SetContentSize(new CGSize(620, 460));
+        Window.SetContentSize(new CGSize(640, 600));
     }
 
     static NSTabViewItem Tab(string label, string symbol, NSView view) => new()
@@ -133,6 +134,115 @@ public sealed class SettingsWindow : NSWindowController
         text.SetContentHuggingPriorityForOrientation(200, NSLayoutConstraintOrientation.Horizontal);
         path.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
         return row;
+    }
+
+    /// <summary>
+    /// A model server for Bibliotaph to read books and answer with: its address, which model, a key if it needs one, and
+    /// which library folders may be sent. The built-in model is Windows' only, so the Mac always uses a server.
+    /// </summary>
+    NSView AiTab()
+    {
+        var ai = _services.GetRequiredService<AiSettingsViewModel>();
+        var bindings = Load(ai);
+        // The built-in engine is llama.cpp's Windows build; a Mac switched to it would read nothing.
+        bindings.Property(ai, nameof(AiSettingsViewModel.ShowBuiltIn), () =>
+        {
+            if (ai.ShowBuiltIn) ai.UseServer = true;
+        });
+
+        var intro = NSTextField.CreateWrappingLabel("Bibliotaph can ask a model server you run or use (Ollama, LM Studio, or one online) to read your books: what system and kind each is, and answers in Ask. Nothing is sent until you save a model here.");
+        intro.TextColor = NSColor.SecondaryLabel;
+        var endpoint = new NSTextField { PlaceholderString = "http://localhost:11434" };
+        endpoint.WidthAnchor.ConstraintEqualTo(320).Active = true;
+        endpoint.Changed += (_, _) => ai.Endpoint = endpoint.StringValue;
+        var connect = NSButton.CreateButton("Connect", () => { });
+        bindings.Command(connect, ai.ConnectCommand);
+        endpoint.Activated += (_, _) =>
+        {
+            if (ai.ConnectCommand.CanExecute(null)) ai.ConnectCommand.Execute(null);
+        };
+        var connection = NSTextField.CreateWrappingLabel("");
+        var model = new NSPopUpButton();
+        model.Activated += (_, _) => ai.Model = model.TitleOfSelectedItem ?? "";
+        model.WidthAnchor.ConstraintEqualTo(320).Active = true;
+        var embedding = new NSPopUpButton();
+        embedding.Activated += (_, _) =>
+        {
+            var at = (int)embedding.IndexOfSelectedItem;
+            if (at >= 0 && at < ai.EmbeddingChoices.Count) ai.EmbeddingModel = ai.EmbeddingChoices[at].Value;
+        };
+        embedding.WidthAnchor.ConstraintEqualTo(320).Active = true;
+        var key = new NSSecureTextField { PlaceholderString = "API key, if the server needs one" };
+        key.WidthAnchor.ConstraintEqualTo(320).Active = true;
+        key.Changed += (_, _) => ai.NewKey = key.StringValue;
+        var forgetKey = NSButton.CreateButton("Forget the saved key", () => { });
+        bindings.Command(forgetKey, ai.ForgetKeyCommand);
+        var remote = NSButton.CreateCheckbox("Send books to this server, which isn't on this Mac", () => { });
+        remote.Activated += (_, _) => ai.RemoteAllowed = remote.State == NSCellStateValue.On;
+        var save = NSButton.CreateButton("Save", () => { });
+        save.KeyEquivalent = "\r";
+        bindings.Command(save, ai.SaveCommand);
+        var note = NSTextField.CreateWrappingLabel("");
+        note.TextColor = NSColor.SecondaryLabel;
+        var progress = NSTextField.CreateWrappingLabel("");
+        progress.TextColor = NSColor.SecondaryLabel;
+        var folders = Stack(vertical: true, spacing: 4);
+
+        bindings.Property(ai, nameof(AiSettingsViewModel.Endpoint), () =>
+        {
+            if (endpoint.CurrentEditor is null) endpoint.StringValue = ai.Endpoint;
+        });
+        bindings.Properties(ai, [nameof(AiSettingsViewModel.ConnectionText), nameof(AiSettingsViewModel.ConnectionProblem), nameof(AiSettingsViewModel.IsConnecting)], () =>
+        {
+            connection.StringValue = ai.IsConnecting ? "Connecting…" : ai.ConnectionProblem ?? ai.ConnectionText;
+            connection.TextColor = ai.ConnectionProblem is null ? NSColor.SecondaryLabel : NSColor.SystemRed;
+        });
+        void Models()
+        {
+            model.RemoveAllItems();
+            foreach (var name in ai.Models) model.Menu!.AddItem(new NSMenuItem(name));
+            if (ai.Models.Count == 0) model.Menu!.AddItem(new NSMenuItem("Connect to list the server's models"));
+            if (ai.Model.Length > 0 && ai.Models.IndexOf(ai.Model) is var at and >= 0) model.SelectItem(at);
+            model.Enabled = ai.HasModels;
+            embedding.RemoveAllItems();
+            foreach (var choice in ai.EmbeddingChoices) embedding.Menu!.AddItem(new NSMenuItem(choice.Label));
+            var chosen = ai.EmbeddingChoices.ToList().FindIndex(c => c.Value == ai.EmbeddingModel);
+            if (chosen >= 0) embedding.SelectItem(chosen);
+        }
+        bindings.Collection(ai.Models, _ => Models());
+        bindings.Collection(ai.EmbeddingChoices, _ => Models());
+        bindings.Properties(ai, [nameof(AiSettingsViewModel.Model), nameof(AiSettingsViewModel.EmbeddingModel), nameof(AiSettingsViewModel.HasModels)], Models);
+        bindings.Properties(ai, [nameof(AiSettingsViewModel.HasSavedKey), nameof(AiSettingsViewModel.RemoteAllowed), nameof(AiSettingsViewModel.Endpoint)], () =>
+        {
+            forgetKey.Hidden = !ai.HasSavedKey;
+            remote.Hidden = !ai.IsRemote;
+            remote.State = ai.RemoteAllowed ? NSCellStateValue.On : NSCellStateValue.Off;
+        });
+        bindings.Properties(ai, [nameof(AiSettingsViewModel.SaveNote), nameof(AiSettingsViewModel.SwitchProblem), nameof(AiSettingsViewModel.IsOn),
+            nameof(AiSettingsViewModel.ProgressText)], () =>
+        {
+            note.StringValue = ai.SwitchProblem ?? ai.SaveNote ?? (ai.IsOn ? "On: books are read with this model." : "Off.");
+            progress.StringValue = ai.ProgressText;
+        });
+        void Folders()
+        {
+            foreach (var view in folders.ArrangedSubviews) view.RemoveFromSuperview();
+            if (ai.Folders.Count > 0) folders.AddArrangedSubview(PageParts.Section("Folders it may read"));
+            foreach (var folder in ai.Folders)
+            {
+                var box = NSButton.CreateCheckbox(folder.Path, () => { });
+                box.State = folder.Send ? NSCellStateValue.On : NSCellStateValue.Off;
+                box.Activated += (_, _) => folder.Send = box.State == NSCellStateValue.On;
+                folders.AddArrangedSubview(box);
+            }
+        }
+        bindings.Collection(ai.Folders, _ => Folders());
+
+        var form = Stack(vertical: true, spacing: 8,
+            Stack(vertical: false, spacing: 8, endpoint, connect), connection,
+            PageParts.Section("Model"), model, PageParts.Section("For finding passages by meaning"), embedding, key, forgetKey, remote,
+            Stack(vertical: false, spacing: 8, save, note), progress, folders);
+        return Page(intro, form);
     }
 
     NSView PreferencesTab()
