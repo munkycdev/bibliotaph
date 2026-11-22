@@ -98,10 +98,66 @@ public sealed partial class SettingsWindow
             stop.Hidden = !online.HasDownloadsFolder;
         });
 
+        CatalogueKeys(form, _services.GetRequiredService<CatalogueKeysViewModel>(), bindings);
+
         var browser = form.Section("Bibliotaph's browser",
             "It keeps you signed in between imports, apart from Safari. Signing out forgets every sign-in, cookie and page it kept.");
         browser.Row("Sign-ins", Button("Sign Out of All Services", online.SignOutCommand, bindings));
         return Pane(form);
+    }
+
+    /// <summary>
+    /// The user's own RPGGeek token and Google Books key, for looking books up without bibliotaph.online: a secure field
+    /// and Save each, or Forget once one is saved, with where to get one.
+    /// </summary>
+    static void CatalogueKeys(Form form, CatalogueKeysViewModel keys, Bindings bindings)
+    {
+        var section = form.Section("Book catalogues",
+            "While this Mac isn't connected to bibliotaph.online, it looks books up itself: AdventureLookup and Open Library always, and RPGGeek and Google Books with a token or key of your own. They're kept in your Keychain. Only ISBNs, product codes and titles are sent. RPGGeek's data is powered by BGG.");
+        Key(section, "RPGGeek token", keys.RpgGeekState, CatalogueKeysViewModel.RpgGeekRegistration, "Register an app with BoardGameGeek for one",
+            () => keys.NewRpgGeekToken, v => keys.NewRpgGeekToken = v, keys.SaveRpgGeekTokenCommand, keys.ForgetRpgGeekTokenCommand,
+            () => keys.HasRpgGeekToken, nameof(CatalogueKeysViewModel.RpgGeekState), () => keys.RpgGeekState, keys, bindings);
+        Key(section, "Google Books API key", keys.GoogleBooksState, CatalogueKeysViewModel.GoogleBooksConsole, "Turn on the Books API in your Google Cloud project for one",
+            () => keys.NewGoogleBooksKey, v => keys.NewGoogleBooksKey = v, keys.SaveGoogleBooksKeyCommand, keys.ForgetGoogleBooksKeyCommand,
+            () => keys.HasGoogleBooksKey, nameof(CatalogueKeysViewModel.GoogleBooksState), () => keys.GoogleBooksState, keys, bindings);
+        bindings.Property(keys, nameof(CatalogueKeysViewModel.Problem), () =>
+        {
+            if (keys.Problem is { } problem) section.Note(problem);
+        });
+    }
+
+    static void Key(FormSection section, string label, string state, Uri source, string sourceText, Func<string> get, Action<string> set,
+        System.Windows.Input.ICommand save, System.Windows.Input.ICommand forget, Func<bool> saved, string stateProperty, Func<string> currentState,
+        CatalogueKeysViewModel keys, Bindings bindings)
+    {
+        var field = new NSSecureTextField { PlaceholderString = "Paste it here" };
+        field.WidthAnchor.ConstraintEqualTo(200).Active = true;
+        field.Changed += (_, _) => set(field.StringValue);
+        field.Activated += (_, _) =>
+        {
+            if (save.CanExecute(null)) save.Execute(null);
+        };
+        var saveButton = Button("Save", save, bindings);
+        var forgetButton = Button("Forget", forget, bindings);
+        var link = NSButton.CreateButton(sourceText + "…", () => NSWorkspace.SharedWorkspace.OpenUrl(new Foundation.NSUrl(source.AbsoluteUri)));
+        // A link, as the Mac's settings put one under a row: plain text in the accent, from the leading edge.
+        link.Bordered = false;
+        link.ControlSize = NSControlSize.Small;
+        link.Alignment = NSTextAlignment.Left;
+        link.AttributedTitle = new Foundation.NSAttributedString(sourceText + "…", new AppKit.NSStringAttributes
+        {
+            ForegroundColor = NSColor.ControlAccent,
+            Font = NSFont.SystemFontOfSize(11)!,
+        });
+        var row = section.Row(label, state, field, saveButton, forgetButton);
+        bindings.Property(keys, stateProperty, () =>
+        {
+            row.ShowDetail(currentState());
+            field.Hidden = saveButton.Hidden = saved();
+            forgetButton.Hidden = !saved();
+            if (field.StringValue != get()) field.StringValue = get();
+        });
+        section.Wide(link);
     }
 
     /// <summary>A group of services, each with what opening it does and its Open button.</summary>

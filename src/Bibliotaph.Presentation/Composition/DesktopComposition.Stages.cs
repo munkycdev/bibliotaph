@@ -21,9 +21,11 @@ public static partial class DesktopComposition
         services.AddSingleton<IStage, ClassifyStage>();
         services.AddSingleton<IStage, MatchStage>();
         services.AddSingleton<IStage, IdentifyStage>();
-        // Through the web library while connected, which can ask catalogues only the server has a key for.
+        // Through the web library while connected, which holds the server's keys; on its own, every catalogue it can
+        // ask, with the user's own keys for those that need one.
+        services.AddSingleton(sp => new OwnCatalogues(sp.GetRequiredService<IApiKeyStore>()));
         services.AddSingleton<IBookCatalogue>(sp => new WebLibraryCatalogue(sp.GetRequiredService<WebLibrary>(),
-            new OpenLibraryCatalogue(OpenLibraryCatalogue.CreateClient()), sp.GetRequiredService<SettingsStore>()));
+            sp.GetRequiredService<OwnCatalogues>(), sp.GetRequiredService<SettingsStore>()));
         services.AddSingleton<BookLookups>();
         services.AddSingleton<IStage, LookUpStage>();
         services.AddSingleton<ChapterScanStore>();
