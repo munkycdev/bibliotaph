@@ -1,5 +1,3 @@
-using System.IO;
-using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Presentation.Services;
@@ -9,23 +7,22 @@ using Bibliotaph.Storage.Desktop;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
     /// <summary>
     /// Storage connected on this PC (OneDrive, Dropbox, Google Drive, WebDAV), read through each provider's API as
     /// the web library reads it. Its folders are library folders like any other: listed from the provider, each book
-    /// downloaded to be read, and changes asked for every few minutes.
+    /// downloaded to be read, and changes asked for every few minutes. The host adds where sign-ins are kept
+    /// (<see cref="IConnectionSecrets"/>); a test passes a stand-in WebDAV server.
     /// </summary>
-    public static IServiceCollection AddStorage(this IServiceCollection services, bool smokeTest)
+    public static IServiceCollection AddStorage(this IServiceCollection services, HttpMessageHandler? webDav = null)
     {
-        if (smokeTest) services.AddSingleton<IConnectionSecrets, MemoryConnectionSecrets>();
-        else services.AddSingleton<IConnectionSecrets, StorageSecretVault>();
         services.AddSingleton(_ => new DesktopStorageApps());
         services.AddSingleton<IDesktopClients>(sp => sp.GetRequiredService<DesktopStorageApps>());
-        // The smoke test connects a stand-in WebDAV server; the OAuth providers need a browser and a real account.
-        services.AddSingleton(_ => smokeTest ? new StorageHttp(new SmokeWebDav()) : new StorageHttp());
+        // A test passes a stand-in WebDAV server; the OAuth providers need a browser and a real account.
+        services.AddSingleton(_ => new StorageHttp(webDav));
         services.AddSingleton(sp => new PcConnections(sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<IConnectionSecrets>(),
             sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton(sp => new PcTokens(sp.GetRequiredService<StorageHttp>().Tokens, sp.GetRequiredService<PcConnections>(),

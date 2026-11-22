@@ -1,4 +1,3 @@
-using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Index;
 using Bibliotaph.Presentation.Services;
@@ -6,12 +5,15 @@ using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
-    /// <summary>The library's own stores and services: books, packs, adventures, collections, binders, notes, pins, files, passwords and backups.</summary>
-    public static IServiceCollection AddLibrary(this IServiceCollection services, bool smokeTest)
+    /// <summary>
+    /// The library's own stores and services: books, packs, adventures, collections, binders, notes, pins, files, passwords
+    /// and backups. The host adds its image codec, browsers and vaults. A test passes a stand-in for the sites covers come from.
+    /// </summary>
+    public static IServiceCollection AddLibrary(this IServiceCollection services, HttpMessageHandler? siteIcons = null)
     {
         services.AddSingleton<LibraryStore>();
         services.AddSingleton<EntryStore>();
@@ -58,29 +60,15 @@ static partial class Composition
         services.AddSingleton<ReadingService>();
         services.AddSingleton<DownloadCheck>();
         services.AddSingleton(sp => new LostCovers(sp.GetRequiredService<EntryStore>(), sp.GetRequiredService<CoverCache>(), sp.GetRequiredService<IImageCodec>(),
-            sp.GetRequiredService<MetadataProjector>(), LostCovers.CreateClient(smokeTest ? new SmokeSiteIcons() : null), sp.GetRequiredService<ILogger<LostCovers>>()));
+            sp.GetRequiredService<MetadataProjector>(), LostCovers.CreateClient(siteIcons), sp.GetRequiredService<ILogger<LostCovers>>()));
         services.AddSingleton<OnlineImports>();
-        services.AddSingleton<OnlineBrowsers>();
-        services.AddSingleton<IInAppBrowser>(sp => sp.GetRequiredService<OnlineBrowsers>());
-        services.AddSingleton<EbookBrowser>();
-        services.AddSingleton<IEbookBrowser>(sp => sp.GetRequiredService<EbookBrowser>());
         services.AddSingleton<OnlineReaders>();
-        services.AddSingleton<OnlineDownloads>();
         services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton(sp => new IndexStore(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton<CoverCache>();
         services.AddSingleton<PageThumbnailCache>();
-        services.AddSingleton<WpfImageCodec>();
-        services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
-        services.AddSingleton<IPictureDecoder>(sp => sp.GetRequiredService<WpfImageCodec>());
-        // The smoke test keeps remembered passwords in memory and opens no other app.
-        if (smokeTest) services.AddSingleton<IPasswordVault, MemoryPasswordVault>();
-        else services.AddSingleton<IPasswordVault, PasswordVault>();
         services.AddSingleton<UnlockedPasswords>();
         services.AddSingleton<IPasswordStore, IndexPasswords>();
-        services.AddSingleton<ApiKeyVault>();
-        services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<ApiKeyVault>());
-        services.AddSingleton<StartOver>();
         services.AddSingleton<CatalogExport>();
         services.AddSingleton<BackupService>();
         services.AddSingleton<ExportService>();
