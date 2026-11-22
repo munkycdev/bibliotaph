@@ -62,6 +62,12 @@ public partial class OnlineReaderView
         {
             await Web.EnsureCoreWebView2Async(await Browsers.EnvironmentAsync());
         }
+        // Leaving the reader while the browser starts disposes it, and WebView2 then fails inside its own start-up
+        // (a NullReferenceException) rather than cancelling: nothing is left to show it in, so that isn't an error.
+        catch (Exception) when (_gone)
+        {
+            return;
+        }
         catch (WebView2RuntimeNotFoundException)
         {
             model.Notice = "Bibliotaph's browser needs the Microsoft Edge WebView2 Runtime, which Windows 11 includes. Open in your browser still works.";

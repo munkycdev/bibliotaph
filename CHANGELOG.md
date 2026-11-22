@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Fixed: closing a book owned online just as it opened could close Bibliotaph.** Leaving the online reader while
+  its browser was still starting is now ignored.
 - **More books found online without the web library.** A PC that isn't connected to bibliotaph.online now searches
   AdventureLookup by a book's title, as well as asking Open Library about its ISBN, so adventures that print no ISBN
   are found too. Settings > Online libraries has a new Book catalogues section where you can save your own RPGGeek
