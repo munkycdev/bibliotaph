@@ -330,6 +330,7 @@ sealed class AskPane : NSView
     readonly AskPanelViewModel _ask;
     readonly Bindings _bindings = new();
     readonly NSTextView _answer;
+    readonly NSLayoutConstraint _answerHeight;
     readonly NSStackView _passages;
     readonly NSStackView _history;
 
@@ -365,7 +366,8 @@ sealed class AskPane : NSView
         message.TextColor = NSColor.SystemOrange;
         _answer = new NSTextView { Editable = false, Selectable = true, DrawsBackground = false, Delegate = new Links(this), VerticallyResizable = true };
         _answer.TextContainer!.WidthTracksTextView = true;
-        _answer.HeightAnchor.ConstraintGreaterThanOrEqualTo(20).Active = true;
+        _answerHeight = _answer.HeightAnchor.ConstraintEqualTo(20);
+        _answerHeight.Active = true;
         var passagesTitle = NSTextField.CreateLabel("");
         passagesTitle.Font = NSFont.SystemFontOfSize(12, NSFontWeight.Semibold)!;
         _passages = Column(4);
@@ -443,6 +445,7 @@ sealed class AskPane : NSView
     {
         _ask = null!;
         _answer = null!;
+        _answerHeight = null!;
         _passages = null!;
         _history = null!;
     }
@@ -483,6 +486,9 @@ sealed class AskPane : NSView
         }
         _answer.TextStorage!.SetString(text);
         _answer.Hidden = parts.Count == 0;
+        // A text view in a stack is as tall as it's told: as tall as the answer, at the pane's width.
+        _answer.LayoutManager!.EnsureLayoutForTextContainer(_answer.TextContainer!);
+        _answerHeight.Constant = _answer.LayoutManager.GetUsedRect(_answer.TextContainer!).Height + 8;
     }
 
     internal void Cite(int index)
