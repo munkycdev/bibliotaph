@@ -212,6 +212,27 @@ public class LocalModelClientTests
     }
 
     [Fact]
+    public async Task LM_Studio_saying_a_prompt_is_too_long_is_told_apart_with_the_context_it_loaded_the_model_with()
+    {
+        var (client, server) = Connect("http://localhost:1234/v1", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"m"}]}"""),
+            "/v1/chat/completions" => (HttpStatusCode.BadRequest,
+                """{"error":"The number of tokens to keep from the initial prompt is greater than the context length. Try to load the model with a larger context length, or provide a shorter input"}"""),
+            "/api/v0/models/model-a" => Ok("""{"id":"model-a","state":"loaded","max_context_length":40960,"loaded_context_length":8192}"""),
+            _ => NotFound,
+        });
+        var request = Request with { User = new string('x', 35_000) };
+
+        var ex = await Assert.ThrowsAsync<ModelContextException>(() => client.CompleteAsync(request, TestContext.Current.CancellationToken));
+
+        Assert.Equal(8_192, ex.ContextTokens);
+        Assert.True(ex.PromptTokens > 8_192);
+        // Not taken for a refused schema, which LM Studio's plain JSON mode would answer with a refusal of its own.
+        Assert.Single(server.Requests, r => r.Path == "/v1/chat/completions");
+    }
+
+    [Fact]
     public async Task A_book_too_long_for_the_context_fails_by_itself_without_asking_the_server_again()
     {
         var (client, server) = Connect("http://127.0.0.1:8080", (path, _) => path switch
