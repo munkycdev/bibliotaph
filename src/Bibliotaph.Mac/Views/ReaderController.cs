@@ -43,6 +43,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         var zoomOut = Button("minus.magnifyingglass", "Zoom out", () => StepZoom(-1));
         var zoomIn = Button("plus.magnifyingglass", "Zoom in", () => StepZoom(1));
         var fit = Button("arrow.left.and.right", "Fit width", null);
+        // The whole page in view, as Preview's Zoom to Fit: the page being read, from its top.
+        var fitPage = Button("arrow.up.and.down.and.arrow.left.and.right", "Fit the whole page", FitPage);
         var find = new NSSearchField { PlaceholderString = "Find in this book", SendsWholeSearchString = true };
         find.WidthAnchor.ConstraintEqualTo(220).Active = true;
         var findPrevious = Button("chevron.left", "Previous match", null);
@@ -68,7 +70,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         _bindings.Command(notesToggle, reader.ToggleNotesCommand);
         _bindings.Command(outlineToggle, reader.ToggleOutlineCommand);
         _bindings.Command(stripToggle, reader.ToggleStripCommand);
-        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, Separator(),
+        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, fitPage, Separator(),
             findStatus, find, findPrevious, findNext]);
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
@@ -179,6 +181,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             secondary.Hidden = !reader.ShowEmptyState || reader.EmptySecondaryText is null || reader.EmptySecondaryCommand is null;
             foreach (var control in new NSControl[] { previous, next, pageBox, zoomOut, zoomIn, fit, find, findPrevious, findNext })
                 control.Hidden = !reader.HasPages;
+            fitPage.Hidden = !reader.IsPdf;
             pageCount.Hidden = !reader.HasPages;
         });
         _bindings.Property(reader, nameof(ViewerViewModel.Pdf), ShowPdf);
@@ -303,6 +306,14 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             _ebook.SetZoom(reader.Zoom > 0 ? reader.Zoom : 1, fitPage: reader.Zoom == ZoomSteps.FitPage);
             _ebook.Show(ebook.Content, ebook.PageIndex);
         }
+    }
+
+    void FitPage()
+    {
+        if (!reader.IsPdf) return;
+        var page = reader.CurrentPageIndex;
+        reader.Zoom = ZoomSteps.FitPage;
+        _pages.GoToPage(page, null, centred: true);
     }
 
     void StepZoom(int step)
