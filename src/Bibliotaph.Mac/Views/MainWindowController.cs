@@ -37,7 +37,7 @@ public sealed class MainWindowController : NSWindowController
         _devices = new DevicesWindow(services);
         _settings = new SettingsWindow(services, folders);
         _sidebar = new SidebarController(_shell.Activity, folders, services.GetRequiredService<SourceRootStore>(), services.GetRequiredService<WebShelfCache>(),
-            services.GetRequiredService<INavigationService>());
+            services.GetRequiredService<INavigationService>(), _shell);
         // A folder just added is a new choice in the Library's folder filter, which it lists as it loads.
         folders.Added += (_, _) => Bindings.OnMain(() =>
         {

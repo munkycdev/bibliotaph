@@ -1,5 +1,6 @@
 using AppKit;
 using Bibliotaph.Catalog;
+using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Mac.Binding;
 using Bibliotaph.Presentation.Services;
@@ -10,19 +11,24 @@ using Foundation;
 namespace Bibliotaph.Mac.Views;
 
 /// <summary>
-/// A source list: the pages the Mac has, then each library folder, which narrows the Library to it as its folder
-/// filter does on Windows. Under it, what indexing is doing.
+/// A source list: the pages the Mac has, what is pinned (books, Favorites, collections, binders and saved searches),
+/// then each library folder, which narrows the Library to it as its folder filter does on Windows. Under it, what
+/// indexing is doing.
 /// </summary>
 public sealed class SidebarController(LibraryActivity activity, FolderAdding adding, SourceRootStore roots, WebShelfCache shelf,
-    INavigationService navigation) : NSViewController
+    INavigationService navigation, ShellViewModel shell) : NSViewController
 {
-    /// <summary>A page (<paramref name="Route"/>), a library folder (<paramref name="RootId"/>, in the Library), or a heading.</summary>
-    sealed record Row(bool IsHeader, string Title, string Symbol, long? RootId, Route Route = Route.Library);
+    /// <summary>
+    /// A page (<paramref name="Route"/>), a library folder (<paramref name="RootId"/>, in the Library), a pin
+    /// (<paramref name="Pin"/>), or a heading.
+    /// </summary>
+    sealed record Row(bool IsHeader, string Title, string Symbol, long? RootId, Route Route = Route.Library, PinnedItemViewModel? Pin = null);
 
     readonly Bindings _bindings = new();
     Bindings _page = new();
     LibraryViewModel? _library;
     List<Row> _rows = [];
+    IReadOnlyList<SourceRoot> _folders = [];
     NSTableView _table = null!;
     NSButton _connect = null!;
     Source? _source;
@@ -33,7 +39,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
 
     public override void LoadView()
     {
-        _table = new NSTableView
+        _table = new PinMenus(this)
         {
             Style = NSTableViewStyle.SourceList,
             HeaderView = null!,
@@ -86,6 +92,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         EventHandler refreshed = (_, _) => Bindings.OnMain(() => ReloadAsync().FireAndForget());
         adding.Added += refreshed;
         _bindings.Add(() => adding.Added -= refreshed);
+        _bindings.Collection(shell.Pinned, _ => ShowRows());
         ReloadAsync().FireAndForget();
     }
 
@@ -106,6 +113,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         _page = new Bindings();
         _shownPage = page;
         _library = page as LibraryViewModel;
+        if (page is not null) _page.Property(page, nameof(PageViewModel.PinKey), SelectCurrent);
         if (_library is { } library)
             _page.Property(library.Filters, nameof(LibraryFilterState.FolderChoice), () =>
             {
@@ -122,7 +130,13 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
 
     async Task ReloadAsync()
     {
-        var folders = await roots.ListAsync();
+        _folders = await roots.ListAsync();
+        ShowRows();
+    }
+
+    void ShowRows()
+    {
+        var folders = _folders;
         _rows =
         [
             new Row(false, "Home", "house", null, Route.Home),
@@ -130,6 +144,8 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
             new Row(false, "Collections", "square.stack", null, Route.Collections),
             new Row(false, "Binders", "book.closed", null, Route.Sessions),
             new Row(false, "Needs review", "tray", null, Route.NeedsReview),
+            .. shell.Pinned.Count == 0 ? (IEnumerable<Row>)[] :
+                [new Row(true, "Pinned", "", null), .. shell.Pinned.Select(p => new Row(false, p.Label, Symbol(p.Icon), null, Pin: p))],
             new Row(true, "Library folders", "", null),
             .. folders.Select(f => new Row(false, shelf.NameOf(f.Path), WebLibraryPaths.IsWebPath(f.Path) ? "globe" : "folder", f.Id)),
         ];
@@ -137,12 +153,32 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         SelectCurrent();
     }
 
+    /// <summary>The SF Symbol for a pin's icon, which is named for the Windows app's Lucide icon.</summary>
+    static string Symbol(string icon) => icon switch
+    {
+        "Heart" => "heart",
+        "Folders" => "square.stack",
+        "NotebookTabs" => "book.closed",
+        "SlidersHorizontal" => "line.3.horizontal.decrease.circle",
+        _ => "book",
+    };
+
     void SelectCurrent()
     {
         if (_table is null) return;
+        // A page that is pinned is marked as its pin, as on Windows.
+        if (_shownPage?.PinKey is { } key && _rows.FindIndex(r => r.Pin?.Key == key) is >= 0 and var pinned)
+        {
+            _selecting = true;
+            _table.SelectRow(pinned, false);
+            _selecting = false;
+            return;
+        }
         var root = _library?.Filters.FolderChoice.Value is { Folder.Length: 0 } folder ? folder.RootId : (long?)null;
         var route = _shownPage?.NavRoute ?? Route.Library;
-        var index = route == Route.Library ? _rows.FindIndex(r => !r.IsHeader && r.Route == Route.Library && r.RootId == root) : _rows.FindIndex(r => r.Route == route && !r.IsHeader);
+        var index = route == Route.Library
+            ? _rows.FindIndex(r => !r.IsHeader && r.Pin is null && r.Route == Route.Library && r.RootId == root)
+            : _rows.FindIndex(r => r.Route == route && !r.IsHeader && r.Pin is null);
         _selecting = true;
         if (index >= 0) _table.SelectRow(index, false);
         else _table.DeselectAll(this);
@@ -152,6 +188,11 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
     void Choose(Row row)
     {
         if (_selecting) return;
+        if (row.Pin is { } pin)
+        {
+            shell.OpenPinCommand.Execute(pin);
+            return;
+        }
         if (row.Route != Route.Library || _library is not { } library)
         {
             _pendingRoot = row.RootId;
@@ -162,6 +203,33 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         filters.FolderChoice = row.RootId is { } id
             ? filters.FolderChoices.FirstOrDefault(c => c.Value == new FolderKey(id, "")) ?? filters.FolderChoices[0]
             : filters.FolderChoices[0];
+    }
+
+    /// <summary>A pin's right-click menu, as on Windows: open it, unpin it, move it, and rename or delete a saved search.</summary>
+    NSMenu? MenuFor(nint at)
+    {
+        if (at < 0 || at >= _rows.Count || _rows[(int)at].Pin is not { } pin) return null;
+        var menu = new NSMenu();
+        void Add(string title, System.Windows.Input.ICommand command)
+        {
+            if (command.CanExecute(pin)) menu.AddItem(new NSMenuItem(title, (_, _) => command.Execute(pin)));
+        }
+        Add("Open", shell.OpenPinCommand);
+        Add("Unpin", shell.UnpinCommand);
+        Add("Move up", shell.MovePinUpCommand);
+        Add("Move down", shell.MovePinDownCommand);
+        if (pin.IsSavedSearch)
+        {
+            menu.AddItem(NSMenuItem.SeparatorItem);
+            Add("Rename…", shell.RenameViewCommand);
+            Add("Delete", shell.DeleteViewCommand);
+        }
+        return menu;
+    }
+
+    sealed class PinMenus(SidebarController owner) : NSTableView
+    {
+        public override NSMenu? MenuForEvent(NSEvent theEvent) => owner.MenuFor(GetRow(ConvertPointFromView(theEvent.LocationInWindow, null)));
     }
 
     protected override void Dispose(bool disposing)
@@ -210,6 +278,11 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
             text.LineBreakMode = NSLineBreakMode.TruncatingMiddle;
             var cell = new NSTableCellView { ImageView = image, TextField = text };
             Pin(cell, text, image);
+            if (row.Pin is { } pin)
+            {
+                cell.ToolTip = pin.Tip;
+                if (pin.IsDimmed) text.TextColor = NSColor.TertiaryLabel;
+            }
             if (row.Route == Route.NeedsReview) Count(cell, owner._reviewCount);
             return cell;
         }

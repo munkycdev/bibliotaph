@@ -65,12 +65,13 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         empty.Spacing = 10;
 
         var bar = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 6 };
-        foreach (var part in new NSView[] { FilterBar(), OrganizeBar(), UndoLine() }) bar.AddArrangedSubview(part);
+        foreach (var part in new NSView[] { FilterBar(), OrganizeBar(), UndoLine(), SavedSearchLine() }) bar.AddArrangedSubview(part);
+        var pageActions = PageActions();
         _list = new BookList(this);
         var listScroll = new NSScrollView { DocumentView = _list, HasVerticalScroller = true, DrawsBackground = false };
 
         var root = new NSView();
-        foreach (var view in new NSView[] { heading, count, bar, issue, scroll, listScroll, empty })
+        foreach (var view in new NSView[] { heading, count, pageActions, bar, issue, scroll, listScroll, empty })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
@@ -82,7 +83,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             heading.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24),
             count.FirstBaselineAnchor.ConstraintEqualTo(heading.FirstBaselineAnchor),
             count.LeadingAnchor.ConstraintEqualTo(heading.TrailingAnchor, 10),
-            count.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -24),
+            count.TrailingAnchor.ConstraintLessThanOrEqualTo(pageActions.LeadingAnchor, -12),
+            pageActions.CenterYAnchor.ConstraintEqualTo(heading.CenterYAnchor),
+            pageActions.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -24),
             bar.TopAnchor.ConstraintEqualTo(heading.BottomAnchor, 8),
             bar.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24),
             bar.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -24),
@@ -129,6 +132,13 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
 
         DialogSheet.Follow(_bindings, library.Collections, () => View.Window);
         OrganizeSheets.Follow(_bindings, library.Selection, () => View.Window);
+        NSAlert? naming = null;
+        _bindings.Property(library.SmartViews, nameof(SmartViewsViewModel.ViewDialog), () =>
+        {
+            // A dialog closed by its view model rather than its buttons takes its sheet with it.
+            if (naming?.Window.SheetParent is { } parent) parent.EndSheet(naming.Window);
+            naming = library.SmartViews.ViewDialog is { } dialog && View.Window is { } host ? NameSheet(dialog, host) : null;
+        });
         _bindings.Properties(library.Selection.Books, [nameof(BookSelection.IsActive), nameof(BookSelection.Count)], ShowTicks);
         DialogSheet.Follow(_bindings, library.Sessions, () => View.Window);
 
@@ -237,6 +247,106 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         return bar;
     }
 
+    /// <summary>
+    /// The page's own actions beside its heading, as on Windows: a collection's New collection, Rename, Move to, Pin
+    /// and Delete; a saved search's Rename, Pin and Delete; Favorites' Pin.
+    /// </summary>
+    NSStackView PageActions()
+    {
+        var views = library.SmartViews;
+        var newCollection = Small("New collection…", library.NewSubCollectionCommand);
+        var renameCollection = Small("Rename…", library.RenameCollectionCommand);
+        var moveCollection = Small("Move to…", library.MoveCollectionCommand);
+        var deleteCollection = Small("Delete collection", library.DeleteCollectionCommand);
+        var renameView = Small("Rename…", views.RenameViewCommand);
+        var deleteView = Small("Delete search", views.DeleteViewCommand);
+        var pin = Small("Pin", library.TogglePinCommand);
+        var actions = NSStackView.FromViews([newCollection, renameCollection, moveCollection, renameView, pin, deleteCollection, deleteView]);
+        actions.Spacing = 8;
+        void Show()
+        {
+            var collection = library.ShowsCollectionActions;
+            newCollection.Hidden = renameCollection.Hidden = moveCollection.Hidden = deleteCollection.Hidden = !collection;
+            renameView.Hidden = deleteView.Hidden = !views.IsView;
+            pin.Hidden = !(collection || views.IsView || library.IsFavoritesPage);
+            pin.Title = library.PinLabel;
+        }
+        _bindings.Properties(library, [nameof(LibraryViewModel.ShowsCollectionActions), nameof(LibraryViewModel.IsFavoritesPage),
+            nameof(LibraryViewModel.PinLabel), nameof(LibraryViewModel.Heading)], Show);
+        _bindings.Property(views, nameof(SmartViewsViewModel.IsView), Show);
+        return actions;
+    }
+
+    /// <summary>
+    /// A saved search changed since it was saved, with Update and Save as new; a note about it; and what the last change
+    /// to the saved searches did, with its Undo.
+    /// </summary>
+    NSStackView SavedSearchLine()
+    {
+        var views = library.SmartViews;
+        var changed = NSTextField.CreateLabel("This saved search has changed.");
+        changed.Font = NSFont.SystemFontOfSize(12)!;
+        var update = Small("Update saved search", views.UpdateViewCommand);
+        var saveNew = Small("Save as new…", views.SaveViewAsNewCommand);
+        var note = NSTextField.CreateWrappingLabel("");
+        note.Font = NSFont.SystemFontOfSize(12)!;
+        note.TextColor = NSColor.SecondaryLabel;
+        var message = NSTextField.CreateLabel("");
+        message.Font = NSFont.SystemFontOfSize(12)!;
+        var undo = Small("Undo", views.ViewUndo.UndoCommand);
+        var line = NSStackView.FromViews([changed, update, saveNew, note, message, undo]);
+        line.Spacing = 8;
+        void Show()
+        {
+            changed.Hidden = update.Hidden = saveNew.Hidden = !views.IsViewChanged;
+            note.StringValue = views.ViewNote ?? "";
+            note.Hidden = views.ViewNote is null;
+            message.StringValue = views.ViewUndo.Message ?? "";
+            message.Hidden = views.ViewUndo.Message is null;
+            undo.Hidden = !views.ViewUndo.HasUndo;
+            line.Hidden = changed.Hidden && note.Hidden && message.Hidden;
+        }
+        _bindings.Properties(views, [nameof(SmartViewsViewModel.IsViewChanged), nameof(SmartViewsViewModel.ViewNote)], Show);
+        _bindings.Properties(views.ViewUndo, [nameof(UndoSlot.Message), nameof(UndoSlot.HasUndo)], Show);
+        return line;
+    }
+
+    /// <summary>Saved searches: open one; each with its Pin, Rename and Delete.</summary>
+    void ShowSavedSearches(NSButton under)
+    {
+        var views = library.SmartViews;
+        views.ShowSavedSearchRows();
+        var items = new List<NSMenuItem>();
+        foreach (var row in views.SavedSearches)
+        {
+            var menu = new NSMenu(row.Name);
+            menu.AddItem(new NSMenuItem("Open", (_, _) => views.OpenSavedSearchCommand.Execute(row)));
+            menu.AddItem(new NSMenuItem(row.IsPinned ? "Unpin" : "Pin", (_, _) => views.TogglePinSavedSearchCommand.Execute(row)));
+            menu.AddItem(new NSMenuItem("Rename…", (_, _) => views.RenameSavedSearchCommand.Execute(row)));
+            menu.AddItem(new NSMenuItem("Delete", (_, _) => views.DeleteSavedSearchCommand.Execute(row)));
+            items.Add(new NSMenuItem(row.Name) { Submenu = menu });
+        }
+        Pop(under, items);
+    }
+
+    /// <summary>Save search, Save as new and Rename's name, as a sheet.</summary>
+    static NSAlert NameSheet(SmartViewDialogViewModel dialog, NSWindow host)
+    {
+        var alert = new NSAlert { MessageText = dialog.Heading };
+        var name = new NSTextField(new CGRect(0, 0, 280, 24)) { StringValue = dialog.Name, PlaceholderString = "Name" };
+        alert.AccessoryView = name;
+        alert.Window.InitialFirstResponder = name;
+        alert.AddButton(dialog.ActionText).KeyEquivalent = "\r";
+        alert.AddButton("Cancel").KeyEquivalent = "\u001b";
+        alert.BeginSheet(host, response =>
+        {
+            dialog.Name = name.StringValue;
+            if ((long)response == (long)NSAlertButtonReturn.First && dialog.SaveCommand.CanExecute(null)) dialog.SaveCommand.Execute(null);
+            else dialog.CancelCommand.Execute(null);
+        });
+        return alert;
+    }
+
     /// <summary>What the last change to many books did, with its Undo.</summary>
     NSStackView UndoLine()
     {
@@ -298,7 +408,16 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         _bindings.Property(library, nameof(LibraryViewModel.Layout), () => layout.SelectedSegment = library.Layout == Bibliotaph.Index.LibraryLayout.List ? 1 : 0);
         var organize = Small("Organize", library.Selection.StartSelectingCommand);
         _bindings.Property(library.Selection.Books, nameof(BookSelection.IsActive), () => organize.Hidden = library.Selection.Books.IsActive);
-        var bar = NSStackView.FromViews([sort, kind, system, type, folder, clear, layout, organize]);
+        var views = library.SmartViews;
+        var save = Small("Save search…", views.SaveViewCommand);
+        var saved = Small("Saved searches", null);
+        saved.Activated += (_, _) => ShowSavedSearches(saved);
+        _bindings.Properties(views, [nameof(SmartViewsViewModel.CanSaveView), nameof(SmartViewsViewModel.HasSavedSearches)], () =>
+        {
+            save.Hidden = !views.CanSaveView;
+            saved.Hidden = !views.HasSavedSearches;
+        });
+        var bar = NSStackView.FromViews([sort, kind, system, type, folder, clear, layout, organize, save, saved]);
         bar.Spacing = 8;
         return bar;
     }
