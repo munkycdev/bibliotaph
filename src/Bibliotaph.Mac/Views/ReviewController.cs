@@ -36,8 +36,20 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
         };
         var reload = NSButton.CreateButton("Check again", () => { });
         _bindings.Command(reload, review.ReloadCommand);
-        var top = NSStackView.FromViews([heading, subtitle, new NSView(), show, tabs, reload]);
-        top.Spacing = 10;
+        // The heading and what it says on one line, which gives way before anything is pushed out of the window; the
+        // two lists to switch between and their controls on the next.
+        subtitle.LineBreakMode = NSLineBreakMode.TruncatingTail;
+        subtitle.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
+        var title = NSStackView.FromViews([heading, subtitle]);
+        title.Spacing = 10;
+        title.Alignment = NSLayoutAttribute.FirstBaseline;
+        var controls = NSStackView.FromViews([tabs, new NSView(), show, reload]);
+        controls.Spacing = 10;
+        var top = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 10 };
+        top.AddArrangedSubview(title);
+        top.AddArrangedSubview(controls);
+        title.WidthAnchor.ConstraintLessThanOrEqualTo(top.WidthAnchor, 1, -48).Active = true;
+        controls.WidthAnchor.ConstraintEqualTo(top.WidthAnchor, 1, -48).Active = true;
         top.EdgeInsets = new NSEdgeInsets(16, 24, 8, 24);
 
         _list = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 12 };
