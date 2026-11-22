@@ -90,6 +90,7 @@ public sealed class MainWindowController : NSWindowController
         services.GetRequiredService<MacReaderWindows>().MainWindow = window;
         _web = services.GetRequiredService<WebLibrary>();
         _roots = services.GetRequiredService<SourceRootStore>();
+        _sidebar.StatusClicked += (_, _) => _settings.Open(Presentation.Services.SettingsSection.Processing);
         _navigation.Navigated += OnNavigated;
         _bindings.Add(() => _navigation.Navigated -= OnNavigated);
     }

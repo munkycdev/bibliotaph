@@ -51,10 +51,14 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         _table.Delegate = _source;
         var scroll = new NSScrollView { DocumentView = _table, HasVerticalScroller = true, DrawsBackground = false };
 
-        var status = NSTextField.CreateWrappingLabel("");
+        // What indexing is doing; a click opens Settings › Processing, which shows it all.
+        var status = new StatusLabel { Editable = false, Selectable = false, Bordered = false, DrawsBackground = false };
+        status.Cell.Wraps = true;
         status.Font = NSFont.SystemFontOfSize(11)!;
         status.TextColor = NSColor.SecondaryLabel;
         status.MaximumNumberOfLines = 3;
+        status.ToolTip = "Show what Bibliotaph is doing in Settings › Processing";
+        status.AddGestureRecognizer(new NSClickGestureRecognizer(() => StatusClicked?.Invoke(this, EventArgs.Empty)));
 
         var root = new NSView();
         foreach (var view in new NSView[] { scroll, status })
@@ -87,6 +91,15 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         _bindings.Add(() => adding.Added -= refreshed);
         _bindings.Collection(shell.Pinned, _ => ShowRows());
         ReloadAsync().FireAndForget();
+    }
+
+    /// <summary>The status line was clicked.</summary>
+    public event EventHandler? StatusClicked;
+
+    /// <summary>A line that can be clicked, with the pointing hand over it as a link has.</summary>
+    sealed class StatusLabel : NSTextField
+    {
+        public override void ResetCursorRects() => AddCursorRect(Bounds, NSCursor.PointingHandCursor);
     }
 
     /// <summary>The page showing, which the sidebar marks; on the Library, the folder it narrows to.</summary>
