@@ -5,8 +5,8 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.Core.Layout;
+using Bibliotaph.Presentation.ViewModels;
 
 namespace Bibliotaph.App.Views;
 

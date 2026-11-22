@@ -1,6 +1,6 @@
 using System.Windows;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.App.Views;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 
 namespace Bibliotaph.App.Services;

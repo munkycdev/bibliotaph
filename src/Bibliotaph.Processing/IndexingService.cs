@@ -1,8 +1,6 @@
 using Bibliotaph.Catalog;
-using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
-using Bibliotaph.Pdf.Host;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

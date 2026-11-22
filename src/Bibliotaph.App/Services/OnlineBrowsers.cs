@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Interop;
 using Bibliotaph.App.Views;
 using Bibliotaph.Core;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Web.WebView2.Core;
@@ -14,7 +15,7 @@ namespace Bibliotaph.App.Services;
 /// browser. It never navigates on its own: it opens the library page once, and from there the user browses. Read this
 /// page hands the page in view to the service's reader.
 /// </summary>
-public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImages iconImages, OnlineDownloads downloads, ILoggerFactory logs)
+public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImages iconImages, OnlineDownloads downloads, ILoggerFactory logs) : IInAppBrowser
 {
     readonly Dictionary<string, OnlineBrowserWindow> _open = [];
     Task<CoreWebView2Environment>? _environment;
@@ -29,6 +30,8 @@ public sealed class OnlineBrowsers(AppPaths paths, SiteIcons icons, SiteIconImag
     public IReadOnlyCollection<OnlineBrowserWindow> Windows => _open.Values;
 
     /// <summary>The Edge WebView2 Runtime's version, or null when it isn't installed (Windows 11 has it).</summary>
+    public bool IsInstalled => RuntimeVersion is not null;
+
     public static string? RuntimeVersion
     {
         get

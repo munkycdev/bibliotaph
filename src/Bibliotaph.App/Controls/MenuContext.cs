@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
+using Bibliotaph.Presentation.ViewModels;
 
 namespace Bibliotaph.App.Controls;
 
@@ -12,10 +13,7 @@ namespace Bibliotaph.App.Controls;
 /// </summary>
 public static class MenuContext
 {
-    public static T? Find<T>(ContextMenu menu) where T : class => Nearest<T>(Contexts(menu));
-
-    /// <summary>The first of these data contexts, nearest first, that is a <typeparamref name="T"/>.</summary>
-    public static T? Nearest<T>(IEnumerable<object?> contexts) where T : class => contexts.OfType<T>().FirstOrDefault();
+    public static T? Find<T>(ContextMenu menu) where T : class => MenuChoiceSource.Nearest<T>(Contexts(menu));
 
     static IEnumerable<object?> Contexts(ContextMenu menu)
     {

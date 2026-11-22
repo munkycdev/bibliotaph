@@ -4,8 +4,8 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
-using Bibliotaph.App.Services;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 
 namespace Bibliotaph.App.Views;
 

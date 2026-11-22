@@ -1,7 +1,7 @@
 <Window x:Class="Bibliotaph.App.Views.ShortcutsDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:s="clr-namespace:Bibliotaph.App.Services"
+        xmlns:s="clr-namespace:Bibliotaph.Presentation.Services;assembly=Bibliotaph.Presentation"
         Title="Keyboard shortcuts"
         Width="600" Height="640" MinWidth="420" MinHeight="280" ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner"

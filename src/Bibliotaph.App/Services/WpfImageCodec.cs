@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 
 namespace Bibliotaph.App.Services;

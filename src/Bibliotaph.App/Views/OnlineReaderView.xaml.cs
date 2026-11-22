@@ -5,7 +5,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.App.Services;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Microsoft.Web.WebView2.Core;
 
 namespace Bibliotaph.App.Views;
@@ -36,6 +38,13 @@ public partial class OnlineReaderView
         };
     }
 
+    static OnlineBrowsers? _browsers;
+
+    /// <summary>The app's browsers, which every online reader's page is shown in. Set once, at startup.</summary>
+    public static void Use(OnlineBrowsers browsers) => _browsers = browsers;
+
+    static OnlineBrowsers Browsers => _browsers ?? throw new InvalidOperationException("OnlineReaderView.Use wasn't called.");
+
     OnlineReaderViewModel? Model => DataContext as OnlineReaderViewModel;
 
     async Task StartAsync()
@@ -43,7 +52,7 @@ public partial class OnlineReaderView
         if (_started || Model is not { } model) return;
         _started = true;
         model.Sessions.PropertyChanged += Sessions_PropertyChanged;
-        if (model.Browsers.OnlyFiles && !model.Start.IsFile)
+        if (Browsers.OnlyFiles && !model.Start.IsFile)
         {
             // The smoke test reads no real site.
             model.Notice = "The smoke test doesn't open web pages.";
@@ -51,7 +60,7 @@ public partial class OnlineReaderView
         }
         try
         {
-            await Web.EnsureCoreWebView2Async(await model.Browsers.EnvironmentAsync());
+            await Web.EnsureCoreWebView2Async(await Browsers.EnvironmentAsync());
         }
         catch (WebView2RuntimeNotFoundException)
         {
@@ -84,7 +93,7 @@ public partial class OnlineReaderView
         core.DownloadStarting += async (_, e) =>
         {
             // A store's Download button on the book's page: the reader says how it goes.
-            var download = await model.Browsers.Downloads.TakeAsync(e, model.Request.Place ?? model.Title);
+            var download = await Browsers.Downloads.TakeAsync(e, model.Request.Place ?? model.Title);
             model.Notice = $"{download.Name}: {download.Status}";
             download.PropertyChanged += (_, p) =>
             {
@@ -119,7 +128,7 @@ public partial class OnlineReaderView
                 core.RemoveScriptToExecuteOnDocumentCreated(id);
                 _readingScript = null;
             }
-            if (model.ReadingMode && model.ReadingStyle is { } style && Services.OnlineReaders.SiteOf(model.Request.Link) is { } site)
+            if (model.ReadingMode && model.ReadingStyle is { } style && OnlineReaders.SiteOf(model.Request.Link) is { } site)
             {
                 var script = ReadingScript(style, site);
                 _readingScript = await core.AddScriptToExecuteOnDocumentCreatedAsync(script);

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The app's view models and the services they use, with no UI framework in them: WPF views show them on Windows,
+    and another platform's views can show the same ones.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Catalog\Bibliotaph.Catalog.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Index\Bibliotaph.Index.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Processing\Bibliotaph.Processing.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Storage\Bibliotaph.Storage.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Ebooks\Bibliotaph.Ebooks.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Classification\Bibliotaph.Classification.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Pdf.Contracts\Bibliotaph.Pdf.Contracts.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The e-book reader page's own stylesheet and script, served to it from memory. -->
+    <EmbeddedResource Include="Assets\Ebook\*" LogicalName="Bibliotaph.Presentation.Ebook.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Serilog" />
+  </ItemGroup>
+</Project>

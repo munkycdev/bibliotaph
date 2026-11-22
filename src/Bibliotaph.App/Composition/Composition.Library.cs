@@ -1,6 +1,7 @@
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Index;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -60,7 +61,9 @@ static partial class Composition
             sp.GetRequiredService<MetadataProjector>(), LostCovers.CreateClient(smokeTest ? new SmokeSiteIcons() : null), sp.GetRequiredService<ILogger<LostCovers>>()));
         services.AddSingleton<OnlineImports>();
         services.AddSingleton<OnlineBrowsers>();
+        services.AddSingleton<IInAppBrowser>(sp => sp.GetRequiredService<OnlineBrowsers>());
         services.AddSingleton<EbookBrowser>();
+        services.AddSingleton<IEbookBrowser>(sp => sp.GetRequiredService<EbookBrowser>());
         services.AddSingleton<OnlineReaders>();
         services.AddSingleton<OnlineDownloads>();
         services.AddSingleton(sp => new JobBoard(sp.GetRequiredService<IndexWriter>(), sp.GetRequiredService<IndexDatabase>(), sp.GetRequiredService<TimeProvider>()));

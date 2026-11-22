@@ -6,7 +6,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 
 namespace Bibliotaph.App.Views;

@@ -3,6 +3,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Presentation.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 

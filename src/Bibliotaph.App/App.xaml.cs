@@ -1,11 +1,12 @@
 using System.Windows;
 using System.Windows.Threading;
 using Bibliotaph.App.Services;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Host;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Bibliotaph.Viewer;
 using Microsoft.Extensions.DependencyInjection;
@@ -59,6 +60,7 @@ public partial class App : Application
             var everyday = !_smokeTest && !measureSearch && !measureViewer && screenshots is null;
             _host = BuildHost(paths, pilot, dev, _smokeTest, everyday);
             Controls.CoverSource.Use(_host.Services.GetRequiredService<CoverImages>());
+            Views.OnlineReaderView.Use(_host.Services.GetRequiredService<OnlineBrowsers>());
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
 

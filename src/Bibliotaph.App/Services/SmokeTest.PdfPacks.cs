@@ -1,8 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Index;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;

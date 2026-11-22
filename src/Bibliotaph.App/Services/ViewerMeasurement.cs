@@ -5,6 +5,7 @@ using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Bibliotaph.Pdf.Contracts;
 using Bibliotaph.Pdf.Host;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Viewer;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;

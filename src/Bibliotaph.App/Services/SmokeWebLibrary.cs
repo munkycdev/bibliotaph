@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Security.Cryptography;
 using Bibliotaph.Api.Contracts;
 using Bibliotaph.Index;

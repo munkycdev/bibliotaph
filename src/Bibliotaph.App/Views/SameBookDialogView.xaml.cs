@@ -1,3 +1,4 @@
+
 namespace Bibliotaph.App.Views;
 
 /// <summary>Same book, over the Library. The Library moves keyboard focus in and out of it.</summary>

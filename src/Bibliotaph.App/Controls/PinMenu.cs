@@ -1,6 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.ViewModels;
 
 namespace Bibliotaph.App.Controls;
 
@@ -28,10 +28,7 @@ public static class PinMenu
     static void Name(object sender, RoutedEventArgs e)
     {
         var menu = (ContextMenu)sender;
-        var label = Label(MenuContext.Find<IPinState>(menu), menu.DataContext);
+        var label = MenuChoiceSource.PinLabel(MenuContext.Find<IPinState>(menu), menu.DataContext);
         foreach (var item in menu.Items.OfType<MenuItem>().Where(i => i.Command == BookCommands.TogglePin)) item.Header = label;
     }
-
-    /// <summary>The Pin item's name for a menu's context; Pin where nothing says it is pinned.</summary>
-    public static string Label(IPinState? pins, object? context) => pins?.IsPinned(context) == true ? "Unpin" : "Pin";
 }

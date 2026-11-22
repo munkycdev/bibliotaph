@@ -1,0 +1,1858 @@
+using System.Globalization;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Catalog;
+using Bibliotaph.Core;
+using Bibliotaph.Core.Reading;
+using Bibliotaph.Index;
+using Bibliotaph.Pdf.Contracts;
+using Bibliotaph.Pdf.Host;
+using Bibliotaph.Processing;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+
+namespace Bibliotaph.Presentation.ViewModels;
+
+public enum ViewerMode
+{
+    Empty,
+    Opening,
+    Pdf,
+    Image,
+    Video,
+    Ebook,
+    Problem,
+}
+
+/// <summary>A video open in the reader (an animated map): its title, and a way to read its file, once for each part the player asks for.</summary>
+public sealed record OpenVideo(string Title, Func<System.IO.Stream> Open);
+
+/// <summary>
+/// An open PDF for the page surface: the document, what the worker said about it, where to start, the page there if it
+/// was drawn ahead of time, and where its printed page numbers are (for links made from an index page's numbers),
+/// worked out the first time a page asks.
+/// </summary>
+public sealed record OpenPdf(IReaderDocument Document, DocInfo Doc, Func<int, Task<PageTextLayer>> Text, int PageIndex, double? PdfTop,
+    PageSeed? Seed = null, Func<Task<PrintedPages>>? Numbering = null);
+
+/// <summary>An open e-book for its page surface, and the page to open at.</summary>
+public sealed record OpenEbook(EbookContent Content, int PageIndex);
+
+/// <summary>The marks on the pages; the one at <see cref="Current"/> stands out.</summary>
+public sealed record HighlightSet(IReadOnlyList<PageHighlight> Items, int Current)
+{
+    public static HighlightSet None { get; } = new([], -1);
+}
+
+/// <summary>A place to scroll to: a page, and with <see cref="PdfTop"/> a spot on it (PDF points from the bottom).</summary>
+public sealed record PageTarget(int PageIndex, double? PdfTop);
+
+/// <summary>
+/// A bookmark in the book's outline, with the page it goes to as the reader would name it. <see cref="InPart"/> marks
+/// one inside the adventure being read, which the Contents panel shades.
+/// </summary>
+public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string Page)
+{
+    public double Indent => Depth * 14;
+
+    public bool InPart { get; init; }
+
+    /// <summary>
+    /// What the AI found reading the chapter that starts here ("Setting: … · Creatures: …"), or null. It describes the
+    /// chapter, not the book.
+    /// </summary>
+    public string? Found { get; init; }
+
+    public bool HasFound => Found is not null;
+}
+
+/// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="IReaderWindows"/> makes the readers.</summary>
+public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, DocumentOpener Opener,
+    IJobControl Indexing, JobBoard Jobs, ISourceFileReader Files, IPictureDecoder Pictures, IReaderDocuments Documents,
+    SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
+    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, IPageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
+    IUserPrompts UserPrompts, IDesktopShell Shell, IUiThread Ui, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null, PackService? Packs = null,
+    IEbookBrowser? Ebooks = null, WebLibraryCopies? WebCopies = null, NornisScope? Nornis = null, WebLibrary? Web = null);
+
+/// <summary>
+/// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
+/// and the first one in view; an e-book opens on its reader page, cut into the pages indexing cut it into; an image
+/// opens decoded at a capped size. Asks for a PDF's password and can remember
+/// it. Leaving the page closes the book; coming Back reopens it where the reader was. The same reader runs in the
+/// main window and in a pop-out window; it is given its request when it's made. A binder has it open the next item's
+/// book ahead of time when that's another book (<see cref="PrepareAsync"/>), so moving to it is as quick as a page turn.
+/// </summary>
+public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IPageNotesReader
+{
+    const long ImageMaxPixels = 40_000_000;  // about 160 MB decoded; a bigger map is shrunk to fit
+    const int MaxHitsPerTerm = 200;
+
+    ViewerRequest? _request;
+    readonly LibraryStore _library;
+    readonly LibraryQueries _queries;
+    readonly IndexQueries _index;
+    readonly PdfWorkerPool _workers;
+    readonly DocumentOpener _opener;
+    readonly OtherApps _otherApps;
+    readonly IUserPrompts _userPrompts;
+    readonly IDesktopShell _shell;
+    readonly IJobControl _indexing;
+    readonly JobBoard _jobs;
+    readonly ISourceFileReader _files;
+    readonly SourceFiles _sources;
+    readonly WebLibraryCopies? _webCopies;
+    readonly IPictureDecoder _pictures;
+    readonly IReaderDocuments _documents;
+    readonly FavoritesService _favorites;
+    readonly PinDirectory _pins;
+    readonly ReadingService _reading;
+    readonly SessionsService _sessions;
+    readonly NotesService _notes;
+    readonly PartsService _parts;
+    readonly ChapterScanService? _chapters;
+    readonly CoverPages _covers;
+    readonly PackService? _packs;
+    readonly LibraryActivity _activity;
+
+    /// <summary>The page the open file's card shows as its cover.</summary>
+    int _coverPage;
+    readonly PagePlaces _places;
+    readonly AskService _ask;
+    readonly NornisScope? _nornis;
+    readonly WebLibrary? _web;
+    /// <summary>The open file's content, by which the web library finds its own copy for Send to Nornis.</summary>
+    string? _nornisHash;
+    readonly ILogger<ViewerViewModel> _log;
+    readonly IUiThread _ui;
+    readonly UiTimer _noticeTimer;
+    readonly UiTimer _placeTimer;
+    readonly IReaderWindows _windows;
+
+    DocumentSource? _source;
+    ViewerLease? _lease;
+    Task _closing = Task.CompletedTask;
+    bool _windowClosed;
+    IReaderDocument? _document;
+    /// <summary>The open e-book, held while it is read.</summary>
+    EbookContent? _ebook;
+    /// <summary>The open PDF's file, held so a file extracted from a ZIP stays while the book is open.</summary>
+    LocalFile? _file;
+    /// <summary>The open video's file, held as the PDF's is: the player reads it again as it loops and seeks.</summary>
+    LocalFile? _videoFile;
+    IReadOnlyList<string?> _labels = [];
+    /// <summary>The open PDF's bookmarks as it lists them, kept so a bookmark can be indexed as an adventure to the next one at its depth.</summary>
+    IReadOnlyList<(int Page, int Depth)> _bookmarks = [];
+    PageTarget? _resume;
+    int _version;
+    Standby? _standby;
+    (long DocumentId, Task Task)? _preparing;
+    int _standbyVersion;
+
+    /// <summary>A book opened ahead of time, with the page it will open at drawn once the view has drawn it.</summary>
+    sealed record Standby(long DocumentId, LocalFile File, IReaderDocument Document, DocInfo Doc, string? Password)
+    {
+        public Task<PageSeed?> Seed { get; set; } = Task.FromResult<PageSeed?>(null);
+    }
+
+    public ViewerViewModel(ViewerRequest? request, ViewerServices services, IReaderWindows windows, bool poppedOut = false)
+    {
+        _request = request;
+        _library = services.Library;
+        _queries = services.Queries;
+        _index = services.Index;
+        _workers = services.Workers;
+        _opener = services.Opener;
+        _otherApps = services.OtherApps;
+        _userPrompts = services.UserPrompts;
+        _shell = services.Shell;
+        _indexing = services.Indexing;
+        _jobs = services.Jobs;
+        _files = services.Files;
+        _sources = services.Sources;
+        _webCopies = services.WebCopies;
+        _pictures = services.Pictures;
+        _documents = services.Documents;
+        _favorites = services.Favorites;
+        _pins = services.Pins;
+        _reading = services.Reading;
+        _sessions = services.Sessions;
+        Sessions = services.SessionActions();
+        _notes = services.Notes;
+        _parts = services.Parts;
+        _covers = services.Covers;
+        _packs = services.Packs;
+        _activity = services.Activity;
+        _places = services.Places;
+        _chapters = services.Chapters;
+        _ask = services.Ask;
+        _nornis = services.Nornis;
+        _web = services.Web;
+        EbookBrowser = services.Ebooks;
+        _log = services.Log;
+        _windows = windows;
+        Strip = new PageStripViewModel(services.Thumbnails, index => GoTo(index, null), _log);
+        ShowStrip = windows.ShowsStrip;
+        IsPoppedOut = poppedOut;
+        Zoom = request?.Zoom ?? ZoomSteps.FitWidth;
+        _ui = services.Ui;
+        Ask = new AskPanelViewModel(services.Ask, _ui, services.Log, ShowPhraseAsync);
+        Find = new FindViewModel(() => CurrentPageIndex, () => _request?.Part?.Pages, GoTo, _log);
+        Notes = new PageNotesViewModel(services.Notes, this, _ui, _log);
+        _noticeTimer = new UiTimer(_ui, services.Time, TimeSpan.FromSeconds(5), repeat: false, () => Notice = null);
+        // The page is kept once reading settles on it, so it survives the app closing with the book open.
+        _placeTimer = new UiTimer(_ui, services.Time, TimeSpan.FromSeconds(2), repeat: false, () =>
+        {
+            if (HasPages) KeepPlace(CurrentPageIndex);
+        });
+    }
+
+    /// <summary>True in a pop-out window, false in the main window's Reading route.</summary>
+    public bool IsPoppedOut { get; }
+
+    /// <summary>True for the reader inside a binder, which frames it and pops out as a whole, so the reader has no Pop out of its own.</summary>
+    public bool InBinder { get; init; }
+
+    /// <summary>No margins of its own: a pop-out's window or a binder sets them.</summary>
+    public bool FitsFrame => IsPoppedOut || InBinder;
+
+    /// <summary>Pop out shows in the main window's reader; a binder has its own.</summary>
+    public bool ShowsPopOut => !IsPoppedOut && !InBinder;
+
+    /// <summary>Return to main window shows in a pop-out reader; a popped-out binder has its own.</summary>
+    public bool ShowsReturn => IsPoppedOut && !InBinder;
+
+    /// <summary>
+    /// Shows another book or another place in this one, as a binder does going from item to item. The PDF already open
+    /// stays open, so the next item in the same book shows at once.
+    /// </summary>
+    public async Task ShowAsync(ViewerRequest request)
+    {
+        if (Mode == ViewerMode.Pdf && _document is not null && _request is { Pack: null } open && open.DocumentId == request.DocumentId && request.Pack is null)
+        {
+            _request = request with { Zoom = Zoom };
+            MarkItemPages();
+            OnPropertyChanged(nameof(Title));
+            ShowPart();
+            Sessions.Close();
+            ShowSessionBanner();
+            // The pages are laid out again at the item's first page, on the document already open: as quick as a
+            // scroll, and the pages view goes to the page the way it does for any open, even mid-layout.
+            var target = Math.Clamp(request.PageIndex, 0, Math.Max(0, PageCount - 1));
+            CurrentPageIndex = target;
+            OnCurrentPageIndexChanged(target);
+            if (Pdf is { } pdf && pdf with { PageIndex = target, PdfTop = null, Seed = null } is var again && again != pdf) Pdf = again;
+            else GoTo(target, null);
+            return;
+        }
+        CloseBook();
+        _resume = null;
+        _request = request;
+        OnPropertyChanged(nameof(Title));
+        ShowPart();
+        OnPropertyChanged(nameof(IsInPack));
+        OnPropertyChanged(nameof(CanUseAsPackCover));
+        OnPropertyChanged(nameof(PackPosition));
+        OnPropertyChanged(nameof(PreviousStepName));
+        OnPropertyChanged(nameof(NextStepName));
+        OnPropertyChanged(nameof(PreviousStepTip));
+        OnPropertyChanged(nameof(NextStepTip));
+        PreviousImageCommand.NotifyCanExecuteChanged();
+        NextImageCommand.NotifyCanExecuteChanged();
+        await LoadAsync();
+    }
+
+    /// <summary>Shows why nothing can open here, as for a binder that has nothing in it yet, with no Try again.</summary>
+    public void ShowUnavailable(string title, string message)
+    {
+        Close();
+        Problem(title, message, null, null);
+    }
+
+    /// <summary>
+    /// The "plug in the drive" prompt for a binder item whose file can't be reached: what to do, naming the folder, and
+    /// Try again (or Find it), which looks at the folder again and then runs <paramref name="retry"/>.
+    /// </summary>
+    public void ShowAway(AwayFile away, Func<Task> retry)
+    {
+        Close();
+        ShowAwayPrompt(away, retry);
+    }
+
+    /// <summary>Closes the book and forgets it, for a page that shows no book; a book opened ahead of time stays.</summary>
+    void Close()
+    {
+        CloseBook();
+        _resume = null;
+        _request = null;
+        OnPropertyChanged(nameof(Title));
+        Subtitle = "";
+        SessionBanner = null;
+        CanUsePage = false;
+    }
+
+    /// <summary>
+    /// Why the book can't be opened, and what to do: an offline folder is named, with its drive, and Try again looks at
+    /// it again and opens the book if it's back; a missing file says where it was last, with Find it, which looks
+    /// through every library folder, and Show last folder.
+    /// </summary>
+    void ShowAwayPrompt(AwayFile away, Func<Task> retry)
+    {
+        Problem(away.Title, away.Message, away.Action, new AsyncRelayCommand(() => LookAgainAsync(away, retry)));
+        if (away.CanShowFolder)
+        {
+            EmptySecondaryText = "Show last folder";
+            EmptySecondaryCommand = new RelayCommand(() => ShowNearestFolder(away.LastPath!));
+        }
+    }
+
+    /// <summary>How long Try again waits for its folders to be looked at before trying to open the book anyway.</summary>
+    static readonly TimeSpan LookAgainWait = TimeSpan.FromSeconds(30);
+
+    async Task LookAgainAsync(AwayFile away, Func<Task> retry)
+    {
+        var version = _version;
+        Mode = ViewerMode.Opening;
+        try
+        {
+            using var wait = new CancellationTokenSource(LookAgainWait);
+            await _indexing.ScanNowAsync(away.FoldersToLook, wait.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            _log.LogInformation("Looking at a book's folders again took longer than {Wait}; trying to open it anyway", LookAgainWait);
+        }
+        if (version != _version || _windowClosed) return;
+        await retry();
+    }
+
+    /// <summary>File Explorer at the folder a missing file was last in, or the nearest one above it still there.</summary>
+    void ShowNearestFolder(string path)
+    {
+        var folder = System.IO.Path.GetDirectoryName(path);
+        while (folder is not null && !System.IO.Directory.Exists(folder)) folder = System.IO.Path.GetDirectoryName(folder);
+        if (folder is not null) _shell.OpenFolder(folder);
+    }
+
+    public override Route Route => Route.Viewer;
+
+    /// <summary>The book's title; for an adventure inside a file, its own and the file's.</summary>
+    public override string Title => _request is { Part: { } part } request ? $"{request.Title} · in {part.FileTitle}" : _request?.Title ?? "Reader";
+
+    /// <summary>
+    /// True for a file opened from a pack: Previous and Next step through its files, images opening as images and
+    /// PDFs as PDFs.
+    /// </summary>
+    public bool IsInPack => _request?.Pack is { Count: > 0 };
+
+    int PackIndex => _request?.Pack is { } pack ? pack.ToList().FindIndex(p => p.DocumentId == _request.DocumentId) : -1;
+
+    /// <summary>What a pack's steps are: images, or files once a PDF is among them.</summary>
+    string PackNoun => _request?.Pack is { } pack && pack.Any(p => !p.IsPicture) ? "file" : "image";
+
+    public string PreviousStepName => $"Previous {PackNoun}";
+
+    public string NextStepName => $"Next {PackNoun}";
+
+    /// <summary>The arrow keys step only from an image: on a PDF they move about its pages.</summary>
+    public string PreviousStepTip => PackNoun == "image" ? "Previous image (Left arrow)" : "Previous file in the pack";
+
+    public string NextStepTip => PackNoun == "image" ? "Next image (Right arrow)" : "Next file in the pack";
+
+    /// <summary>"12 of 120", for a file in a pack.</summary>
+    public string PackPosition => _request?.Pack is { } pack
+        ? $"{(PackIndex + 1).ToString("N0", CultureInfo.CurrentCulture)} of {pack.Count.ToString("N0", CultureInfo.CurrentCulture)}"
+        : "";
+
+    /// <summary>The previous file in the pack (Left arrow, from an image).</summary>
+    [RelayCommand(CanExecute = nameof(CanGoToPreviousImage))]
+    Task PreviousImage() => StepAsync(-1);
+
+    bool CanGoToPreviousImage() => IsInPack && PackIndex > 0;
+
+    /// <summary>The next file in the pack (Right arrow, from an image).</summary>
+    [RelayCommand(CanExecute = nameof(CanGoToNextImage))]
+    Task NextImage() => StepAsync(1);
+
+    bool CanGoToNextImage() => _request?.Pack is { } pack && PackIndex >= 0 && PackIndex < pack.Count - 1;
+
+    /// <summary>
+    /// Shows the file <paramref name="by"/> places on in the pack: an image at the same zoom, a PDF at its first page.
+    /// A PDF being read is closed first; an image stays in view until the next file is ready.
+    /// </summary>
+    async Task StepAsync(int by)
+    {
+        if (_request?.Pack is not { } pack) return;
+        var next = PackIndex + by;
+        if (next < 0 || next >= pack.Count) return;
+        if (Mode != ViewerMode.Image)
+        {
+            CloseBook();
+            _resume = null;
+        }
+        _request = _request with { DocumentId = pack[next].DocumentId, Title = pack[next].Title, PageIndex = 0, SessionItem = null, PageNote = null };
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(PackPosition));
+        PreviousImageCommand.NotifyCanExecuteChanged();
+        NextImageCommand.NotifyCanExecuteChanged();
+        await LoadAsync();
+    }
+
+    public override string Section => "Library";
+
+    public override Route? SectionRoute => Route.Library;
+
+    public override bool ScrollsItself => true;
+
+    /// <summary>Raised when the view should scroll to a page, as for the next find result.</summary>
+    public event EventHandler<PageTarget>? GoToRequested;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPdf), nameof(IsImage), nameof(IsVideo), nameof(IsPicture), nameof(IsEbook), nameof(HasPages), nameof(IsOpening), nameof(ShowEmptyState), nameof(ZoomChoices),
+        nameof(OutlineVisible), nameof(StripVisible), nameof(CanUseAsPackCover), nameof(CanAddToBinder))]
+    [NotifyCanExecuteChangedFor(nameof(PopOutCommand), nameof(AddPageToSessionCommand), nameof(MarkPagesCommand), nameof(UseAsCoverCommand))]
+    public partial ViewerMode Mode { get; private set; }
+
+    public bool IsPdf => Mode == ViewerMode.Pdf;
+
+    public bool IsImage => Mode == ViewerMode.Image;
+
+    public bool IsVideo => Mode == ViewerMode.Video;
+
+    /// <summary>A file without pages is open, an image or a video: it's stepped through in its pack and added to binders whole.</summary>
+    public bool IsPicture => Mode is ViewerMode.Image or ViewerMode.Video;
+
+    public bool IsEbook => Mode == ViewerMode.Ebook;
+
+    /// <summary>A book of pages is open, a PDF or an e-book: the page box, Find, notes, the contents and Ask are for it.</summary>
+    public bool HasPages => Mode is ViewerMode.Pdf or ViewerMode.Ebook;
+
+    public bool IsOpening => Mode == ViewerMode.Opening;
+
+    /// <summary>What the reader says while a book opens: how much has come, for one downloaded from the web library.</summary>
+    [ObservableProperty]
+    public partial string OpeningText { get; private set; } = Opening;
+
+    const string Opening = "Opening…";
+
+    public bool ShowEmptyState => Mode is ViewerMode.Empty or ViewerMode.Problem;
+
+    /// <summary>"PDF · 320 pages · Adventures / Winter", under the title.</summary>
+    [ObservableProperty]
+    public partial string Subtitle { get; private set; } = "";
+
+    [ObservableProperty]
+    public partial string EmptyTitle { get; private set; } = "Open a book from the Library.";
+
+    [ObservableProperty]
+    public partial string EmptyMessage { get; private set; } = "Search for something, then open a matching page, or open a book from its details.";
+
+    [ObservableProperty]
+    public partial string? EmptyActionText { get; private set; }
+
+    [ObservableProperty]
+    public partial IRelayCommand? EmptyCommand { get; private set; }
+
+    /// <summary>A second, quieter way out of a problem, as Show last folder for a missing file.</summary>
+    [ObservableProperty]
+    public partial string? EmptySecondaryText { get; private set; }
+
+    [ObservableProperty]
+    public partial IRelayCommand? EmptySecondaryCommand { get; private set; }
+
+    [ObservableProperty]
+    public partial OpenPdf? Pdf { get; private set; }
+
+    /// <summary>The open picture, decoded by <see cref="IPictureDecoder"/> as the platform's own image for the view to draw.</summary>
+    [ObservableProperty]
+    public partial object? Image { get; private set; }
+
+    /// <summary>The video open, played by the view in the e-book reader's browser.</summary>
+    [ObservableProperty]
+    public partial OpenVideo? Video { get; private set; }
+
+    /// <summary>The open e-book for its page surface.</summary>
+    [ObservableProperty]
+    public partial OpenEbook? Ebook { get; private set; }
+
+    /// <summary>The browser e-books are read in.</summary>
+    public IEbookBrowser? EbookBrowser { get; }
+
+    /// <summary>Set by the view: every match of some text in the open e-book, up to a number, as the page each is on.</summary>
+    public Func<string, int, Task<IReadOnlyList<int>>>? EbookFind { get; set; }
+
+    /// <summary>Set by the view: marks the words of a search on a page of the open e-book, giving the page of each.</summary>
+    public Func<IReadOnlyList<string>, int, Task<IReadOnlyList<int>>>? EbookTerms { get; set; }
+
+    /// <summary>The PDF's bookmarks, for the Contents panel. Empty when the book has none.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasOutline), nameof(OutlineVisible))]
+    public partial IReadOnlyList<OutlineEntry> Outline { get; private set; } = [];
+
+    public bool HasOutline => Outline.Count > 0;
+
+    /// <summary>Whether the reader wants the Contents panel; it stays hidden for a book without bookmarks.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OutlineVisible))]
+    public partial bool ShowOutline { get; set; }
+
+    public bool OutlineVisible => ShowOutline && HasOutline && HasPages;
+
+    /// <summary>The thumbnail strip under the pages: a picture of every page, to see where notes are and to go to a page.</summary>
+    public PageStripViewModel Strip { get; }
+
+    /// <summary>Whether the reader wants the thumbnail strip; hidden at launch, then as the last reader left it (see <see cref="IReaderWindows.ShowsStrip"/>).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StripVisible), nameof(StripAction))]
+    public partial bool ShowStrip { get; set; }
+
+    partial void OnShowStripChanged(bool value) => _windows.ShowsStrip = value;
+
+    public bool StripVisible => ShowStrip && IsPdf;
+
+    public string StripAction => ShowStrip ? "Hide page thumbnails" : "Show page thumbnails";
+
+    [RelayCommand]
+    void ToggleStrip() => ShowStrip = !ShowStrip;
+
+    /// <summary>Marks the pages of the binder item being read in the strip; none for a whole book or an ordinary read.</summary>
+    void MarkItemPages()
+    {
+        var item = _request?.SessionItem is { WholeBook: false } open ? open : null;
+        Strip.SetItemPages(item?.FirstPage, item?.LastPage);
+    }
+
+    /// <summary>False when the PDF forbids copying its text; selection still works, Copy explains.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CopyNote))]
+    public partial bool CanCopy { get; private set; } = true;
+
+    public string CopyNote => CanCopy ? "" : "This PDF doesn't allow copying its text.";
+
+    /// <summary>
+    /// <see cref="ZoomSteps.FitWidth"/> or <see cref="ZoomSteps.FitPage"/> (an image fits the window for
+    /// either); otherwise 1 is 100%.
+    /// </summary>
+    [ObservableProperty]
+    public partial double Zoom { get; set; }
+
+    public IReadOnlyList<Choice<double>> ZoomChoices =>
+    [
+        .. IsImage
+            ? new Choice<double>[] { new(ZoomSteps.FitWidth, "Fit to window") }
+            // A flowing e-book's text fills the reading column at any size; only a fixed-layout one's pages are fitted.
+            : IsEbook && _ebook is { FixedLayout: false } ? [new(ZoomSteps.FitWidth, "Usual size")]
+            : [new(ZoomSteps.FitWidth, "Fit width"), new(ZoomSteps.FitPage, "Fit page")],
+        .. ZoomSteps.All.Select(z => new Choice<double>(z, z.ToString("P0", CultureInfo.CurrentCulture))),
+    ];
+
+    /// <summary>Set by the view as the reader scrolls.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand), nameof(NextPageCommand))]
+    public partial int CurrentPageIndex { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PageCountText))]
+    [NotifyCanExecuteChangedFor(nameof(PreviousPageCommand), nameof(NextPageCommand))]
+    public partial int PageCount { get; private set; }
+
+    public string PageCountText => $"of {PageCount.ToString("N0", CultureInfo.CurrentCulture)}";
+
+    /// <summary>The page box: the printed label of the page in view, or what the reader is typing.</summary>
+    [ObservableProperty]
+    public partial string PageEntry { get; set; } = "";
+
+    /// <summary>Find in the book: the find box, its matches, and the marks on the pages.</summary>
+    public FindViewModel Find { get; }
+
+    /// <summary>A short message that clears itself, such as why Copy did nothing.</summary>
+    [ObservableProperty]
+    public partial string? Notice { get; private set; }
+
+    partial void OnCurrentPageIndexChanged(int value)
+    {
+        PageEntry = PageNumbers.Display(value, _labels);
+        OnPropertyChanged(nameof(PartPosition));
+        UseAsCoverCommand.NotifyCanExecuteChanged();
+        Strip.SetCurrent(value);
+        if (HasPages && KeepsPlace) _placeTimer.Start();
+    }
+
+    public override async Task LoadAsync()
+    {
+        if (_request is not { } request)
+        {
+            Mode = ViewerMode.Empty;
+            return;
+        }
+        if (_windowClosed) return;
+        _pins.Changed -= OnPinsChanged;
+        _pins.Changed += OnPinsChanged;
+        _sessions.Changed -= OnSessionsChanged;
+        if (request.SessionItem is not null && !InBinder) _sessions.Changed += OnSessionsChanged;
+        if (_webCopies is not null)
+        {
+            _webCopies.Progress -= OnWebDownload;
+            _webCopies.Progress += OnWebDownload;
+        }
+        OpeningText = Opening;
+        var version = ++_version;
+        // Stepping through a pack keeps the image in view until the next one is ready.
+        if (!(IsInPack && Mode == ViewerMode.Image)) Mode = ViewerMode.Opening;
+        try
+        {
+            _source = await _library.GetSourceAsync(request.DocumentId);
+            if (version != _version) return;
+            if (_source is null)
+            {
+                var away = await _places.AwayAsync(request.DocumentId);
+                if (version == _version) ShowAwayPrompt(away, LoadAsync);
+                return;
+            }
+            Subtitle = DescribeSource(_source, null);
+            PrioritizeAsync(request.DocumentId).FireAndForget();
+            _coverPage = await _covers.GetAsync(request.DocumentId);
+            if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
+            else if (SourceFormats.IsVideo(_source.Format)) await OpenVideoAsync(_source, version);
+            else if (SourceFormats.IsEbook(_source.Format)) await OpenEbookAsync(_source, request, version);
+            else await OpenPdfAsync(_source, request, version);
+            // Coming Back to a session item's pages, which may have been moved meanwhile, as from a Needs review card.
+            if (version == _version && request.SessionItem is not null && !InBinder) await FollowSessionItemAsync();
+        }
+        catch (WebLibraryUnreachableException)
+        {
+            _log.LogInformation("Document {DocumentId} is only in the web library, which can't be reached", request.DocumentId);
+            if (version == _version)
+                Problem("This book needs a connection to open.",
+                    "It's in your web library, and bibliotaph.online can't be reached from this PC right now. To read it without a connection, choose Keep offline on this PC in its details while you're online.");
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            // The file went away, is locked, or is still downloading: worth saying, not worth an error in the log.
+            _log.LogWarning("Reading document {DocumentId} failed: {Reason}", request.DocumentId, ex.Message);
+            if (version == _version)
+                Problem("The file could not be read.",
+                    _source is { } source && WebReadings.Serves(source) ? ex.Message : "It may have moved, be in use, or still be downloading.");
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.LogError(ex, "Opening document {DocumentId} failed", request.DocumentId);
+            if (version == _version) Problem("This book could not be opened.", ex.Message);
+        }
+    }
+
+    /// <summary>Closes the book, remembering the page in view so Back reopens it there, and any book opened ahead of time.</summary>
+    public override void Unload()
+    {
+        DropStandby();
+        CloseBook();
+    }
+
+    /// <summary>Closes the book, remembering the page in view so Back reopens it there; a book opened ahead of time stays.</summary>
+    /// <summary>
+    /// Whether the open book is in a Nornis world's collection here, which shows Send to Nornis. The web library has the
+    /// last word, as Nornis reads the pages there: Send to Nornis asks it for the worlds and their addresses.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendToNornisCommand))]
+    public partial bool ShowsSendToNornis { get; private set; }
+
+    /// <summary>Send to Nornis, as a dialog over the reader.</summary>
+    [ObservableProperty]
+    public partial SendToNornisDialogViewModel? NornisDialog { get; private set; }
+
+    async Task LoadNornisAsync(long documentId, string contentHash)
+    {
+        if (_nornis is null || _web is null) return;
+        var version = _version;
+        try
+        {
+            var worlds = await Task.Run(() => _nornis.WorldsHoldingAsync(documentId));
+            if (version != _version) return;
+            _nornisHash = contentHash;
+            ShowsSendToNornis = worlds.Count > 0;
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Finding the Nornis worlds of the open book failed");
+        }
+    }
+
+    /// <summary>Opens Send to Nornis at an adventure's pages, or the page in view.</summary>
+    [RelayCommand(CanExecute = nameof(ShowsSendToNornis), AllowConcurrentExecutions = false)]
+    async Task SendToNornis()
+    {
+        if (_web is null || _nornisHash is not { } hash) return;
+        var version = _version;
+        var answer = await _web.NornisSendAsync(hash, null, CancellationToken.None);
+        if (version != _version) return;
+        if (NornisSendText.Refusal(answer) is { } refusal)
+        {
+            ShowNotice(refusal);
+            return;
+        }
+        var (from, to) = _request?.Part?.Pages is { } part ? (part.First, part.Last) : (CurrentPageIndex, CurrentPageIndex);
+        var dialog = new SendToNornisDialogViewModel(answer!.Send!, PageNumbers.Display(from, _labels), PageNumbers.Display(to, _labels), "",
+            text => PageNumbers.Find(text, _labels, PageCount));
+        dialog.Closed += (_, url) =>
+        {
+            NornisDialog = null;
+            if (url is not null && _shell.Open(url) is { } failed)
+            {
+                _log.LogWarning(failed, "Opening Nornis failed");
+                ShowNotice("Nornis couldn't be opened in your browser.");
+            }
+        };
+        NornisDialog = dialog;
+    }
+
+    void CloseBook()
+    {
+        _version++;
+        if (HasPages)
+        {
+            _resume = new PageTarget(CurrentPageIndex, null);
+            KeepPlace(CurrentPageIndex);
+        }
+        _placeTimer.Stop();
+        _noticeTimer.Stop();
+        Sessions.Close();
+        Notes.Detach();
+        PartEditor?.CancelCommand.Execute(null);
+        NornisDialog?.CancelCommand.Execute(null);
+        ShowsSendToNornis = false;
+        _nornisHash = null;
+        _pins.Changed -= OnPinsChanged;
+        _sessions.Changed -= OnSessionsChanged;
+        if (_webCopies is not null) _webCopies.Progress -= OnWebDownload;
+        Ask.Detach();
+        Pdf = null;
+        Image = null;
+        Video = null;
+        if (_videoFile is { } video)
+        {
+            _videoFile = null;
+            _closing = Task.WhenAll(_closing, video.DisposeAsync().AsTask());
+        }
+        Ebook = null;
+        if (_ebook is { } ebook)
+        {
+            _ebook = null;
+            _closing = Task.WhenAll(_closing, Task.Run(ebook.Dispose));
+        }
+        Find.Detach();
+        Strip.Clear();
+        if (_document is { } document)
+        {
+            _document = null;
+            _closing = Task.WhenAll(_closing, CloseAsync(document, _file));
+            _file = null;
+        }
+    }
+
+    /// <summary>
+    /// Opens a book ahead of time and draws the page it will open at, so that showing it next (<see cref="ShowAsync"/>)
+    /// is as quick as turning a page: a binder's next item, when it's in another book. One is kept at a time, on this
+    /// reader's viewer worker. A password is never asked for here, only one that opened the book before is tried, and
+    /// anything that goes wrong just means the book opens the usual way when it's shown.
+    /// </summary>
+    public Task PrepareAsync(ViewerRequest request)
+    {
+        if (_standby?.DocumentId == request.DocumentId) return Task.CompletedTask;
+        if (_preparing is { Task.IsCompleted: false } preparing && preparing.DocumentId == request.DocumentId) return preparing.Task;
+        DropStandby();
+        var task = PrepareCoreAsync(request, _standbyVersion);
+        _preparing = (request.DocumentId, task);
+        return task;
+    }
+
+    async Task PrepareCoreAsync(ViewerRequest request, int version)
+    {
+        LocalFile? file = null;
+        IReaderDocument? document = null;
+        try
+        {
+            if (_windowClosed) return;
+            var source = await _library.GetSourceAsync(request.DocumentId);
+            // Only a PDF is drawn ahead; an e-book or an image opens quickly enough as it is.
+            if (source is null || SourceFormats.IsPicture(source.Format) || SourceFormats.IsEbook(source.Format) || version != _standbyVersion) return;
+            file = await _sources.OpenToReadAsync(source);
+            document = _documents.Create(Worker());
+            var password = _opener.KnownPassword(source.ContentHash);
+            var doc = await document.OpenAsync(file.Path, password);
+            if (version != _standbyVersion || _windowClosed || doc.PageCount == 0) return;
+            var standby = new Standby(request.DocumentId, file, document, doc, password);
+            (file, document) = (null, null);
+            _standby = standby;
+            // The view draws the page at the size it would show it now, after the pages on screen.
+            if (DrawAhead is { } draw) standby.Seed = draw(standby.Document, doc, Math.Clamp(request.PageIndex, 0, doc.PageCount - 1));
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Locked, gone, or not a readable PDF: it opens the usual way when it's shown, and says why there.
+            _log.LogDebug(ex, "Opening document {DocumentId} ahead of time failed", request.DocumentId);
+        }
+        finally
+        {
+            if (document is not null) await CloseAsync(document, file);
+            else file?.Dispose();
+        }
+    }
+
+    /// <summary>The book opened ahead of time, once the page it opens at is drawn too: showing it next is a page turn.</summary>
+    public long? ReadyAhead => _standby is { Seed: { IsCompletedSuccessfully: true, Result: not null } } standby ? standby.DocumentId : null;
+
+    /// <summary>Set by the view: draws a page of a book opened ahead of time at the size the pages show at now.</summary>
+    public Func<IReaderDocument, DocInfo, int, Task<PageSeed?>>? DrawAhead { get; set; }
+
+    /// <summary>Closes the book opened ahead of time, if there is one, as when the next item changes or the binder closes.</summary>
+    public void DropStandby()
+    {
+        _standbyVersion++;
+        _preparing = null;
+        if (_standby is not { } standby) return;
+        _standby = null;
+        _closing = Task.WhenAll(_closing, CloseAsync(standby.Document, standby.File));
+    }
+
+    /// <summary>The book opened ahead of time, if it's this one; it's this reader's from now on.</summary>
+    Standby? TakeStandby(long documentId)
+    {
+        if (_standby is not { } standby || standby.DocumentId != documentId) return null;
+        _standby = null;
+        return standby;
+    }
+
+    /// <summary>
+    /// The pop-out window is closing: closes the book, and once it's closed gives the window's viewer worker back,
+    /// which stops the worker if no other window is using it.
+    /// </summary>
+    public override async Task CloseWindowAsync()
+    {
+        // A load still running stops at its next step rather than leasing a worker nobody would give back.
+        _windowClosed = true;
+        var preparing = _preparing?.Task;
+        Unload();
+        if (preparing is not null) await preparing;
+        await _closing;
+        if (_lease is { } lease)
+        {
+            _lease = null;
+            await lease.DisposeAsync();
+        }
+    }
+
+    /// <summary>
+    /// The main window's readers share one viewer worker; a pop-out leases one of its own when it first shows a PDF
+    /// (an image needs none) and gives it back when it closes.
+    /// </summary>
+    WorkerClient Worker() => IsPoppedOut ? (_lease ??= _workers.LeaseViewer()).Worker : _windows.MainWorker;
+
+    /// <summary>A request that opens this book again as it is now: at the page in view and the same zoom.</summary>
+    public ViewerRequest? Here() =>
+        _request is null ? null : _request with
+        {
+            PageIndex = HasPages ? CurrentPageIndex : _request.PageIndex,
+            Query = null,
+            Zoom = Zoom,
+            Resume = false,
+            KeepsPlace = KeepsPlace,
+        };
+
+    /// <summary>True for an ordinary read, whose page is kept for next time.</summary>
+    bool KeepsPlace => _request is { Resume: true } or { KeepsPlace: true };
+
+    /// <summary>Keeps the page an ordinary read is left at, so the book opens there next time.</summary>
+    void KeepPlace(int pageIndex)
+    {
+        if (KeepsPlace && _request is { } request) KeepPlaceAsync(request.DocumentId, pageIndex).FireAndForget();
+    }
+
+    async Task KeepPlaceAsync(long documentId, int pageIndex)
+    {
+        try
+        {
+            await _reading.SavePositionAsync(documentId, pageIndex);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Keeping the page of document {DocumentId} failed", documentId);
+        }
+    }
+
+    /// <summary>
+    /// Starts making the book's vectors for Ask this book while it is read, when Ask is on with an embedding model and
+    /// the book's folder isn't kept from AI, so a question finds the same pages the first time as the second.
+    /// </summary>
+    async Task PrepareAskAsync(long documentId)
+    {
+        try
+        {
+            await Task.Run(() => _ask.PrepareAsync(documentId));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Starting the Ask vectors of document {DocumentId} failed", documentId);
+        }
+    }
+
+    /// <summary>Records the open for Home and Recently opened, and shows whether the book is a favorite.</summary>
+    async Task RecordOpenAsync(long documentId)
+    {
+        try
+        {
+            _card = await _reading.RecordOpenAsync(documentId);
+            IsFavorite = _card is { } card && await _favorites.IsFavoriteAsync(card);
+            ToggleFavoriteCommand.NotifyCanExecuteChanged();
+            ShowPinned();
+            TogglePinCommand.NotifyCanExecuteChanged();
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Recording the open of document {DocumentId} failed", documentId);
+        }
+    }
+
+    /// <summary>The card the open book shows under in the Library: its own, or its pack's.</summary>
+    EntryId? _card;
+
+    /// <summary>The book is marked with a heart.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FavoriteAction))]
+    public partial bool IsFavorite { get; private set; }
+
+    public string FavoriteAction => IsFavorite ? "Remove from favorites" : "Add to favorites";
+
+    /// <summary>The heart in the toolbar: marks the book, or the pack an image is in, as a favorite or not.</summary>
+    [RelayCommand(CanExecute = nameof(CanToggleFavorite))]
+    async Task ToggleFavorite()
+    {
+        if (_card is not { } card) return;
+        var favorite = !IsFavorite;
+        IsFavorite = favorite;
+        try
+        {
+            await _favorites.SetAsync([card], favorite);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Marking entry {EntryId} as a favorite failed", card);
+            IsFavorite = !favorite;
+            ShowNotice("The heart couldn't be saved.");
+        }
+    }
+
+    bool CanToggleFavorite() => _card is not null;
+
+    /// <summary>The book, or the pack an image is in, is pinned in the sidebar.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PinAction))]
+    public partial bool IsPinned { get; private set; }
+
+    public string PinAction => IsPinned ? "Unpin from the sidebar" : "Pin to the sidebar";
+
+    [RelayCommand(CanExecute = nameof(CanToggleFavorite))]
+    Task TogglePin() => _card is { } card ? _pins.ToggleAsync(PinTarget.Entry(card)) : Task.CompletedTask;
+
+    void ShowPinned() => IsPinned = _card is { } card && _pins.IsPinned(PinTarget.Entry(card));
+
+    void OnPinsChanged(object? sender, EventArgs e) => ShowPinned();
+
+    void OnWebDownload(object? sender, WebDownload download) => _ui.Post(() =>
+    {
+        if (IsOpening && string.Equals(_source?.ContentHash, download.ContentHash, StringComparison.OrdinalIgnoreCase))
+            OpeningText = download.Total > 0 ? $"Downloading from {download.From}… {download.Percent.ToString(CultureInfo.CurrentCulture)}%"
+                : $"Downloading from {download.From}… {LibraryActivity.Size(download.Received)}";
+    });
+
+    /// <summary>Moves the book to a window of its own at the same page and zoom; the main window goes Back.</summary>
+    [RelayCommand(CanExecute = nameof(CanPopOut))]
+    Task PopOut() => _windows.PopOutAsync(this);
+
+    bool CanPopOut() => ShowsPopOut && Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Video or ViewerMode.Ebook;
+
+    /// <summary>Moves a pop-out's book back to the main window, at the same page and zoom, and closes the pop-out.</summary>
+    [RelayCommand]
+    void ReturnToMainWindow() => _windows.ReturnToMainWindow(this);
+
+    /// <summary>Add to binder, Add pages… and Use this page, with their note and Undo, and the dialog over the reader.</summary>
+    public SessionActions Sessions { get; }
+
+    IReadOnlyList<SessionMenuChoice> ISessionChoices.MenuChoices => Sessions.Directory.MenuChoices;
+
+    /// <summary>Whether Add to binder is offered: a PDF, an image or an e-book is open.</summary>
+    public bool CanAddToBinder => CanAddPage();
+
+    /// <summary>Add to binder's items above Add pages…: the binders by name, most recently worked on first, then the rest and a new one.</summary>
+    public IReadOnlyList<SessionMenuChoice> AddToBinderChoices =>
+    [
+        .. AddToBinderMenu.For([.. Sessions.Directory.All.Select(p => (p.Id, p.Title))]).Select(item => new SessionMenuChoice(item.Kind switch
+        {
+            AddToBinderMenu.Kind.Binder => SessionMenuKind.Session,
+            AddToBinderMenu.Kind.Another => SessionMenuKind.Choose,
+            _ => SessionMenuKind.New,
+        }, item.Id, item.Label)),
+    ];
+
+    /// <summary>
+    /// One of Add to binder's items: the page in view, or the whole image, to the binder it names, or to one picked or
+    /// made from it.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanAddPage))]
+    void AddPageToSession(SessionRequest request) => AddPageTo(request.Choice);
+
+    void AddPageTo(SessionMenuChoice? choice)
+    {
+        if (_request is not { } request) return;
+        if (IsPicture) Sessions.AddPage(request.DocumentId, 0, request.Title, choice, wholeFile: true);
+        else if (HasPages) Sessions.AddPage(request.DocumentId, CurrentPageIndex, $"page {PageNumbers.Display(CurrentPageIndex, _labels)}", choice);
+    }
+
+    bool CanAddPage() => Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Video or ViewerMode.Ebook;
+
+    /// <summary>
+    /// Add pages…: From and To start at the page with selected text on it, or the page in view, and are typed as the
+    /// book numbers its pages.
+    /// </summary>
+    [RelayCommand]
+    async Task AddPages(int? selectionPage)
+    {
+        if (_request is not { } request) return;
+        if (IsPicture)
+        {
+            AddPageTo(null);
+            return;
+        }
+        if (!HasPages) return;
+        var page = Math.Clamp(selectionPage ?? CurrentPageIndex, 0, Math.Max(0, PageCount - 1));
+        var shown = PageNumbers.Display(page, _labels);
+        var labels = _labels;
+        var count = PageCount;
+        await Sessions.AddPagesAsync(request.DocumentId, shown, shown, page, text => PageNumbers.Find(text, labels, count));
+    }
+
+    /// <summary>
+    /// Opened from a session pack's item or a page note whose pages weren't where they were: why, over the pages. For a
+    /// page that changed, Use this page points it at the page in view.
+    /// </summary>
+    [ObservableProperty]
+    public partial string? SessionBanner { get; private set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(UsePageCommand))]
+    public partial bool CanUsePage { get; private set; }
+
+    void ShowSessionBanner()
+    {
+        if (_request?.SessionItem is { State: SessionItemState.Changed or SessionItemState.Original or SessionItemState.Pending } item)
+        {
+            SessionBanner = item.State == SessionItemState.Changed
+                ? $"This page changed since it was added to {item.PackTitle}. If this isn't the right page, go to it, then choose Use this page."
+                : item.Reason;
+            CanUsePage = item.State == SessionItemState.Changed && HasPages;
+        }
+        else if (_request?.PageNote is { State: PagePlaceState.Changed or PagePlaceState.Original or PagePlaceState.Pending } note)
+        {
+            SessionBanner = note.State == PagePlaceState.Changed
+                ? "This page changed since the note was made. If this isn't the right page, go to it, then choose Use this page."
+                : note.Reason;
+            CanUsePage = note.State == PagePlaceState.Changed && HasPages;
+        }
+        else
+        {
+            SessionBanner = null;
+            CanUsePage = false;
+        }
+    }
+
+    /// <summary>Points the session item or the page note at the page in view, keeping how many pages it spans.</summary>
+    [RelayCommand(CanExecute = nameof(CanUsePage))]
+    async Task UsePage()
+    {
+        if (_request is not { } request || (request.SessionItem, request.PageNote) is (null, null)) return;
+        var span = request.SessionItem is { } open ? open.LastPage - open.FirstPage : request.PageNote!.LastPage - request.PageNote.FirstPage;
+        var first = CurrentPageIndex;
+        var last = Math.Min(first + span, Math.Max(0, PageCount - 1));
+        try
+        {
+            if (request.SessionItem is { } item) await _sessions.RepointAsync(item.ItemId, request.DocumentId, first, last);
+            else await Task.Run(() => _notes.UsePageAsync(request.PageNote!.NoteId, request.DocumentId, first, last));
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Pointing a session item or page note at a page failed");
+            Sessions.Undo.Say("That didn't work. The log has the details.");
+            return;
+        }
+        CanUsePage = false;
+        SessionBanner = null;
+        if (request.SessionItem is { } used)
+        {
+            _request = request with { SessionItem = used with { State = SessionItemState.Ready, Reason = null, FirstPage = first, LastPage = last } };
+            MarkItemPages();
+            Sessions.Undo.Say($"Saved. In {used.PackTitle}, this item now opens at page {PageNumbers.Display(first, _labels)}.");
+        }
+        else
+        {
+            _request = request with { PageNote = request.PageNote! with { State = PagePlaceState.Ready, Reason = null, FirstPage = first, LastPage = last } };
+            Notes.Undo.Say($"Saved. The note is now on page {PageNumbers.Display(first, _labels)}.");
+        }
+    }
+
+    /// <summary>
+    /// The binder item open here was moved, as by Use this page on a Needs review card or its Undo: while it is still
+    /// in the open file, the banner and Use this page follow it and the reader stays on its page; in another file, it
+    /// opens there.
+    /// </summary>
+    public async Task FollowAsync(ViewerRequest moved)
+    {
+        if (_request is { } open && open.DocumentId == moved.DocumentId && Mode is ViewerMode.Pdf or ViewerMode.Image or ViewerMode.Video or ViewerMode.Ebook) ShowPlace(moved);
+        else await ShowAsync(moved);
+    }
+
+    /// <summary>The session item's or page note's new place in the open file: its banner and Use this page, without moving the reader.</summary>
+    void ShowPlace(ViewerRequest moved)
+    {
+        if (_request is not { } open || (open.SessionItem == moved.SessionItem && open.PageNote == moved.PageNote)) return;
+        _request = open with { SessionItem = moved.SessionItem, PageNote = moved.PageNote };
+        ShowSessionBanner();
+    }
+
+    void OnSessionsChanged(object? sender, EventArgs e) => _ui.Post(FollowSessionItemAsync);
+
+    /// <summary>
+    /// The session item open here, outside a binder (whose list does this itself), where it opens now: its banner
+    /// follows it while it is in the open file. Opening it in another file is left to the next time it's opened, so a
+    /// reader Needs review opened at a suggested page isn't taken back to the file the pages were added from.
+    /// </summary>
+    async Task FollowSessionItemAsync()
+    {
+        if (InBinder || _request is not { SessionItem: { } item } request) return;
+        var version = _version;
+        try
+        {
+            var target = await Task.Run(() => _sessions.ResolveItemAsync(item.ItemId));
+            if (version != _version || !ReferenceEquals(_request, request) || target is not { DocumentId: { } documentId } || documentId != request.DocumentId) return;
+            ShowPlace(request with { SessionItem = item with { State = target.State, Reason = target.Reason, FirstPage = target.FirstPage, LastPage = target.LastPage } });
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.LogWarning(ex, "Following session item {ItemId} failed", item.ItemId);
+        }
+    }
+
+    /// <summary>As <see cref="FollowSessionItemAsync"/>, for the page note open here, once the book's notes have been read again.</summary>
+    void FollowPageNote()
+    {
+        if (_request is not { PageNote: { } note } request || Notes.Items.FirstOrDefault(r => r.Id == note.NoteId)?.Place is not { } place
+            || place.DocumentId != request.DocumentId) return;
+        ShowPlace(request with { PageNote = note with { State = place.State, Reason = place.Reason, FirstPage = place.FirstPage, LastPage = place.LastPage } });
+    }
+
+    [RelayCommand]
+    void DismissSessionBanner()
+    {
+        SessionBanner = null;
+        CanUsePage = false;
+    }
+
+    /// <summary>Hides the note from Add page, and closes the dialog if it is open.</summary>
+    [RelayCommand]
+    void DismissSessionMessage() => Sessions.Close();
+
+    // Page notes.
+
+    /// <summary>The Notes panel's list of the notes on the open book's pages, with Note and its dialog, and Undo.</summary>
+    public PageNotesViewModel Notes { get; }
+
+    /// <summary>The Notes panel beside the pages.</summary>
+    [ObservableProperty]
+    public partial bool NotesVisible { get; set; }
+
+    [RelayCommand]
+    void ToggleNotes() => NotesVisible = !NotesVisible;
+
+    // One panel on the right at a time: Notes or Ask.
+    partial void OnNotesVisibleChanged(bool value)
+    {
+        if (value) AskVisible = false;
+    }
+
+    void IPageNotesReader.GoToPage(int pageIndex) => GoTo(pageIndex, null);
+
+    IReadOnlyList<string?> IPageNotesReader.PageLabels => _labels;
+
+    void IPageNotesReader.ShowNotes() => NotesVisible = true;
+
+    /// <summary>The note gone to is at a page that changed: its banner and Use this page, as when it was opened from its card.</summary>
+    void IPageNotesReader.ShowNotePlace(PageNoteOpen note)
+    {
+        if (_request is not { } request) return;
+        _request = request with { PageNote = note };
+        ShowSessionBanner();
+    }
+
+    /// <summary>The strip's badges sit where Go to takes each note in this copy, and the note open here follows its place.</summary>
+    void IPageNotesReader.NotesRead(long documentId)
+    {
+        Strip.SetNotes(Notes.Items.Select(n => n.PagesIn(documentId)));
+        FollowPageNote();
+    }
+
+    // Ask this book.
+
+    /// <summary>The Ask panel: a question about the open book and the pages that answer it.</summary>
+    public AskPanelViewModel Ask { get; }
+
+    /// <summary>The Ask panel beside the pages; it shows only for a PDF, and only while AI is on.</summary>
+    [ObservableProperty]
+    public partial bool AskVisible { get; set; }
+
+    partial void OnAskVisibleChanged(bool value)
+    {
+        if (value) NotesVisible = false;
+    }
+
+    [RelayCommand]
+    void ToggleAsk() => AskVisible = !AskVisible;
+
+    /// <summary>
+    /// Opens a page the Ask panel found, with <paramref name="phrase"/> marked by Find: the first match on
+    /// that page, else the next one after it. Without a phrase, or when Find can't see it, the page alone.
+    /// </summary>
+    async Task ShowPhraseAsync(int pageIndex, string? phrase)
+    {
+        if (!HasPages) return;
+        var page = Math.Clamp(pageIndex, 0, Math.Max(0, PageCount - 1));
+        if (phrase is not { Length: > 0 })
+        {
+            GoTo(page, null);
+            return;
+        }
+        await Find.ShowOnPageAsync(page, phrase);
+    }
+
+    // Adventures inside the file.
+
+    /// <summary>The open file was opened from an adventure's card, so its pages stand out and Find looks in them.</summary>
+    public bool IsPart => _request?.Part is not null;
+
+    /// <summary>"page 3 of 19 of this adventure", or that the page in view is outside it.</summary>
+    public string PartPosition
+    {
+        get
+        {
+            if (_request?.Part is not { } part || !HasPages) return "";
+            if (!part.Pages.Contains(CurrentPageIndex)) return "outside this adventure";
+            var at = (CurrentPageIndex - part.Pages.First + 1).ToString("N0", CultureInfo.CurrentCulture);
+            return $"page {at} of {part.Pages.Count.ToString("N0", CultureInfo.CurrentCulture)} of this adventure";
+        }
+    }
+
+    /// <summary>Marking pages as an adventure, or the bookmark being indexed as one, over the pages.</summary>
+    [ObservableProperty]
+    public partial PartEditorViewModel? PartEditor { get; private set; }
+
+    void ShowPart()
+    {
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(IsPart));
+        OnPropertyChanged(nameof(PartPosition));
+        if (Find.WholeFile) Find.WholeFile = false;
+        // Opened again on the same file as another adventure, or as the whole file: the shading follows.
+        var pages = _request?.Part?.Pages;
+        if (Outline.Any(o => o.InPart != (pages?.Contains(o.PageIndex) == true)))
+            Outline = [.. Outline.Select(o => o with { InPart = pages?.Contains(o.PageIndex) == true })];
+    }
+
+    bool CanMarkPages() => HasPages;
+
+    /// <summary>An adventure's cover is its first page, so only a whole file can have another.</summary>
+    bool CanUseAsCover() => Mode == ViewerMode.Pdf && !IsPart && CurrentPageIndex != _coverPage;
+
+    /// <summary>
+    /// "Use this page as the cover", for a file whose first page is blank or a plain title sheet. The first page does
+    /// the same in reverse.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanUseAsCover))]
+    async Task UseAsCover()
+    {
+        if (_request is not { } request) return;
+        var page = CurrentPageIndex;
+        var drawn = await Task.Run(() => _covers.UseAsync(request.DocumentId, page));
+        _coverPage = page;
+        UseAsCoverCommand.NotifyCanExecuteChanged();
+        _activity.Invalidate();
+        ShowNotice(!drawn ? "The cover will change when the file is next read."
+            : page == 0 ? "The first page is the cover again." : "This page is the cover now.");
+    }
+
+    /// <summary>An image opened from a pack can be the pack's cover in place of its mosaic.</summary>
+    public bool CanUseAsPackCover => IsImage && _packs is not null && _request?.PackEntryId is not null;
+
+    /// <summary>"Use as the pack's cover": the pack's card shows the image in view in place of its mosaic.</summary>
+    [RelayCommand]
+    async Task UseAsPackCover()
+    {
+        if (_packs is null || _request is not { PackEntryId: { } packId, Pack: { } pack } || PackIndex < 0 || pack[PackIndex].MemberEntryId is not { } file) return;
+        var used = await Task.Run(() => _packs.UseCoverAsync(packId, file));
+        if (used) _activity.Invalidate();
+        ShowNotice(used ? "This image is the pack's cover now." : "This image isn't in the pack any more.");
+    }
+
+    /// <summary>Mark as adventure: the page in view to start with, widened in the editor.</summary>
+    [RelayCommand(CanExecute = nameof(CanMarkPages))]
+    void MarkPages()
+    {
+        var page = PageNumbers.Display(CurrentPageIndex, _labels);
+        OpenPartEditor("Mark pages as an adventure", "", page, "");
+    }
+
+    /// <summary>
+    /// A bookmark's Index as its own adventure: its pages run to the next bookmark at the same depth, or the end of the
+    /// file, and its title is the bookmark's, all of which the editor can change.
+    /// </summary>
+    [RelayCommand]
+    void IndexBookmark(OutlineEntry? entry)
+    {
+        if (entry is null || !HasPages) return;
+        var index = -1;
+        for (var i = 0; i < _bookmarks.Count; i++)
+        {
+            if (_bookmarks[i].Page != entry.PageIndex || Math.Min(_bookmarks[i].Depth, 5) != entry.Depth) continue;
+            index = i;
+            break;
+        }
+        var pages = index < 0 ? new PartPages(entry.PageIndex, entry.PageIndex) : PartRanges.FromBookmark(_bookmarks, index, PageCount);
+        var (from, to) = (PageNumbers.Display(pages.First, _labels), pages.Count == 1 ? "" : PageNumbers.Display(pages.Last, _labels));
+        OpenPartEditor("Index as its own adventure", entry.Title, from, to);
+    }
+
+    void OpenPartEditor(string heading, string title, string from, string to)
+    {
+        if (_request is not { } request) return;
+        PartEditor?.CancelCommand.Execute(null);
+        var editor = new PartEditorViewModel(heading, "Make its card", title, from, to, FindPage, async (name, pages) =>
+        {
+            try
+            {
+                var added = await Task.Run(() => _parts.AddAsync(request.DocumentId, pages, name));
+                if (added.Problem is null) ShowNotice($"“{name}” has a card of its own in the Library now.");
+                return added.Problem;
+            }
+            catch (Exception ex)
+            {
+                _log.LogError(ex, "Marking pages of document {DocumentId} as an adventure failed", request.DocumentId);
+                return "That didn't work. The log has the details.";
+            }
+        });
+        editor.Closed += (_, _) =>
+        {
+            if (PartEditor == editor) PartEditor = null;
+        };
+        PartEditor = editor;
+    }
+
+    int? FindPage(string text) => PageNumbers.Find(text, _labels, PageCount);
+
+    async Task OpenImageAsync(DocumentSource source, int version)
+    {
+        await using var file = await _sources.OpenToReadAsync(source);
+        var image = await Task.Run(() =>
+        {
+            using var stream = _files.OpenRead(file.Path);
+            return _pictures.DecodeForViewing(stream, ImageMaxPixels);
+        });
+        if (version != _version) return;
+        if (image is null)
+        {
+            Problem("This image could not be read.", "The file may be damaged, or still downloading.");
+            return;
+        }
+        Image = image;
+        Subtitle = DescribeSource(source, _request?.PackTitle is { } pack ? $"{source.Format.ToUpperInvariant()} image in {pack}" : $"{source.Format.ToUpperInvariant()} image");
+        Mode = ViewerMode.Image;
+        ShowSessionBanner();
+        await RecordOpenAsync(source.DocumentId);
+    }
+
+    /// <summary>
+    /// Opens a video: its file is held (a copy, for one in a ZIP or the web library) until the reader closes it, and the
+    /// view plays it on a loop without sound, like the animated map it usually is.
+    /// </summary>
+    async Task OpenVideoAsync(DocumentSource source, int version)
+    {
+        var file = await _sources.OpenToReadAsync(source);
+        if (version != _version)
+        {
+            await file.DisposeAsync();
+            return;
+        }
+        _videoFile = file;
+        Image = null;
+        Video = new OpenVideo(_request?.Title ?? DisplayTitle.FromFileName(source.FullPath), () => _files.OpenRead(file.Path));
+        var kind = $"{source.Format.ToUpperInvariant()} video";
+        Subtitle = DescribeSource(source, _request?.PackTitle is { } pack ? $"{kind} in {pack}" : kind);
+        Mode = ViewerMode.Video;
+        ShowSessionBanner();
+        await RecordOpenAsync(source.DocumentId);
+    }
+
+    /// <summary>The view couldn't play the video: why, with the user's own video app instead.</summary>
+    public void ShowVideoProblem(string message)
+    {
+        if (Mode != ViewerMode.Video) return;
+        CloseBook();
+        Problem("This video can't be played here.", message, "Open in another app", OpenElsewhereCommand);
+    }
+
+    async Task OpenPdfAsync(DocumentSource source, ViewerRequest request, int version)
+    {
+        // A book opened ahead of time (a binder's next item) is taken as it is: no second open, and its page drawn.
+        if (_preparing is { } preparing && preparing.DocumentId == request.DocumentId) await preparing.Task;
+        if (version != _version) return;
+        var ready = TakeStandby(request.DocumentId);
+        var file = ready?.File ?? await _sources.OpenToReadAsync(source);
+        var document = ready?.Document ?? _documents.Create(Worker());
+        try
+        {
+            var opened = ready is not null
+                ? new OpenedDocument(ready.Doc, ready.Password, null)
+                : await OpenWithPasswordAsync(document, source, file.Path, version);
+            if (opened is null || version != _version)
+            {
+                await document.DisposeAsync();
+                await file.DisposeAsync();
+                return;
+            }
+            var doc = opened.Doc;
+            if (!_opener.Keep(source.ContentHash, opened))
+                ShowNotice("Windows didn't store the password, so Bibliotaph will ask for it next time.");
+            // Indexing can read the book now, so its stages blocked on the password run again.
+            if (opened.UnlocksIndexing) await _indexing.RetryAsync(source.DocumentId);
+
+            _document = document;
+            _file = file;
+            Find.Attach(source.DocumentId, (text, most) => document.FindAsync(text, -1, most));
+            _labels = doc.PageLabels;
+            LinkBackPage = null;
+            _bookmarks = [.. doc.Outline.Select(o => (o.PageIndex, o.Depth))];
+            Outline = [.. doc.Outline
+                .Where(o => o.PageIndex >= 0 && o.PageIndex < doc.PageCount && !string.IsNullOrWhiteSpace(o.Title))
+                .Select(o => new OutlineEntry(o.Title.Trim(), o.PageIndex, Math.Min(o.Depth, 5), PageNumbers.Display(o.PageIndex, doc.PageLabels))
+                {
+                    InPart = request.Part?.Pages.Contains(o.PageIndex) == true,
+                })];
+            PageCount = doc.PageCount;
+            ShowPart();
+            ShowChaptersAsync(source.DocumentId, doc.PageCount, doc.PageLabels, version).FireAndForget();
+            CanCopy = doc.CanCopy;
+            var pdfLine = $"PDF · {doc.PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(doc.PageCount == 1 ? "page" : "pages")}";
+            Subtitle = DescribeSource(source, request.PackTitle is { } packTitle ? $"{pdfLine} in {packTitle}" : pdfLine);
+
+            // An ordinary open goes back to the page the book was left at; Back, to the page as it was.
+            var kept = _resume is null && request.Resume && request.PageIndex == 0 ? await _reading.GetPositionAsync(source.DocumentId) : 0;
+            if (version != _version) return;
+            var start = Math.Clamp(_resume?.PageIndex ?? (kept > 0 ? kept : request.PageIndex), 0, Math.Max(0, doc.PageCount - 1));
+            var terms = await TermHighlightsAsync(document, source.DocumentId, request, start);
+            if (version != _version) return;
+            // From a search hit, the first marked word is brought into view; coming Back, the page as it was left.
+            var top = _resume is null && terms is [{ Rects: [var first, ..] }, ..] ? first.Top : (double?)null;
+            // A book whose text was forgotten keeps its thumbnails in memory only, as it has no cover on disk.
+            var forgotten = await _library.IsTextForgottenAsync(source.DocumentId);
+            if (version != _version) return;
+            CurrentPageIndex = start;
+            OnCurrentPageIndexChanged(start);
+            var seed = ready?.Seed is { IsCompletedSuccessfully: true, Result: { } drawn } && drawn.PageIndex == start && top is null ? drawn : null;
+            var documentId = source.DocumentId;
+            var printed = new Lazy<Task<PrintedPages>>(() => PrintedPagesAsync(documentId, doc));
+            Pdf = new OpenPdf(document, doc, TextAsync, start, top, seed, () => printed.Value);
+            Strip.Show(document, source.ContentHash, doc, keepOnDisk: !forgotten, start);
+            MarkItemPages();
+            Find.MarkTerms(terms, showFirst: _resume is null);
+            Mode = ViewerMode.Pdf;
+            Ask.Attach(source.DocumentId);
+            if (request.Ask && Ask.IsOn) AskVisible = true;
+            PrepareAskAsync(source.DocumentId).FireAndForget();
+            Notes.Attach(source.DocumentId);
+            LoadNornisAsync(source.DocumentId, source.ContentHash).FireAndForget();
+            ShowSessionBanner();
+            if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
+            await RecordOpenAsync(source.DocumentId);
+        }
+        catch
+        {
+            if (!ReferenceEquals(_document, document))
+            {
+                await document.DisposeAsync();
+                await file.DisposeAsync();
+            }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Opens the PDF, trying the password that opened it earlier in this sitting or a remembered one first, and then
+    /// asking. Null when it didn't open, with why shown in its place when there is something to say.
+    /// </summary>
+    async Task<OpenedDocument?> OpenWithPasswordAsync(IReaderDocument document, DocumentSource source, string path, int version)
+    {
+        var result = await _opener.OpenAsync(source.ContentHash, Title, password => document.OpenAsync(path, password), () => version == _version);
+        if (result.Problem is { } problem)
+            Problem(problem.Title, problem.Message, problem.Action, problem.OpenElsewhere ? OpenElsewhereCommand : null);
+        return result.Document;
+    }
+
+    /// <summary>
+    /// The search's words on the page the hit was on, top of the page first. PDF text is searched by the worker; a
+    /// scanned page's words come from OCR.
+    /// </summary>
+    async Task<IReadOnlyList<PageHighlight>> TermHighlightsAsync(IReaderDocument document, long documentId, ViewerRequest request, int page)
+    {
+        if (request.Query is not { } query) return [];
+        var terms = query.HighlightTerms();
+        if (terms.Count == 0) return [];
+
+        var found = new List<PageHighlight>();
+        foreach (var term in terms)
+            foreach (var hit in await document.FindAsync(term, page, MaxHitsPerTerm))
+                found.Add(new PageHighlight(page, [.. hit.Rects.Select(PdfRects.ToPageRect)]));
+        if (found.Count == 0)
+        {
+            var words = await Task.Run(() => _queries.GetOcrWordsAsync(documentId, page));
+            var parts = terms.SelectMany(t => t.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToList();
+            found.AddRange(words
+                .Where(w => parts.Any(p => w.Text.Contains(p, StringComparison.CurrentCultureIgnoreCase)))
+                .Select(w => new PageHighlight(page, [new PageRect(w.Left, w.Top, w.Right, w.Bottom)])));
+        }
+        return [.. found.Where(h => h.Rects.Count > 0).OrderByDescending(h => h.Rects[0].Top).ThenBy(h => h.Rects[0].Left)];
+    }
+
+    /// <summary>
+    /// Where the book's printed page numbers are: its page labels, or failing those the numbers printed at the top or
+    /// foot of its pages in the indexed text. Neither means none are guessed at (<see cref="PrintedPages"/>).
+    /// </summary>
+    Task<PrintedPages> PrintedPagesAsync(long documentId, DocInfo doc)
+    {
+        var labelled = PrintedPages.FromLabels(doc.PageLabels, doc.PageCount);
+        if (labelled.IsKnown) return Task.FromResult(labelled);
+        // Every page's text is read and looked through, so off the UI thread.
+        return Task.Run(async () => PrintedPages.FromFolios((await _index.GetPageTextsAsync(documentId)).Select(t => (t.PdfPage, t.Text)), doc.PageCount));
+    }
+
+    /// <summary>A page's selectable text: the PDF's own, or the words OCR read from a scanned page.</summary>
+    async Task<PageTextLayer> TextAsync(int pageIndex)
+    {
+        if (_document is not { } document || _source is not { } source) return PageTextLayer.Empty;
+        var layer = await document.GetTextAsync(pageIndex);
+        if (layer.Text.Any(char.IsLetterOrDigit)) return layer;
+        var words = await Task.Run(() => _queries.GetOcrWordsAsync(source.DocumentId, pageIndex));
+        return words.Count == 0 ? layer : PageTextLayer.FromWords(words.Select(w => (w.Text, new PageRect(w.Left, w.Top, w.Right, w.Bottom))));
+    }
+
+    /// <summary>Goes to a bookmark's page (click or Enter in the Contents panel).</summary>
+    [RelayCommand]
+    void OpenOutlineEntry(OutlineEntry entry) => GoTo(entry.PageIndex, null);
+
+    /// <summary>
+    /// Adds what the AI found in each chapter to the contents, under the bookmark the chapter starts at. A book with no
+    /// bookmarks lists the scanned chapters themselves, so its contents panel has something to offer.
+    /// </summary>
+    async Task ShowChaptersAsync(long documentId, int pageCount, IReadOnlyList<string?> labels, int version)
+    {
+        if (_chapters is not { } service) return;
+        try
+        {
+            var chapters = await Task.Run(() => service.GetChaptersAsync(documentId));
+            if (version != _version || chapters.Count == 0) return;
+            var found = chapters.Where(c => c.Tags.Count > 0)
+                .ToDictionary(c => c.FirstPage, c => "Found inside: " + string.Join(" · ", ChapterFields.Describe(c.Tags)));
+            if (Outline.Count > 0)
+            {
+                // The shallowest bookmark at a chapter's first page is the chapter's own.
+                var starts = Outline.Select((o, i) => (o, i)).Where(p => found.ContainsKey(p.o.PageIndex))
+                    .GroupBy(p => p.o.PageIndex).Select(g => g.MinBy(p => p.o.Depth).i).ToHashSet();
+                if (starts.Count > 0) Outline = [.. Outline.Select((o, i) => starts.Contains(i) ? o with { Found = found[o.PageIndex] } : o)];
+                return;
+            }
+            var pages = _request?.Part?.Pages;
+            Outline = [.. chapters.Where(c => c.FirstPage < pageCount).Select(c => new OutlineEntry(c.Title, c.FirstPage, 0, PageNumbers.Display(c.FirstPage, labels))
+            {
+                InPart = pages?.Contains(c.FirstPage) == true,
+                Found = found.GetValueOrDefault(c.FirstPage),
+            })];
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Couldn't read the chapters found in document {DocumentId}", documentId);
+        }
+    }
+
+    [RelayCommand]
+    void ToggleOutline() => ShowOutline = !ShowOutline;
+
+    /// <summary>Back to the starting zoom, fitted to the width (Ctrl+0).</summary>
+    [RelayCommand]
+    void ResetZoom() => Zoom = ZoomSteps.FitWidth;
+
+    [RelayCommand(CanExecute = nameof(CanGoPrevious))]
+    void PreviousPage() => GoTo(CurrentPageIndex - 1, null);
+
+    bool CanGoPrevious() => CurrentPageIndex > 0;
+
+    [RelayCommand(CanExecute = nameof(CanGoNext))]
+    void NextPage() => GoTo(CurrentPageIndex + 1, null);
+
+    bool CanGoNext() => CurrentPageIndex < PageCount - 1;
+
+    /// <summary>Goes to the page typed in the page box: a printed label, or a PDF page number.</summary>
+    [RelayCommand]
+    void GoToPage()
+    {
+        if (PageNumbers.Find(PageEntry, _labels, PageCount) is { } index) GoTo(index, null);
+        else
+        {
+            ShowNotice($"There's no page “{PageEntry.Trim()}” in this book.");
+            PageEntry = PageNumbers.Display(CurrentPageIndex, _labels);
+        }
+    }
+
+    void GoTo(int index, double? pdfTop)
+    {
+        if (index < 0 || index >= PageCount) return;
+        GoToRequested?.Invoke(this, new PageTarget(index, pdfTop));
+    }
+
+    /// <summary>Tries again after a problem: the folder is back, or the reader will now enter the password.</summary>
+    [RelayCommand]
+    Task Retry() => LoadAsync();
+
+    /// <summary>The page a followed link left from, so the reader can go back to it.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasLinkBack), nameof(LinkBackLabel))]
+    public partial int? LinkBackPage { get; private set; }
+
+    public bool HasLinkBack => LinkBackPage is not null;
+
+    /// <summary>"Back to page 12", as the book numbers its pages.</summary>
+    public string LinkBackLabel => LinkBackPage is { } page ? $"Back to page {PageNumbers.Display(page, _labels)}" : "";
+
+    /// <summary>
+    /// A link on a page, as in an index or a table of contents: one to a page of this book goes there and offers the
+    /// way back; a web link opens in the browser once the reader says yes.
+    /// </summary>
+    public void FollowLink(PageLink link)
+    {
+        if (link.Uri is { } uri)
+        {
+            OpenWebLink(uri);
+            return;
+        }
+        if (link.PageIndex < 0 || link.PageIndex >= PageCount) return;
+        LinkBackPage = CurrentPageIndex;
+        GoTo(link.PageIndex, link.Top);
+    }
+
+    [RelayCommand]
+    void BackFromLink()
+    {
+        if (LinkBackPage is not { } page) return;
+        LinkBackPage = null;
+        GoTo(page, null);
+    }
+
+    void OpenWebLink(string uri)
+    {
+        if (!WebLinkPrompt.ConfirmOpen(_userPrompts, uri) || _shell.Open(uri) is not { } failed) return;
+        _log.LogWarning(failed, "Opening a web link failed");
+        ShowNotice("Windows couldn't open that link.");
+    }
+
+    public void ShowNotice(string text)
+    {
+        Notice = text;
+        _noticeTimer.Start();
+    }
+
+    void Problem(string title, string message, string? action = "Try again", IRelayCommand? command = null)
+    {
+        EmptyTitle = title;
+        EmptyMessage = message;
+        EmptyActionText = action;
+        EmptyCommand = action is null ? null : command ?? RetryCommand;
+        EmptySecondaryText = null;
+        EmptySecondaryCommand = null;
+        Mode = ViewerMode.Problem;
+    }
+
+    /// <summary>
+    /// Opens an e-book: cut into the pages indexing cut it into, so its page numbers are the ones search, notes and
+    /// binders know, and shown on its reader page at the page asked for, with the search's words marked there. A book
+    /// with DRM, or one that can't be read, says so and offers the user's own e-book app.
+    /// </summary>
+    async Task OpenEbookAsync(DocumentSource source, ViewerRequest request, int version)
+    {
+        var kind = LibraryItemViewModel.FormatName(source.Format);
+        Subtitle = DescribeSource(source, kind);
+        if (EbookBrowser is null)
+        {
+            ShowEbookProblem("Bibliotaph's e-book reader isn't available here.");
+            return;
+        }
+        var file = await _sources.OpenToReadAsync(source);
+        EbookContent content;
+        try
+        {
+            content = await Task.Run(() => EbookContent.Open(file, _files));
+        }
+        catch (Bibliotaph.Ebooks.EbookException ex)
+        {
+            file.Dispose();
+            if (version == _version) Problem("This e-book could not be opened.", ex.Message, "Open in another app", OpenElsewhereCommand);
+            return;
+        }
+        catch
+        {
+            file.Dispose();
+            throw;
+        }
+        if (version != _version)
+        {
+            content.Dispose();
+            return;
+        }
+        if (content.IsProtected || content.Layout.Pages.Count == 0)
+        {
+            content.Dispose();
+            if (content.IsProtected)
+                Problem("This e-book is protected.", "It has DRM, which Bibliotaph can't open. Its pages can't be searched or read here; open it in the app it came with.",
+                    "Open in another app", OpenElsewhereCommand);
+            else Problem("This e-book has no pages.", "There's nothing in it to read. Open it in your e-book app to see what it holds.", "Open in another app", OpenElsewhereCommand);
+            return;
+        }
+
+        _ebook = content;
+        var layout = content.Layout;
+        _labels = content.Labels;
+        LinkBackPage = null;
+        _bookmarks = [.. layout.Outline.Select(o => (o.PageIndex, o.Depth))];
+        Outline = [.. layout.Outline
+            .Where(o => o.PageIndex >= 0 && o.PageIndex < layout.Pages.Count && !string.IsNullOrWhiteSpace(o.Title))
+            .Select(o => new OutlineEntry(o.Title.Trim(), o.PageIndex, Math.Min(o.Depth, 5), PageNumbers.Display(o.PageIndex, _labels))
+            {
+                InPart = request.Part?.Pages.Contains(o.PageIndex) == true,
+            })];
+        PageCount = layout.Pages.Count;
+        ShowPart();
+        ShowChaptersAsync(source.DocumentId, PageCount, _labels, version).FireAndForget();
+        CanCopy = true;
+        var line = $"{kind} · {PageCount.ToString("N0", CultureInfo.CurrentCulture)} {(PageCount == 1 ? "page" : "pages")}";
+        Subtitle = DescribeSource(source, request.PackTitle is { } packTitle ? $"{line} in {packTitle}" : line);
+
+        var kept = _resume is null && request.Resume && request.PageIndex == 0 ? await _reading.GetPositionAsync(source.DocumentId) : 0;
+        if (version != _version) return;
+        var start = Math.Clamp(_resume?.PageIndex ?? (kept > 0 ? kept : request.PageIndex), 0, PageCount - 1);
+        // A fixed-layout book's pages are drawn in frames of their own, so Find goes by the pages' text and shows the page.
+        if (content.FixedLayout) Find.AttachMatches(source.DocumentId, (text, most) => Task.FromResult(MatchesInPages(layout, text, most)));
+        else Find.AttachMatches(source.DocumentId, FindInEbookAsync);
+        CurrentPageIndex = start;
+        OnCurrentPageIndexChanged(start);
+        Ebook = new OpenEbook(content, start);
+        Mode = ViewerMode.Ebook;
+        OnPropertyChanged(nameof(ZoomChoices));
+        Ask.Attach(source.DocumentId);
+        if (request.Ask && Ask.IsOn) AskVisible = true;
+        PrepareAskAsync(source.DocumentId).FireAndForget();
+        Notes.Attach(source.DocumentId);
+        LoadNornisAsync(source.DocumentId, source.ContentHash).FireAndForget();
+        ShowSessionBanner();
+        if (start > 0 && start == kept) ShowNotice($"Back at page {PageNumbers.Display(start, _labels)}, where you left off.");
+        if (request.Query?.HighlightTerms() is { Count: > 0 } terms && !content.FixedLayout && EbookTerms is { } mark)
+        {
+            var pages = await mark(terms, start);
+            if (version != _version) return;
+            Find.MarkTerms([.. pages.Select(p => new PageHighlight(p, []))], showFirst: _resume is null);
+        }
+        await RecordOpenAsync(source.DocumentId);
+    }
+
+    async Task<IReadOnlyList<PageHighlight>> FindInEbookAsync(string text, int most) =>
+        EbookFind is { } find ? [.. (await find(text, most)).Select(p => new PageHighlight(p, []))] : [];
+
+    /// <summary>Every match of <paramref name="text"/> in the pages' text, ignoring case, as the page each is on.</summary>
+    internal static IReadOnlyList<PageHighlight> MatchesInPages(Bibliotaph.Ebooks.EbookLayout layout, string text, int most)
+    {
+        var needle = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        var found = new List<PageHighlight>();
+        if (needle.Length == 0) return found;
+        foreach (var page in layout.Pages)
+        {
+            var haystack = string.Join(' ', page.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+            for (var at = haystack.IndexOf(needle, StringComparison.CurrentCultureIgnoreCase); at >= 0 && found.Count < most;
+                 at = haystack.IndexOf(needle, at + needle.Length, StringComparison.CurrentCultureIgnoreCase))
+                found.Add(new PageHighlight(page.Index, []));
+            if (found.Count >= most) break;
+        }
+        return found;
+    }
+
+    /// <summary>The e-book reader couldn't show the book: why, with the user's own e-book app instead.</summary>
+    public void ShowEbookProblem(string message)
+    {
+        if (Mode is not (ViewerMode.Ebook or ViewerMode.Opening)) return;
+        CloseBook();
+        Problem("This e-book can't be shown here.", message, "Open in another app", OpenElsewhereCommand);
+    }
+
+    /// <summary>A link in the e-book went to another place in it, from <paramref name="fromPage"/>: the way back.</summary>
+    public void LinkFollowed(int fromPage)
+    {
+        if (fromPage >= 0 && fromPage < PageCount) LinkBackPage = fromPage;
+    }
+
+    /// <summary>Ctrl+wheel or Ctrl+plus, minus or 0 on an e-book's page.</summary>
+    public void StepEbookZoom(int step)
+    {
+        if (!IsEbook) return;
+        Zoom = step == 0 ? ZoomSteps.FitWidth : ZoomSteps.Next(Zoom > 0 ? Zoom : 1, up: step > 0);
+    }
+
+    /// <summary>Open in another app, from the problem screen of a file Bibliotaph can't show: the user's default app for it.</summary>
+    [RelayCommand]
+    async Task OpenElsewhere()
+    {
+        if (_source is not { } source) return;
+        if (await _otherApps.OpenAsync(source.DocumentId) is { } problem) ShowNotice(problem);
+    }
+
+    static string DescribeSource(DocumentSource source, string? kind) =>
+        string.Join(" · ", new[] { kind, source.FolderHint }.Where(s => !string.IsNullOrEmpty(s)));
+
+    async Task PrioritizeAsync(long documentId)
+    {
+        try
+        {
+            // An open book's waiting stages (text, OCR) run next, so its search catches up while it's being read.
+            await _jobs.PrioritizeAsync(documentId);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.LogWarning(ex, "Prioritizing document {DocumentId} failed", documentId);
+        }
+    }
+
+    async Task CloseAsync(IReaderDocument document, LocalFile? file)
+    {
+        try
+        {
+            await document.DisposeAsync();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            _log.LogWarning(ex, "Closing a document in the viewer failed");
+        }
+        finally
+        {
+            file?.Dispose();
+        }
+    }
+}

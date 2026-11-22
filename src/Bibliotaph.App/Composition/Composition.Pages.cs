@@ -1,5 +1,7 @@
 using Bibliotaph.App.Services;
 using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -56,6 +58,7 @@ static partial class Composition
         services.AddSingleton<DownloadCheckViewModel>();
         // One Settings > Online libraries, so a preview is still there after a look at the Library.
         services.AddSingleton<OnlineLibrariesViewModel>();
+        services.AddSingleton<OnlineLibrariesSection>(sp => sp.GetRequiredService<OnlineLibrariesViewModel>());
         services.AddSingleton<SearchGuideViewModel>();
         services.AddSingleton<LibraryAskViewModel>();
         services.AddSingleton<PlainSearchViewModel>();

@@ -1,6 +1,5 @@
 using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
-using Bibliotaph.Core.Metadata;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog;

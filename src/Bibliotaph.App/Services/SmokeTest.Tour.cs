@@ -2,10 +2,11 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.App.Views;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;

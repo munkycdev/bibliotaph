@@ -2,6 +2,7 @@ using System.IO;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using Bibliotaph.Storage;
 using Bibliotaph.Storage.Desktop;
