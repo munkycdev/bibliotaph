@@ -167,7 +167,7 @@ Each stage has its own status per document (pending, running, complete, partial,
 3. **Text.** Per-page text and text quality; pages with no or garbage text are flagged for OCR. The book is searchable from here.
 4. **Covers.** A PDF's first or chosen page, an image itself, or an e-book's cover image.
 5. **Rule hints.** Folder names, the file name and the PDF's own information become provisional assertions (see Metadata).
-6. **OCR.** Flagged pages only, page numbering kept.
+6. **OCR.** Flagged pages only, page numbering kept. A book blocked because OCR couldn't run on this computer is released at every start (`JobBoard.UnblockStageAsync`, skipping those waiting for an unreachable source), since an update or a newly installed OCR language may let it run now; where it still can't, the first page blocks it again.
 7. **Match.** Fingerprints each page from stored text and finds copies and new versions (see Copies and versions), then checks the book against the user's tags (see User tags).
 8. **Classify.** Has the AI read the book, when AI is set up and on (see Metadata).
 9. **Identify.** Finds the ISBNs and product codes the book prints about itself (`BookIdentifiers`, Core) in its stored text, once OCR is done, and an e-book's package ISBN, into `doc_identifier` (see Book identifiers).
