@@ -3,11 +3,12 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Threading;
 using Bibliotaph.App.Controls;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.App.Views;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core.Layout;
 using Bibliotaph.Pdf.Host;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.App.Services;
@@ -115,6 +116,17 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
 
     /// <summary>The pop-out showing a page that matches, if one is open.</summary>
     public ReaderWindow? Find(Func<PageViewModel, bool> match) => _windows.Find(w => match(w.Model));
+
+    public bool Shows(Func<PageViewModel, bool> match) => Find(match) is not null;
+
+    public bool BringForward(Func<PageViewModel, bool> match)
+    {
+        if (Find(match) is not { } window) return false;
+        BringForward(window);
+        return true;
+    }
+
+    void IReaderWindows.BringMainForward() => BringMainForward();
 
     /// <summary>Closes the pop-out showing <paramref name="model"/>, if it is open.</summary>
     public void Close(PageViewModel model) => _windows.Find(w => ReferenceEquals(w.Model, model))?.Close();

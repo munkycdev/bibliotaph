@@ -9,7 +9,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Media;
 using Bibliotaph.App.Services;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;

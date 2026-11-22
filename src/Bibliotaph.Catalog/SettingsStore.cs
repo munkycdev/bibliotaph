@@ -1,4 +1,3 @@
-using Bibliotaph.Catalog.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace Bibliotaph.Catalog;

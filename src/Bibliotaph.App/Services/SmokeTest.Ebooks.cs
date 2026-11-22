@@ -2,11 +2,12 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.Text;
 using System.Windows;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.App.Views;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 

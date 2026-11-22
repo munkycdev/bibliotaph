@@ -20,6 +20,7 @@
     <Project Path="src/Bibliotaph.Pdf.Contracts/Bibliotaph.Pdf.Contracts.csproj" />
     <Project Path="src/Bibliotaph.Pdf.Host/Bibliotaph.Pdf.Host.csproj" />
     <Project Path="src/Bibliotaph.PdfWorker/Bibliotaph.PdfWorker.csproj" />
+    <Project Path="src/Bibliotaph.Presentation/Bibliotaph.Presentation.csproj" />
     <Project Path="src/Bibliotaph.Processing/Bibliotaph.Processing.csproj" />
     <Project Path="src/Bibliotaph.Server/Bibliotaph.Server.csproj" />
     <Project Path="src/Bibliotaph.Storage/Bibliotaph.Storage.csproj" />
@@ -27,7 +28,7 @@
     <Project Path="src/Bibliotaph.Web/Bibliotaph.Web.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/Bibliotaph.App.Tests/Bibliotaph.App.Tests.csproj" />
+    <Project Path="tests/Bibliotaph.Presentation.Tests/Bibliotaph.Presentation.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Catalog.Tests/Bibliotaph.Catalog.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Classification.Tests/Bibliotaph.Classification.Tests.csproj" />
     <Project Path="tests/Bibliotaph.Core.Tests/Bibliotaph.Core.Tests.csproj" />

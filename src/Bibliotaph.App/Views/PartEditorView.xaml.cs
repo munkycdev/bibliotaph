@@ -2,7 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.ViewModels;
 
 namespace Bibliotaph.App.Views;
 

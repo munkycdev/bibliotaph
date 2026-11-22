@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.ViewModels;
 
 namespace Bibliotaph.App.Views;
 

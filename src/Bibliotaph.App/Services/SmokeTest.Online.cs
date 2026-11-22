@@ -4,6 +4,8 @@ using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;

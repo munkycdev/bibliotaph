@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Shell, screens, view models, theme and DI composition. -->
+  <!-- Shell, WPF views, theme, windows and DI composition; the view models are in Bibliotaph.Presentation. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <!--
@@ -46,6 +46,7 @@
     <ProjectReference Include="..\Bibliotaph.Classification\Bibliotaph.Classification.csproj" />
     <ProjectReference Include="..\Bibliotaph.Pdf.Contracts\Bibliotaph.Pdf.Contracts.csproj" />
     <ProjectReference Include="..\Bibliotaph.Pdf.Host\Bibliotaph.Pdf.Host.csproj" />
+    <ProjectReference Include="..\Bibliotaph.Presentation\Bibliotaph.Presentation.csproj" />
     <ProjectReference Include="..\Bibliotaph.Viewer\Bibliotaph.Viewer.csproj" />
     <BundledExe Include="..\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" Folder="pdfworker" />
   </ItemGroup>
@@ -61,8 +62,6 @@
   </ItemGroup>
   <ItemGroup>
     <Resource Include="Fonts\*.ttf" />
-    <!-- The e-book reader page's own stylesheet and script, served to it from memory. -->
-    <EmbeddedResource Include="Assets\Ebook\*" LogicalName="Bibliotaph.App.Ebook.%(Filename)%(Extension)" />
     <Resource Include="Assets\Bibliotaph.ico" />
     <Resource Include="Assets\powered-by-bgg.png" />
     <!-- Link, not LinkBase: LinkBase applies only to files outside the project folder, so these landed in Fonts\. -->

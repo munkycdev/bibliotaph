@@ -4,9 +4,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Bibliotaph.App.Controls;
-using Bibliotaph.App.Services;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.Core;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 
 namespace Bibliotaph.App.Views;
 

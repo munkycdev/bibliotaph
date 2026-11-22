@@ -6,10 +6,11 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.Services;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.Logging;
 

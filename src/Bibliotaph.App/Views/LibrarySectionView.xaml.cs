@@ -1,5 +1,5 @@
 using System.Windows;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.ViewModels;
 
 namespace Bibliotaph.App.Views;
 

@@ -1,3 +1,5 @@
+using Bibliotaph.Presentation.Services;
+
 namespace Bibliotaph.App.Services;
 
 public sealed class WpfClipboard : IClipboard

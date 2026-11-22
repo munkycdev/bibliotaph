@@ -1,3 +1,4 @@
+using Bibliotaph.Presentation.Services;
 using Microsoft.Extensions.Logging;
 using Microsoft.Win32;
 
@@ -7,7 +8,7 @@ namespace Bibliotaph.App.Services;
 /// How much memory the computer's biggest graphics card has, so Settings > AI can suggest the model that fits. Read
 /// from the display drivers' registry entries, which say it in full; WMI's AdapterRAM stops at 4 GB.
 /// </summary>
-public sealed class GraphicsMemory(ILogger<GraphicsMemory> log)
+public sealed class GraphicsMemory(ILogger<GraphicsMemory> log) : IGraphicsMemory
 {
     /// <summary>The display adapters' device class.</summary>
     const string Adapters = @"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}";

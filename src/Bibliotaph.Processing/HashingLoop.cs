@@ -1,5 +1,4 @@
 using Bibliotaph.Catalog;
-using Bibliotaph.Catalog.Entities;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
 using Microsoft.Extensions.Logging;

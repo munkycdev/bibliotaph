@@ -4,6 +4,8 @@ using System.Windows;
 using Bibliotaph.App.Services;
 using Bibliotaph.App.Views;
 using Bibliotaph.Core.Metadata;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -19,7 +21,7 @@ namespace Bibliotaph.App.ViewModels;
 /// </summary>
 public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, ElsewhereService elsewhere, OnlineBrowsers browsers,
     INavigationService navigation, SettingsLinks links, SiteIconImages siteIcons, OnlineReaders onlineReaders, IFilePicker files,
-    ILogger<OnlineLibrariesViewModel> log) : SettingsSectionViewModel
+    ILogger<OnlineLibrariesViewModel> log) : OnlineLibrariesSection
 {
     OnlinePage? _page;
 
@@ -79,6 +81,8 @@ public sealed partial class OnlineLibrariesViewModel(OnlineImports imports, Else
     public string ImportLabel => OnlineImportText.ImportLabel(Chosen.Count);
 
     IReadOnlyList<OnlineImportRow> Chosen => [.. Groups.SelectMany(g => g.Items).Where(i => i.CanChoose && i.IsChosen).Select(i => i.Row)];
+
+    public override void OpenLibraryPage(IOnlineLibraryReader reader) => OpenBrowser(reader);
 
     /// <summary>
     /// Opens the service in Bibliotaph's browser at its library page, or at <paramref name="start"/> (the smoke test's

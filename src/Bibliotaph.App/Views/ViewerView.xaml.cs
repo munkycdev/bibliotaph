@@ -5,9 +5,9 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Bibliotaph.App.Controls;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.App.Services;
 using Bibliotaph.Core.Reading;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Viewer;
 
 namespace Bibliotaph.App.Views;
@@ -86,8 +86,9 @@ public partial class ViewerView
         model.DrawAhead = (document, doc, page) => PagesView.PrerenderAsync((PdfRenderer)document, doc, page);
         model.EbookFind = EbookSurface.FindAsync;
         model.EbookTerms = EbookSurface.MarkTermsAsync;
-        EbookSurface.Browser = model.EbookBrowser;
-        VideoSurface.Browser = model.EbookBrowser;
+        // The WPF reader's e-book browser is EbookBrowser.
+        EbookSurface.Browser = (EbookBrowser?)model.EbookBrowser;
+        VideoSurface.Browser = (EbookBrowser?)model.EbookBrowser;
         _strip!.PropertyChanged += OnStripChanged;
         _find!.PropertyChanged += OnFindChanged;
         ShowPdf(model.Pdf);

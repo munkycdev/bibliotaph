@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.App.Views;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Search;
 using Bibliotaph.Index;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 

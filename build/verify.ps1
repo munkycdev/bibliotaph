@@ -10,12 +10,12 @@
       AppBuild   Debug build of just the app and the licence tool, which is all Licenses and Smoke need; not run by
                  default, as Build covers it
       Licenses   writes licenses\packages beside the Debug build; fails on a licence that isn't GPL-3.0-compatible
-      Test       every test project; off Windows, all but the app's
+      Test       every test project
       Smoke      the app's --smoke-test on the real window (Windows only)
       BannedApi  proves that a write API in Core fails the build with RS0030
       Release    Release build, which leaves out the worker's fault-injection requests
 
-    With no -Step, every step runs. Off Windows, Engine, Smoke and the app's tests are skipped with a warning, and the
+    With no -Step, every step runs. Off Windows, Engine and Smoke are skipped with a warning, and the
     engine test skips itself.
 
 .EXAMPLE
@@ -187,8 +187,7 @@ function Get-TestProjects {
     }
     $all | Where-Object {
         $short = & $name $_
-        ($OnlyTests.Count -eq 0 -or $short -in $OnlyTests) -and $short -notin $SkipTests -and
-            ($IsWindows -or $OnlyTests.Count -gt 0 -or $short -ne 'App')
+        ($OnlyTests.Count -eq 0 -or $short -in $OnlyTests) -and $short -notin $SkipTests
     }
 }
 
@@ -219,11 +218,6 @@ try {
                 $options = '--configuration', 'Debug', '--no-build', '--report-xunit-trx', '--results-directory', $results
                 if ($IsWindows -and -not $OnlyTests -and -not $SkipTests) { Invoke-Dotnet test --solution $solution @options }
                 else {
-                    if (-not $IsWindows -and -not $OnlyTests) {
-                        # The app's tests need WPF, which runs only on Windows; the Build step still compiled them.
-                        Write-Warning 'App tests skipped: they need Windows. CI runs them on Windows.'
-                        $skipped.Add('App tests')
-                    }
                     # A solution filter of just these projects lets dotnet test run them side by side, as it runs the
                     # whole solution's.
                     New-Item -ItemType Directory -Force $results | Out-Null

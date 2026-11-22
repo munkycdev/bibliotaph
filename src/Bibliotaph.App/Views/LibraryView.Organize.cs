@@ -7,8 +7,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Bibliotaph.App.ViewModels;
-using Bibliotaph.Core;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 
 namespace Bibliotaph.App.Views;

@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
 using Bibliotaph.Catalog;
-using Bibliotaph.Core;
 using Bibliotaph.Core.Sync;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;

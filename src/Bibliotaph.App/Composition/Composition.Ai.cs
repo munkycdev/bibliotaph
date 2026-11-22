@@ -2,6 +2,7 @@ using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -25,7 +26,7 @@ static partial class Composition
         services.AddSingleton(sp => new BuiltInModelDownloads(sp.GetRequiredService<BuiltInEngineOptions>(),
             new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan }, null,
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<BuiltInModelDownloads>>()));
-        services.AddSingleton<GraphicsMemory>();
+        services.AddSingleton<IGraphicsMemory, GraphicsMemory>();
         // A second, small engine in embedding mode, for finding pages by meaning in Ask this book.
         services.AddKeyedSingleton(BuiltInEngine.EmbeddingKey, (sp, _) => new BuiltInEngine(
             sp.GetRequiredService<BuiltInEngineOptions>() with { Embedding = true, MinContextTokens = 2_048 },

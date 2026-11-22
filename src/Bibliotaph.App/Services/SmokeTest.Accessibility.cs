@@ -7,7 +7,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using Bibliotaph.App.Controls;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 

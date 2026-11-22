@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using Bibliotaph.Catalog;
 using Bibliotaph.Catalog.Entities;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;

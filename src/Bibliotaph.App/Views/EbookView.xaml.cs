@@ -8,6 +8,7 @@ using System.Windows.Automation;
 using System.Windows.Media;
 using Bibliotaph.App.Services;
 using Bibliotaph.Ebooks;
+using Bibliotaph.Presentation.Services;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 

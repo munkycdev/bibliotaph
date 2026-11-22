@@ -1,7 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using Bibliotaph.App.ViewModels;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 

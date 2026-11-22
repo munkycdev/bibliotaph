@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using Bibliotaph.Core;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.Logging;
 

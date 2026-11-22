@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Bibliotaph.Pdf.Host;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using Bibliotaph.Viewer;
 using Microsoft.Extensions.Logging;

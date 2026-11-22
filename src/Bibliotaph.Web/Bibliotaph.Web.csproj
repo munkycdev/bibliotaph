@@ -22,7 +22,7 @@
     <!-- The Windows app's icon set, read by Icons/LucideIcons.cs, so the two never drift apart. -->
     <EmbeddedResource Include="..\Bibliotaph.App\Icons\Icons.xaml" LogicalName="Bibliotaph.Web.Icons.xaml" Link="Icons\Icons.xaml" />
     <!-- The Windows e-book reader's page style and script, so a book's page behaves the same in both. -->
-    <EmbeddedResource Include="..\Bibliotaph.App\Assets\Ebook\reader.css" LogicalName="Bibliotaph.Web.Ebook.reader.css" Link="Ebook\reader.css" />
-    <EmbeddedResource Include="..\Bibliotaph.App\Assets\Ebook\reader.js" LogicalName="Bibliotaph.Web.Ebook.reader.js" Link="Ebook\reader.js" />
+    <EmbeddedResource Include="..\Bibliotaph.Presentation\Assets\Ebook\reader.css" LogicalName="Bibliotaph.Web.Ebook.reader.css" Link="Ebook\reader.css" />
+    <EmbeddedResource Include="..\Bibliotaph.Presentation\Assets\Ebook\reader.js" LogicalName="Bibliotaph.Web.Ebook.reader.js" Link="Ebook\reader.js" />
   </ItemGroup>
 </Project>

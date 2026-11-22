@@ -1,5 +1,6 @@
 using Bibliotaph.App.Services;
 using Bibliotaph.Core;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

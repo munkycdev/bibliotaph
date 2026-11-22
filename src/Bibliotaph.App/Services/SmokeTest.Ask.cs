@@ -4,9 +4,10 @@ using System.Windows.Automation.Peers;
 using System.Windows.Automation.Provider;
 using System.Windows.Controls;
 using System.Windows.Documents;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.Classification;
 using Bibliotaph.Core;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 
