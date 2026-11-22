@@ -77,11 +77,11 @@ public sealed partial class SettingsWindow : NSWindowController
     {
         Label = label,
         Image = NSImage.GetSystemSymbol(symbol, label)!,
-        ViewController = new Pane { View = view, Title = label },
+        ViewController = new PaneController { View = view, Title = label },
     };
 
     /// <summary>A pane, which remembers it was the one looked at last.</summary>
-    sealed class Pane : NSViewController
+    sealed class PaneController : NSViewController
     {
         public override void ViewDidAppear()
         {
@@ -91,28 +91,67 @@ public sealed partial class SettingsWindow : NSWindowController
             window.Title = Title ?? "Settings";
             if (window.ContentViewController is NSTabViewController tabs)
                 NSUserDefaults.StandardUserDefaults.SetInt(tabs.SelectedTabViewItemIndex, LastPane);
+            Fit(window);
+            // A pane whose content arrives after it shows, or grows and shrinks, takes the window with it.
+            if (View is NSScrollView { DocumentView: { } document } && _watch is null)
+            {
+                document.PostsFrameChangedNotifications = true;
+                _watch = NSView.Notifications.ObserveFrameChanged(document, (_, _) =>
+                {
+                    if (View.Window is { } shown && shown.ContentViewController is NSTabViewController { SelectedTabViewItemIndex: var at } tabs
+                        && tabs.TabViewItems[at].ViewController == this) Fit(shown);
+                });
+            }
+        }
+
+        NSObject? _watch;
+
+        /// <summary>
+        /// The window takes the pane's height, as the Mac's settings windows do, keeping its top where it was; a pane
+        /// taller than that scrolls.
+        /// </summary>
+        void Fit(NSWindow window)
+        {
+            if (View is not NSScrollView { DocumentView: { } document }) return;
+            View.LayoutSubtreeIfNeeded();
+            var height = Math.Clamp(document.FittingSize.Height, 240, 700);
+            // The tab view controller sizes the window to the pane's preferred size, keeping its top where it was.
+            if (Math.Abs(PreferredContentSize.Height - height) < 2) return;
+            PreferredContentSize = new CGSize(720, height);
         }
     }
 
-    NSView LibraryTab()
+    /// <summary>A pane of grouped sections, scrolling when it is taller than the window lets it be.</summary>
+    static NSScrollView Pane(Form form)
+    {
+        var scroll = new NSScrollView { HasVerticalScroller = true, DrawsBackground = false, DocumentView = Flipped(form.Root) };
+        scroll.DocumentView!.WidthAnchor.ConstraintEqualTo(scroll.ContentView.WidthAnchor).Active = true;
+        return scroll;
+    }
+
+    /// <summary>The library's folders, each with what it holds, and adding or looking again; as a list with its buttons under it.</summary>
+    NSScrollView LibraryTab()
     {
         var library = _services.GetRequiredService<LibrarySectionViewModel>();
         var bindings = Load(library);
 
-        var intro = NSTextField.CreateWrappingLabel("The folders Bibliotaph reads your books from. Files stay where they are and are only ever read; removing a folder keeps your work on its books.");
-        intro.TextColor = NSColor.SecondaryLabel;
-        var list = Stack(vertical: true, spacing: 10);
-        var add = NSButton.CreateButton("Add folder…", () => _adding.PickAsync().FireAndForget());
-        var rescan = NSButton.CreateButton("Look for changes", () => { });
+        var form = new Form();
+        var folders = form.Section("Library folders",
+            "Bibliotaph reads your books from these folders. Files stay where they are and are only ever read; removing a folder keeps your work on its books.");
+        var rescan = NSButton.CreateButton("Look for Changes", () => { });
         bindings.Command(rescan, library.RescanCommand);
-        var buttons = Stack(vertical: false, spacing: 8, add, rescan);
+        form.Buttons(rescan, NSButton.CreateButton("Add Folder…", () => _adding.PickAsync().FireAndForget()));
 
+        var rows = new Bindings();
+        bindings.Add(() => rows.Dispose());
         void Refresh()
         {
-            foreach (var view in list.ArrangedSubviews) view.RemoveFromSuperview();
-            foreach (var pending in library.Pending) list.AddArrangedSubview(Pending(library, pending, bindings));
-            if (library.Folders.Count == 0 && library.Pending.Count == 0) list.AddArrangedSubview(NSTextField.CreateLabel("No folders yet."));
-            foreach (var folder in library.Folders) list.AddArrangedSubview(Folder(library, folder, bindings));
+            rows.Dispose();
+            rows = new Bindings();
+            folders.Clear();
+            foreach (var pending in library.Pending) Pending(folders, library, pending, rows);
+            foreach (var folder in library.Folders) Folder(folders, library, folder, rows);
+            if (library.Folders.Count == 0 && library.Pending.Count == 0) folders.Row("No folders yet. Add one to start your library.");
         }
         bindings.Collection(library.Folders, _ => Refresh());
         bindings.Collection(library.Pending, _ => Refresh());
@@ -120,69 +159,63 @@ public sealed partial class SettingsWindow : NSWindowController
         EventHandler added = (_, _) => Bindings.OnMain(() => library.LoadAsync().FireAndForget());
         _adding.Added += added;
         bindings.Add(() => _adding.Added -= added);
-
-        var scroll = new NSScrollView { HasVerticalScroller = true, DrawsBackground = false, DocumentView = Flipped(list) };
-        return Page(intro, scroll, buttons);
+        return Pane(form);
     }
 
-    static NSStackView Folder(LibrarySectionViewModel library, LibraryFolderItem folder, Bindings bindings)
+    /// <summary>A folder: its name, with its path and how it stands under it; Remove, and Point to its new place while it is offline.</summary>
+    static void Folder(FormSection section, LibrarySectionViewModel library, LibraryFolderItem folder, Bindings bindings)
     {
-        var path = NSTextField.CreateLabel(folder.Path);
-        path.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Medium)!;
-        path.LineBreakMode = NSLineBreakMode.TruncatingMiddle;
-        var detail = NSTextField.CreateWrappingLabel("");
-        detail.TextColor = NSColor.SecondaryLabel;
-        detail.Font = NSFont.SystemFontOfSize(11)!;
-        bindings.Properties(folder, [nameof(LibraryFolderItem.Detail), nameof(LibraryFolderItem.Problem)],
-            () => detail.StringValue = folder.HasProblem ? folder.Problem : folder.Detail);
-        var remove = NSButton.CreateButton("Remove", () =>
+        var point = NSButton.CreateButton("Locate…", () => library.PointToNewPlaceCommand.Execute(folder));
+        point.ToolTip = "Point to where the folder is now";
+        var remove = NSButton.CreateButton("Remove…", () =>
         {
             using var alert = new NSAlert
             {
-                MessageText = $"Remove “{Path.GetFileName(folder.Path.TrimEnd('/'))}” from your library?",
+                MessageText = $"Remove “{Name(folder.Path)}” from your library?",
                 InformativeText = "Its books leave the library. The folder and its files aren't touched, and your work on its books is kept if you add it again.",
             };
             alert.AddButton("Remove");
             alert.AddButton("Cancel");
             if (alert.RunModal() == (nint)(long)NSAlertButtonReturn.First) library.RemoveCommand.Execute(folder);
         });
-        remove.ControlSize = NSControlSize.Small;
-        var text = Stack(vertical: true, spacing: 2, path, detail);
-        var row = Stack(vertical: false, spacing: 12, text, remove);
-        row.Alignment = NSLayoutAttribute.CenterY;
-        text.SetContentHuggingPriorityForOrientation(200, NSLayoutConstraintOrientation.Horizontal);
-        path.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
-        return row;
+        var row = section.Row(Name(folder.Path), point, remove);
+        row.Label.LineBreakMode = NSLineBreakMode.TruncatingTail;
+        row.OneLine();
+        var state = row.AddDetail();
+        bindings.Properties(folder, [nameof(LibraryFolderItem.Path), nameof(LibraryFolderItem.Detail), nameof(LibraryFolderItem.Problem),
+            nameof(LibraryFolderItem.CanPointToNewPlace)], () =>
+        {
+            row.Label.StringValue = Name(folder.Path);
+            row.ShowDetail(folder.Path);
+            row.Detail.ToolTip = folder.Path;
+            state.StringValue = folder.HasProblem ? folder.Problem : folder.Detail;
+            state.TextColor = folder.HasProblem ? NSColor.SystemOrange : NSColor.SecondaryLabel;
+            point.Hidden = !folder.CanPointToNewPlace;
+        });
     }
 
     /// <summary>A folder picked from a link elsewhere (the Library's Add folder), with what it holds, to add or not.</summary>
-    static NSStackView Pending(LibrarySectionViewModel library, PendingFolder pending, Bindings bindings)
+    static void Pending(FormSection section, LibrarySectionViewModel library, PendingFolder pending, Bindings bindings)
     {
-        var path = NSTextField.CreateLabel(pending.Shown);
-        path.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Medium)!;
-        path.LineBreakMode = NSLineBreakMode.TruncatingMiddle;
-        var detail = NSTextField.CreateWrappingLabel("");
-        detail.TextColor = NSColor.SecondaryLabel;
-        detail.Font = NSFont.SystemFontOfSize(11)!;
         var add = NSButton.CreateButton("Add", () => library.ConfirmAddCommand.Execute(pending));
+        add.KeyEquivalent = "\r";
         var cancel = NSButton.CreateButton("Cancel", () => library.CancelAddCommand.Execute(pending));
+        var row = section.Row(pending.Shown, cancel, add);
         bindings.Properties(pending, [nameof(PendingFolder.Detail), nameof(PendingFolder.CanAdd)], () =>
         {
-            detail.StringValue = pending.Detail;
+            row.ShowDetail(pending.Detail);
             add.Enabled = pending.CanAdd;
         });
-        var text = Stack(vertical: true, spacing: 2, path, detail);
-        var row = Stack(vertical: false, spacing: 8, text, add, cancel);
-        text.SetContentHuggingPriorityForOrientation(200, NSLayoutConstraintOrientation.Horizontal);
-        path.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
-        return row;
     }
+
+    /// <summary>A folder's own name, as Finder shows it.</summary>
+    static string Name(string path) => Path.GetFileName(path.TrimEnd('/', '\\')) is { Length: > 0 } name ? name : path;
 
     /// <summary>
     /// A model server for Bibliotaph to read books and answer with: its address, which model, a key if it needs one, and
     /// which library folders may be sent. The built-in model is Windows' only, so the Mac always uses a server.
     /// </summary>
-    NSView AiTab()
+    NSScrollView AiTab()
     {
         var ai = _services.GetRequiredService<AiSettingsViewModel>();
         var bindings = Load(ai);
@@ -192,10 +225,11 @@ public sealed partial class SettingsWindow : NSWindowController
             if (ai.ShowBuiltIn) ai.UseServer = true;
         });
 
-        var intro = NSTextField.CreateWrappingLabel("Bibliotaph can ask a model server you run or use (Ollama, LM Studio, or one online) to read your books: what system and kind each is, and answers in Ask. Nothing is sent until you save a model here.");
-        intro.TextColor = NSColor.SecondaryLabel;
+        var form = new Form();
+        var server = form.Section("Model server",
+            "Bibliotaph can ask a model server you run or use (Ollama, LM Studio, or one online) to read your books: what system and kind each is, and answers in Ask. Nothing is sent until you save a model here.");
         var endpoint = new NSTextField { PlaceholderString = "http://localhost:11434" };
-        endpoint.WidthAnchor.ConstraintEqualTo(320).Active = true;
+        endpoint.WidthAnchor.ConstraintEqualTo(240).Active = true;
         endpoint.Changed += (_, _) => ai.Endpoint = endpoint.StringValue;
         var connect = NSButton.CreateButton("Connect", () => { });
         bindings.Command(connect, ai.ConnectCommand);
@@ -203,32 +237,35 @@ public sealed partial class SettingsWindow : NSWindowController
         {
             if (ai.ConnectCommand.CanExecute(null)) ai.ConnectCommand.Execute(null);
         };
-        var connection = NSTextField.CreateWrappingLabel("");
+        var address = server.Row("Address", endpoint, connect);
         var model = new NSPopUpButton();
         model.Activated += (_, _) => ai.Model = model.TitleOfSelectedItem ?? "";
-        model.WidthAnchor.ConstraintEqualTo(320).Active = true;
+        model.WidthAnchor.ConstraintEqualTo(240).Active = true;
+        server.Row("Model", "Reads your books and answers in Ask", model);
         var embedding = new NSPopUpButton();
         embedding.Activated += (_, _) =>
         {
             var at = (int)embedding.IndexOfSelectedItem;
             if (at >= 0 && at < ai.EmbeddingChoices.Count) ai.EmbeddingModel = ai.EmbeddingChoices[at].Value;
         };
-        embedding.WidthAnchor.ConstraintEqualTo(320).Active = true;
-        var key = new NSSecureTextField { PlaceholderString = "API key, if the server needs one" };
-        key.WidthAnchor.ConstraintEqualTo(320).Active = true;
+        embedding.WidthAnchor.ConstraintEqualTo(240).Active = true;
+        server.Row("Passages by meaning", "Finds passages that say the same thing in other words", embedding);
+        var key = new NSSecureTextField { PlaceholderString = "If the server needs one" };
+        key.WidthAnchor.ConstraintEqualTo(240).Active = true;
         key.Changed += (_, _) => ai.NewKey = key.StringValue;
-        var forgetKey = NSButton.CreateButton("Forget the saved key", () => { });
+        var forgetKey = NSButton.CreateButton("Forget", () => { });
         bindings.Command(forgetKey, ai.ForgetKeyCommand);
-        var remote = NSButton.CreateCheckbox("Send books to this server, which isn't on this Mac", () => { });
-        remote.Activated += (_, _) => ai.RemoteAllowed = remote.State == NSCellStateValue.On;
+        server.Row("API key", key, forgetKey);
+        var remote = FormText.Switch(on => ai.RemoteAllowed = on);
+        var remoteRow = server.Row("Send books to this server", "It isn't on this Mac", remote);
+
+        var state = form.Section();
         var save = NSButton.CreateButton("Save", () => { });
         save.KeyEquivalent = "\r";
         bindings.Command(save, ai.SaveCommand);
-        var note = NSTextField.CreateWrappingLabel("");
-        note.TextColor = NSColor.SecondaryLabel;
-        var progress = NSTextField.CreateWrappingLabel("");
-        progress.TextColor = NSColor.SecondaryLabel;
-        var folders = Stack(vertical: true, spacing: 4);
+        var status = state.Row("", save);
+
+        var foldersSection = form.Section("Folders it may read", "Only books in the folders ticked here are sent to the model.");
 
         bindings.Property(ai, nameof(AiSettingsViewModel.Endpoint), () =>
         {
@@ -236,8 +273,8 @@ public sealed partial class SettingsWindow : NSWindowController
         });
         bindings.Properties(ai, [nameof(AiSettingsViewModel.ConnectionText), nameof(AiSettingsViewModel.ConnectionProblem), nameof(AiSettingsViewModel.IsConnecting)], () =>
         {
-            connection.StringValue = ai.IsConnecting ? "Connecting…" : ai.ConnectionProblem ?? ai.ConnectionText;
-            connection.TextColor = ai.ConnectionProblem is null ? NSColor.SecondaryLabel : NSColor.SystemRed;
+            address.ShowDetail(ai.IsConnecting ? "Connecting…" : ai.ConnectionProblem ?? ai.ConnectionText);
+            address.Detail.TextColor = ai.ConnectionProblem is null ? NSColor.SecondaryLabel : NSColor.SystemRed;
         });
         void Models()
         {
@@ -257,69 +294,68 @@ public sealed partial class SettingsWindow : NSWindowController
         bindings.Properties(ai, [nameof(AiSettingsViewModel.HasSavedKey), nameof(AiSettingsViewModel.RemoteAllowed), nameof(AiSettingsViewModel.Endpoint)], () =>
         {
             forgetKey.Hidden = !ai.HasSavedKey;
-            remote.Hidden = !ai.IsRemote;
-            remote.State = ai.RemoteAllowed ? NSCellStateValue.On : NSCellStateValue.Off;
+            remoteRow.Hidden = !ai.IsRemote;
+            FormText.Set(remote, ai.RemoteAllowed);
         });
         bindings.Properties(ai, [nameof(AiSettingsViewModel.SaveNote), nameof(AiSettingsViewModel.SwitchProblem), nameof(AiSettingsViewModel.IsOn),
             nameof(AiSettingsViewModel.ProgressText)], () =>
         {
-            note.StringValue = ai.SwitchProblem ?? ai.SaveNote ?? (ai.IsOn ? "On: books are read with this model." : "Off.");
-            progress.StringValue = ai.ProgressText;
+            status.Label.StringValue = ai.IsOn ? "On: books are read with this model" : "Off";
+            status.ShowDetail(ai.SwitchProblem ?? ai.SaveNote);
+            state.Note(ai.ProgressText);
         });
         void Folders()
         {
-            foreach (var view in folders.ArrangedSubviews) view.RemoveFromSuperview();
-            if (ai.Folders.Count > 0) folders.AddArrangedSubview(PageParts.Section("Folders it may read"));
+            foldersSection.Clear();
             foreach (var folder in ai.Folders)
             {
-                var box = NSButton.CreateCheckbox(folder.Path, () => { });
-                box.State = folder.Send ? NSCellStateValue.On : NSCellStateValue.Off;
-                box.Activated += (_, _) => folder.Send = box.State == NSCellStateValue.On;
-                folders.AddArrangedSubview(box);
+                var send = FormText.Switch(on => folder.Send = on);
+                FormText.Set(send, folder.Send);
+                var row = foldersSection.Row(Name(folder.Path), folder.Path, send);
+                row.OneLine();
             }
+            foldersSection.View.Hidden = ai.Folders.Count == 0;
         }
         bindings.Collection(ai.Folders, _ => Folders());
-
-        var form = Stack(vertical: true, spacing: 8,
-            Stack(vertical: false, spacing: 8, endpoint, connect), connection,
-            PageParts.Section("Model"), model, PageParts.Section("For finding passages by meaning"), embedding, key, forgetKey, remote,
-            Stack(vertical: false, spacing: 8, save, note), progress, folders);
-        return Page(intro, form);
+        Folders();
+        return Pane(form);
     }
 
-    NSView PreferencesTab()
+    /// <summary>Light or dark, where Bibliotaph opens, and what waits in Needs review: one choice a row.</summary>
+    NSScrollView PreferencesTab()
     {
         var preferences = _services.GetRequiredService<PreferencesSectionViewModel>();
         var bindings = Load(preferences);
 
-        var appearance = NSTextField.CreateLabel("Appearance");
-        appearance.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Semibold)!;
-        var system = Radio("Same as macOS", () => preferences.UseSystem = true);
-        var light = Radio("Light", () => preferences.UseLight = true);
-        var dark = Radio("Dark", () => preferences.UseDark = true);
-        bindings.Properties(preferences, [nameof(PreferencesSectionViewModel.UseSystem), nameof(PreferencesSectionViewModel.UseLight),
-            nameof(PreferencesSectionViewModel.UseDark)], () =>
+        var form = new Form();
+        var general = form.Section("General");
+        var appearance = FormText.Choices(["Same as macOS", "Light", "Dark"], at =>
         {
-            system.State = preferences.UseSystem ? NSCellStateValue.On : NSCellStateValue.Off;
-            light.State = preferences.UseLight ? NSCellStateValue.On : NSCellStateValue.Off;
-            dark.State = preferences.UseDark ? NSCellStateValue.On : NSCellStateValue.Off;
+            if (at == 0) preferences.UseSystem = true;
+            else if (at == 1) preferences.UseLight = true;
+            else preferences.UseDark = true;
         });
+        general.Row("Appearance", appearance);
+        bindings.Properties(preferences, [nameof(PreferencesSectionViewModel.UseSystem), nameof(PreferencesSectionViewModel.UseLight),
+            nameof(PreferencesSectionViewModel.UseDark)], () => appearance.SelectItem(preferences.UseLight ? 1 : preferences.UseDark ? 2 : 0));
+        var start = FormText.Choices(["Home", "Library"], at => preferences.StartOnLibrary = at == 1);
+        general.Row("Open on", "The page Bibliotaph shows when it starts", start);
+        bindings.Property(preferences, nameof(PreferencesSectionViewModel.StartOnLibrary), () => start.SelectItem(preferences.StartOnLibrary ? 1 : 0));
 
-        var review = NSTextField.CreateLabel("Needs review");
-        review.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Semibold)!;
-        var unsure = Radio("Only what Bibliotaph is unsure of", () => preferences.ReviewWhenUnsure = true);
-        var everything = Radio("Everything it works out", () => preferences.ReviewEverything = true);
-        var note = NSTextField.CreateWrappingLabel("");
-        note.TextColor = NSColor.SecondaryLabel;
+        var review = form.Section("Needs review");
+        var ask = FormText.Choices(["Only what Bibliotaph is unsure of", "Everything it works out"], at =>
+        {
+            if (at == 0) preferences.ReviewWhenUnsure = true;
+            else preferences.ReviewEverything = true;
+        });
+        review.Row("Show", ask);
         bindings.Properties(preferences, [nameof(PreferencesSectionViewModel.ReviewWhenUnsure), nameof(PreferencesSectionViewModel.ReviewEverything),
             nameof(PreferencesSectionViewModel.ReviewNote)], () =>
         {
-            unsure.State = preferences.ReviewWhenUnsure ? NSCellStateValue.On : NSCellStateValue.Off;
-            everything.State = preferences.ReviewEverything ? NSCellStateValue.On : NSCellStateValue.Off;
-            note.StringValue = preferences.ReviewNote;
+            ask.SelectItem(preferences.ReviewEverything ? 1 : 0);
+            review.Note(preferences.ReviewNote);
         });
-
-        return Page(Stack(vertical: true, spacing: 6, appearance, system, light, dark), Stack(vertical: true, spacing: 6, review, unsure, everything, note));
+        return Pane(form);
     }
 
     /// <summary>Loads a section while the window shows it, and unloads it with the window.</summary>
@@ -340,12 +376,6 @@ public sealed partial class SettingsWindow : NSWindowController
             bindings.Dispose();
         }
         _open.Clear();
-    }
-
-    static NSButton Radio(string title, Action chosen)
-    {
-        var button = NSButton.CreateRadioButton(title, chosen);
-        return button;
     }
 
     static NSStackView Stack(bool vertical, double spacing, params NSView[] views)
@@ -371,33 +401,6 @@ public sealed partial class SettingsWindow : NSWindowController
             content.BottomAnchor.ConstraintEqualTo(document.BottomAnchor),
         ]);
         return document;
-    }
-
-    static NSView Page(params NSView[] parts)
-    {
-        var root = new NSView();
-        NSView? above = null;
-        var constraints = new List<NSLayoutConstraint>();
-        foreach (var part in parts)
-        {
-            part.TranslatesAutoresizingMaskIntoConstraints = false;
-            root.AddSubview(part);
-            constraints.Add(part.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24));
-            constraints.Add(part.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -24));
-            constraints.Add(part.TopAnchor.ConstraintEqualTo(above?.BottomAnchor ?? root.TopAnchor, above is null ? 20 : 16));
-            if (part is NSScrollView scroll)
-            {
-                constraints.Add(scroll.HeightAnchor.ConstraintGreaterThanOrEqualTo(160));
-                constraints.Add(scroll.DocumentView!.WidthAnchor.ConstraintEqualTo(scroll.ContentView.WidthAnchor));
-            }
-            above = part;
-        }
-        if (above is not null) constraints.Add(above.BottomAnchor.ConstraintLessThanOrEqualTo(root.BottomAnchor, -20));
-        // The folder list takes the room the rest leaves.
-        if (parts.OfType<NSScrollView>().FirstOrDefault() is { } list && parts[^1] != list)
-            constraints.Add(parts[^1].BottomAnchor.ConstraintEqualTo(root.BottomAnchor, -20));
-        NSLayoutConstraint.ActivateConstraints([.. constraints]);
-        return root;
     }
 
     sealed class FlippedView : NSView

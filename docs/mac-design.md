@@ -26,9 +26,13 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
   stop the app quitting. A dialog left open shouldn't block a restart or an overnight update.
 - **Keyboard.** Every window sets `AutorecalculatesKeyViewLoop`, so Tab moves through the controls a page shows now.
 - **Settings.**
-  - The window has a fixed size, with no minimize or zoom, and its panes scroll.
+  - The window has no minimize or zoom. It takes each pane's height, up to a limit, and the pane scrolls beyond it.
   - The toolbar names the panes, and the window's title follows the pane showing.
   - It reopens at the pane last used. A link into Settings opens the pane it is for.
+  - Each pane is a grouped form, built with `Form` in `Views/Form.cs`: rounded sections, each row its label (and a line
+    of detail) on the leading side and its control on the trailing side, with a short note under the section. A choice
+    of several is a pop-up, an on/off setting a switch, a list of things a row each with its buttons, and Add and the
+    like go under the list at its trailing edge.
 
 ## Toolbars
 
