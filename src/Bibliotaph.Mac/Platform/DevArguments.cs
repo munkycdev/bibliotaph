@@ -10,7 +10,7 @@ namespace Bibliotaph.Mac.Platform;
 
 /// <summary>
 /// Arguments for checking a build with nobody at the Mac, as the Windows app's --screenshots: <c>--add-folder</c>
-/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> and <c>--settings</c> open those windows, <c>--details-first</c> shows the first book's details, and <c>--screenshot</c> saves the
+/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> and <c>--settings</c> open those windows, <c>--details-first</c> shows the first book's details, <c>--zoom</c> zooms the book opened, and <c>--screenshot</c> saves the
 /// key window as a PNG every few seconds. The
 /// app draws the picture itself, so it needs no Screen Recording permission; AppKit leaves the sidebar's glass and what's on
 /// it out of such a picture.
@@ -30,11 +30,27 @@ static class DevArguments
         }
         if (long.TryParse(Value(args, "--open"), out var documentId))
             services.GetRequiredService<Presentation.Services.IReaderWindows>().OpenInMainWindow(new Presentation.Services.ViewerRequest(documentId, "Book"));
+        if (double.TryParse(Value(args, "--zoom"), System.Globalization.CultureInfo.InvariantCulture, out var zoom)) ZoomAsync(services, zoom).FireAndForget();
         if (args.Contains("--details-first")) ShowFirstDetailsAsync(services).FireAndForget();
         if (Value(args, "--screenshot") is { } file)
         {
             var every = int.TryParse(Value(args, "--screenshot-every"), out var seconds) ? seconds : 5;
             _ = KeepTakingAsync(window, Path.GetFullPath(file), TimeSpan.FromSeconds(every));
+        }
+    }
+
+    /// <summary>The open book zoomed, once its pages show, as the zoom buttons would.</summary>
+    static async Task ZoomAsync(IServiceProvider services, double zoom)
+    {
+        for (var tries = 0; tries < 40; tries++)
+        {
+            await Task.Delay(250);
+            if (services.GetRequiredService<INavigationService>().Current is Presentation.ViewModels.ViewerViewModel { IsPdf: true } reader)
+            {
+                await Task.Delay(3000);
+                reader.Zoom = zoom;
+                return;
+            }
         }
     }
 

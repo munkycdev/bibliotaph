@@ -84,6 +84,7 @@ public sealed class PagesView : NSScrollView
         _pdf = null;
         _current = -1;
         _highlights.Clear();
+        _marked = ([], -1);
         _document.SetFrameSize(CGSize.Empty);
     }
 
@@ -106,10 +107,14 @@ public sealed class PagesView : NSScrollView
     }
 
     readonly List<CALayer> _highlights = [];
+    (IReadOnlyList<PageHighlight> Items, int Current) _marked = ([], -1);
 
     /// <summary>Marks the find's matches, the current one stronger, and brings it into view.</summary>
-    public void ShowHighlights(IReadOnlyList<PageHighlight> items, int current)
+    public void ShowHighlights(IReadOnlyList<PageHighlight> items, int current) => ShowHighlights(items, current, bringIntoView: true);
+
+    void ShowHighlights(IReadOnlyList<PageHighlight> items, int current, bool bringIntoView)
     {
+        _marked = (items, current);
         foreach (var layer in _highlights) layer.RemoveFromSuperLayer();
         _highlights.Clear();
         for (var i = 0; i < items.Count; i++)
@@ -131,7 +136,7 @@ public sealed class PagesView : NSScrollView
                 _highlights.Add(layer);
             }
         }
-        if (current >= 0 && current < items.Count && items[current] is { Rects.Count: > 0 } hit && hit.PageIndex < _pages.Count)
+        if (bringIntoView && current >= 0 && current < items.Count && items[current] is { Rects.Count: > 0 } hit && hit.PageIndex < _pages.Count)
         {
             var page = _pages[hit.PageIndex];
             var top = page.Frame.Y + (page.HeightPts - hit.Rects[0].Top) * _pointsPerPdfPoint;
@@ -143,9 +148,14 @@ public sealed class PagesView : NSScrollView
     void Layout(bool keepPlace)
     {
         if (_pages.Count == 0) return;
-        // The place in the book stays put through a resize or zoom: the page at the top, and how far down it.
-        var anchor = keepPlace && _current >= 0 ? _current : -1;
-        var within = anchor >= 0 ? (ContentView.Bounds.Y - _pages[anchor].Frame.Y) / Math.Max(1, _pages[anchor].Frame.Height) : 0;
+        // The point at the middle of the view stays there through a zoom or resize, as it does in Preview: which page
+        // it's on, and where on that page.
+        var before = ContentView.Bounds;
+        var anchor = keepPlace ? Find(before.GetMidY()) : -1;
+        var (acrossPage, downPage) = anchor >= 0
+            ? ((before.GetMidX() - _pages[anchor].Frame.X) / Math.Max(1, _pages[anchor].Frame.Width),
+               (before.GetMidY() - _pages[anchor].Frame.Y) / Math.Max(1, _pages[anchor].Frame.Height))
+            : (0.0, 0.0);
 
         var view = ContentView.Bounds.Size;
         var fitWidth = Math.Max(0.05, (view.Width - 2 * Margin) / _commonWidth);
@@ -168,11 +178,19 @@ public sealed class PagesView : NSScrollView
         CATransaction.Begin();
         CATransaction.DisableActions = true;
         foreach (var page in _pages) page.Layer.Frame = page.Frame;
-        foreach (var layer in _highlights) layer.RemoveFromSuperLayer();
-        _highlights.Clear();
         CATransaction.Commit();
+        // The find's marks are sized to the pages, so they're drawn again at the new size.
+        ShowHighlights(_marked.Items, _marked.Current, bringIntoView: false);
         _document.SetFrameSize(new CGSize(width, y));
-        if (anchor >= 0) ContentView.ScrollToPoint(new CGPoint(ContentView.Bounds.X, _pages[anchor].Frame.Y + within * _pages[anchor].Frame.Height));
+        if (anchor >= 0)
+        {
+            var frame = _pages[anchor].Frame;
+            var middle = new CGPoint(frame.X + acrossPage * frame.Width, frame.Y + downPage * frame.Height);
+            var size = ContentView.Bounds.Size;
+            ContentView.ScrollToPoint(new CGPoint(
+                Math.Clamp(middle.X - size.Width / 2, 0, Math.Max(0, width - size.Width)),
+                Math.Clamp(middle.Y - size.Height / 2, 0, Math.Max(0, y - size.Height))));
+        }
         ReflectScrolledClipView(ContentView);
         OnScrolled();
     }
