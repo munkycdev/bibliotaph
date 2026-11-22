@@ -22,6 +22,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
     LibraryViewModel? _library;
     List<Row> _rows = [];
     NSTableView _table = null!;
+    NSButton _connect = null!;
     Source? _source;
     bool _selecting;
 
@@ -45,8 +46,12 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         status.TextColor = NSColor.SecondaryLabel;
         status.MaximumNumberOfLines = 3;
 
+        _connect = NSButton.CreateButton("Connect to your web library…", () => ConnectRequested?.Invoke(this, EventArgs.Empty));
+        _connect.ControlSize = NSControlSize.Small;
+        _connect.Hidden = true;
+
         var root = new NSView();
-        foreach (var view in new NSView[] { scroll, status })
+        foreach (var view in new NSView[] { scroll, _connect, status })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
@@ -56,7 +61,9 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
             scroll.TopAnchor.ConstraintEqualTo(root.TopAnchor),
             scroll.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
             scroll.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
-            scroll.BottomAnchor.ConstraintEqualTo(status.TopAnchor, -8),
+            scroll.BottomAnchor.ConstraintEqualTo(_connect.TopAnchor, -8),
+            _connect.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 14),
+            _connect.BottomAnchor.ConstraintEqualTo(status.TopAnchor, -8),
             status.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 16),
             status.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -12),
             status.BottomAnchor.ConstraintEqualTo(root.BottomAnchor, -14),
@@ -69,6 +76,16 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         adding.Added += refreshed;
         _bindings.Add(() => adding.Added -= refreshed);
         ReloadAsync().FireAndForget();
+    }
+
+    /// <summary>Connect to your web library… was chosen.</summary>
+    public event EventHandler? ConnectRequested;
+
+    /// <summary>Whether this Mac is connected to a web library; the sidebar offers to connect it while it isn't.</summary>
+    public void ShowConnected(bool connected)
+    {
+        _ = View;
+        _connect.Hidden = connected;
     }
 
     /// <summary>The Library page the sidebar narrows, or none while another page shows.</summary>

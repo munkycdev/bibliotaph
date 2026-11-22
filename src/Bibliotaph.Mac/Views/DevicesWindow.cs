@@ -107,9 +107,13 @@ public sealed class DevicesWindow : NSWindowController
         Window!.SetContentSize(new CGSize(480, Math.Max(140, content.FittingSize.Height)));
     }
 
+    /// <summary>The window closed, for the sidebar to check whether this Mac is connected now.</summary>
+    public event EventHandler? Finished;
+
     /// <summary>A connection still waiting for approval stops with the window; Connect asks afresh.</summary>
     void Closed()
     {
+        Finished?.Invoke(this, EventArgs.Empty);
         _devices?.Unload();
         _bindings?.Dispose();
         _devices = null;

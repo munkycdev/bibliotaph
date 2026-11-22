@@ -25,6 +25,8 @@ public sealed class MainWindowController : NSWindowController
     readonly Bindings _bindings = new();
     readonly DevicesWindow _devices;
     readonly SettingsWindow _settings;
+    readonly WebLibrary _web;
+    readonly SourceRootStore _roots;
     PageViewModel? _shown;
 
     public MainWindowController(IServiceProvider services) : base(MakeWindow())
@@ -66,6 +68,10 @@ public sealed class MainWindowController : NSWindowController
         window.FrameAutosaveName = "BibliotaphMain";
 
         services.GetRequiredService<MacReaderWindows>().MainWindow = window;
+        _web = services.GetRequiredService<WebLibrary>();
+        _roots = services.GetRequiredService<SourceRootStore>();
+        _sidebar.ConnectRequested += (_, _) => ShowDevices();
+        _devices.Finished += (_, _) => CheckConnectionAsync(offer: false).FireAndForget();
         _navigation.Navigated += OnNavigated;
         _bindings.Add(() => _navigation.Navigated -= OnNavigated);
     }
@@ -77,6 +83,18 @@ public sealed class MainWindowController : NSWindowController
     public void ShowDevices() => _devices.Open();
 
     public void ShowSettings() => _settings.Open();
+
+    /// <summary>
+    /// Whether this Mac is connected to a web library, which the sidebar offers to do while it isn't. A first start with
+    /// no folders opens Your Web Library, as connecting is how most people's books come to a new device.
+    /// </summary>
+    public async Task CheckConnectionAsync(bool offer)
+    {
+        var status = await _web.CheckAsync();
+        var connected = status.State != WebLibraryState.NotConnected;
+        Bindings.OnMain(() => _sidebar.ShowConnected(connected));
+        if (offer && !connected && (await _roots.ListAsync()).Count == 0) Bindings.OnMain(ShowDevices);
+    }
 
     /// <summary>The page shown is told it's gone, so it can save what it has before the host stops.</summary>
     public void Unload()
