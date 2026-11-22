@@ -246,6 +246,26 @@ public sealed class JobBoardTests : IndexFixture
     }
 
     [Fact]
+    public async Task Unblocking_a_stage_releases_its_jobs_blocked_for_any_reason_but_the_one_kept()
+    {
+        const string Unreachable = "Its folder is offline";
+        await _queue.EnqueueAsync(1, "aa", Stage.Text, ct: Ct);
+        await _queue.EnqueueAsync(2, "bb", Stage.Text, ct: Ct);
+        await _queue.EnqueueAsync(3, "cc", Stage.Probe, ct: Ct);
+        for (var i = 0; i < 3; i++)
+        {
+            var job = (await _queue.LeaseAsync(IndexLane, "test", Lease, Ct))!;
+            await _queue.BlockAsync(job, job.DocumentId == 2 ? Unreachable : "No OCR engine here", Ct);
+        }
+
+        Assert.Equal(1, await _queue.UnblockStageAsync(Stage.Text, Unreachable, Ct));
+
+        Assert.Equal("Pending", StatusOf(1, Stage.Text));
+        Assert.Equal("Blocked", StatusOf(2, Stage.Text));
+        Assert.Equal("Blocked", StatusOf(3, Stage.Probe));
+    }
+
+    [Fact]
     public async Task Leases_left_by_a_closed_app_go_back_to_pending_at_startup()
     {
         await _queue.EnqueueAsync(1, "aa", Stage.Probe, ct: Ct);
