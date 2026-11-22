@@ -1,25 +1,21 @@
-using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
-    /// <summary>This PC's connection to bibliotaph.online, and the web library's folders and copies.</summary>
-    public static IServiceCollection AddWebLibrary(this IServiceCollection services, bool smokeTest, bool everyday)
+    /// <summary>
+    /// This PC's connection to bibliotaph.online, and the web library's folders and copies. The host adds the device key's
+    /// store (<see cref="IWebLibraryKey"/>); a test passes a stand-in for the site.
+    /// </summary>
+    public static IServiceCollection AddWebLibrary(this IServiceCollection services, HttpMessageHandler? web = null)
     {
-        // This PC's connection to bibliotaph.online. The key in Credential Manager belongs to the Windows account, not
-        // the data root, so a smoke test, measurement or screenshot run keeps its own in memory: otherwise it would sync
-        // its throwaway library into the user's web library as this PC.
-        if (!everyday) services.AddSingleton<IWebLibraryKey, MemoryWebLibraryKey>();
-        else services.AddSingleton<IWebLibraryKey, WebLibraryKeyVault>();
-        // The smoke test's bibliotaph.online is a stand-in, which it connects to only to show the web library's books. Each
-        // request sets how long it waits (WebLibrary.Patience), since a lookup can wait its turn far longer than the rest.
+        // Each request sets how long it waits (WebLibrary.Patience), since a lookup can wait its turn far longer than the rest.
         services.AddSingleton(sp => new WebLibrary(
-            smokeTest ? new System.Net.Http.HttpClient(new SmokeWebLibrary()) : new System.Net.Http.HttpClient { Timeout = Timeout.InfiniteTimeSpan },
+            web is null ? new HttpClient { Timeout = Timeout.InfiniteTimeSpan } : new HttpClient(web),
             sp.GetRequiredService<IWebLibraryKey>(), sp.GetRequiredService<SettingsStore>(), sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<WebLibrary>>()));
         services.AddSingleton<IWebBooks>(sp => sp.GetRequiredService<WebLibrary>());

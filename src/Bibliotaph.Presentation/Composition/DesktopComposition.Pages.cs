@@ -1,15 +1,16 @@
-using Bibliotaph.App.Services;
-using Bibliotaph.App.ViewModels;
 using Bibliotaph.Presentation.Services;
 using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
-    /// <summary>The pages and their view models, navigation, the main window and the readers.</summary>
+    /// <summary>
+    /// The pages and their view models and navigation. The host adds its windows, the readers' (<see cref="IReaderWindows"/>)
+    /// and Settings › Online libraries (<see cref="OnlineLibrariesSection"/>).
+    /// </summary>
     public static IServiceCollection AddPages(this IServiceCollection services)
     {
         services.AddSingleton<INavigationService>(sp => new NavigationService(route => CreatePage(sp, route)));
@@ -56,19 +57,12 @@ static partial class Composition
         services.AddTransient<PilotReviewViewModel>();
         // One check a download page, so a check keeps running while the library is shown.
         services.AddSingleton<DownloadCheckViewModel>();
-        // One Settings > Online libraries, so a preview is still there after a look at the Library.
-        services.AddSingleton<OnlineLibrariesViewModel>();
-        services.AddSingleton<OnlineLibrariesSection>(sp => sp.GetRequiredService<OnlineLibrariesViewModel>());
         services.AddSingleton<SearchGuideViewModel>();
         services.AddSingleton<LibraryAskViewModel>();
         services.AddSingleton<PlainSearchViewModel>();
-        services.AddSingleton<MainWindow>();
-        // Readers, in the main window or a pop-out, are made by ReaderWindows with the book they open.
         services.AddSingleton<CoverPages>();
         services.AddSingleton<DocumentOpener>();
         services.AddSingleton<ViewerServices>();
-        services.AddSingleton<ReaderWindows>();
-        services.AddSingleton<IReaderWindows>(sp => sp.GetRequiredService<ReaderWindows>());
         return services;
     }
 
@@ -87,7 +81,7 @@ static partial class Composition
         Route.Summary => services.GetRequiredService<SummaryViewModel>(),
         // An online reader opens with its book (OnlineReaders); by route alone, the Library.
         Route.OnlineReader => services.GetRequiredService<LibraryViewModel>(),
-        Route.Viewer => services.GetRequiredService<ReaderWindows>().Create(null),
+        Route.Viewer => services.GetRequiredService<IReaderWindows>().Create(null),
         _ => throw new ArgumentOutOfRangeException(nameof(route), route, null),
     };
 }
