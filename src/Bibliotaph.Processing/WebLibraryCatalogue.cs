@@ -5,15 +5,28 @@ using Bibliotaph.Core.Metadata;
 namespace Bibliotaph.Processing;
 
 /// <summary>
-/// Where a PC looks books up. While it's connected, through its web library, which asks Open Library and then the
-/// catalogues the server holds a key for, such as Google Books, so no PC keeps a key; and Open Library directly while
-/// it isn't. Its name is where the web library said it asks, kept for the next start, so a book none of them knew is
-/// asked again only once the web library can ask somewhere more.
+/// Where a PC looks books up. While it's connected, through its web library, which asks the catalogues the server
+/// holds a key for, so no PC needs one; and while it isn't, the catalogues it asks itself (<see cref="OwnCatalogues"/>),
+/// with the user's own keys. Its name is where the web library said it asks, kept for the next start, so a book none
+/// of them knew is asked again only once the web library can ask somewhere more.
 /// </summary>
-public sealed class WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, SettingsStore settings) : IBookCatalogue
+public sealed class WebLibraryCatalogue : IBookCatalogue
 {
+    readonly WebLibrary web;
+    readonly IBookCatalogue direct;
+    readonly SettingsStore settings;
     volatile string? _webCatalogues;
     volatile bool _loaded;
+
+    public WebLibraryCatalogue(WebLibrary web, IBookCatalogue direct, SettingsStore settings)
+    {
+        (this.web, this.direct, this.settings) = (web, direct, settings);
+        // A key saved or forgotten changes where a PC on its own asks, so its books none of them found are asked again.
+        direct.NameChanged += (_, e) =>
+        {
+            if (!web.HasKey) NameChanged?.Invoke(this, e);
+        };
+    }
 
     public string Name => web.HasKey ? _webCatalogues ?? direct.Name : direct.Name;
 

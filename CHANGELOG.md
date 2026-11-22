@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Fixed: closing a book owned online just as it opened could close Bibliotaph.** Leaving the online reader while
+  its browser was still starting is now ignored.
+- **More books found online without the web library.** A PC that isn't connected to bibliotaph.online now searches
+  AdventureLookup by a book's title, as well as asking Open Library about its ISBN, so adventures that print no ISBN
+  are found too. Settings > Online libraries has a new Book catalogues section where you can save your own RPGGeek
+  token and Google Books API key, so those are asked as well. They're kept in Windows Credential Manager. Saving or
+  forgetting one asks again about the books none of the catalogues found.
 - **Fixed: empty answers from Qwen3 on LM Studio.** LM Studio doesn't pass on Bibliotaph's request to switch Qwen3's
   thinking off, so an answer could spend all its length thinking and come back as "The model sent back nothing".
   Bibliotaph now also asks Qwen3 in the question itself. On Windows, with a model server.

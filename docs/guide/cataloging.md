@@ -15,9 +15,12 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
   and the AI's all beat it, and a title you typed or kept is never touched.
 - **The file itself**: the title, author and other details a PDF or e-book carries (an e-book's description and
   cover too), and party sizes and levels in the file name.
-- **Book catalogues**: Bibliotaph sends the ISBNs a book prints, and nothing else, to
-  [Open Library](https://openlibrary.org) and suggests the title, authors, publisher and year its record gives. On
-  bibliotaph.online, and in the Windows app while it's [connected to bibliotaph.online](web.md#connecting-a-windows-pc),
+- **Book catalogues**: Bibliotaph sends the ISBNs a book prints to [Open Library](https://openlibrary.org), and the
+  book's title to [AdventureLookup](https://adventurelookup.com), and suggests the title, authors, publisher and year
+  their records give. On
+  bibliotaph.online, in the Windows app while it's [connected to bibliotaph.online](web.md#connecting-a-windows-pc),
+  and in the Windows app on its own once you save
+  [your own token or key](#your-own-rpggeek-token-and-google-books-key),
   [RPGGeek](https://rpggeek.com) and [Google Books](https://books.google.com) are asked too, and each field comes from
   the first of RPGGeek, Open Library and Google Books that gives it, so RPGGeek, which knows RPGs and their designers
   best, wins wherever it has a value. RPGGeek also gives the book's artists and its mechanics (such as "Dice (d20)"),
@@ -61,6 +64,26 @@ wrong, and your corrections always win: reading a book again, or a new AI sugges
 - **AI**, if you turn it on: a model on your PC reads a few pages and suggests the rest. Every AI suggestion must quote
   the page it came from, or it's thrown away. See [AI](ai.md).
 - **You**: anything you type, accept or reject.
+
+### Your own RPGGeek token and Google Books key
+
+RPGGeek and Google Books each need a token or key to be asked. bibliotaph.online has its own, so a PC connected to
+your web library needs neither. A PC on its own asks AdventureLookup and Open Library, which need none, and RPGGeek
+and Google Books once you save a token or key of your own in **Settings > Online libraries**, under **Book
+catalogues**:
+
+- **RPGGeek token**: register an application for non-commercial use on
+  [BoardGameGeek](https://boardgamegeek.com/applications), then make a token for it and paste it in.
+- **Google Books API key**: turn on the
+  [Books API](https://console.cloud.google.com/apis/library/books.googleapis.com) in a Google Cloud project of your
+  own, make an API key under **Credentials**, and paste it in.
+
+**Save** keeps each in Windows Credential Manager, never in Bibliotaph's files, and the box empties: a saved token or
+key is never shown again. **Forget** removes it. Saving or forgetting one asks again about every book none of the
+catalogues found, and **Settings > Processing** then names where books are looked up. They're sent the same as the
+web library sends them: ISBNs, product codes and titles, never your books. While the PC is connected, it asks through
+the web library instead, and your own are used again once it isn't. If RPGGeek or Google Books turns a lookup down,
+the book waits and **Looking it up online** says the token or key may need checking.
 
 ## The details panel
 

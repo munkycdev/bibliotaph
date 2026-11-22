@@ -20,9 +20,9 @@ reader, and each site's icon for the badge on your covers (which you can turn of
 
 **Does it send anything about me or my books to anyone?**
 Nothing about you, and only what you choose about your books. The Windows app has no account and no tracking, and
-your catalog stays in `%LOCALAPPDATA%\Bibliotaph` on your PC. The ISBNs a book prints go to Open Library to fill in
-its details, and nothing else with them (a PC connected to your web library asks through it instead, with the book's
-titles too, so RPGGeek and AdventureLookup can be searched, and the name of a folder it's in where the book prints
+your catalog stays in `%LOCALAPPDATA%\Bibliotaph` on your PC. The ISBNs a book prints go to Open Library, and its
+title to AdventureLookup, to fill in its details, and nothing else with them (to RPGGeek and Google Books too, once you
+save your own token or key for them; a PC connected to your web library asks through it instead, and the name of a folder it's in where the book prints
 that name, so RPGGeek can be searched by the book's line; when you paste a book's RPGGeek address into its details,
 only the number in it is sent). If you set up AI with a model server, book excerpts go to that server, and
 only that server. See [AI](ai.md). If you connect the app to your web library at bibliotaph.online, your work and what

@@ -689,7 +689,8 @@ A connected PC looks its books up through bibliotaph.online, which
 asks RPGGeek, AdventureLookup, Open Library and Google Books, so the PC's own books are found in all four, as the web
 library's are; it sends the ISBNs, and the book's title for RPGGeek and AdventureLookup, which also looks up the books
 that print no ISBN by their title. The books it looked up before it connected are asked again. Disconnected, it asks Open Library
-itself. See [Cataloging](cataloging.md#where-suggestions-come-from).
+and AdventureLookup itself, and RPGGeek and Google Books with your own token or key, if you saved them in
+**Settings > Online libraries** (see [Cataloging](cataloging.md#your-own-rpggeek-token-and-google-books-key)). See [Cataloging](cataloging.md#where-suggestions-come-from).
 
 What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
 with the built-in AI on its graphics card. The same file in your OneDrive and on the PC is the same book, matched by

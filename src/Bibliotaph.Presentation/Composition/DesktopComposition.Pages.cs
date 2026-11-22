@@ -45,6 +45,7 @@ public static partial class DesktopComposition
         services.AddTransient<ProcessingSectionViewModel>();
         services.AddTransient<PreferencesSectionViewModel>();
         services.AddTransient<VocabularyViewModel>();
+        services.AddTransient<CatalogueKeysViewModel>();
         services.AddTransient<PasswordsSectionViewModel>();
         services.AddTransient<DevicesSectionViewModel>();
         services.AddTransient<StartOverSectionViewModel>();
