@@ -49,8 +49,8 @@ public sealed partial class SettingsWindow : NSWindowController
             Presentation.Services.SettingsSection.Backup => 7,
             _ => -1,
         };
-        // Else the pane last looked at, as the Mac's settings windows reopen where they were.
-        if (at < 0) at = (int)NSUserDefaults.StandardUserDefaults.IntForKey(LastPane);
+        // Else Library, the first pane, each time Settings opens.
+        if (at < 0) at = 0;
         if (_tabs is { } tabs && at >= 0 && at < tabs.TabViewItems.Length) tabs.SelectedTabViewItemIndex = at;
         Window!.Center();
         Window.MakeKeyAndOrderFront(null);
@@ -72,8 +72,6 @@ public sealed partial class SettingsWindow : NSWindowController
         Window.SetContentSize(new CGSize(720, 640));
     }
 
-    const string LastPane = "SettingsPane";
-
     static NSTabViewItem Tab(string label, string symbol, NSView view) => new()
     {
         Label = label,
@@ -82,7 +80,7 @@ public sealed partial class SettingsWindow : NSWindowController
         ViewController = new PaneController { View = view, Title = label, PreferredContentSize = view is NSScrollView ? CGSize.Empty : new CGSize(720, 640) },
     };
 
-    /// <summary>A pane, which remembers it was the one looked at last.</summary>
+    /// <summary>A pane, which titles the window and sizes it as it shows.</summary>
     sealed class PaneController : NSViewController
     {
         public override void ViewDidAppear()
@@ -91,8 +89,6 @@ public sealed partial class SettingsWindow : NSWindowController
             if (View.Window is not { } window) return;
             // The window's title names the pane showing.
             window.Title = Title ?? "Settings";
-            if (window.ContentViewController is NSTabViewController tabs)
-                NSUserDefaults.StandardUserDefaults.SetInt(tabs.SelectedTabViewItemIndex, LastPane);
             Fit(window);
             // A pane whose content arrives after it shows, or grows and shrinks, takes the window with it.
             if (View is NSScrollView { DocumentView: { } document } && _watch is null)
