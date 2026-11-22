@@ -12,24 +12,49 @@ namespace Bibliotaph.Mac.Views;
 /// </summary>
 public sealed partial class SettingsWindow
 {
-    NSScrollView VocabularyTab()
+    /// <summary>
+    /// The vocabularies listed on the leading side, as System Settings lists the kinds of keyboard shortcut; the one
+    /// chosen fills the trailing side under a heading naming it, so it is plain that the list picks what the rest shows.
+    /// </summary>
+    NSView VocabularyTab()
     {
         var vocabulary = _services.GetRequiredService<VocabularyViewModel>();
         var bindings = Load(vocabulary);
-        var form = new Form();
 
-        var lists = form.Section(null,
-            "The game systems, types and other terms your books are filed under, and the other names each one goes by. Folder names, searches and what you type all go through these names.");
-        var choose = FormText.Choices(vocabulary.Vocabularies.Select(v => v.Label), at =>
-        {
-            if (at >= 0 && at < vocabulary.Vocabularies.Count) vocabulary.Vocabularies[at].IsSelected = true;
-        });
-        lists.Row("Vocabulary", choose);
+        var list = new NSTableView { Style = NSTableViewStyle.SourceList, HeaderView = null!, RowSizeStyle = NSTableViewRowSizeStyle.Default };
+        list.AddColumn(new NSTableColumn("name"));
+        var source = new VocabularyList(vocabulary);
+        list.DataSource = source;
+        list.Delegate = source;
+        bindings.Add(() => GC.KeepAlive(source));
+        var lists = new NSScrollView { DocumentView = list, HasVerticalScroller = true, DrawsBackground = false };
         foreach (var choice in vocabulary.Vocabularies)
             bindings.Property(choice, nameof(VocabularyChoice.IsSelected), () =>
             {
-                if (choice.IsSelected) choose.SelectItem(vocabulary.Vocabularies.ToList().IndexOf(choice));
+                if (choice.IsSelected) list.SelectRow(vocabulary.Vocabularies.ToList().IndexOf(choice), false);
             });
+
+        var form = new Form();
+        var heading = NSTextField.CreateLabel("");
+        heading.Font = NSFont.SystemFontOfSize(20, NSFontWeight.Bold)!;
+        var count = FormText.Note("", 12);
+        var about = FormText.Note("", 12);
+        form.Add(heading);
+        form.Root.SetCustomSpacing(2, heading);
+        form.Add(count);
+        form.Root.SetCustomSpacing(10, count);
+        form.Add(about);
+        void Head()
+        {
+            heading.StringValue = vocabulary.Selected.Label;
+            count.StringValue = vocabulary.IsTags ? Count(vocabulary.Tags.Count, "tag") : Count(vocabulary.Terms.Count, "term");
+            about.StringValue = vocabulary.IsTags
+                ? "Tags of your own, found in your books by the words on their pages."
+                : "The names your books are filed under, and the other names each goes by. Folder names, searches and what you type all go through them.";
+        }
+        foreach (var choice in vocabulary.Vocabularies) bindings.Property(choice, nameof(VocabularyChoice.IsSelected), Head);
+        bindings.Collection(vocabulary.Terms, _ => Head());
+        bindings.Collection(vocabulary.Tags, _ => Head());
 
         var terms = TermsPart(form, vocabulary, bindings);
         var tags = TagsPart(form, vocabulary, bindings);
@@ -37,8 +62,91 @@ public sealed partial class SettingsWindow
         {
             foreach (var view in terms) view.Hidden = vocabulary.IsTags;
             foreach (var view in tags) view.Hidden = !vocabulary.IsTags;
+            Head();
         });
-        return Pane(form);
+        var chosen = Pane(form);
+
+        var root = new NSView();
+        var divider = new NSBox { BoxType = NSBoxType.NSBoxSeparator };
+        foreach (var view in new NSView[] { lists, divider, chosen })
+        {
+            view.TranslatesAutoresizingMaskIntoConstraints = false;
+            root.AddSubview(view);
+        }
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            lists.TopAnchor.ConstraintEqualTo(root.TopAnchor),
+            lists.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
+            lists.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
+            lists.WidthAnchor.ConstraintEqualTo(180),
+            divider.TopAnchor.ConstraintEqualTo(root.TopAnchor),
+            divider.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
+            divider.LeadingAnchor.ConstraintEqualTo(lists.TrailingAnchor),
+            divider.WidthAnchor.ConstraintEqualTo(1),
+            chosen.TopAnchor.ConstraintEqualTo(root.TopAnchor),
+            chosen.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
+            chosen.LeadingAnchor.ConstraintEqualTo(divider.TrailingAnchor),
+            chosen.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
+            // Neither side has a height of its own, so the pane says how tall it wants to be.
+            root.HeightAnchor.ConstraintGreaterThanOrEqualTo(620),
+        ]);
+        return root;
+    }
+
+    static string Count(int count, string what) =>
+        $"{count.ToString("N0", System.Globalization.CultureInfo.CurrentCulture)} {(count == 1 ? what : what + "s")}";
+
+    /// <summary>The vocabularies, a row each, with Your tags set apart at the end; choosing one shows it.</summary>
+    sealed class VocabularyList(VocabularyViewModel vocabulary) : NSTableViewDelegate, INSTableViewDataSource
+    {
+        [Export("numberOfRowsInTableView:")]
+        public nint GetRowCount(NSTableView tableView) => vocabulary.Vocabularies.Count;
+
+        public override NSView GetViewForItem(NSTableView tableView, NSTableColumn tableColumn, nint row)
+        {
+            var choice = vocabulary.Vocabularies[(int)row];
+            var image = new NSImageView { Image = NSImage.GetSystemSymbol(Symbol(choice.Key), null)!, TranslatesAutoresizingMaskIntoConstraints = false };
+            var text = NSTextField.CreateLabel(choice.Label);
+            text.TranslatesAutoresizingMaskIntoConstraints = false;
+            var cell = new NSTableCellView { ImageView = image, TextField = text };
+            cell.AddSubview(image);
+            cell.AddSubview(text);
+            NSLayoutConstraint.ActivateConstraints(
+            [
+                image.LeadingAnchor.ConstraintEqualTo(cell.LeadingAnchor, 2),
+                image.CenterYAnchor.ConstraintEqualTo(cell.CenterYAnchor),
+                image.WidthAnchor.ConstraintEqualTo(18),
+                text.LeadingAnchor.ConstraintEqualTo(image.TrailingAnchor, 6),
+                text.CenterYAnchor.ConstraintEqualTo(cell.CenterYAnchor),
+                text.TrailingAnchor.ConstraintLessThanOrEqualTo(cell.TrailingAnchor, -4),
+            ]);
+            return cell;
+        }
+
+        /// <summary>A symbol a vocabulary, so the list reads at a glance.</summary>
+        static string Symbol(string key) => key switch
+        {
+            "system" => "dice",
+            "edition" => "number",
+            "type" => "books.vertical",
+            "duration" => "clock",
+            "includes" => "shippingbox",
+            "setting" => "globe.europe.africa",
+            "style" => "paintbrush",
+            "theme" => "theatermasks",
+            "environment" => "mountain.2",
+            "own" => "checkmark.seal",
+            "store" => "cart",
+            "publisher" => "building.2",
+            VocabularyViewModel.TagsKey => "tag",
+            _ => "list.bullet",
+        };
+
+        public override void SelectionDidChange(NSNotification notification)
+        {
+            if (notification.Object is NSTableView { SelectedRow: >= 0 and var at } && at < vocabulary.Vocabularies.Count)
+                vocabulary.Vocabularies[(int)at].IsSelected = true;
+        }
     }
 
     /// <summary>A vocabulary's sections: what the AI may add, Find overlaps, adding a term, and its terms, filtered.</summary>
@@ -164,7 +272,7 @@ public sealed partial class SettingsWindow
     /// <summary>The user's own tags: a new tag and its words, and each tag, edited in place.</summary>
     static List<NSView> TagsPart(Form form, VocabularyViewModel vocabulary, Bindings bindings)
     {
-        var adding = form.Section("Your tags",
+        var adding = form.Section(null,
             "Found in your books by the words on their pages. A book whose pages use a tag's words often enough gets the tag, marked Suggested until you keep it. A tag you reject on a book never comes back to it. " + VocabularyViewModel.TagRuleHelp);
         var name = TextField("Name", vocabulary, nameof(VocabularyViewModel.NewTagName), () => vocabulary.NewTagName, v => vocabulary.NewTagName = v, bindings);
         var words = TextField("Words that signal it, separated by commas", vocabulary, nameof(VocabularyViewModel.NewTagWords),

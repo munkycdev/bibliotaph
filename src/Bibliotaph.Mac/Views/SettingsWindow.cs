@@ -77,7 +77,8 @@ public sealed partial class SettingsWindow : NSWindowController
     {
         Label = label,
         Image = NSImage.GetSystemSymbol(symbol, label)!,
-        ViewController = new PaneController { View = view, Title = label },
+        // A pane of its own layout, rather than one that scrolls, keeps a size that fits it from the start.
+        ViewController = new PaneController { View = view, Title = label, PreferredContentSize = view is NSScrollView ? CGSize.Empty : new CGSize(720, 640) },
     };
 
     /// <summary>A pane, which remembers it was the one looked at last.</summary>
@@ -112,7 +113,12 @@ public sealed partial class SettingsWindow : NSWindowController
         /// </summary>
         void Fit(NSWindow window)
         {
-            if (View is not NSScrollView { DocumentView: { } document }) return;
+            // A pane of its own layout, the Vocabulary's list beside what it shows, keeps a size that fits both.
+            if (View is not NSScrollView { DocumentView: { } document })
+            {
+                PreferredContentSize = new CGSize(720, 640);
+                return;
+            }
             View.LayoutSubtreeIfNeeded();
             var height = Math.Clamp(document.FittingSize.Height, 240, 700);
             // The tab view controller sizes the window to the pane's preferred size, keeping its top where it was.
