@@ -91,11 +91,3 @@ public sealed record PlacedImage(double X, double Y, double Width, double Height
 /// <summary>A highlight or selection rectangle on its page, in DIPs. <see cref="Current"/> marks the hit being shown.</summary>
 public sealed record PageBox(double X, double Y, double Width, double Height, bool Current = false);
 
-/// <summary>Where a search hit is: its page and the rectangles of its words in PDF points.</summary>
-public sealed record PageHighlight(int PageIndex, IReadOnlyList<PageRect> Rects);
-
-/// <summary>
-/// A page drawn before its document was shown, at <see cref="Scale"/> pixels per point, so it shows the moment the
-/// document does. <see cref="Preview"/> marks one drawn small to stand in until the page is drawn properly.
-/// </summary>
-public sealed record PageSeed(int PageIndex, double Scale, ImageSource Image, bool Preview);

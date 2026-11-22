@@ -8,6 +8,7 @@ using System.Windows.Threading;
 using Bibliotaph.App.Controls;
 using Bibliotaph.App.ViewModels;
 using Bibliotaph.Core.Reading;
+using Bibliotaph.Viewer;
 
 namespace Bibliotaph.App.Views;
 
@@ -38,7 +39,7 @@ public partial class ViewerView
             if (_model is { IsEbook: true } model) model.CurrentPageIndex = page;
         };
         EbookSurface.LinkFollowed += (_, from) => _model?.LinkFollowed(from);
-        EbookSurface.WebLinkClicked += (_, address) => _model?.FollowLink(new Bibliotaph.Viewer.PageLink(default, -1, null, address));
+        EbookSurface.WebLinkClicked += (_, address) => _model?.FollowLink(new PageLink(default, -1, null, address));
         EbookSurface.ZoomRequested += (_, step) => _model?.StepEbookZoom(step);
         EbookSurface.Failed += (_, message) => _model?.ShowEbookProblem(message);
         VideoSurface.Failed += (_, message) => _model?.ShowVideoProblem(message);
@@ -81,7 +82,8 @@ public partial class ViewerView
         }
         model.PropertyChanged += OnModelChanged;
         model.GoToRequested += OnGoToRequested;
-        model.DrawAhead = (renderer, doc, page) => PagesView.PrerenderAsync(renderer, doc, page);
+        // The WPF reader's documents are its renderers (PdfRenderers).
+        model.DrawAhead = (document, doc, page) => PagesView.PrerenderAsync((PdfRenderer)document, doc, page);
         model.EbookFind = EbookSurface.FindAsync;
         model.EbookTerms = EbookSurface.MarkTermsAsync;
         EbookSurface.Browser = model.EbookBrowser;
@@ -198,7 +200,7 @@ public partial class ViewerView
         if (ReferenceEquals(_shown, pdf)) return;
         _shown = pdf;
         if (pdf is null) PagesView.Unload();
-        else PagesView.Load(pdf.Renderer, pdf.Doc, pdf.Text, pdf.PageIndex, pdf.PdfTop, pdf.Seed, pdf.Numbering);
+        else PagesView.Load((PdfRenderer)pdf.Document, pdf.Doc, pdf.Text, pdf.PageIndex, pdf.PdfTop, pdf.Seed, pdf.Numbering);
     }
 
     void ShowEbook(OpenEbook? ebook)

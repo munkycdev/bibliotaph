@@ -69,6 +69,7 @@ static partial class Composition
         services.AddSingleton<PageThumbnailCache>();
         services.AddSingleton<WpfImageCodec>();
         services.AddSingleton<IImageCodec>(sp => sp.GetRequiredService<WpfImageCodec>());
+        services.AddSingleton<IPictureDecoder>(sp => sp.GetRequiredService<WpfImageCodec>());
         // The smoke test keeps remembered passwords in memory and opens no other app.
         if (smokeTest) services.AddSingleton<IPasswordVault, MemoryPasswordVault>();
         else services.AddSingleton<IPasswordVault, PasswordVault>();

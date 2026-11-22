@@ -838,7 +838,7 @@ static partial class SmokeTest
         await WaitUntilAsync(window, () => pages.CurrentPageIndex == 0, () => "Going to page i didn't show the first page.");
 
         // A link in the book, as on an index page, goes to its page and offers the way back.
-        viewer.FollowLink(new Bibliotaph.Viewer.PageLink(default, 1, null, null));
+        viewer.FollowLink(new Bibliotaph.Core.Reading.PageLink(default, 1, null, null));
         await WaitUntilAsync(window, () => pages.CurrentPageIndex == 1 && viewer is { HasLinkBack: true, LinkBackLabel: "Back to page i" } && Shown(window, "BackFromLink"),
             () => $"Following a link left the page in view at {pages.CurrentPageIndex}, offering “{viewer.LinkBackLabel}”.");
         Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "BackFromLink"), "Back to page i");
@@ -888,7 +888,7 @@ static partial class SmokeTest
         library.OpenBookCommand.Execute(library.Items.First(i => i.DocumentId == documentId));
         var viewer = shell.CurrentPage as ViewerViewModel ?? throw new InvalidOperationException("Open didn't open the viewer.");
         await WaitUntilAsync(window, () => viewer.IsImage || viewer.Mode == ViewerMode.Problem, () => $"The image didn't open (still {viewer.Mode}).");
-        if (viewer.Image is not { Width: > 0 }) throw new InvalidOperationException($"The image didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
+        if (viewer.Image is not System.Windows.Media.ImageSource { Width: > 0 }) throw new InvalidOperationException($"The image didn't open: {viewer.EmptyTitle} {viewer.EmptyMessage}");
         viewer.Zoom = 2;
         await Settle(window);
         await AuditAsync(window, "an image in the reader");

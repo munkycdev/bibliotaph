@@ -1,6 +1,4 @@
-using Bibliotaph.Core.Reading;
-
-namespace Bibliotaph.Viewer;
+namespace Bibliotaph.Core.Reading;
 
 /// <summary>
 /// A link on a PDF page: its box in PDF points, and where it goes, a page of the same book (with the spot on it, in

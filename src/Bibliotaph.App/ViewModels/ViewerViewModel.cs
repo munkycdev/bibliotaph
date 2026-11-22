@@ -1,6 +1,4 @@
 using System.Globalization;
-using System.Windows.Media;
-using System.Windows.Threading;
 using Bibliotaph.App.Services;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
@@ -9,7 +7,6 @@ using Bibliotaph.Index;
 using Bibliotaph.Pdf.Contracts;
 using Bibliotaph.Pdf.Host;
 using Bibliotaph.Processing;
-using Bibliotaph.Viewer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -31,11 +28,11 @@ public enum ViewerMode
 public sealed record OpenVideo(string Title, Func<System.IO.Stream> Open);
 
 /// <summary>
-/// An open PDF for the page surface: its renderer, what the worker said about it, where to start, the page there if it
+/// An open PDF for the page surface: the document, what the worker said about it, where to start, the page there if it
 /// was drawn ahead of time, and where its printed page numbers are (for links made from an index page's numbers),
 /// worked out the first time a page asks.
 /// </summary>
-public sealed record OpenPdf(PdfRenderer Renderer, DocInfo Doc, Func<int, Task<PageTextLayer>> Text, int PageIndex, double? PdfTop,
+public sealed record OpenPdf(IReaderDocument Document, DocInfo Doc, Func<int, Task<PageTextLayer>> Text, int PageIndex, double? PdfTop,
     PageSeed? Seed = null, Func<Task<PrintedPages>>? Numbering = null);
 
 /// <summary>An open e-book for its page surface, and the page to open at.</summary>
@@ -71,9 +68,9 @@ public sealed record OutlineEntry(string Title, int PageIndex, int Depth, string
 
 /// <summary>What every reader needs, in the main window or a pop-out. One for the app; <see cref="ReaderWindows"/> makes the readers.</summary>
 public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries, IndexQueries Index, PdfWorkerPool Workers, DocumentOpener Opener,
-    IJobControl Indexing, JobBoard Jobs, ISourceFileReader Files, WpfImageCodec Codec,
+    IJobControl Indexing, JobBoard Jobs, ISourceFileReader Files, IPictureDecoder Pictures, IReaderDocuments Documents,
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
-    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, PageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
+    NotesService Notes, OtherApps OtherApps, PinDirectory Pins, IPageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
     IUserPrompts UserPrompts, IDesktopShell Shell, IUiThread Ui, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null, PackService? Packs = null,
     EbookBrowser? Ebooks = null, WebLibraryCopies? WebCopies = null, NornisScope? Nornis = null, WebLibrary? Web = null);
 
@@ -104,7 +101,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     readonly ISourceFileReader _files;
     readonly SourceFiles _sources;
     readonly WebLibraryCopies? _webCopies;
-    readonly WpfImageCodec _codec;
+    readonly IPictureDecoder _pictures;
+    readonly IReaderDocuments _documents;
     readonly FavoritesService _favorites;
     readonly PinDirectory _pins;
     readonly ReadingService _reading;
@@ -126,8 +124,6 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     string? _nornisHash;
     readonly ILogger<ViewerViewModel> _log;
     readonly IUiThread _ui;
-    // The page renderer makes WPF bitmaps, so it takes WPF's own.
-    readonly Dispatcher _dispatcher;
     readonly UiTimer _noticeTimer;
     readonly UiTimer _placeTimer;
     readonly IReaderWindows _windows;
@@ -136,7 +132,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     ViewerLease? _lease;
     Task _closing = Task.CompletedTask;
     bool _windowClosed;
-    PdfRenderer? _renderer;
+    IReaderDocument? _document;
     /// <summary>The open e-book, held while it is read.</summary>
     EbookContent? _ebook;
     /// <summary>The open PDF's file, held so a file extracted from a ZIP stays while the book is open.</summary>
@@ -153,7 +149,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     int _standbyVersion;
 
     /// <summary>A book opened ahead of time, with the page it will open at drawn once the view has drawn it.</summary>
-    sealed record Standby(long DocumentId, LocalFile File, PdfRenderer Renderer, DocInfo Doc, string? Password)
+    sealed record Standby(long DocumentId, LocalFile File, IReaderDocument Document, DocInfo Doc, string? Password)
     {
         public Task<PageSeed?> Seed { get; set; } = Task.FromResult<PageSeed?>(null);
     }
@@ -174,7 +170,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         _files = services.Files;
         _sources = services.Sources;
         _webCopies = services.WebCopies;
-        _codec = services.Codec;
+        _pictures = services.Pictures;
+        _documents = services.Documents;
         _favorites = services.Favorites;
         _pins = services.Pins;
         _reading = services.Reading;
@@ -196,9 +193,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         Strip = new PageStripViewModel(services.Thumbnails, index => GoTo(index, null), _log);
         ShowStrip = windows.ShowsStrip;
         IsPoppedOut = poppedOut;
-        Zoom = request?.Zoom ?? PdfPagesView.FitWidth;
+        Zoom = request?.Zoom ?? ZoomSteps.FitWidth;
         _ui = services.Ui;
-        _dispatcher = Dispatcher.CurrentDispatcher;
         Ask = new AskPanelViewModel(services.Ask, _ui, services.Log, ShowPhraseAsync);
         Find = new FindViewModel(() => CurrentPageIndex, () => _request?.Part?.Pages, GoTo, _log);
         Notes = new PageNotesViewModel(services.Notes, this, _ui, _log);
@@ -231,7 +227,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     /// </summary>
     public async Task ShowAsync(ViewerRequest request)
     {
-        if (Mode == ViewerMode.Pdf && _renderer is not null && _request is { Pack: null } open && open.DocumentId == request.DocumentId && request.Pack is null)
+        if (Mode == ViewerMode.Pdf && _document is not null && _request is { Pack: null } open && open.DocumentId == request.DocumentId && request.Pack is null)
         {
             _request = request with { Zoom = Zoom };
             MarkItemPages();
@@ -239,7 +235,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             ShowPart();
             Sessions.Close();
             ShowSessionBanner();
-            // The pages are laid out again at the item's first page, on the renderer already open: as quick as a
+            // The pages are laid out again at the item's first page, on the document already open: as quick as a
             // scroll, and the pages view goes to the page the way it does for any open, even mid-layout.
             var target = Math.Clamp(request.PageIndex, 0, Math.Max(0, PageCount - 1));
             CurrentPageIndex = target;
@@ -466,8 +462,9 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     [ObservableProperty]
     public partial OpenPdf? Pdf { get; private set; }
 
+    /// <summary>The open picture, decoded by <see cref="IPictureDecoder"/> as the platform's own image for the view to draw.</summary>
     [ObservableProperty]
-    public partial ImageSource? Image { get; private set; }
+    public partial object? Image { get; private set; }
 
     /// <summary>The video open, played by the view in the e-book reader's browser.</summary>
     [ObservableProperty]
@@ -532,7 +529,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     public string CopyNote => CanCopy ? "" : "This PDF doesn't allow copying its text.";
 
     /// <summary>
-    /// <see cref="PdfPagesView.FitWidth"/> or <see cref="PdfPagesView.FitPage"/> (an image fits the window for
+    /// <see cref="ZoomSteps.FitWidth"/> or <see cref="ZoomSteps.FitPage"/> (an image fits the window for
     /// either); otherwise 1 is 100%.
     /// </summary>
     [ObservableProperty]
@@ -541,10 +538,10 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     public IReadOnlyList<Choice<double>> ZoomChoices =>
     [
         .. IsImage
-            ? new Choice<double>[] { new(PdfPagesView.FitWidth, "Fit to window") }
+            ? new Choice<double>[] { new(ZoomSteps.FitWidth, "Fit to window") }
             // A flowing e-book's text fills the reading column at any size; only a fixed-layout one's pages are fitted.
-            : IsEbook && _ebook is { FixedLayout: false } ? [new(PdfPagesView.FitWidth, "Usual size")]
-            : [new(PdfPagesView.FitWidth, "Fit width"), new(PdfPagesView.FitPage, "Fit page")],
+            : IsEbook && _ebook is { FixedLayout: false } ? [new(ZoomSteps.FitWidth, "Usual size")]
+            : [new(ZoomSteps.FitWidth, "Fit width"), new(ZoomSteps.FitPage, "Fit page")],
         .. ZoomSteps.All.Select(z => new Choice<double>(z, z.ToString("P0", CultureInfo.CurrentCulture))),
     ];
 
@@ -744,10 +741,10 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         }
         Find.Detach();
         Strip.Clear();
-        if (_renderer is { } renderer)
+        if (_document is { } document)
         {
-            _renderer = null;
-            _closing = Task.WhenAll(_closing, CloseAsync(renderer, _file));
+            _document = null;
+            _closing = Task.WhenAll(_closing, CloseAsync(document, _file));
             _file = null;
         }
     }
@@ -771,7 +768,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     async Task PrepareCoreAsync(ViewerRequest request, int version)
     {
         LocalFile? file = null;
-        PdfRenderer? renderer = null;
+        IReaderDocument? document = null;
         try
         {
             if (_windowClosed) return;
@@ -779,15 +776,15 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             // Only a PDF is drawn ahead; an e-book or an image opens quickly enough as it is.
             if (source is null || SourceFormats.IsPicture(source.Format) || SourceFormats.IsEbook(source.Format) || version != _standbyVersion) return;
             file = await _sources.OpenToReadAsync(source);
-            renderer = new PdfRenderer(Worker(), _dispatcher);
+            document = _documents.Create(Worker());
             var password = _opener.KnownPassword(source.ContentHash);
-            var doc = await renderer.OpenAsync(file.Path, password);
+            var doc = await document.OpenAsync(file.Path, password);
             if (version != _standbyVersion || _windowClosed || doc.PageCount == 0) return;
-            var standby = new Standby(request.DocumentId, file, renderer, doc, password);
-            (file, renderer) = (null, null);
+            var standby = new Standby(request.DocumentId, file, document, doc, password);
+            (file, document) = (null, null);
             _standby = standby;
             // The view draws the page at the size it would show it now, after the pages on screen.
-            if (DrawAhead is { } draw) standby.Seed = draw(standby.Renderer, doc, Math.Clamp(request.PageIndex, 0, doc.PageCount - 1));
+            if (DrawAhead is { } draw) standby.Seed = draw(standby.Document, doc, Math.Clamp(request.PageIndex, 0, doc.PageCount - 1));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -796,7 +793,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         }
         finally
         {
-            if (renderer is not null) await CloseAsync(renderer, file);
+            if (document is not null) await CloseAsync(document, file);
             else file?.Dispose();
         }
     }
@@ -805,7 +802,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     public long? ReadyAhead => _standby is { Seed: { IsCompletedSuccessfully: true, Result: not null } } standby ? standby.DocumentId : null;
 
     /// <summary>Set by the view: draws a page of a book opened ahead of time at the size the pages show at now.</summary>
-    public Func<PdfRenderer, DocInfo, int, Task<PageSeed?>>? DrawAhead { get; set; }
+    public Func<IReaderDocument, DocInfo, int, Task<PageSeed?>>? DrawAhead { get; set; }
 
     /// <summary>Closes the book opened ahead of time, if there is one, as when the next item changes or the binder closes.</summary>
     public void DropStandby()
@@ -814,7 +811,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         _preparing = null;
         if (_standby is not { } standby) return;
         _standby = null;
-        _closing = Task.WhenAll(_closing, CloseAsync(standby.Renderer, standby.File));
+        _closing = Task.WhenAll(_closing, CloseAsync(standby.Document, standby.File));
     }
 
     /// <summary>The book opened ahead of time, if it's this one; it's this reader's from now on.</summary>
@@ -1363,7 +1360,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         var image = await Task.Run(() =>
         {
             using var stream = _files.OpenRead(file.Path);
-            return _codec.DecodeForViewing(stream, ImageMaxPixels);
+            return _pictures.DecodeForViewing(stream, ImageMaxPixels);
         });
         if (version != _version) return;
         if (image is null)
@@ -1415,15 +1412,15 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         if (version != _version) return;
         var ready = TakeStandby(request.DocumentId);
         var file = ready?.File ?? await _sources.OpenToReadAsync(source);
-        var renderer = ready?.Renderer ?? new PdfRenderer(Worker(), _dispatcher);
+        var document = ready?.Document ?? _documents.Create(Worker());
         try
         {
             var opened = ready is not null
                 ? new OpenedDocument(ready.Doc, ready.Password, null)
-                : await OpenWithPasswordAsync(renderer, source, file.Path, version);
+                : await OpenWithPasswordAsync(document, source, file.Path, version);
             if (opened is null || version != _version)
             {
-                await renderer.DisposeAsync();
+                await document.DisposeAsync();
                 await file.DisposeAsync();
                 return;
             }
@@ -1433,9 +1430,9 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             // Indexing can read the book now, so its stages blocked on the password run again.
             if (opened.UnlocksIndexing) await _indexing.RetryAsync(source.DocumentId);
 
-            _renderer = renderer;
+            _document = document;
             _file = file;
-            Find.Attach(source.DocumentId, (text, most) => renderer.FindAsync(text, -1, most));
+            Find.Attach(source.DocumentId, (text, most) => document.FindAsync(text, -1, most));
             _labels = doc.PageLabels;
             LinkBackPage = null;
             _bookmarks = [.. doc.Outline.Select(o => (o.PageIndex, o.Depth))];
@@ -1456,7 +1453,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             var kept = _resume is null && request.Resume && request.PageIndex == 0 ? await _reading.GetPositionAsync(source.DocumentId) : 0;
             if (version != _version) return;
             var start = Math.Clamp(_resume?.PageIndex ?? (kept > 0 ? kept : request.PageIndex), 0, Math.Max(0, doc.PageCount - 1));
-            var terms = await TermHighlightsAsync(renderer, source.DocumentId, request, start);
+            var terms = await TermHighlightsAsync(document, source.DocumentId, request, start);
             if (version != _version) return;
             // From a search hit, the first marked word is brought into view; coming Back, the page as it was left.
             var top = _resume is null && terms is [{ Rects: [var first, ..] }, ..] ? first.Top : (double?)null;
@@ -1468,8 +1465,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             var seed = ready?.Seed is { IsCompletedSuccessfully: true, Result: { } drawn } && drawn.PageIndex == start && top is null ? drawn : null;
             var documentId = source.DocumentId;
             var printed = new Lazy<Task<PrintedPages>>(() => PrintedPagesAsync(documentId, doc));
-            Pdf = new OpenPdf(renderer, doc, TextAsync, start, top, seed, () => printed.Value);
-            Strip.Show(renderer, source.ContentHash, doc, keepOnDisk: !forgotten, start);
+            Pdf = new OpenPdf(document, doc, TextAsync, start, top, seed, () => printed.Value);
+            Strip.Show(document, source.ContentHash, doc, keepOnDisk: !forgotten, start);
             MarkItemPages();
             Find.MarkTerms(terms, showFirst: _resume is null);
             Mode = ViewerMode.Pdf;
@@ -1484,9 +1481,9 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         }
         catch
         {
-            if (!ReferenceEquals(_renderer, renderer))
+            if (!ReferenceEquals(_document, document))
             {
-                await renderer.DisposeAsync();
+                await document.DisposeAsync();
                 await file.DisposeAsync();
             }
             throw;
@@ -1497,9 +1494,9 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     /// Opens the PDF, trying the password that opened it earlier in this sitting or a remembered one first, and then
     /// asking. Null when it didn't open, with why shown in its place when there is something to say.
     /// </summary>
-    async Task<OpenedDocument?> OpenWithPasswordAsync(PdfRenderer renderer, DocumentSource source, string path, int version)
+    async Task<OpenedDocument?> OpenWithPasswordAsync(IReaderDocument document, DocumentSource source, string path, int version)
     {
-        var result = await _opener.OpenAsync(source.ContentHash, Title, password => renderer.OpenAsync(path, password), () => version == _version);
+        var result = await _opener.OpenAsync(source.ContentHash, Title, password => document.OpenAsync(path, password), () => version == _version);
         if (result.Problem is { } problem)
             Problem(problem.Title, problem.Message, problem.Action, problem.OpenElsewhere ? OpenElsewhereCommand : null);
         return result.Document;
@@ -1509,7 +1506,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     /// The search's words on the page the hit was on, top of the page first. PDF text is searched by the worker; a
     /// scanned page's words come from OCR.
     /// </summary>
-    async Task<IReadOnlyList<PageHighlight>> TermHighlightsAsync(PdfRenderer renderer, long documentId, ViewerRequest request, int page)
+    async Task<IReadOnlyList<PageHighlight>> TermHighlightsAsync(IReaderDocument document, long documentId, ViewerRequest request, int page)
     {
         if (request.Query is not { } query) return [];
         var terms = query.HighlightTerms();
@@ -1517,8 +1514,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
 
         var found = new List<PageHighlight>();
         foreach (var term in terms)
-            foreach (var hit in await renderer.FindAsync(term, page, MaxHitsPerTerm))
-                found.Add(new PageHighlight(page, [.. hit.Rects.Select(PdfRenderer.ToPageRect)]));
+            foreach (var hit in await document.FindAsync(term, page, MaxHitsPerTerm))
+                found.Add(new PageHighlight(page, [.. hit.Rects.Select(PdfRects.ToPageRect)]));
         if (found.Count == 0)
         {
             var words = await Task.Run(() => _queries.GetOcrWordsAsync(documentId, page));
@@ -1545,8 +1542,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     /// <summary>A page's selectable text: the PDF's own, or the words OCR read from a scanned page.</summary>
     async Task<PageTextLayer> TextAsync(int pageIndex)
     {
-        if (_renderer is not { } renderer || _source is not { } source) return PageTextLayer.Empty;
-        var layer = await renderer.GetTextAsync(pageIndex);
+        if (_document is not { } document || _source is not { } source) return PageTextLayer.Empty;
+        var layer = await document.GetTextAsync(pageIndex);
         if (layer.Text.Any(char.IsLetterOrDigit)) return layer;
         var words = await Task.Run(() => _queries.GetOcrWordsAsync(source.DocumentId, pageIndex));
         return words.Count == 0 ? layer : PageTextLayer.FromWords(words.Select(w => (w.Text, new PageRect(w.Left, w.Top, w.Right, w.Bottom))));
@@ -1595,7 +1592,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
 
     /// <summary>Back to the starting zoom, fitted to the width (Ctrl+0).</summary>
     [RelayCommand]
-    void ResetZoom() => Zoom = PdfPagesView.FitWidth;
+    void ResetZoom() => Zoom = ZoomSteps.FitWidth;
 
     [RelayCommand(CanExecute = nameof(CanGoPrevious))]
     void PreviousPage() => GoTo(CurrentPageIndex - 1, null);
@@ -1816,7 +1813,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     public void StepEbookZoom(int step)
     {
         if (!IsEbook) return;
-        Zoom = step == 0 ? PdfPagesView.FitWidth : ZoomSteps.Next(Zoom > 0 ? Zoom : 1, up: step > 0);
+        Zoom = step == 0 ? ZoomSteps.FitWidth : ZoomSteps.Next(Zoom > 0 ? Zoom : 1, up: step > 0);
     }
 
     /// <summary>Open in another app, from the problem screen of a file Bibliotaph can't show: the user's default app for it.</summary>
@@ -1843,11 +1840,11 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         }
     }
 
-    async Task CloseAsync(PdfRenderer renderer, LocalFile? file)
+    async Task CloseAsync(IReaderDocument document, LocalFile? file)
     {
         try
         {
-            await renderer.DisposeAsync();
+            await document.DisposeAsync();
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {

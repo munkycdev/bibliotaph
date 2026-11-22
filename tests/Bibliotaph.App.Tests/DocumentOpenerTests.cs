@@ -1,6 +1,6 @@
 using Bibliotaph.App.Services;
 using Bibliotaph.Pdf.Contracts;
-using Bibliotaph.Viewer;
+using Bibliotaph.Pdf.Host;
 
 namespace Bibliotaph.App.Tests;
 

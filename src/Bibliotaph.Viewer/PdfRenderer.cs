@@ -10,12 +10,6 @@ namespace Bibliotaph.Viewer;
 /// <summary>A render request. Tiles carry their pixel rectangle; whole pages do not.</summary>
 public sealed record RenderJob(ViewerPage Page, int Generation, double Scale, double PixelsPerDip, PixelRect? Tile = null, bool Preview = false);
 
-/// <summary>A document that would not open, with the worker's reason.</summary>
-public sealed class PdfOpenException(ErrorKind kind, string? message) : Exception(message)
-{
-    public ErrorKind Kind { get; } = kind;
-}
-
 /// <summary>
 /// Feeds one open document's render jobs to the viewer worker one at a time, in the order the view asks (visible
 /// previews, visible pages, then prefetch), and hands frozen bitmaps to the UI thread. Each bitmap is built straight
@@ -28,7 +22,7 @@ public sealed class PdfOpenException(ErrorKind kind, string? message) : Exceptio
 /// document open in the worker that nothing will close. A job that fails in a way nobody expected marks its page with
 /// the reason and the loop carries on, so one bad job can never leave the reader blank for the rest of its life.
 /// </remarks>
-public sealed class PdfRenderer : IAsyncDisposable
+public sealed class PdfRenderer : IReaderDocument
 {
     static readonly TimeSpan RenderTimeout = TimeSpan.FromSeconds(30);
     static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(120);
@@ -60,7 +54,6 @@ public sealed class PdfRenderer : IAsyncDisposable
     /// <summary>Raised on the UI thread when a page's pixels change, so a view can tell a page has been drawn.</summary>
     public event Action<ViewerPage>? Rendered;
 
-    /// <summary>Opens a document, closing the one before. Throws <see cref="PdfOpenException"/> with the reason it failed.</summary>
     public async Task<DocInfo> OpenAsync(string path, string? password, CancellationToken ct = default)
     {
         lock (_lock) _pending = [];
@@ -149,7 +142,6 @@ public sealed class PdfRenderer : IAsyncDisposable
         }
     }
 
-    /// <summary>A page's text with a box per character, for selection.</summary>
     public async Task<PageTextLayer> GetTextAsync(int pageIndex, CancellationToken ct = default)
     {
         var session = await EnsureOpenAsync(ct);
@@ -158,7 +150,7 @@ public sealed class PdfRenderer : IAsyncDisposable
         if (!response.Ok || response.Text is not { } text) return PageTextLayer.Empty;
         var boxes = text.CharBoxes ?? [];
         if (boxes.Count != text.Text.Length) return PageTextLayer.Empty;
-        return new PageTextLayer(text.Text, [.. boxes.Select(ToPageRect)]);
+        return new PageTextLayer(text.Text, [.. boxes.Select(PdfRects.ToPageRect)]);
     }
 
     /// <summary>A page's links. A page whose links can't be read just has none.</summary>
@@ -167,10 +159,9 @@ public sealed class PdfRenderer : IAsyncDisposable
         var session = await EnsureOpenAsync(ct);
         var response = await _worker.SendAsync(new Request { Op = Op.Links, DocId = session.DocId, PageIndex = pageIndex }, RenderTimeout, ct);
         if (!response.Ok || response.Links is not { } links) return [];
-        return [.. links.Where(l => l.PageIndex >= 0 || l.Uri is not null).Select(l => new PageLink(ToPageRect(l.Box), l.PageIndex, l.Top, l.Uri))];
+        return [.. links.Where(l => l.PageIndex >= 0 || l.Uri is not null).Select(l => new PageLink(l.Box.ToPageRect(), l.PageIndex, l.Top, l.Uri))];
     }
 
-    /// <summary>Where a phrase appears on one page (or in the whole book with -1), with its rectangles.</summary>
     public async Task<IReadOnlyList<SearchHit>> FindAsync(string query, int pageIndex = -1, int maxHits = 2000, CancellationToken ct = default)
     {
         var session = await EnsureOpenAsync(ct);
@@ -178,8 +169,6 @@ public sealed class PdfRenderer : IAsyncDisposable
             new Request { Op = Op.Find, DocId = session.DocId, PageIndex = pageIndex, Query = query, MaxHits = maxHits }, OpenTimeout, ct);
         return response.Ok ? response.Hits ?? [] : [];
     }
-
-    public static PageRect ToPageRect(PdfRect r) => new(r.Left, r.Top, r.Right, r.Bottom);
 
     /// <summary>
     /// Renders one page or tile and returns the frozen bitmap, without touching any page model. Used by the render
@@ -420,8 +409,8 @@ public sealed class PdfRenderer : IAsyncDisposable
     }
 }
 
-/// <summary>A page the worker could not render, with its reason.</summary>
-public sealed class PdfRenderException(ErrorKind kind, string? message) : Exception(message)
+/// <summary>The WPF reader's documents: each one renders its pages for the page surface on the app's Dispatcher.</summary>
+public sealed class PdfRenderers(Dispatcher dispatcher) : IReaderDocuments
 {
-    public ErrorKind Kind { get; } = kind;
+    public IReaderDocument Create(WorkerClient worker) => new PdfRenderer(worker, dispatcher);
 }

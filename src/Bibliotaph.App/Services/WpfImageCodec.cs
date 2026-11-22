@@ -6,7 +6,7 @@ using Bibliotaph.Processing;
 namespace Bibliotaph.App.Services;
 
 /// <summary>Covers through WPF's imaging codecs (Windows Imaging Component). Safe off the UI thread: nothing is shared.</summary>
-public sealed class WpfImageCodec : IImageCodec
+public sealed class WpfImageCodec : IImageCodec, IPictureDecoder
 {
     const int Quality = 85;
 
@@ -62,6 +62,8 @@ public sealed class WpfImageCodec : IImageCodec
     /// Decodes an image for the viewer, shrunk to at most <paramref name="maxPixels"/> so a huge battle map can't
     /// fill memory. Frozen, so it can be made off the UI thread. Null when the file isn't a readable image.
     /// </summary>
+    object? IPictureDecoder.DecodeForViewing(Stream image, long maxPixels) => DecodeForViewing(image, maxPixels);
+
     public BitmapSource? DecodeForViewing(Stream image, long maxPixels)
     {
         try

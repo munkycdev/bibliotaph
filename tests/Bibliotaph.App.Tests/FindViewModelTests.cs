@@ -2,7 +2,6 @@ using Bibliotaph.App.ViewModels;
 using Bibliotaph.Core;
 using Bibliotaph.Core.Reading;
 using Bibliotaph.Pdf.Contracts;
-using Bibliotaph.Viewer;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Bibliotaph.App.Tests;

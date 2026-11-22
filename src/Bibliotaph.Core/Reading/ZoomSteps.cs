@@ -1,8 +1,14 @@
-namespace Bibliotaph.Viewer;
+namespace Bibliotaph.Core.Reading;
 
 /// <summary>The zoom levels that Ctrl+wheel, Ctrl+plus and Ctrl+minus and the toolbar's − and + step through. 1 is 100%.</summary>
 public static class ZoomSteps
 {
+    /// <summary>The zoom that fits the most common page width to the view.</summary>
+    public const double FitWidth = 0;
+
+    /// <summary>The zoom that fits a whole page to the view.</summary>
+    public const double FitPage = -1;
+
     static readonly double[] Steps = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4];
 
     public static IReadOnlyList<double> All => Steps;
