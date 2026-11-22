@@ -16,6 +16,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
 {
     readonly Bindings _bindings = new();
     PagesView _pages = null!;
+    OutlineList _outline = null!;
+    StripView _strip = null!;
     OpenPdf? _shownPdf;
 
     public override void LoadView()
@@ -44,7 +46,11 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         findStatus.TextColor = NSColor.SecondaryLabel;
         findStatus.Font = NSFont.SystemFontOfSize(11)!;
 
-        var bar = NSStackView.FromViews([back, title, new NSView(), previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, Separator(),
+        var outlineToggle = Button("sidebar.left", "Bookmarks", null);
+        var stripToggle = Button("rectangle.bottomthird.inset.filled", "Page thumbnails", null);
+        _bindings.Command(outlineToggle, reader.ToggleOutlineCommand);
+        _bindings.Command(stripToggle, reader.ToggleStripCommand);
+        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, Separator(),
             findStatus, find, findPrevious, findNext]);
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
@@ -69,8 +75,25 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         var notice = NSTextField.CreateWrappingLabel("");
         notice.TextColor = NSColor.SystemOrange;
 
+        // The book's area: the pages, a picture or what's wrong, with its bookmarks beside it and its page strip under it.
+        var content = new NSView();
+        foreach (var view in new NSView[] { _pages, pictureScroll, message })
+        {
+            view.TranslatesAutoresizingMaskIntoConstraints = false;
+            content.AddSubview(view);
+        }
+        _outline = new OutlineList(reader);
+        _strip = new StripView(reader.Strip);
+        var row = NSStackView.FromViews([_outline, content]);
+        row.Spacing = 0;
+        row.Alignment = NSLayoutAttribute.Height;
+        var column = NSStackView.FromViews([row, _strip]);
+        column.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        column.Spacing = 0;
+        column.Alignment = NSLayoutAttribute.Width;
+
         var root = new NSView();
-        foreach (var view in new NSView[] { bar, _pages, pictureScroll, message, notice })
+        foreach (var view in new NSView[] { bar, column, notice })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
@@ -83,16 +106,22 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             notice.TopAnchor.ConstraintEqualTo(bar.BottomAnchor),
             notice.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 16),
             notice.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -16),
-            _pages.TopAnchor.ConstraintEqualTo(notice.BottomAnchor, 2),
-            _pages.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
-            _pages.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
-            _pages.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
-            pictureScroll.TopAnchor.ConstraintEqualTo(_pages.TopAnchor),
-            pictureScroll.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
-            pictureScroll.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
-            pictureScroll.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
-            message.CenterXAnchor.ConstraintEqualTo(root.CenterXAnchor),
-            message.CenterYAnchor.ConstraintEqualTo(root.CenterYAnchor),
+            column.TopAnchor.ConstraintEqualTo(notice.BottomAnchor, 2),
+            column.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
+            column.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
+            column.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
+            _outline.WidthAnchor.ConstraintEqualTo(250),
+            _strip.HeightAnchor.ConstraintEqualTo(150),
+            _pages.TopAnchor.ConstraintEqualTo(content.TopAnchor),
+            _pages.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
+            _pages.TrailingAnchor.ConstraintEqualTo(content.TrailingAnchor),
+            _pages.BottomAnchor.ConstraintEqualTo(content.BottomAnchor),
+            pictureScroll.TopAnchor.ConstraintEqualTo(content.TopAnchor),
+            pictureScroll.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
+            pictureScroll.TrailingAnchor.ConstraintEqualTo(content.TrailingAnchor),
+            pictureScroll.BottomAnchor.ConstraintEqualTo(content.BottomAnchor),
+            message.CenterXAnchor.ConstraintEqualTo(content.CenterXAnchor),
+            message.CenterYAnchor.ConstraintEqualTo(content.CenterYAnchor),
             message.WidthAnchor.ConstraintLessThanOrEqualTo(460),
         ]);
         View = root;
@@ -125,6 +154,18 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             if (reader.Image is NSImage image) picture.SetFrameSize(image.Size);
         });
         _bindings.Property(reader, nameof(ViewerViewModel.Zoom), () => _pages.SetZoom(reader.Zoom));
+        _bindings.Properties(reader, [nameof(ViewerViewModel.OutlineVisible), nameof(ViewerViewModel.Outline), nameof(ViewerViewModel.ShowOutline)], () =>
+        {
+            _outline.Hidden = !reader.OutlineVisible;
+            outlineToggle.Hidden = !reader.HasOutline || !reader.HasPages;
+            _outline.Show(reader.Outline);
+        });
+        _bindings.Properties(reader, [nameof(ViewerViewModel.StripVisible), nameof(ViewerViewModel.ShowStrip), nameof(ViewerViewModel.Mode)], () =>
+        {
+            _strip.Hidden = !reader.StripVisible;
+            stripToggle.Hidden = !reader.IsPdf;
+        });
+        _bindings.Properties(reader.Strip, [nameof(PageStripViewModel.Pages), nameof(PageStripViewModel.Current)], () => _strip.Show());
         _bindings.Property(reader, nameof(ViewerViewModel.PageEntry), () =>
         {
             if (pageBox.CurrentEditor is null) pageBox.StringValue = reader.PageEntry;

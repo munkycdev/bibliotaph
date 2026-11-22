@@ -1,7 +1,11 @@
 using Bibliotaph.Core.Reading;
 using Bibliotaph.Pdf.Contracts;
 using Bibliotaph.Pdf.Host;
+using AppKit;
 using Bibliotaph.Presentation.Services;
+using Bibliotaph.Processing;
+using Foundation;
+using Microsoft.Extensions.Logging;
 using CoreGraphics;
 
 namespace Bibliotaph.Mac.Platform;
@@ -136,15 +140,76 @@ public sealed class MacReaderDocument(WorkerClient worker) : IReaderDocument
     }
 }
 
-/// <summary>The reader's page strip isn't on the Mac yet, so no thumbnails are drawn.</summary>
-public sealed class NoPageThumbnails : IPageThumbnails
+/// <summary>
+/// Page thumbnails for the reader's strip, by book (content hash) and page: the most recently used few hundred kept
+/// decoded, behind them the thumbnail cache on disk, and a page in neither drawn by the book's viewer worker.
+/// </summary>
+public sealed class MacPageThumbnails(PageThumbnailCache cache, ILogger<MacPageThumbnails> log) : IPageThumbnails
 {
-    public object? TryGet(string contentHash, int pageIndex) => null;
+    const int Capacity = 400;
+    readonly Lock _lock = new();
+    readonly Dictionary<(string Hash, int Page), LinkedListNode<((string Hash, int Page) Key, NSImage Image)>> _byKey = [];
+    readonly LinkedList<((string Hash, int Page) Key, NSImage Image)> _recent = new();
 
-    public Task<object?> LoadAsync(string contentHash, int pageIndex, double scale, IReaderDocument document, bool keepOnDisk, CancellationToken ct) =>
-        Task.FromResult<object?>(null);
-
-    public void Touch(string contentHash)
+    public object? TryGet(string contentHash, int pageIndex)
     {
+        lock (_lock)
+        {
+            if (!_byKey.TryGetValue((contentHash, pageIndex), out var node)) return null;
+            _recent.Remove(node);
+            _recent.AddFirst(node);
+            return node.Value.Image;
+        }
+    }
+
+    public async Task<object?> LoadAsync(string contentHash, int pageIndex, double scale, IReaderDocument document, bool keepOnDisk, CancellationToken ct)
+    {
+        if (TryGet(contentHash, pageIndex) is NSImage known) return known;
+        var image = keepOnDisk ? await Task.Run(() => cache.Read(contentHash, pageIndex) is { } jpeg ? new NSImage(NSData.FromArray(jpeg)) : null, ct) : null;
+        if (image is null)
+        {
+            if (document is not MacReaderDocument pdf) return null;
+            using var drawn = await pdf.RenderAsync(pageIndex, scale, ct);
+            image = new NSImage(drawn, new CGSize(drawn.Width, drawn.Height));
+            if (keepOnDisk && MacImageCodec.Jpeg(drawn) is { } jpeg) _ = Task.Run(() => Keep(contentHash, pageIndex, jpeg), CancellationToken.None);
+        }
+        lock (_lock)
+        {
+            if (!_byKey.ContainsKey((contentHash, pageIndex)))
+            {
+                _byKey[(contentHash, pageIndex)] = _recent.AddFirst(((contentHash, pageIndex), image));
+                if (_recent.Count > Capacity)
+                {
+                    _byKey.Remove(_recent.Last!.Value.Key);
+                    _recent.RemoveLast();
+                }
+            }
+        }
+        return image;
+    }
+
+    public void Touch(string contentHash) => _ = Task.Run(() =>
+    {
+        try
+        {
+            cache.Touch(contentHash);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log.LogDebug(ex, "The page thumbnail cache couldn't be tidied");
+        }
+    });
+
+    void Keep(string contentHash, int pageIndex, byte[] jpeg)
+    {
+        try
+        {
+            cache.Write(contentHash, pageIndex, jpeg);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Kept in memory anyway, and drawn again next time.
+            log.LogDebug(ex, "A page thumbnail couldn't be kept");
+        }
     }
 }

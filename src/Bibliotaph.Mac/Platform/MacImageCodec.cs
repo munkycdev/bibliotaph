@@ -82,7 +82,7 @@ public sealed class MacImageCodec : IImageCodec, IPictureDecoder
         return CGImageSource.FromData(data);
     }
 
-    static byte[]? Jpeg(CGImage image)
+    internal static byte[]? Jpeg(CGImage image)
     {
         using var output = new NSMutableData();
         using var destination = CGImageDestination.Create(output, UniformTypeIdentifiers.UTTypes.Jpeg.Identifier, 1);
