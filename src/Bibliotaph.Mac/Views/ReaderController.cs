@@ -21,6 +21,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
     NotesPane _notesPane = null!;
     AskPane _askPane = null!;
     OpenPdf? _shownPdf;
+    bool _opened;
     OpenEbook? _shownEbook;
     EbookSurface _ebook = null!;
     VideoSurface _video = null!;
@@ -288,6 +289,10 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         _shownPdf = pdf;
         if (pdf?.Document is MacReaderDocument document)
         {
+            // A book opens with its whole page in view, as Preview opens one; a zoom chosen while reading stays as the
+            // window goes on to other books.
+            if (!_opened && reader.Zoom == ZoomSteps.FitWidth) reader.Zoom = ZoomSteps.FitPage;
+            _opened = true;
             _pages.SetZoom(reader.Zoom);
             _pages.Load(document, pdf.Doc, pdf.PageIndex, pdf.PdfTop);
             View.Window?.MakeFirstResponder(_pages.DocumentView);
