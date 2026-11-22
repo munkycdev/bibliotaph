@@ -137,25 +137,12 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
         builder.Services.AddSerilog();
         builder.Services.AddSingleton(paths);
         builder.Services.AddSingleton(TimeProvider.System);
-        builder.Services.AddSingleton<IUiThread, MacUiThread>();
 
         builder.Services
+            .AddMacHost()
             .AddSecrets(everyday)
-            .AddCatalog(paths)
-            .AddIndex(paths)
-            .AddPdfWorkers()
-            .AddMacPdfWorker()
-            .AddLibrary()
-            .AddWebLibrary()
-            .AddStorage()
-            .AddAi(paths)
-            .AddStages()
-            // Hosted services stop in reverse order: indexing after the index writer, so it stops first and can still
-            // record the job it was on; sync after indexing.
-            .AddIndexing()
-            .AddSync()
-            .AddShell()
-            .AddPages();
+            .AddDesktop(paths)
+            .AddMacPdfWorker();
         return builder.Build();
     }
 

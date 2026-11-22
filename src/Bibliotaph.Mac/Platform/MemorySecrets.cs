@@ -46,11 +46,3 @@ public sealed class MemorySecrets : IPasswordVault, IApiKeyStore, IConnectionSec
     }
 }
 
-/// <summary>
-/// The passwords indexing may open a book with: one entered this sitting with "Make its text searchable" ticked, or
-/// else a remembered one.
-/// </summary>
-public sealed class IndexPasswords(UnlockedPasswords unlocked, IPasswordVault vault) : IPasswordStore
-{
-    public string? Find(string contentHash) => unlocked.FindForIndexing(contentHash) ?? vault.Find(contentHash);
-}
