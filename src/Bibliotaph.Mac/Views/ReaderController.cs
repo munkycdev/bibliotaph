@@ -23,6 +23,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
     OpenPdf? _shownPdf;
     OpenEbook? _shownEbook;
     EbookSurface _ebook = null!;
+    VideoSurface _video = null!;
 
     public override void LoadView()
     {
@@ -95,7 +96,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         // The book's area: the pages, a picture or what's wrong, with its bookmarks beside it and its page strip under it.
         var content = new NSView();
         _ebook = new EbookSurface();
-        foreach (var view in new NSView[] { _pages, _ebook, pictureScroll, message })
+        _video = new VideoSurface();
+        foreach (var view in new NSView[] { _pages, _ebook, _video, pictureScroll, message })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             content.AddSubview(view);
@@ -138,6 +140,10 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             _pages.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
             _pages.TrailingAnchor.ConstraintEqualTo(content.TrailingAnchor),
             _pages.BottomAnchor.ConstraintEqualTo(content.BottomAnchor),
+            _video.TopAnchor.ConstraintEqualTo(content.TopAnchor),
+            _video.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
+            _video.TrailingAnchor.ConstraintEqualTo(content.TrailingAnchor),
+            _video.BottomAnchor.ConstraintEqualTo(content.BottomAnchor),
             _ebook.TopAnchor.ConstraintEqualTo(content.TopAnchor),
             _ebook.LeadingAnchor.ConstraintEqualTo(content.LeadingAnchor),
             _ebook.TrailingAnchor.ConstraintEqualTo(content.TrailingAnchor),
@@ -159,12 +165,13 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             _pages.Hidden = !reader.IsPdf;
             pictureScroll.Hidden = !reader.IsImage;
             _ebook.Hidden = !reader.IsEbook;
-            message.Hidden = !(reader.IsOpening || reader.ShowEmptyState || reader.IsVideo);
+            _video.Hidden = !reader.IsVideo;
+            message.Hidden = !(reader.IsOpening || reader.ShowEmptyState);
             spinner.Hidden = !reader.IsOpening;
             if (reader.IsOpening) spinner.StartAnimation(null);
             else spinner.StopAnimation(null);
             messageTitle.StringValue = reader.IsOpening ? reader.OpeningText
-                : reader.IsVideo ? "Videos don't play on the Mac yet." : reader.EmptyTitle;
+                : reader.EmptyTitle;
             messageBody.StringValue = reader.ShowEmptyState ? reader.EmptyMessage : "";
             action.Title = reader.EmptyActionText ?? "";
             action.Hidden = !reader.ShowEmptyState || reader.EmptyActionText is null || reader.EmptyCommand is null;
@@ -187,6 +194,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             _ebook.SetZoom(reader.Zoom > 0 ? reader.Zoom : 1, fitPage: reader.Zoom == ZoomSteps.FitPage);
         });
         _bindings.Property(reader, nameof(ViewerViewModel.Ebook), ShowEbook);
+        _bindings.Property(reader, nameof(ViewerViewModel.Video), () => _video.Show(reader.Video));
         reader.EbookFind = _ebook.FindAsync;
         reader.EbookTerms = _ebook.MarkTermsAsync;
         EventHandler<int> ebookPage = (_, page) => reader.CurrentPageIndex = page;
