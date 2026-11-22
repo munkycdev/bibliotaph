@@ -194,7 +194,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
 
     /// <summary>
     /// Organize mode's bar, as the Windows Library's: how many are ticked, what to do to them all, which cards to show
-    /// while organizing, Clear and Done.
+    /// while organizing, and Clear. Done takes Organize's place in the filter bar.
     /// </summary>
     NSStackView OrganizeBar()
     {
@@ -215,8 +215,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var removeFromCollection = Small("Remove from collection", library.RemoveSelectedFromCollectionCommand);
         var export = Small("Export these…", selection.ExportSelectedCommand);
         var clear = Small("Clear", selection.ClearSelectionCommand);
-        var done = Small("Done", selection.StopSelectingCommand);
-        var actions = NSStackView.FromViews([summary, edit, toCollection, toBinder, join, pack, removeParts, removeFromCollection, export, clear, done]);
+        var actions = NSStackView.FromViews([summary, edit, toCollection, toBinder, join, pack, removeParts, removeFromCollection, export, clear]);
         actions.Spacing = 8;
         actions.SetCustomSpacing(16, summary);
 
@@ -440,8 +439,21 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         layout.ControlSize = NSControlSize.Small;
         layout.Activated += (_, _) => library.Layout = layout.SelectedSegment == 1 ? Bibliotaph.Index.LibraryLayout.List : Bibliotaph.Index.LibraryLayout.Grid;
         _bindings.Property(library, nameof(LibraryViewModel.Layout), () => layout.SelectedSegment = library.Layout == Bibliotaph.Index.LibraryLayout.List ? 1 : 0);
-        var organize = Small("Organize", library.Selection.StartSelectingCommand);
-        _bindings.Property(library.Selection.Books, nameof(BookSelection.IsActive), () => organize.Hidden = library.Selection.Books.IsActive);
+        // Organize turns into Done where it stands, as Select does on the iPhone, so leaving is where entering was.
+        var organize = Small("Organize", null);
+        // As wide as Organize either way, so Done doesn't pull the buttons after it along.
+        organize.WidthAnchor.ConstraintGreaterThanOrEqualTo(organize.FittingSize.Width).Active = true;
+        organize.Activated += (_, _) =>
+        {
+            var command = library.Selection.Books.IsActive ? library.Selection.StopSelectingCommand : library.Selection.StartSelectingCommand;
+            if (command.CanExecute(null)) command.Execute(null);
+        };
+        _bindings.Property(library.Selection.Books, nameof(BookSelection.IsActive), () =>
+        {
+            var active = library.Selection.Books.IsActive;
+            organize.Title = active ? "Done" : "Organize";
+            organize.TintProminence = active ? NSTintProminence.Primary : NSTintProminence.Automatic;
+        });
         var views = library.SmartViews;
         // One menu for the saved searches and saving this one, as two buttons of text would run together.
         var saved = Small("Saved Searches", null);
