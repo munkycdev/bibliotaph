@@ -322,9 +322,11 @@ public sealed class CompanionStore(IDbContextFactory<CatalogDbContext> contexts,
         var refusedIds = refused.Select(r => r.Value).ToHashSet();
         var changed = false;
         var now = Now;
+        var gone = new HashSet<CompanionLink>();
         foreach (var row in rows.Where(r => r.State == CompanionState.Rejected && !refusedIds.Contains(r.BookEntryId)))
         {
             db.CompanionLinks.Remove(row);
+            gone.Add(row);
             changed = true;
         }
         foreach (var id in refusedIds)
@@ -353,9 +355,14 @@ public sealed class CompanionStore(IDbContextFactory<CatalogDbContext> contexts,
             await db.SaveChangesAsync(ct);
             return changed;
         }
-        foreach (var row in rows.Where(r => Live(r.State) && r.BookEntryId != book.Value.Value)) db.CompanionLinks.Remove(row);
+        foreach (var row in rows.Where(r => Live(r.State) && r.BookEntryId != book.Value.Value))
+        {
+            db.CompanionLinks.Remove(row);
+            gone.Add(row);
+        }
         await db.SaveChangesAsync(ct);
-        if (rows.FirstOrDefault(r => r.BookEntryId == book.Value.Value) is { } existing && db.Entry(existing).State != EntityState.Deleted)
+        // A removed row is detached once saved, so it can't be taken for the link.
+        if (rows.FirstOrDefault(r => r.BookEntryId == book.Value.Value && !gone.Contains(r)) is { } existing)
         {
             existing.State = CompanionState.Confirmed;
             existing.DecidedUtc = now;

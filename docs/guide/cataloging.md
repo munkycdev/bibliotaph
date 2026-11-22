@@ -370,7 +370,9 @@ library already knows:
 - **It came in the same ZIP** as the book, the only book in it.
 - **It sits beside the book**, the only book in its folder, or in a folder of extras under it, such as **Maps**,
   **Handouts**, **Pregens** or **VTT assets**.
-- **Its name carries the book's** title, product code or initials ("LMoP handouts").
+- **Its name carries the book's** title, product code or initials ("LMoP handouts"). A word files are called
+  everywhere, such as "RPG", "PDF" or "NPC", or one several of your books are titled with, never counts as a book's
+  initials.
 - **The AI read the book's title** on its pages, when the AI is on.
 
 The first three link the file at once, as a suggestion. A name, the AI, or a folder of two or three books only
@@ -380,7 +382,8 @@ sheet", "battle map"). **Character sheet** is a type of its own for that.
 
 In a map's details, **Goes with** names its book and why. **Keep** makes the suggestion yours, so later passes leave it
 alone; **Change…** picks another book (any book, an adventure inside a file, or a book you own elsewhere); **Not from
-this book** takes it away and never suggests that book for it again. **Choose a book…** links a file nothing was found
+this book** takes it away and never suggests that book for it again, on any of your devices, even one that doesn't have
+that book. **Choose a book…** links a file nothing was found
 for: type a few words of the book's title (the box is ready for them as the picker opens) and pick it from the list. On a phone or tablet the list moves to the top
 of the screen while you type, so the keyboard doesn't hide it. A book's details list what goes with it under **Maps
 and handouts**, each a click away. Every change has **Undo**, and your choices reach your other PCs and the web library

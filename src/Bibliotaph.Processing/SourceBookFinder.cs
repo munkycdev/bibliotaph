@@ -50,6 +50,19 @@ public static class SourceBookRules
     /// <summary>Words a title's initials leave out when they are written short ("LMoP", or "LMP").</summary>
     static readonly HashSet<string> Small = new(StringComparer.Ordinal) { "of", "the", "a", "an", "and", "in", "on", "to", "for", "at" };
 
+    /// <summary>
+    /// Words that read like a title's initials but are what files are called everywhere: "Starfall RPG" carries no book
+    /// whose initials happen to be "rpg". As compared, lower case.
+    /// </summary>
+    static readonly HashSet<string> CommonWords = new(StringComparer.Ordinal)
+    {
+        "rpg", "rpgs", "ttrpg", "osr", "npc", "npcs", "pcs", "gms", "dms", "dnd", "pdf", "pdfs", "zip", "jpg", "png", "vtt", "set", "kit", "box", "art",
+        "map", "new", "all", "one", "two", "the", "and", "for", "web", "low", "res", "print", "screen", "core", "book", "rules",
+    };
+
+    /// <summary>How many books' titles may have a word before it counts as a word of the library, not anyone's initials.</summary>
+    const int TitlesForAWord = 2;
+
     /// <summary>Whether a folder's name says it holds a book's extras: "Maps", "Player Handouts", "VTT assets".</summary>
     public static bool IsExtrasFolder(string name)
     {
@@ -145,6 +158,11 @@ public static class SourceBookRules
             .GroupBy(x => x.Code, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Select(x => x.Book).DistinctBy(b => b.EntryId).ToList(), StringComparer.Ordinal);
         var byInitials = books.SelectMany(b => Initials(b.Title).Select(i => (Initials: i, Book: b)))
             .GroupBy(x => x.Initials, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Select(x => x.Book).DistinctBy(b => b.EntryId).ToList(), StringComparer.Ordinal);
+        // A word several books are titled with is a word, even where it spells some other book's initials.
+        var titleWords = books.SelectMany(b => BookRecords.Simplify(b.Title).Split(' ', StringSplitOptions.RemoveEmptyEntries).Distinct())
+            .Where(byInitials.ContainsKey).GroupBy(w => w, StringComparer.Ordinal)
+            .Where(g => g.Count() >= TitlesForAWord).Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
+        bool Abbreviation(string word) => word.Length >= 3 && !CommonWords.Contains(word) && !titleWords.Contains(word);
         // The books whose title a name carries, with the longest title found.
         IEnumerable<(SourceCard Book, string Title)> Carried(string text)
         {
@@ -174,7 +192,7 @@ public static class SourceBookRules
             foreach (var (code, coded) in byCode)
                 if (squeezed.Contains(code, StringComparison.Ordinal))
                     foreach (var book in coded) Add(companion, book, false, new SourceBookEvidence(SourceBookSignal.Name, code, 0.7));
-            foreach (var word in words.Where(w => w.Length >= 3).Distinct())
+            foreach (var word in words.Where(Abbreviation).Distinct())
                 if (byInitials.TryGetValue(word, out var initialled) && initialled.Count <= FewBooks)
                     foreach (var book in initialled) Add(companion, book, false, new SourceBookEvidence(SourceBookSignal.Name, word.ToUpperInvariant(), 0.4));
         }
