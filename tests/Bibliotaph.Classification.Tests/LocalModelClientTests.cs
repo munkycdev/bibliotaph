@@ -738,6 +738,24 @@ public class LocalModelClientTests
     }
 
     [Fact]
+    public async Task A_qwen3_model_on_an_openai_compatible_server_is_also_asked_in_the_prompt_not_to_think()
+    {
+        var (client, server) = Connect("http://127.0.0.1:1234/v1", (path, _) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"qwen3-8b"}]}"""),
+            "/v1/chat/completions" => Ok("""{"choices":[{"message":{"content":"{}"}}]}"""),
+            _ => NotFound,
+        });
+
+        await client.CompleteAsync(Request with { Model = "qwen3-8b" }, TestContext.Current.CancellationToken);
+        await client.CompleteAsync(Request, TestContext.Current.CancellationToken);
+
+        var users = server.Requests.Where(r => r.Path == "/v1/chat/completions").Select(r => r.Body!["messages"]![1]!["content"]!.GetValue<string>()).ToList();
+        Assert.EndsWith("\n/no_think", users[0]);
+        Assert.DoesNotContain("/no_think", users[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task An_ollama_that_refuses_the_thinking_switch_is_asked_again_without_it_and_not_sent_it_again()
     {
         var (client, server) = Connect("http://localhost:11434", (path, body) => path switch

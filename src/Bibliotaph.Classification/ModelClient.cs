@@ -360,6 +360,9 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
         // The caller's own fields win: the built-in AI already sends the switch, so it isn't sent twice or retried.
         var ownSwitch = _extras?.ContainsKey(TemplateKwargs) != true && !_thinkingRefused;
         if (ownSwitch) request1[TemplateKwargs] = new JsonObject { ["enable_thinking"] = false };
+        // Servers that don't pass template settings on (LM Studio among them) leave Qwen3 thinking, which can spend the
+        // whole answer's tokens on reasoning nobody sees; Qwen3 also takes the switch from the prompt itself.
+        if (_extras?.ContainsKey(TemplateKwargs) != true && SoftThinkingSwitch(request.Model)) messages[1]!["content"] = request.User + "\n" + NoThink;
         foreach (var (name, value) in _extras ?? []) request1[name] = value?.DeepClone();
         return await ThinkingOffAsync(request1, ownSwitch ? TemplateKwargs : null, async chat =>
         {
@@ -393,6 +396,12 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
             }
         });
     }
+
+    /// <summary>Qwen3's switch, in a message, for turning its thinking off for that turn.</summary>
+    const string NoThink = "/no_think";
+
+    /// <summary>A model that reads <see cref="NoThink"/> from the prompt: Qwen3, by its name as the server lists it.</summary>
+    static bool SoftThinkingSwitch(string model) => model.Contains("qwen3", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Ollama's own switch for a model's thinking.</summary>
     const string OllamaThink = "think";
