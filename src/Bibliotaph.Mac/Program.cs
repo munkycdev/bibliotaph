@@ -36,6 +36,7 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
     IHost? _host;
     MainWindowController? _main;
     bool _stopped;
+    System.Runtime.InteropServices.PosixSignalRegistration? _terminate;
 
     public override async void DidFinishLaunching(NSNotification notification)
     {
@@ -51,6 +52,12 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
                 rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14,
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
             .CreateLogger();
+        // A quit from outside (kill, a logout) quits as the menu does, so the host stops and the databases close.
+        _terminate = System.Runtime.InteropServices.PosixSignalRegistration.Create(System.Runtime.InteropServices.PosixSignal.SIGTERM, signal =>
+        {
+            signal.Cancel = true;
+            NSApplication.SharedApplication.BeginInvokeOnMainThread(() => NSApplication.SharedApplication.Terminate(this));
+        });
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Fatal(e.ExceptionObject as Exception, "Unhandled exception");
         TaskScheduler.UnobservedTaskException += (_, e) => Log.Error(e.Exception, "Unobserved task exception");
         Log.Information("Bibliotaph for Mac {Version} starting; data in {Root}", typeof(AppDelegate).Assembly.GetName().Version, paths.Root);
@@ -74,8 +81,8 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
             await services.GetRequiredService<ShellViewModel>().StartAsync();
             // The Mac opens on its Library: Home and the other pages come to the Mac later.
             services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
-            _main.CheckConnectionAsync(offer: DataRoot(args) is null).FireAndForget();
             await DevArguments.ApplyAsync(args, services, _main);
+            _main.CheckConnectionAsync(offer: DataRoot(args) is null).FireAndForget();
         }
         catch (Exception ex)
         {
