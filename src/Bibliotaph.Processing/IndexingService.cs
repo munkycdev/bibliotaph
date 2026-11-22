@@ -450,6 +450,10 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
         _stopping = stoppingToken;
         var recovered = await _queue.RecoverLeasesAsync(stoppingToken);
         if (recovered > 0) _log.LogInformation("Returned {Count} interrupted jobs to the queue", recovered);
+        // OCR that couldn't run here last time is tried again: this computer may have an engine for it now. If it
+        // still can't, the first page says so and the book waits again.
+        var ocr = await _queue.UnblockStageAsync(Stage.Ocr, StageOutcome.Blocked.Unreachable, stoppingToken);
+        if (ocr > 0) _log.LogInformation("Gave OCR another go for {Count} documents it couldn't run for before", ocr);
         // A new index.db beside a catalog with books in it, as after a restore without the index: each is read again.
         var unqueued = await _queue.EnqueueUnqueuedAsync(await _library.GetDocumentHashesAsync(stoppingToken), Pipeline.First, stoppingToken);
         if (unqueued > 0) _log.LogInformation("Queued {Count} documents index.db had no record of, to be read again", unqueued);
