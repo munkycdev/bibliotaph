@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed: empty answers from Qwen3 on LM Studio.** LM Studio doesn't pass on Bibliotaph's request to switch Qwen3's
+  thinking off, so an answer could spend all its length thinking and come back as "The model sent back nothing".
+  Bibliotaph now also asks Qwen3 in the question itself. On Windows, with a model server.
 - **Fixed: no "Goes with a book?" suggestions in some libraries.** When none of your maps and handouts shared a page
   with another file, looking for the books they go with failed every time, so none was suggested, even from a product
   code or a title on the page. On Windows and the web.
