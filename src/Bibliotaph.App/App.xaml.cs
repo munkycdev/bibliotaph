@@ -146,21 +146,12 @@ public partial class App : Application
         builder.Services.AddSingleton<IUiThread>(new DispatcherUiThread(Current.Dispatcher));
         builder.Services.AddSingleton<IReaderDocuments>(new PdfRenderers(Current.Dispatcher));
 
+        // The smoke test has stand-ins for the sites covers and icons come from, bibliotaph.online, a WebDAV server and
+        // a model server.
+        var standIns = smokeTest ? new DesktopStandIns(new SmokeSiteIcons(), new SmokeWebLibrary(), new SmokeWebDav(), SmokeModel.ClientsFor) : null;
         builder.Services
-            .AddCatalog(paths)
-            .AddIndex(paths)
-            .AddPdfWorkers()
-            .AddLibrary(smokeTest)
-            .AddWebLibrary(smokeTest, everyday)
-            .AddStorage(smokeTest)
-            .AddAi(paths, pilot, smokeTest)
-            .AddStages()
-            // Hosted services stop in reverse order: indexing after the index writer, so it stops first and can still
-            // record the job it was on; sync after indexing, so it writes this PC's file one last time.
-            .AddIndexing()
-            .AddSync()
-            .AddShell(dev, smokeTest)
-            .AddPages();
+            .AddDesktop(paths, pilot, dev, standIns)
+            .AddWindowsServices(smokeTest, everyday);
         return builder.Build();
     }
 
