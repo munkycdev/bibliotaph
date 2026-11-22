@@ -91,7 +91,9 @@ public sealed class ChapterQueries(IndexDatabase database)
     public async Task<IReadOnlyList<ChapterValue>> GetValuesAsync(string? field = null, CancellationToken ct = default)
     {
         await using var connection = database.OpenRead();
-        return [.. await connection.QueryAsync<ChapterValue>(new CommandDefinition(
+        // As a tuple, not the record: Dapper matches a record's constructor to the column types before the first row, and
+        // with no rows SQLite names no type for a computed column, so an empty result would fail to map.
+        var rows = await connection.QueryAsync<(string Field, string Value, string Label, long Books)>(new CommandDefinition(
             """
             SELECT field AS Field, value AS Value, CAST(min(label) AS TEXT) AS Label, count(DISTINCT document_id) AS Books
             FROM chapter_tag
@@ -99,7 +101,8 @@ public sealed class ChapterQueries(IndexDatabase database)
             GROUP BY field, value
             ORDER BY Books DESC, Label COLLATE NOCASE
             """,
-            new { field }, cancellationToken: ct))];
+            new { field }, cancellationToken: ct));
+        return [.. rows.Select(r => new ChapterValue(r.Field, r.Value, r.Label, r.Books))];
     }
 
     // Creatures are kept by the name the book used, often in the singular, so "red dragons" finds "red dragon".
