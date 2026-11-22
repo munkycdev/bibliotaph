@@ -10,6 +10,8 @@
 	<string>Bibliotaph</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSAccentColorName</key>
+	<string>AccentColor</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>GPL-3.0-or-later</string>
 </dict>
