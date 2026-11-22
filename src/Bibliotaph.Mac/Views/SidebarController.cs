@@ -125,6 +125,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         var folders = await roots.ListAsync();
         _rows =
         [
+            new Row(false, "Home", "house", null, Route.Home),
             new Row(false, "All books", "books.vertical", null),
             new Row(false, "Collections", "square.stack", null, Route.Collections),
             new Row(false, "Binders", "book.closed", null, Route.Sessions),

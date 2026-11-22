@@ -18,6 +18,7 @@ public sealed class PageHost(MacCovers covers, INavigationService navigation) : 
     {
         var next = page switch
         {
+            HomeViewModel home => new HomeController(home, covers),
             LibraryViewModel library => new LibraryController(library, covers),
             ViewerViewModel reader => new ReaderController(reader, navigation),
             NeedsReviewViewModel review => new ReviewController(review),

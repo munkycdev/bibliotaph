@@ -78,9 +78,8 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
             NSApplication.SharedApplication.MainMenu = Menus.Build(_main);
             _main.ShowWindow(this);
             NSApplication.SharedApplication.Activate();
+            // Opens Home, or the Library when Settings says to start there, as on Windows.
             await services.GetRequiredService<ShellViewModel>().StartAsync();
-            // The Mac opens on its Library: Home and the other pages come to the Mac later.
-            services.GetRequiredService<INavigationService>().NavigateTo(Route.Library);
             await DevArguments.ApplyAsync(args, services, _main);
             _main.CheckConnectionAsync(offer: DataRoot(args) is null).FireAndForget();
         }
