@@ -150,6 +150,13 @@ public sealed class MainWindowController : NSWindowController
             else _settings.Open(section);
             return;
         }
+        // A link in Settings to a page (Files needing attention, what the AI is reading) shows that page in this
+        // window, and Settings, done with, closes behind it.
+        if (_settings.Window is { IsKeyWindow: true } settings)
+        {
+            settings.Close();
+            Window!.MakeKeyAndOrderFront(null);
+        }
         _shown?.Unload();
         _shown = page;
         _sidebar.Show(page);
