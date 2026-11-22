@@ -364,7 +364,23 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
         // whole answer's tokens on reasoning nobody sees; Qwen3 also takes the switch from the prompt itself.
         if (_extras?.ContainsKey(TemplateKwargs) != true && SoftThinkingSwitch(request.Model)) messages[1]!["content"] = request.User + "\n" + NoThink;
         foreach (var (name, value) in _extras ?? []) request1[name] = value?.DeepClone();
-        return await ThinkingOffAsync(request1, ownSwitch ? TemplateKwargs : null, async chat =>
+        try
+        {
+            return await CompleteOpenAiAsync(request1, ownSwitch, schema, stream, request, ct);
+        }
+        catch (ModelContextException ex) when (ex.ContextTokens is null)
+        {
+            if (await LoadedContextAsync(request.Model, ct) is not { } context) throw;
+            // LM Studio says only that the prompt doesn't fit. The context it loaded the model with, from its own API,
+            // and the prompt at a cautious 3.5 characters a token, are enough for a caller to send less.
+            var prompt = Math.Max(context + 1, (int)((request.System.Length + request.User.Length) / 3.5));
+            throw new ModelContextException(string.Create(CultureInfo.InvariantCulture,
+                $"The text was too long for the model: about {prompt:N0} tokens, and the server loaded it with room for {context:N0}."), prompt, context);
+        }
+    }
+
+    Task<string> CompleteOpenAiAsync(JsonObject request1, bool ownSwitch, JsonNode? schema, bool stream, ModelRequest request, CancellationToken ct) =>
+        ThinkingOffAsync(request1, ownSwitch ? TemplateKwargs : null, async chat =>
         {
             if (stream)
             {
@@ -395,6 +411,19 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
                 return Finished(request, choice?["message"]?["content"]?.GetValue<string>() ?? throw new ModelEmptyAnswerException(), Reason(choice?["finish_reason"]));
             }
         });
+
+    /// <summary>The context LM Studio loaded a model with, from its own API; null from any other server.</summary>
+    async Task<int?> LoadedContextAsync(string model, CancellationToken ct)
+    {
+        try
+        {
+            using var response = await SendAsync(HttpMethod.Get, new Uri(Root, "api/v0/models/" + Uri.EscapeDataString(model)), null, ct);
+            return (await ReadJsonAsync(response, ct))?["loaded_context_length"] is JsonValue value && value.TryGetValue<int>(out var n) && n > 0 ? n : null;
+        }
+        catch (ModelEndpointException)
+        {
+            return null;
+        }
     }
 
     /// <summary>Qwen3's switch, in a message, for turning its thinking off for that turn.</summary>
@@ -655,10 +684,13 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
     /// <summary>
     /// llama.cpp's server refuses a prompt longer than its context with an "exceed_context_size_error" that gives both
     /// counts ("request (18366 tokens) exceeds the available context size (16384 tokens), try increasing it"). Older
-    /// builds say so only in the message, so that is read too.
+    /// builds say so only in the message, so that is read too. LM Studio says so in words of its own, with no counts.
     /// </summary>
     static ModelContextException? TooLong(JsonObject? error, string? detail)
     {
+        // LM Studio's own words, without counts.
+        if (detail?.Contains("greater than the context length", StringComparison.OrdinalIgnoreCase) == true)
+            return new ModelContextException($"The text was too long for the model as the server loaded it. It said: {detail}", null, null);
         var match = detail is null ? null : ContextExceeded().Match(detail);
         if (error?["type"]?.GetValue<string>() != "exceed_context_size_error" && match is not { Success: true }) return null;
         var prompt = Number(error?["n_prompt_tokens"]) ?? Count(match, 1);
