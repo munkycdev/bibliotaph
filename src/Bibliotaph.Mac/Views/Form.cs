@@ -201,6 +201,7 @@ sealed class FormRow : NSView
         Controls.SetContentHuggingPriorityForOrientation(750, NSLayoutConstraintOrientation.Horizontal);
         Controls.SetContentCompressionResistancePriority(750, NSLayoutConstraintOrientation.Horizontal);
         text.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
+        text.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
         Build(text, Controls);
     }
 
@@ -249,6 +250,10 @@ sealed class FormRow : NSView
         Detail.MaximumNumberOfLines = 1;
         Detail.LineBreakMode = NSLineBreakMode.TruncatingMiddle;
         Detail.SetContentCompressionResistancePriority(100, NSLayoutConstraintOrientation.Horizontal);
+        // Room for most of a path, giving way where the controls need it.
+        var wide = Detail.WidthAnchor.ConstraintGreaterThanOrEqualTo(360);
+        wide.Priority = 600;
+        wide.Active = true;
     }
 
     public void ShowDetail(string? text)
@@ -276,6 +281,10 @@ sealed class FormRow : NSView
             controls.BottomAnchor.ConstraintLessThanOrEqualTo(BottomAnchor, -6),
             controls.LeadingAnchor.ConstraintGreaterThanOrEqualTo(text.TrailingAnchor, 16),
         ]);
+        // The text takes the room the controls leave, so a path cut in the middle shows as much of itself as fits.
+        var fill = text.TrailingAnchor.ConstraintEqualTo(controls.LeadingAnchor, -16);
+        fill.Priority = 200;
+        fill.Active = true;
     }
 
     void AddLine()
