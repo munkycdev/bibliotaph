@@ -20,6 +20,7 @@ public sealed class MainWindowController : NSWindowController
     readonly ShellViewModel _shell;
     readonly SidebarController _sidebar;
     readonly PageHost _pages;
+    readonly InspectorController _inspector;
     readonly ToolbarDelegate _toolbar;
     readonly Bindings _bindings = new();
     readonly DevicesWindow _devices;
@@ -45,6 +46,13 @@ public sealed class MainWindowController : NSWindowController
         sidebar.MaximumThickness = 340;
         split.AddSplitViewItem(sidebar);
         split.AddSplitViewItem(NSSplitViewItem.FromViewController(_pages));
+        _inspector = new InspectorController(services.GetRequiredService<MacCovers>());
+        var details = NSSplitViewItem.CreateInspector(_inspector);
+        details.MinimumThickness = 280;
+        details.MaximumThickness = 420;
+        details.Collapsed = true;
+        split.AddSplitViewItem(details);
+        _inspector.Showing += (_, showing) => ((NSSplitViewItem)details.Animator).Collapsed = !showing;
 
         var window = Window!;
         window.ContentViewController = split;
@@ -84,6 +92,7 @@ public sealed class MainWindowController : NSWindowController
         _shown?.Unload();
         _shown = page;
         _sidebar.Show(page as LibraryViewModel);
+        _inspector.Follow(page as LibraryViewModel);
         _pages.Show(page);
         Window!.Title = page?.Title ?? "Bibliotaph";
         if (page is not null) _ = LoadAsync(page);

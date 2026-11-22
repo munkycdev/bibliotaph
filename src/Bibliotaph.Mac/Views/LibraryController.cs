@@ -160,6 +160,14 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             item.Show(owner.Library.Items[(int)indexPath.Item], owner.Covers);
             return item;
         }
+
+        /// <summary>A click shows the book's details, as on Windows; a double-click opens it.</summary>
+        public override void ItemsSelected(NSCollectionView collectionView, NSSet indexPaths)
+        {
+            if (indexPaths.AnyObject is not NSIndexPath path || (int)path.Item >= owner.Library.Items.Count) return;
+            var item = owner.Library.Items[(int)path.Item];
+            if (owner.Library.ActivateCommand.CanExecute(item)) owner.Library.ActivateCommand.Execute(item);
+        }
     }
 }
 

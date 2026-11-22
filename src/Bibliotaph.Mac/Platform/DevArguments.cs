@@ -1,5 +1,6 @@
 using AppKit;
 using Bibliotaph.Catalog;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using Foundation;
 using Microsoft.Extensions.DependencyInjection;
@@ -9,7 +10,7 @@ namespace Bibliotaph.Mac.Platform;
 
 /// <summary>
 /// Arguments for checking a build with nobody at the Mac, as the Windows app's --screenshots: <c>--add-folder</c>
-/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> opens Your Web Library, and <c>--screenshot</c> saves the
+/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> opens Your Web Library, <c>--details-first</c> shows the first book's details, and <c>--screenshot</c> saves the
 /// key window as a PNG every few seconds. The
 /// app draws the picture itself, so it needs no Screen Recording permission; AppKit leaves the sidebar's glass and what's on
 /// it out of such a picture.
@@ -27,10 +28,25 @@ static class DevArguments
         }
         if (long.TryParse(Value(args, "--open"), out var documentId))
             services.GetRequiredService<Presentation.Services.IReaderWindows>().OpenInMainWindow(new Presentation.Services.ViewerRequest(documentId, "Book"));
+        if (args.Contains("--details-first")) ShowFirstDetailsAsync(services).FireAndForget();
         if (Value(args, "--screenshot") is { } file)
         {
             var every = int.TryParse(Value(args, "--screenshot-every"), out var seconds) ? seconds : 5;
             _ = KeepTakingAsync(window, Path.GetFullPath(file), TimeSpan.FromSeconds(every));
+        }
+    }
+
+    /// <summary>The first book's details, once the Library has listed it.</summary>
+    static async Task ShowFirstDetailsAsync(IServiceProvider services)
+    {
+        for (var tries = 0; tries < 40; tries++)
+        {
+            await Task.Delay(250);
+            if (services.GetRequiredService<Presentation.Services.INavigationService>().Current is Presentation.ViewModels.LibraryViewModel { Items.Count: > 0 } library)
+            {
+                library.ActivateCommand.Execute(library.Items[0]);
+                return;
+            }
         }
     }
 
