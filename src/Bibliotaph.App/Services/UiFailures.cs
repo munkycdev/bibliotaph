@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Bibliotaph.Classification;
 using Bibliotaph.Pdf.Host;
-using Bibliotaph.Viewer;
 
 namespace Bibliotaph.App.Services;
 

@@ -1,9 +1,8 @@
-using System.Windows.Media;
 using Bibliotaph.App.Services;
 using Bibliotaph.Core.Reading;
 using Bibliotaph.Pdf.Contracts;
+using Bibliotaph.Pdf.Host;
 using Bibliotaph.Processing;
-using Bibliotaph.Viewer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -29,8 +28,9 @@ public sealed partial class PageThumbnail(int index, string page, double width, 
     /// <summary>Pixels per PDF point that draw the page at the size the thumbnail cache keeps.</summary>
     public double Scale { get; } = scale;
 
+    /// <summary>The page's picture once drawn, the platform's own image (<see cref="IPageThumbnails"/>).</summary>
     [ObservableProperty]
-    public partial ImageSource? Image { get; set; }
+    public partial object? Image { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(AccessibleName))]
@@ -53,10 +53,10 @@ public sealed partial class PageThumbnail(int index, string page, double width, 
 /// <summary>
 /// The reader's thumbnail strip: a small picture of every page of the open PDF, to scroll and click (or Enter) to go to
 /// a page. The page in view stands out, pages with notes carry a badge, and in a binder the item's pages are marked.
-/// Only the thumbnails near the strip's view are drawn (<see cref="Draw"/>), through <see cref="PageThumbnails"/>, so
+/// Only the thumbnails near the strip's view are drawn (<see cref="Draw"/>), through <see cref="IPageThumbnails"/>, so
 /// a 600-page book draws a dozen; those that scroll away let go of their pictures and stop waiting to be drawn.
 /// </summary>
-public sealed partial class PageStripViewModel(PageThumbnails thumbnails, Action<int> goTo, ILogger log) : ObservableObject
+public sealed partial class PageStripViewModel(IPageThumbnails thumbnails, Action<int> goTo, ILogger log) : ObservableObject
 {
     /// <summary>Thumbnails are this tall in the strip; their width follows the page.</summary>
     public const double ThumbnailHeight = 96;
@@ -65,7 +65,7 @@ public sealed partial class PageStripViewModel(PageThumbnails thumbnails, Action
     const int KeepAround = 40;
 
     readonly Dictionary<int, CancellationTokenSource> _drawing = [];
-    PdfRenderer? _renderer;
+    IReaderDocument? _document;
     string? _contentHash;
     bool _keepOnDisk;
     int _version;
@@ -84,10 +84,10 @@ public sealed partial class PageStripViewModel(PageThumbnails thumbnails, Action
     /// Shows the pages of a newly opened PDF. <paramref name="keepOnDisk"/> is false for a book whose text was
     /// forgotten, whose thumbnails then stay in memory only.
     /// </summary>
-    public void Show(PdfRenderer renderer, string contentHash, DocInfo doc, bool keepOnDisk, int currentPage)
+    public void Show(IReaderDocument document, string contentHash, DocInfo doc, bool keepOnDisk, int currentPage)
     {
         Clear();
-        _renderer = renderer;
+        _document = document;
         _contentHash = contentHash;
         _keepOnDisk = keepOnDisk;
         var pages = new PageThumbnail[doc.PageCount];
@@ -114,7 +114,7 @@ public sealed partial class PageStripViewModel(PageThumbnails thumbnails, Action
         _version++;
         foreach (var cts in _drawing.Values) cts.Cancel();
         _drawing.Clear();
-        _renderer = null;
+        _document = null;
         _contentHash = null;
         _item = null;
         Pages = [];
@@ -160,7 +160,7 @@ public sealed partial class PageStripViewModel(PageThumbnails thumbnails, Action
     /// </summary>
     public void Draw(int firstInView, int lastInView)
     {
-        if (_renderer is not { } renderer || _contentHash is not { } hash || Pages.Count == 0) return;
+        if (_document is not { } document || _contentHash is not { } hash || Pages.Count == 0) return;
         var wanted = PageStrip.PagesToDraw(firstInView, lastInView, Pages.Count);
         var near = wanted.ToHashSet();
         foreach (var (index, cts) in _drawing.Where(d => !near.Contains(d.Key)).ToList())
@@ -182,16 +182,16 @@ public sealed partial class PageStripViewModel(PageThumbnails thumbnails, Action
             }
             var cts = new CancellationTokenSource();
             _drawing[index] = cts;
-            DrawAsync(page, hash, renderer, cts).FireAndForget();
+            DrawAsync(page, hash, document, cts).FireAndForget();
         }
     }
 
-    async Task DrawAsync(PageThumbnail page, string hash, PdfRenderer renderer, CancellationTokenSource cts)
+    async Task DrawAsync(PageThumbnail page, string hash, IReaderDocument document, CancellationTokenSource cts)
     {
         var version = _version;
         try
         {
-            var image = await thumbnails.LoadAsync(hash, page.Index, page.Scale, renderer, _keepOnDisk, cts.Token);
+            var image = await thumbnails.LoadAsync(hash, page.Index, page.Scale, document, _keepOnDisk, cts.Token);
             if (version == _version && image is not null) page.Image = image;
         }
         catch (OperationCanceledException)

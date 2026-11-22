@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Bibliotaph.Pdf.Host;
 using Bibliotaph.Processing;
 using Bibliotaph.Viewer;
 using Microsoft.Extensions.Logging;
@@ -8,12 +9,12 @@ using Microsoft.Extensions.Logging;
 namespace Bibliotaph.App.Services;
 
 /// <summary>
-/// Page thumbnails for the reader's strip, by book (content hash) and page. The most recently used few hundred are kept
+/// Page thumbnails for the reader's strip, as WPF images, by book (content hash) and page. The most recently used few hundred are kept
 /// decoded; behind them is the thumbnail cache on disk (<see cref="PageThumbnailCache"/>); a page in neither is drawn by
 /// the viewer worker that has the book open, after the pages on screen, and kept in both. One for the app, so a book
 /// opened again, or in another window, finds its thumbnails ready.
 /// </summary>
-public sealed class PageThumbnails(PageThumbnailCache cache, ILogger<PageThumbnails> log)
+public sealed class PageThumbnails(PageThumbnailCache cache, ILogger<PageThumbnails> log) : IPageThumbnails
 {
     /// <summary>About 50 MB of thumbnails: a few long strips' worth.</summary>
     const int Capacity = 400;
@@ -22,8 +23,9 @@ public sealed class PageThumbnails(PageThumbnailCache cache, ILogger<PageThumbna
     readonly Dictionary<(string Hash, int Page), LinkedListNode<((string Hash, int Page) Key, ImageSource Image)>> _byKey = [];
     readonly LinkedList<((string Hash, int Page) Key, ImageSource Image)> _recent = new();
 
-    /// <summary>A thumbnail already decoded, so a thumbnail scrolled back into view shows without waiting.</summary>
-    public ImageSource? TryGet(string contentHash, int pageIndex)
+    public object? TryGet(string contentHash, int pageIndex) => Find(contentHash, pageIndex);
+
+    ImageSource? Find(string contentHash, int pageIndex)
     {
         lock (_lock)
         {
@@ -34,14 +36,12 @@ public sealed class PageThumbnails(PageThumbnailCache cache, ILogger<PageThumbna
         }
     }
 
-    /// <summary>
-    /// A page's thumbnail: from memory, else from the cache on disk, else drawn by <paramref name="renderer"/> when it
-    /// has nothing else to do. A book whose text was forgotten (<paramref name="keepOnDisk"/> false) has its thumbnails
-    /// kept in memory only. Null when the page can't be drawn; cancelled with <paramref name="ct"/>.
-    /// </summary>
-    public async Task<ImageSource?> LoadAsync(string contentHash, int pageIndex, double scale, PdfRenderer renderer, bool keepOnDisk, CancellationToken ct)
+    /// <summary>From memory, else from the cache on disk, else drawn by the document's renderer.</summary>
+    public async Task<object?> LoadAsync(string contentHash, int pageIndex, double scale, IReaderDocument document, bool keepOnDisk, CancellationToken ct)
     {
-        if (TryGet(contentHash, pageIndex) is { } known) return known;
+        // The WPF reader's documents are its renderers (PdfRenderers), which draw the strip's pages after those on screen.
+        var renderer = (PdfRenderer)document;
+        if (Find(contentHash, pageIndex) is { } known) return known;
         ImageSource? image = keepOnDisk ? await Task.Run(() => Decode(cache.Read(contentHash, pageIndex)), ct) : null;
         if (image is null)
         {
@@ -53,7 +53,6 @@ public sealed class PageThumbnails(PageThumbnailCache cache, ILogger<PageThumbna
         return image;
     }
 
-    /// <summary>A book has opened: its thumbnails on disk are the last to go when the cache makes room.</summary>
     public void Touch(string contentHash) => _ = Task.Run(() =>
     {
         try

@@ -34,7 +34,7 @@ static partial class Composition
             sp.GetRequiredService<TimeProvider>(), sp.GetRequiredService<ILogger<SiteIcons>>()));
         services.AddSingleton<SiteIconImages>();
         services.AddSingleton<OnlineBooks>();
-        services.AddSingleton<PageThumbnails>();
+        services.AddSingleton<IPageThumbnails, PageThumbnails>();
         if (smokeTest)
         {
             services.AddSingleton<IPasswordPrompt, SmokePasswordPrompt>();

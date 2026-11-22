@@ -5,7 +5,9 @@ using Bibliotaph.App.ViewModels;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
+using Bibliotaph.Pdf.Host;
 using Bibliotaph.Processing;
+using Bibliotaph.Viewer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
@@ -139,6 +141,7 @@ public partial class App : Application
         builder.Services.AddSingleton(TimeProvider.System);
         // The app has one UI thread, and every window runs on it.
         builder.Services.AddSingleton<IUiThread>(new DispatcherUiThread(Current.Dispatcher));
+        builder.Services.AddSingleton<IReaderDocuments>(new PdfRenderers(Current.Dispatcher));
 
         builder.Services
             .AddCatalog(paths)

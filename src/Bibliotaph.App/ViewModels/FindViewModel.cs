@@ -1,8 +1,8 @@
 using System.Globalization;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Reading;
 using Bibliotaph.Pdf.Contracts;
 using Bibliotaph.Pdf.Host;
-using Bibliotaph.Viewer;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
@@ -66,7 +66,7 @@ public sealed partial class FindViewModel(Func<int> currentPage, Func<PartPages?
     /// </summary>
     public void Attach(long documentId, Func<string, int, Task<IReadOnlyList<SearchHit>>> search) =>
         AttachMatches(documentId, async (text, most) =>
-            [.. (await search(text, most)).Where(h => h.Rects.Count > 0).Select(h => new PageHighlight(h.PageIndex, [.. h.Rects.Select(PdfRenderer.ToPageRect)]))]);
+            [.. (await search(text, most)).Where(h => h.Rects.Count > 0).Select(h => new PageHighlight(h.PageIndex, [.. h.Rects.Select(PdfRects.ToPageRect)]))]);
 
     /// <summary>
     /// A book is open whose matches are known by their page alone, as an e-book's are: its page shows where on the

@@ -31,8 +31,8 @@ public partial class PdfPagesView
     const int PrefetchPages = 2;
     const double HitTopMargin = 120;                 // a hit is shown this far below the top of the view
 
-    public const double FitWidth = 0;
-    public const double FitPage = -1;
+    public const double FitWidth = ZoomSteps.FitWidth;
+    public const double FitPage = ZoomSteps.FitPage;
 
     public static readonly DependencyProperty ZoomProperty = DependencyProperty.Register(nameof(Zoom), typeof(double), typeof(PdfPagesView),
         new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, (d, _) => ((PdfPagesView)d).ApplyZoom(keepPosition: true)));
@@ -273,7 +273,8 @@ public partial class PdfPagesView
         _seed = null;
         if (seed.PageIndex >= _pages.Count) return;
         var page = _pages[seed.PageIndex];
-        page.Image = seed.Image;
+        // Drawn by this view (PrerenderAsync), so it is a WPF image.
+        page.Image = (ImageSource)seed.Image;
         page.RenderedScale = seed.Scale;
         page.IsPreview = seed.Preview || Math.Abs(seed.Scale - (_dipPerPoint * VisualTreeHelper.GetDpi(this).PixelsPerDip)) > 1e-6;
     }
