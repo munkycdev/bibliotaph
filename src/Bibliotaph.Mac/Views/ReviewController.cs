@@ -181,7 +181,7 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
         var shown = new HashSet<string>();
         foreach (var (name, bold, secondary) in TextProperties)
         {
-            if (type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance) is not { PropertyType: var t } property || t != typeof(string)) continue;
+            if (type.GetProperty(name, BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static) is not { PropertyType: var t } property || t != typeof(string)) continue;
             if (property.GetValue(card) is not string { Length: > 0 } text || !shown.Add(text)) continue;
             body.AddArrangedSubview(Label(text, bold: bold, secondary: secondary));
         }
@@ -189,8 +189,16 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
         foreach (var property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             if (!property.Name.EndsWith("Command", StringComparison.Ordinal) || Skipped.Contains(property.Name)) continue;
-            if (property.GetValue(card) is not IRelayCommand command || IsTakingParameter(property.PropertyType)) continue;
+            if (property.GetValue(card) is not IRelayCommand command) continue;
             var name = property.Name[..^"Command".Length];
+            if (IsTakingParameter(property.PropertyType))
+            {
+                // An answer about one of several things (which book a handout goes with): a button for each of them.
+                var parameter = property.PropertyType.GetGenericArguments()[0];
+                foreach (var item in ItemsOf(card, type, parameter))
+                    buttons.Add(Button($"{Words(name)}: {TitleOf(item)}", command, () => item));
+                continue;
+            }
             var label = type.GetProperty(name + "Label")?.GetValue(card) as string ?? Words(name);
             buttons.Add(Button(label, command));
         }
@@ -239,6 +247,19 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
 
     /// <summary>Undo is the decided card's; a pop-out reader is the Windows card's other way to open.</summary>
     static readonly HashSet<string> Skipped = ["UndoCommand", "OpenInWindowCommand", "OpenFileInWindowCommand", "OpenBookInWindowCommand"];
+
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2070", Justification = "The app isn't trimmed (LinkMode None).")]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("AOT", "IL3050", Justification = "The app isn't compiled ahead of time.")]
+    static IEnumerable<object> ItemsOf(object card, Type type, Type item) =>
+        type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => typeof(IEnumerable<>).MakeGenericType(item).IsAssignableFrom(p.PropertyType))
+            .Select(p => p.GetValue(card))
+            .OfType<System.Collections.IEnumerable>()
+            .FirstOrDefault()?.Cast<object>() ?? [];
+
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "The app isn't trimmed (LinkMode None).")]
+    static string TitleOf(object item) =>
+        item.GetType().GetProperty("Title")?.GetValue(item) as string ?? item.GetType().GetProperty("Label")?.GetValue(item) as string ?? item.ToString() ?? "";
 
     static bool IsTakingParameter(Type command) =>
         command.IsGenericType && command.GetGenericArguments() is [var parameter] && parameter != typeof(object);
