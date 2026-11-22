@@ -10,12 +10,14 @@ using Foundation;
 namespace Bibliotaph.Mac.Views;
 
 /// <summary>
-/// A source list: the whole library, then each library folder, which narrows the Library to it as its folder filter
-/// does on Windows. Under it, what indexing is doing.
+/// A source list: the pages the Mac has, then each library folder, which narrows the Library to it as its folder
+/// filter does on Windows. Under it, what indexing is doing.
 /// </summary>
-public sealed class SidebarController(LibraryActivity activity, FolderAdding adding, SourceRootStore roots, WebShelfCache shelf) : NSViewController
+public sealed class SidebarController(LibraryActivity activity, FolderAdding adding, SourceRootStore roots, WebShelfCache shelf,
+    INavigationService navigation) : NSViewController
 {
-    sealed record Row(bool IsHeader, string Title, string Symbol, long? RootId);
+    /// <summary>A page (<paramref name="Route"/>), a library folder (<paramref name="RootId"/>, in the Library), or a heading.</summary>
+    sealed record Row(bool IsHeader, string Title, string Symbol, long? RootId, Route Route = Route.Library);
 
     readonly Bindings _bindings = new();
     Bindings _page = new();
@@ -25,6 +27,9 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
     NSButton _connect = null!;
     Source? _source;
     bool _selecting;
+    PageViewModel? _shownPage;
+    long? _pendingRoot;
+    string _reviewCount = "";
 
     public override void LoadView()
     {
@@ -72,6 +77,12 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
 
         _bindings.Property(activity, nameof(LibraryActivity.Summary), () => status.StringValue = activity.StatusName);
         _bindings.Property(activity, nameof(LibraryActivity.OfflineText), () => status.StringValue = activity.StatusName);
+        _bindings.Property(activity, nameof(LibraryActivity.ReviewCount), () =>
+        {
+            _reviewCount = activity.ReviewCount > 0 ? activity.ReviewCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) : "";
+            var row = _rows.FindIndex(r => r.Route == Route.NeedsReview);
+            if (row >= 0) _table.ReloadData(NSIndexSet.FromIndex(row), NSIndexSet.FromIndex(0));
+        });
         EventHandler refreshed = (_, _) => Bindings.OnMain(() => ReloadAsync().FireAndForget());
         adding.Added += refreshed;
         _bindings.Add(() => adding.Added -= refreshed);
@@ -88,14 +99,24 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         _connect.Hidden = connected;
     }
 
-    /// <summary>The Library page the sidebar narrows, or none while another page shows.</summary>
-    public void Show(LibraryViewModel? library)
+    /// <summary>The page showing, which the sidebar marks; on the Library, the folder it narrows to.</summary>
+    public void Show(PageViewModel? page)
     {
         _page.Dispose();
         _page = new Bindings();
-        _library = library;
-        if (library is not null)
-            _page.Property(library.Filters, nameof(LibraryFilterState.FolderChoice), SelectCurrent);
+        _shownPage = page;
+        _library = page as LibraryViewModel;
+        if (_library is { } library)
+            _page.Property(library.Filters, nameof(LibraryFilterState.FolderChoice), () =>
+            {
+                // A folder chosen on another page is applied once the Library has listed its folders.
+                if (_pendingRoot is { } root && library.Filters.FolderChoices.FirstOrDefault(c => c.Value == new FolderKey(root, "")) is { } choice)
+                {
+                    _pendingRoot = null;
+                    library.Filters.FolderChoice = choice;
+                }
+                SelectCurrent();
+            });
         SelectCurrent();
     }
 
@@ -105,6 +126,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         _rows =
         [
             new Row(false, "All books", "books.vertical", null),
+            new Row(false, "Needs review", "tray", null, Route.NeedsReview),
             new Row(true, "Library folders", "", null),
             .. folders.Select(f => new Row(false, shelf.NameOf(f.Path), WebLibraryPaths.IsWebPath(f.Path) ? "globe" : "folder", f.Id)),
         ];
@@ -116,7 +138,8 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
     {
         if (_table is null) return;
         var root = _library?.Filters.FolderChoice.Value is { Folder.Length: 0 } folder ? folder.RootId : (long?)null;
-        var index = _rows.FindIndex(r => !r.IsHeader && r.RootId == root);
+        var route = _shownPage?.NavRoute ?? Route.Library;
+        var index = route == Route.Library ? _rows.FindIndex(r => !r.IsHeader && r.Route == Route.Library && r.RootId == root) : _rows.FindIndex(r => r.Route == route && !r.IsHeader);
         _selecting = true;
         if (index >= 0) _table.SelectRow(index, false);
         else _table.DeselectAll(this);
@@ -125,7 +148,13 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
 
     void Choose(Row row)
     {
-        if (_selecting || _library is not { } library) return;
+        if (_selecting) return;
+        if (row.Route != Route.Library || _library is not { } library)
+        {
+            _pendingRoot = row.RootId;
+            navigation.NavigateTo(row.Route);
+            return;
+        }
         var filters = library.Filters;
         filters.FolderChoice = row.RootId is { } id
             ? filters.FolderChoices.FirstOrDefault(c => c.Value == new FolderKey(id, "")) ?? filters.FolderChoices[0]
@@ -150,7 +179,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         public override NSView GetViewForItem(NSTableView tableView, NSTableColumn tableColumn, nint row)
         {
             var item = owner._rows[(int)row];
-            return item.IsHeader ? Header(item.Title) : Cell(item);
+            return item.IsHeader ? Header(item.Title) : Cell(item, owner);
         }
 
         public override bool IsGroupRow(NSTableView tableView, nint row) => owner._rows[(int)row].IsHeader;
@@ -171,14 +200,30 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
             return cell;
         }
 
-        static NSTableCellView Cell(Row row)
+        static NSTableCellView Cell(Row row, SidebarController owner)
         {
             var image = new NSImageView { Image = NSImage.GetSystemSymbol(row.Symbol, null)! };
             var text = NSTextField.CreateLabel(row.Title);
             text.LineBreakMode = NSLineBreakMode.TruncatingMiddle;
             var cell = new NSTableCellView { ImageView = image, TextField = text };
             Pin(cell, text, image);
+            if (row.Route == Route.NeedsReview) Count(cell, owner._reviewCount);
             return cell;
+        }
+
+        /// <summary>How many suggestions and files wait in Needs review, beside its name.</summary>
+        static void Count(NSView cell, string value)
+        {
+            var count = NSTextField.CreateLabel(value);
+            count.TextColor = NSColor.SecondaryLabel;
+            count.Font = NSFont.MonospacedDigitSystemFontOfSize(11, NSFontWeight.Regular)!;
+            count.TranslatesAutoresizingMaskIntoConstraints = false;
+            cell.AddSubview(count);
+            NSLayoutConstraint.ActivateConstraints(
+            [
+                count.TrailingAnchor.ConstraintEqualTo(cell.TrailingAnchor, -6),
+                count.CenterYAnchor.ConstraintEqualTo(cell.CenterYAnchor),
+            ]);
         }
 
         static void Pin(NSView cell, NSTextField text, NSImageView? image)

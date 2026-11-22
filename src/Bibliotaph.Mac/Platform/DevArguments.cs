@@ -1,5 +1,6 @@
 using AppKit;
 using Bibliotaph.Catalog;
+using Bibliotaph.Mac.Binding;
 using Bibliotaph.Presentation.Services;
 using Bibliotaph.Processing;
 using Foundation;
@@ -10,7 +11,7 @@ namespace Bibliotaph.Mac.Platform;
 
 /// <summary>
 /// Arguments for checking a build with nobody at the Mac, as the Windows app's --screenshots: <c>--add-folder</c>
-/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> and <c>--settings</c> open those windows, <c>--details-first</c> shows the first book's details, <c>--zoom</c> zooms the book opened, and <c>--screenshot</c> saves the
+/// adds a library folder without the picker, <c>--open</c> opens a document by its id, <c>--devices</c> and <c>--settings</c> open those windows, <c>--page</c> shows a page by its route, <c>--quit-after</c> quits after that many seconds, <c>--details-first</c> shows the first book's details, <c>--zoom</c> zooms the book opened, and <c>--screenshot</c> saves the
 /// key window as a PNG every few seconds. The
 /// app draws the picture itself, so it needs no Screen Recording permission; AppKit leaves the sidebar's glass and what's on
 /// it out of such a picture.
@@ -22,6 +23,9 @@ static class DevArguments
         var window = main.Window!;
         if (args.Contains("--devices")) main.ShowDevices();
         if (args.Contains("--settings")) main.ShowSettings();
+        if (Enum.TryParse<Presentation.Services.Route>(Value(args, "--page"), out var route)) services.GetRequiredService<INavigationService>().NavigateTo(route);
+        if (int.TryParse(Value(args, "--quit-after"), out var quitAfter))
+            _ = Task.Delay(TimeSpan.FromSeconds(quitAfter)).ContinueWith(_ => Bindings.OnMain(() => NSApplication.SharedApplication.Terminate(null)), TaskScheduler.Default);
         if (Value(args, "--add-folder") is { } folder)
         {
             var root = await services.GetRequiredService<SourceRootStore>().AddAsync(Path.GetFullPath(folder));

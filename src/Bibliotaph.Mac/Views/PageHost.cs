@@ -20,6 +20,7 @@ public sealed class PageHost(MacCovers covers, INavigationService navigation) : 
         {
             LibraryViewModel library => new LibraryController(library, covers),
             ViewerViewModel reader => new ReaderController(reader, navigation),
+            NeedsReviewViewModel review => new ReviewController(review),
             null => null,
             _ => (NSViewController)new NotYetController(page, navigation),
         };

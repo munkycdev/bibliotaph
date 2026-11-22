@@ -36,7 +36,8 @@ public sealed class MainWindowController : NSWindowController
         var folders = new FolderAdding(services);
         _devices = new DevicesWindow(services);
         _settings = new SettingsWindow(services, folders);
-        _sidebar = new SidebarController(_shell.Activity, folders, services.GetRequiredService<SourceRootStore>(), services.GetRequiredService<WebShelfCache>());
+        _sidebar = new SidebarController(_shell.Activity, folders, services.GetRequiredService<SourceRootStore>(), services.GetRequiredService<WebShelfCache>(),
+            services.GetRequiredService<INavigationService>());
         // A folder just added is a new choice in the Library's folder filter, which it lists as it loads.
         folders.Added += (_, _) => Bindings.OnMain(() =>
         {
@@ -120,7 +121,7 @@ public sealed class MainWindowController : NSWindowController
         }
         _shown?.Unload();
         _shown = page;
-        _sidebar.Show(page as LibraryViewModel);
+        _sidebar.Show(page);
         _inspector.Follow(page as LibraryViewModel);
         _pages.Show(page);
         Window!.Title = page?.Title ?? "Bibliotaph";
