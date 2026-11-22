@@ -630,7 +630,9 @@ public sealed class IndexQueries(IndexDatabase database)
     {
         if (documentIds.Count == 0) return [];
         await using var connection = database.OpenRead();
-        var rows = await connection.QueryAsync<SharedPages>(new CommandDefinition(
+        // As a tuple, not the record: Dapper matches a record's constructor to the column types before the first row, and
+        // with no rows SQLite names no type for a count, so an empty result would fail to map.
+        var rows = await connection.QueryAsync<(long DocumentId, long OtherDocumentId, long Shared, long Pages)>(new CommandDefinition(
             """
             SELECT c.document_id AS DocumentId, b.document_id AS OtherDocumentId, count(DISTINCT c.pdf_page) AS Shared,
                    (SELECT count(*) FROM page p WHERE p.document_id = c.document_id AND p.fingerprint IS NOT NULL) AS Pages
@@ -638,7 +640,7 @@ public sealed class IndexQueries(IndexDatabase database)
             WHERE c.fingerprint IS NOT NULL AND c.document_id IN (SELECT value FROM json_each(@ids))
             GROUP BY c.document_id, b.document_id
             """, new { ids = JsonSerializer.Serialize(documentIds) }, cancellationToken: ct));
-        return [.. rows];
+        return [.. rows.Select(r => new SharedPages(r.DocumentId, r.OtherDocumentId, r.Shared, r.Pages))];
     }
 
     /// <summary>Every card's values of one field as projected (type keys, for "type"), by card.</summary>

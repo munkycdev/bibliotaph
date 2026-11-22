@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Fixed: no "Goes with a book?" suggestions in some libraries.** When none of your maps and handouts shared a page
+  with another file, looking for the books they go with failed every time, so none was suggested, even from a product
+  code or a title on the page. On Windows and the web.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1304 (21 November 2026):
