@@ -14,7 +14,8 @@ namespace Bibliotaph.Mac.Views;
 /// <summary>
 /// A PDF's pages one under another in a scroll view, drawn by the viewer worker as they come into view and let go
 /// once far out of it. Sizes follow the reader's zoom the way the Windows page surface does: 100% is 96 points an
-/// inch, as WPF's units are, and fit width fits the most common page width.
+/// inch, as WPF's units are, and fit width fits the most common page width. Text is selected on one page at a time, as
+/// on Windows: drag across it, double-click a word or triple-click a line, then Copy; Escape lets it go.
 /// </summary>
 public sealed class PagesView : NSScrollView
 {
@@ -24,7 +25,7 @@ public sealed class PagesView : NSScrollView
     /// <summary>Beyond this many pixels a page is drawn smaller, as the Windows surface tiles it instead.</summary>
     const double MaxPixels = 12_000_000;
 
-    readonly PagesDocument _document = new();
+    readonly PagesDocument _document;
     readonly List<PageLayer> _pages = [];
     MacReaderDocument? _pdf;
     double _zoom = ZoomSteps.FitWidth;
@@ -34,9 +35,16 @@ public sealed class PagesView : NSScrollView
     int _version;
     bool _drawing;
     bool _drawAgain;
+    Func<int, Task<PageTextLayer>>? _text;
+    PageLayer? _selectionPage;
+    TextRange _selection;
+    int? _anchor;
+    bool _dragging;
+    readonly List<CALayer> _selectionLayers = [];
 
     public PagesView()
     {
+        _document = new PagesDocument(this);
         DocumentView = _document;
         HasVerticalScroller = true;
         HasHorizontalScroller = true;
@@ -51,6 +59,7 @@ public sealed class PagesView : NSScrollView
 
     public PagesView(NativeHandle handle) : base(handle)
     {
+        _document = new PagesDocument(this);
     }
 
     /// <summary>The zoom the pages are shown at, as a fit works out to, for a step from fit width to the next zoom.</summary>
@@ -59,10 +68,20 @@ public sealed class PagesView : NSScrollView
     /// <summary>The page mostly in view, which the reader's page box and its saved place follow.</summary>
     public event EventHandler<int>? CurrentPageChanged;
 
-    public void Load(MacReaderDocument pdf, DocInfo doc, int pageIndex, double? pdfTop)
+    /// <summary>Something to tell the reader, such as why Copy did nothing.</summary>
+    public event EventHandler<string>? Notice;
+
+    /// <summary>False when the PDF forbids copying its text; Copy then says so instead of copying.</summary>
+    public bool CanCopy { get; set; } = true;
+
+    /// <summary>Whether some text is selected, for Copy.</summary>
+    public bool HasSelection => _selectionPage is not null && !_selection.IsEmpty;
+
+    public void Load(MacReaderDocument pdf, DocInfo doc, Func<int, Task<PageTextLayer>> text, int pageIndex, double? pdfTop)
     {
         Unload();
         _pdf = pdf;
+        _text = text;
         for (var i = 0; i < doc.PageCount; i++)
         {
             var size = i < doc.PageSizes.Count ? doc.PageSizes[i] : new PageSize(612, 792);
@@ -79,6 +98,8 @@ public sealed class PagesView : NSScrollView
     public void Unload()
     {
         _version++;
+        ClearSelection();
+        _text = null;
         foreach (var page in _pages) page.Layer.RemoveFromSuperLayer();
         _pages.Clear();
         _pdf = null;
@@ -186,7 +207,9 @@ public sealed class PagesView : NSScrollView
         CATransaction.Commit();
         // The find's marks are sized to the pages, so they're drawn again at the new size.
         ShowHighlights(_marked.Items, _marked.Current, bringIntoView: false);
+        RefreshSelection();
         _document.SetFrameSize(new CGSize(width, y));
+        Window?.InvalidateCursorRectsForView(_document);
         if (anchor >= 0)
         {
             var frame = _pages[anchor].Frame;
@@ -225,6 +248,141 @@ public sealed class PagesView : NSScrollView
             else hi = mid - 1;
         }
         return lo;
+    }
+
+    // ---------- Selection ----------
+
+    /// <summary>The page under a point in the document, and the point on it in PDF points (origin bottom left).</summary>
+    (PageLayer Page, double X, double Y)? PageAt(CGPoint point)
+    {
+        if (_pages.Count == 0) return null;
+        var page = _pages[Find(point.Y)];
+        if (!page.Frame.Contains(point)) return null;
+        return (page, (point.X - page.Frame.X) / _pointsPerPdfPoint, page.HeightPts - (point.Y - page.Frame.Y) / _pointsPerPdfPoint);
+    }
+
+    async void Press(NSEvent e)
+    {
+        var point = _document.ConvertPointFromView(e.LocationInWindow, null);
+        if (PageAt(point) is not var (page, x, y) || _text is null)
+        {
+            ClearSelection();
+            return;
+        }
+        var clicks = e.ClickCount;
+        if (_selectionPage != page) ClearSelection();
+        _selectionPage = page;
+        _dragging = clicks == 1;
+        _anchor = null;
+        SetSelection(default);
+        var layer = await TextOf(page);
+        if (_selectionPage != page || layer.HitTest(x, y) is not { } index) return;
+        _anchor = index;
+        SetSelection(clicks switch
+        {
+            2 => layer.WordAt(index),
+            >= 3 => layer.LineAt(index),
+            _ => default,
+        });
+    }
+
+    void Drag(NSEvent e)
+    {
+        if (!_dragging) return;
+        // Past the edge of the view, the pages scroll to follow the drag, as text views do.
+        _document.Autoscroll(e);
+        if (_selectionPage is not { Text.IsCompletedSuccessfully: true } page || _anchor is not { } anchor) return;
+        var point = _document.ConvertPointFromView(e.LocationInWindow, null);
+        var x = (point.X - page.Frame.X) / _pointsPerPdfPoint;
+        var y = page.HeightPts - (point.Y - page.Frame.Y) / _pointsPerPdfPoint;
+        if (page.Text.Result.HitTest(x, y) is { } focus) SetSelection(PageTextLayer.Between(anchor, focus));
+    }
+
+    void Release() => _dragging = false;
+
+    /// <summary>A page's text, read once, as the pointer reaches it, so a drag can start at once.</summary>
+    Task<PageTextLayer> TextOf(PageLayer page) => page.Text ??= LoadTextAsync(page.Index);
+
+    async Task<PageTextLayer> LoadTextAsync(int index)
+    {
+        try
+        {
+            return _text is { } text ? await text(index) : PageTextLayer.Empty;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Selection is a convenience; a page whose text can't be read just can't be selected.
+            return PageTextLayer.Empty;
+        }
+    }
+
+    void Hover(NSEvent e)
+    {
+        if (PageAt(_document.ConvertPointFromView(e.LocationInWindow, null)) is var (page, _, _) && _text is not null) _ = TextOf(page);
+    }
+
+    void SetSelection(TextRange range)
+    {
+        _selection = range;
+        RefreshSelection();
+    }
+
+    void RefreshSelection()
+    {
+        CATransaction.Begin();
+        CATransaction.DisableActions = true;
+        foreach (var layer in _selectionLayers) layer.RemoveFromSuperLayer();
+        _selectionLayers.Clear();
+        if (_selectionPage is { Text.IsCompletedSuccessfully: true } page && !_selection.IsEmpty)
+        {
+            var colour = NSColor.SelectedTextBackground.ColorWithAlphaComponent(0.45f).CGColor;
+            foreach (var rect in page.Text.Result.RectsOf(_selection))
+            {
+                var layer = new CALayer
+                {
+                    BackgroundColor = colour,
+                    Frame = new CGRect(rect.Left * _pointsPerPdfPoint, (page.HeightPts - rect.Top) * _pointsPerPdfPoint,
+                        rect.Width * _pointsPerPdfPoint, rect.Height * _pointsPerPdfPoint),
+                };
+                page.Layer.AddSublayer(layer);
+                _selectionLayers.Add(layer);
+            }
+        }
+        CATransaction.Commit();
+    }
+
+    void ClearSelection()
+    {
+        _selectionPage = null;
+        _anchor = null;
+        _dragging = false;
+        SetSelection(default);
+    }
+
+    void CopySelection()
+    {
+        if (_selectionPage is not { Text.IsCompletedSuccessfully: true } page || _selection.IsEmpty) return;
+        if (!CanCopy)
+        {
+            Notice?.Invoke(this, "This PDF doesn't allow copying its text.");
+            return;
+        }
+        // The layer gives Windows line breaks for its clipboard; the Mac's are single.
+        var text = page.Text.Result.TextOf(_selection).Replace("\r\n", "\n", StringComparison.Ordinal);
+        if (text.Length == 0) return;
+        NSPasteboard.GeneralPasteboard.ClearContents();
+        NSPasteboard.GeneralPasteboard.SetStringForType(text, NSPasteboardType.String.GetConstant()!);
+    }
+
+    /// <summary>Select All: all the text on the page being read.</summary>
+    async void SelectPage()
+    {
+        if (_current < 0 || _current >= _pages.Count || _text is null) return;
+        var page = _pages[_current];
+        ClearSelection();
+        _selectionPage = page;
+        var layer = await TextOf(page);
+        if (_selectionPage == page) SetSelection(layer.All);
     }
 
     /// <summary>Draws what's in view at the screen's sharpness, nearest first, one page at a time; a scroll meanwhile starts it again.</summary>
@@ -288,6 +446,7 @@ public sealed class PagesView : NSScrollView
         public double HeightPts { get; } = heightPts;
         public CGRect Frame { get; set; }
         public double DrawnScale { get; private set; }
+        public Task<PageTextLayer>? Text { get; set; }
 
         public CALayer Layer { get; } = new()
         {
@@ -328,16 +487,57 @@ public sealed class PagesView : NSScrollView
         }
     }
 
-    /// <summary>The scroll view's document: top-down like the book, and able to take the keyboard for scrolling.</summary>
+    /// <summary>
+    /// The scroll view's document: top-down like the book, able to take the keyboard for scrolling, and where text is
+    /// selected and copied, with the text cursor over the pages.
+    /// </summary>
     sealed class PagesDocument : NSView
     {
-        public PagesDocument()
+        readonly PagesView _owner;
+
+        public PagesDocument(PagesView owner)
         {
+            _owner = owner;
             WantsLayer = true;
+            AddTrackingArea(new NSTrackingArea(CGRect.Empty,
+                NSTrackingAreaOptions.MouseMoved | NSTrackingAreaOptions.ActiveInKeyWindow | NSTrackingAreaOptions.InVisibleRect, this, null));
         }
 
         public override bool IsFlipped => true;
 
         public override bool AcceptsFirstResponder() => true;
+
+        public override void MouseDown(NSEvent theEvent)
+        {
+            Window?.MakeFirstResponder(this);
+            _owner.Press(theEvent);
+        }
+
+        public override void MouseDragged(NSEvent theEvent) => _owner.Drag(theEvent);
+
+        public override void MouseUp(NSEvent theEvent) => _owner.Release();
+
+        public override void MouseMoved(NSEvent theEvent) => _owner.Hover(theEvent);
+
+        public override void ResetCursorRects()
+        {
+            foreach (var page in _owner._pages) AddCursorRect(page.Frame, NSCursor.IBeamCursor);
+        }
+
+        public override void KeyDown(NSEvent theEvent)
+        {
+            // Escape lets a selection go; with none, it goes on to whatever else Escape does here.
+            if (theEvent.KeyCode == 53 && _owner.HasSelection) _owner.ClearSelection();
+            else base.KeyDown(theEvent);
+        }
+
+        [Export("copy:")]
+        public void Copy(NSObject sender) => _owner.CopySelection();
+
+        [Export("selectAll:")]
+        public void SelectAll(NSObject sender) => _owner.SelectPage();
+
+        [Export("validateMenuItem:")]
+        public bool ValidateMenuItem(NSMenuItem item) => item.Action?.Name != "copy:" || _owner.HasSelection;
     }
 }
