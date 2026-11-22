@@ -23,6 +23,8 @@ public sealed class MainWindowController : NSWindowController
     readonly InspectorController _inspector;
     readonly ToolbarDelegate _toolbar;
     readonly Bindings _bindings = new();
+    Bindings _reader = new();
+    readonly IServiceProvider _services;
     readonly DevicesWindow _devices;
     readonly SettingsWindow _settings;
     readonly Presentation.Services.SettingsLinks _links;
@@ -33,6 +35,7 @@ public sealed class MainWindowController : NSWindowController
 
     public MainWindowController(IServiceProvider services) : base(MakeWindow())
     {
+        _services = services;
         _navigation = services.GetRequiredService<INavigationService>();
         _shell = services.GetRequiredService<ShellViewModel>();
         var folders = new FolderAdding(services);
@@ -93,6 +96,35 @@ public sealed class MainWindowController : NSWindowController
         _devices.Finished += (_, _) => CheckConnectionAsync(offer: false).FireAndForget();
         _navigation.Navigated += OnNavigated;
         _bindings.Add(() => _navigation.Navigated -= OnNavigated);
+    }
+
+    /// <summary>
+    /// While a book is open, its details wait in the inspector, folded, for the inspector's toggle to show them beside
+    /// the pages, as the Library shows a book's. They follow the reader to the next book it opens.
+    /// </summary>
+    void FollowReader(ViewerViewModel? reader)
+    {
+        _reader.Dispose();
+        _reader = new Bindings();
+        if (reader is null) return;
+        long? shown = null;
+        _reader.Properties(reader, [nameof(ViewerViewModel.Pdf), nameof(ViewerViewModel.Ebook), nameof(ViewerViewModel.Image), nameof(ViewerViewModel.Video)], () =>
+        {
+            if (reader.Here()?.DocumentId is not { } id || id == shown) return;
+            shown = id;
+            LoadDetailsAsync(reader, id).FireAndForget();
+        });
+    }
+
+    async Task LoadDetailsAsync(ViewerViewModel reader, long documentId)
+    {
+        var cards = await _services.GetRequiredService<Bibliotaph.Index.LibraryQueries>().GetDocumentCardsAsync([documentId]);
+        if (!cards.TryGetValue(documentId, out var entry)) return;
+        var details = await _services.GetRequiredService<InspectorFactory>().LoadAsync(new LibraryItemViewModel(entry));
+        Bindings.OnMain(() =>
+        {
+            if (ReferenceEquals(_shown, reader)) _inspector.Hold(details);
+        });
     }
 
     public void FocusSearch() => _toolbar.FocusSearch();
@@ -161,6 +193,7 @@ public sealed class MainWindowController : NSWindowController
         _shown = page;
         _sidebar.Show(page);
         _inspector.Follow(page as LibraryViewModel);
+        FollowReader(page as ViewerViewModel);
         _pages.Show(page);
         Window!.Title = page?.Title ?? "Bibliotaph";
         if (page is not null) _ = LoadAsync(page);

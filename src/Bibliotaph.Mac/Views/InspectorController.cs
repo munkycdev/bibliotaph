@@ -80,14 +80,21 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         _page.Property(library, nameof(LibraryViewModel.Inspector), () => Show(library.Inspector));
     }
 
-    void Show(InspectorViewModel? inspector)
+    /// <summary>Details to show when the inspector is opened, without opening it, as for the book being read.</summary>
+    public void Hold(InspectorViewModel inspector)
+    {
+        _ = View;
+        Show(inspector, reveal: false);
+    }
+
+    void Show(InspectorViewModel? inspector, bool reveal = true)
     {
         if (_stack is null) return;
         _shown.Dispose();
         _shown = new Bindings();
         _scroll.Hidden = inspector is null;
         _empty.Hidden = inspector is not null;
-        Showing?.Invoke(this, inspector is not null);
+        if (reveal) Showing?.Invoke(this, inspector is not null);
         if (inspector is null)
         {
             Clear();
@@ -129,7 +136,12 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         _shown.Command(reprocess, inspector.ReprocessCommand);
         actions.Add(reprocess);
         if (!inspector.IsCorrecting) actions.Add(Button("Cataloged wrong…", () => inspector.StartCorrectingCommand.Execute(null)));
-        actions.Add(Button("Close", () => _library?.CloseDetailsCommand.Execute(null)));
+        // In the Library, Close leaves the book's details; beside a book being read, it folds the pane away.
+        actions.Add(Button("Close", () =>
+        {
+            if (_library is { } library) library.CloseDetailsCommand.Execute(null);
+            else Showing?.Invoke(this, false);
+        }));
         var row = NSStackView.FromViews([.. actions]);
         row.Spacing = 8;
         Add(row);
