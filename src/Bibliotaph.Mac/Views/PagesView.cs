@@ -73,7 +73,7 @@ public sealed class PagesView : NSScrollView
         // Fit width fits the width most pages have, so one wide map in a book doesn't shrink the rest.
         _commonWidth = _pages.Count == 0 ? 612 : _pages.GroupBy(p => Math.Round(p.WidthPts)).OrderByDescending(g => g.Count()).First().Key;
         Layout(keepPlace: false);
-        GoToPage(pageIndex, pdfTop);
+        GoToPage(pageIndex, pdfTop, centred: true);
     }
 
     public void Unload()
@@ -95,13 +95,18 @@ public sealed class PagesView : NSScrollView
         Layout(keepPlace: true);
     }
 
-    public void GoToPage(int pageIndex, double? pdfTop)
+    /// <summary>
+    /// Shows a page from its top, or from a point on it. A book just opened, at a zoom wider than the window, shows
+    /// the middle of its pages, as Preview does; a jump within it keeps the reader where they were across the page.
+    /// </summary>
+    public void GoToPage(int pageIndex, double? pdfTop, bool centred = false)
     {
         if (pageIndex < 0 || pageIndex >= _pages.Count) return;
         var page = _pages[pageIndex];
         var y = page.Frame.Y - Gap / 2;
         if (pdfTop is { } top) y = page.Frame.Y + Math.Max(0, page.HeightPts - top) * _pointsPerPdfPoint - 40;
-        ContentView.ScrollToPoint(new CGPoint(ContentView.Bounds.X, Math.Max(0, y)));
+        var x = centred ? Math.Max(0, (_document.Frame.Width - ContentView.Bounds.Width) / 2) : ContentView.Bounds.X;
+        ContentView.ScrollToPoint(new CGPoint(x, Math.Max(0, y)));
         ReflectScrolledClipView(ContentView);
         OnScrolled();
     }
