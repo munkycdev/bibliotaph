@@ -5,6 +5,10 @@
 - **Fixed: empty answers from Qwen3 on LM Studio.** LM Studio doesn't pass on Bibliotaph's request to switch Qwen3's
   thinking off, so an answer could spend all its length thinking and come back as "The model sent back nothing".
   Bibliotaph now also asks Qwen3 in the question itself. On Windows, with a model server.
+- **Fixed: some books' chapter scans failing every minute on LM Studio.** LM Studio loads a model with a smaller
+  context than the model allows (8,192 tokens for Qwen3 8B, say), and refuses a longer prompt in words Bibliotaph
+  didn't recognise. Bibliotaph now asks LM Studio for the context it loaded and sends less. Loading the model with a
+  larger context in LM Studio lets each request read more. On Windows, with a model server.
 - **Fixed: no "Goes with a book?" suggestions in some libraries.** When none of your maps and handouts shared a page
   with another file, looking for the books they go with failed every time, so none was suggested, even from a product
   code or a title on the page. On Windows and the web.
