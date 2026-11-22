@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Bibliotaph.Mac.Views;
 
 /// <summary>
-/// Settings (⌘,): Library, its folders with what each holds; Processing; AI; Preferences, light or dark and what
+/// Settings (⌘,): Library, its folders with what each holds; Processing; AI; Vocabulary; Preferences, light or dark and what
 /// waits in Needs review; Passwords; and Backup. Each section is the Windows one's view model, loaded while it shows.
 /// </summary>
 public sealed partial class SettingsWindow : NSWindowController
@@ -39,9 +39,10 @@ public sealed partial class SettingsWindow : NSWindowController
             Presentation.Services.SettingsSection.Library => 0,
             Presentation.Services.SettingsSection.Processing => 1,
             Presentation.Services.SettingsSection.Ai => 2,
-            Presentation.Services.SettingsSection.Preferences => 3,
-            Presentation.Services.SettingsSection.Passwords => 4,
-            Presentation.Services.SettingsSection.Backup => 5,
+            Presentation.Services.SettingsSection.Vocabulary => 3,
+            Presentation.Services.SettingsSection.Preferences => 4,
+            Presentation.Services.SettingsSection.Passwords => 5,
+            Presentation.Services.SettingsSection.Backup => 6,
             _ => -1,
         };
         if (at >= 0 && _tabs is { } tabs) tabs.SelectedTabViewItemIndex = at;
@@ -55,6 +56,7 @@ public sealed partial class SettingsWindow : NSWindowController
         tabs.AddTabViewItem(Tab("Library", "books.vertical", LibraryTab()));
         tabs.AddTabViewItem(Tab("Processing", "gauge.with.dots.needle.33percent", ProcessingTab()));
         tabs.AddTabViewItem(Tab("AI", "sparkles", AiTab()));
+        tabs.AddTabViewItem(Tab("Vocabulary", "character.book.closed", VocabularyTab()));
         tabs.AddTabViewItem(Tab("Preferences", "gearshape", PreferencesTab()));
         tabs.AddTabViewItem(Tab("Passwords", "key", PasswordsTab()));
         tabs.AddTabViewItem(Tab("Backup", "externaldrive", BackupTab()));
