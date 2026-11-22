@@ -113,6 +113,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             if (library.EmptyCommand is { } command && command.CanExecute(null)) command.Execute(null);
         };
 
+        DialogSheet.Follow(_bindings, library.Collections, () => View.Window);
+        DialogSheet.Follow(_bindings, library.Sessions, () => View.Window);
+
         // The page replaces its list as it refreshes, and changes it in place as books change.
         var items = library.Items;
         _bindings.Property(library, nameof(LibraryViewModel.Items), () =>

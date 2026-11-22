@@ -126,6 +126,8 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         _rows =
         [
             new Row(false, "All books", "books.vertical", null),
+            new Row(false, "Collections", "square.stack", null, Route.Collections),
+            new Row(false, "Binders", "book.closed", null, Route.Sessions),
             new Row(false, "Needs review", "tray", null, Route.NeedsReview),
             new Row(true, "Library folders", "", null),
             .. folders.Select(f => new Row(false, shelf.NameOf(f.Path), WebLibraryPaths.IsWebPath(f.Path) ? "globe" : "folder", f.Id)),
