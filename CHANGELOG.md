@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6 · 9 November 2026
+
+New in 1.6.1304 (21 November 2026):
+
 - **Fixed: "Not from these books" didn't stick.** A **Goes with a book?** card you answered could come back when one
   of your devices (the web library or another PC) didn't have the book you turned down: that device took the refusal
   as undone and cleared it everywhere. A refusal now stays on every device. Linking a file to a book you'd turned
@@ -31,8 +35,6 @@
 - **Fixed: taking the README's screenshots synced the demo library into your web library.** A screenshot or
   measurement run, even with a data folder of its own, used the PC's connection to bibliotaph.online and synced as that
   PC. It now never connects.
-
-## 1.6 · 9 November 2026
 
 New in 1.6.1272 (14 November 2026):
 
