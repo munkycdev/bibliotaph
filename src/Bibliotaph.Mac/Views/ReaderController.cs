@@ -50,10 +50,19 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         var outlineToggle = Button("sidebar.left", "Bookmarks", null);
         var stripToggle = Button("rectangle.bottomthird.inset.filled", "Page thumbnails", null);
         var notesToggle = Button("note.text", "Notes", null);
+        var addToBinder = Button("book.closed", "Add this page to a binder", null);
+        addToBinder.Activated += (_, _) =>
+        {
+            // The binders to add to, as they are when the menu opens, as the Windows reader's menu lists them.
+            var menu = new NSMenu();
+            foreach (var choice in reader.AddToBinderChoices)
+                menu.AddItem(new NSMenuItem(choice.Label, (_, _) => reader.AddPageToSessionCommand.Execute(new SessionRequest(null, choice))));
+            menu.PopUpMenu(null, new CoreGraphics.CGPoint(0, addToBinder.Bounds.Height + 4), addToBinder);
+        };
         _bindings.Command(notesToggle, reader.ToggleNotesCommand);
         _bindings.Command(outlineToggle, reader.ToggleOutlineCommand);
         _bindings.Command(stripToggle, reader.ToggleStripCommand);
-        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, Separator(),
+        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), addToBinder, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, Separator(),
             findStatus, find, findPrevious, findNext]);
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
@@ -153,6 +162,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             pageCount.Hidden = !reader.HasPages;
         });
         _bindings.Property(reader, nameof(ViewerViewModel.Pdf), ShowPdf);
+        DialogSheet.Follow(_bindings, reader.Sessions, () => View.Window);
         _bindings.Property(reader, nameof(ViewerViewModel.Image), () =>
         {
             picture.Image = (reader.Image as NSImage)!;
@@ -172,6 +182,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         });
         _bindings.Properties(reader, [nameof(ViewerViewModel.NotesVisible), nameof(ViewerViewModel.Mode)], () =>
         {
+            addToBinder.Hidden = !reader.CanAddToBinder;
             _notesPane.Hidden = !reader.NotesVisible || !reader.HasPages;
             notesToggle.Hidden = !reader.HasPages;
         });

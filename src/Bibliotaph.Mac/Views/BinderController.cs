@@ -32,7 +32,10 @@ public sealed class BinderController(SessionReaderViewModel binder) : NSViewCont
         var next = NSButton.CreateButton(NSImage.GetSystemSymbol("chevron.down", "Next item")!, () => { });
         _bindings.Command(previous, binder.PreviousItemCommand);
         _bindings.Command(next, binder.NextItemCommand);
-        var steps = NSStackView.FromViews([counter, new NSView(), previous, next]);
+        var edit = NSButton.CreateButton("Edit binder", () => { });
+        edit.ControlSize = NSControlSize.Small;
+        _bindings.Command(edit, binder.EditCommand);
+        var steps = NSStackView.FromViews([counter, new NSView(), edit, previous, next]);
 
         _table = new NSTableView { Style = NSTableViewStyle.SourceList, HeaderView = null!, UsesAutomaticRowHeights = true };
         _table.AddColumn(new NSTableColumn("item"));
