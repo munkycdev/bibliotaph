@@ -52,10 +52,14 @@
   }
 
   // Scrolls an element's top, or a range's, to just below the top of the window, then again once the sections it
-  // passed have been laid out, which can move it.
+  // passed have been laid out, which can move it. A newer scroll ends an older one's later steps, which would
+  // otherwise pull the page back to where the older one was going.
+  let scrolling = 0;
   function scrollToTop(target, margin) {
+    const mine = ++scrolling;
     let tries = 0;
     const step = () => {
+      if (mine !== scrolling) return;
       const top = target.getBoundingClientRect().top;
       if (Math.abs(top - margin) > 2) window.scrollBy(0, top - margin);
       if (++tries < 4) requestAnimationFrame(step);
@@ -72,8 +76,10 @@
       reveal(rangeOf(active.list[active.current]));
       return;
     }
-    if (marker === markers[0]) window.scrollTo(0, 0);
-    else scrollToTop(marker, 16);
+    if (marker === markers[0]) {
+      scrolling++;
+      window.scrollTo(0, 0);
+    } else scrollToTop(marker, 16);
     current = page;
     post({ t: 'page', page });
   }
@@ -268,6 +274,7 @@
   function reveal(range) {
     const rect = range.getBoundingClientRect();
     if (rect.top >= 48 && rect.bottom <= window.innerHeight - 48 && rect.height > 0) {
+      scrolling++;
       track();
       return;
     }
