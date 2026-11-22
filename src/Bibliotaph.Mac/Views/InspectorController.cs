@@ -94,7 +94,7 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
             return;
         }
         _shown.Properties(inspector, [nameof(InspectorViewModel.Fields), nameof(InspectorViewModel.Facts), nameof(InspectorViewModel.Stages),
-            nameof(InspectorViewModel.ShowAllFields), nameof(InspectorViewModel.IsReprocessing)], () => Build(inspector));
+            nameof(InspectorViewModel.ShowAllFields), nameof(InspectorViewModel.IsReprocessing), nameof(InspectorViewModel.IsCorrecting)], () => Build(inspector));
     }
 
     void Clear()
@@ -128,14 +128,24 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         var reprocess = Button(inspector.ReprocessLabel, () => { });
         _shown.Command(reprocess, inspector.ReprocessCommand);
         actions.Add(reprocess);
+        if (!inspector.IsCorrecting) actions.Add(Button("Cataloged wrong…", () => inspector.StartCorrectingCommand.Execute(null)));
         actions.Add(Button("Close", () => _library?.CloseDetailsCommand.Execute(null)));
         var row = NSStackView.FromViews([.. actions]);
         row.Spacing = 8;
         Add(row);
 
         Section("Details");
-        foreach (var field in inspector.Fields.Where(f => f.IsKnown && (inspector.ShowAllFields || f.IsPrimary)))
-            Fact(field.Label, field.Display, field.IsSuggested ? field.EvidenceLabel : null);
+        if (inspector.IsCorrecting)
+        {
+            var banner = NSTextField.CreateWrappingLabel("Correct what's wrong: Keep a value that's right, Edit one that isn't, or Use one Bibliotaph found elsewhere. Done when finished.");
+            banner.TextColor = NSColor.SecondaryLabel;
+            Add(banner, stretch: true);
+            var done = Button("Done", () => { });
+            _shown.Command(done, inspector.FinishCorrectingCommand);
+            Add(done);
+        }
+        foreach (var field in inspector.Fields.Where(f => (f.IsKnown || inspector.IsCorrecting) && (inspector.ShowAllFields || f.IsPrimary)))
+            Add(FieldRow(field, inspector.IsCorrecting), stretch: true);
         var more = Button(inspector.MoreFieldsLabel, () => inspector.ToggleAllFieldsCommand.Execute(null));
         more.BezelStyle = NSBezelStyle.Inline;
         Add(more);
@@ -162,6 +172,75 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
             Section("Reading it");
             foreach (var stage in inspector.Stages) Fact(stage.Name, stage.Status, null);
         }
+    }
+
+    /// <summary>
+    /// A field with what it is, marked when Bibliotaph only suggests it. Edit types a value in its place; while
+    /// correcting, Keep confirms a suggestion, Reset goes back to what Bibliotaph found, and each other value it found
+    /// has Use.
+    /// </summary>
+    NSStackView FieldRow(MetadataFieldViewModel field, bool correcting)
+    {
+        var name = NSTextField.CreateLabel(field.Label);
+        name.TextColor = NSColor.SecondaryLabel;
+        name.Font = NSFont.SystemFontOfSize(11)!;
+        var value = NSTextField.CreateWrappingLabel("");
+        value.Selectable = true;
+        var edit = Button("Edit", () => field.EditCommand.Execute(null));
+        var keep = Button("Keep", () => { });
+        _shown.Command(keep, field.KeepCommand);
+        var reset = Button("Reset", () => { });
+        _shown.Command(reset, field.ResetCommand);
+        var buttons = NSStackView.FromViews([edit, keep, reset]);
+        buttons.Spacing = 6;
+
+        var text = new NSTextField { PlaceholderString = field.EditHint };
+        text.Changed += (_, _) => field.EditText = text.StringValue;
+        var save = Button("Save", () => { });
+        _shown.Command(save, field.SaveCommand);
+        text.Activated += (_, _) =>
+        {
+            if (field.SaveCommand.CanExecute(null)) field.SaveCommand.Execute(null);
+        };
+        var cancel = Button("Cancel", () => field.CancelEditCommand.Execute(null));
+        var editRow = NSStackView.FromViews([text, save, cancel]);
+        editRow.Spacing = 6;
+        var note = NSTextField.CreateWrappingLabel("");
+        note.Font = NSFont.SystemFontOfSize(11)!;
+
+        var row = NSStackView.FromViews([name, value, buttons, editRow, note]);
+        row.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        row.Alignment = NSLayoutAttribute.Leading;
+        row.Spacing = 3;
+        if (correcting)
+            foreach (var other in field.Alternatives)
+            {
+                var use = Button($"Use “{other.Text}”", () => field.UseCommand.Execute(other));
+                use.BezelStyle = NSBezelStyle.Inline;
+                row.AddArrangedSubview(use);
+            }
+
+        _shown.Properties(field, [nameof(MetadataFieldViewModel.IsEditing), nameof(MetadataFieldViewModel.Problem), nameof(MetadataFieldViewModel.Resolution),
+            nameof(MetadataFieldViewModel.IsBusy)], () =>
+        {
+            value.StringValue = field.IsKnown ? field.Display + (field.IsSuggested ? $"  ·  {field.EvidenceLabel}" : "") : "—";
+            value.TextColor = field.IsSuggested ? NSColor.SystemPurple : NSColor.Label;
+            editRow.Hidden = !field.IsEditing;
+            buttons.Hidden = field.IsEditing;
+            keep.Hidden = !correcting || !field.IsKnown || !field.IsSuggested;
+            reset.Hidden = !correcting || !field.CanReset;
+            if (field.IsEditing && text.CurrentEditor is null)
+            {
+                text.StringValue = field.EditText ?? "";
+                Bindings.OnMain(() => text.Window?.MakeFirstResponder(text));
+            }
+            note.StringValue = field.Problem ?? field.Resolution;
+            note.TextColor = field.Problem is null ? NSColor.SecondaryLabel : NSColor.SystemRed;
+            note.Hidden = !field.IsEditing || note.StringValue.Length == 0;
+            row.AlphaValue = field.IsBusy ? 0.6f : 1;
+        });
+        text.WidthAnchor.ConstraintGreaterThanOrEqualTo(150).Active = true;
+        return row;
     }
 
     async Task LoadCoverAsync(NSImageView view, string name)
