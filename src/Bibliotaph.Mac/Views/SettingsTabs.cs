@@ -61,10 +61,12 @@ public sealed partial class SettingsWindow
             pause.View.Hidden = indexRow.Hidden && ocrRow.Hidden && aiRow.Hidden;
         });
 
-        var lookUp = form.Section("Looking up online", "Your files, notes and collections stay on this device.");
-        var explanation = FormText.Note("", 12);
-        lookUp.Wide(explanation);
-        bindings.Property(processing, nameof(ProcessingSectionViewModel.LookUpExplanation), () => explanation.StringValue = processing.LookUpExplanation);
+        // What goes online, as a note at the foot of the pane: a box would look like a setting, and there is nothing to set.
+        var lookUp = form.Section("What Bibliotaph looks up online");
+        lookUp.Title.Font = NSFont.SystemFontOfSize(11, NSFontWeight.Semibold)!;
+        lookUp.Title.TextColor = NSColor.SecondaryLabel;
+        bindings.Property(processing, nameof(ProcessingSectionViewModel.LookUpExplanation), () =>
+            lookUp.Note($"{processing.LookUpExplanation} Your files, notes and collections stay on this device."));
 
         bindings.Property(processing, nameof(ProcessingSectionViewModel.HasFolders), () =>
         {
