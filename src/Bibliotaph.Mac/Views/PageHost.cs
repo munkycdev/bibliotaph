@@ -19,6 +19,7 @@ public sealed class PageHost(MacCovers covers, INavigationService navigation) : 
         var next = page switch
         {
             LibraryViewModel library => new LibraryController(library, covers),
+            ViewerViewModel reader => new ReaderController(reader, navigation),
             null => null,
             _ => (NSViewController)new NotYetController(page, navigation),
         };

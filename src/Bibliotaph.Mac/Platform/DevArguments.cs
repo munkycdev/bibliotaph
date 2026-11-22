@@ -9,7 +9,7 @@ namespace Bibliotaph.Mac.Platform;
 
 /// <summary>
 /// Arguments for checking a build with nobody at the Mac, as the Windows app's --screenshots: <c>--add-folder</c>
-/// adds a library folder without the picker, and <c>--screenshot</c> saves the window as a PNG every few seconds. The
+/// adds a library folder without the picker, <c>--open</c> opens a document by its id, and <c>--screenshot</c> saves the window as a PNG every few seconds. The
 /// app draws the picture itself, so it needs no Screen Recording permission; AppKit leaves the sidebar's glass and what's on
 /// it out of such a picture.
 /// </summary>
@@ -23,6 +23,8 @@ static class DevArguments
             services.GetRequiredService<IndexingService>().RequestScan(root.Id);
             Log.Information("Added library folder {Folder} from the command line", root.Path);
         }
+        if (long.TryParse(Value(args, "--open"), out var documentId))
+            services.GetRequiredService<Presentation.Services.IReaderWindows>().OpenInMainWindow(new Presentation.Services.ViewerRequest(documentId, "Book"));
         if (Value(args, "--screenshot") is { } file)
         {
             var every = int.TryParse(Value(args, "--screenshot-every"), out var seconds) ? seconds : 5;

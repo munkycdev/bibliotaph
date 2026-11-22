@@ -291,7 +291,7 @@ static class MacComposition
         services.AddSingleton<PlainSearchViewModel>();
         services.AddSingleton<CoverPages>();
         services.AddSingleton<DocumentOpener>();
-        services.AddSingleton<IReaderDocuments, NoReaderDocuments>();
+        services.AddSingleton<IReaderDocuments, MacReaderDocuments>();
         services.AddSingleton<ViewerServices>();
         services.AddSingleton<MacReaderWindows>();
         services.AddSingleton<IReaderWindows>(sp => sp.GetRequiredService<MacReaderWindows>());

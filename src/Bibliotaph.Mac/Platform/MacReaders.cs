@@ -1,15 +1,21 @@
+using AppKit;
+using Bibliotaph.Mac.Binding;
+using Bibliotaph.Mac.Views;
 using Bibliotaph.Pdf.Host;
 using Bibliotaph.Presentation.Services;
 using Bibliotaph.Presentation.ViewModels;
+using CoreGraphics;
+using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.Mac.Platform;
 
 /// <summary>
-/// Where books open. Until the Mac has its own reader, a book opens in the Mac's default app for its file, so the
-/// library is useful while the reader is built.
+/// Where books open: in the main window in place of the Library, with Back to return, or in a window of their own. A
+/// reader window holds its own viewer worker, so two books draw at once.
 /// </summary>
-public sealed class MacReaderWindows(ViewerServices viewer, OtherApps otherApps, IUserPrompts prompts) : IReaderWindows
+public sealed class MacReaderWindows(ViewerServices viewer, INavigationService navigation, ILogger<MacReaderWindows> log) : IReaderWindows
 {
+    readonly List<ReaderWindow> _windows = [];
     ViewerLease? _mainLease;
 
     public bool ShowsStrip { get; set; }
@@ -19,57 +25,115 @@ public sealed class MacReaderWindows(ViewerServices viewer, OtherApps otherApps,
     public ViewerViewModel Create(ViewerRequest? request, bool poppedOut = false, bool inBinder = false) =>
         new(request, viewer, this, poppedOut) { InBinder = inBinder };
 
-    public void OpenInMainWindow(ViewerRequest request) => OpenElsewhereAsync(request).FireAndForget();
+    public void OpenInMainWindow(ViewerRequest request)
+    {
+        navigation.Show(Create(request));
+        BringMainForward();
+    }
 
-    public Task OpenInNewWindowAsync(ViewerRequest request) => OpenElsewhereAsync(request);
+    public Task OpenInNewWindowAsync(ViewerRequest request) => HostAsync(Create(request, poppedOut: true));
 
     public async Task<ViewerViewModel> ShowInWindowAsync(ViewerViewModel? reader, ViewerRequest request)
     {
-        await OpenElsewhereAsync(request);
-        return reader ?? Create(request);
+        if (reader is null || _windows.Find(w => ReferenceEquals(w.Model, reader)) is not { } window)
+        {
+            var created = Create(request, poppedOut: true);
+            await HostAsync(created);
+            return created;
+        }
+        window.Window!.MakeKeyAndOrderFront(null);
+        try
+        {
+            await reader.ShowAsync(request);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            log.LogError(ex, "Showing another book in a reader window failed");
+        }
+        return reader;
     }
 
-    public Task PopOutAsync(ViewerViewModel reader) => Task.CompletedTask;
+    public async Task PopOutAsync(ViewerViewModel reader)
+    {
+        if (reader.Here() is not { } here) return;
+        if (navigation.CanGoBack) navigation.GoBack();
+        await OpenInNewWindowAsync(here);
+    }
 
     public void ReturnToMainWindow(ViewerViewModel reader)
     {
+        if (reader.Here() is not { } here || _windows.Find(w => ReferenceEquals(w.Model, reader)) is not { } window) return;
+        window.Close();
+        OpenInMainWindow(here);
     }
 
-    public Task HostAsync(PageViewModel model) => Task.CompletedTask;
-
-    public void Close(PageViewModel model)
+    public async Task HostAsync(PageViewModel model)
     {
+        var window = new ReaderWindow(model, this);
+        _windows.Add(window);
+        window.ShowWindow(null);
+        try
+        {
+            await model.LoadAsync();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            log.LogError(ex, "Opening a reader window failed");
+        }
     }
 
-    public bool Shows(Func<PageViewModel, bool> match) => false;
+    public void Close(PageViewModel model) => _windows.Find(w => ReferenceEquals(w.Model, model))?.Close();
 
-    public bool BringForward(Func<PageViewModel, bool> match) => false;
+    public bool Shows(Func<PageViewModel, bool> match) =>
+        _windows.Exists(w => match(w.Model)) || (navigation.Current is { } current && match(current));
 
-    public void BringMainForward()
+    public bool BringForward(Func<PageViewModel, bool> match)
     {
+        if (_windows.Find(w => match(w.Model)) is not { } window) return false;
+        window.Window!.MakeKeyAndOrderFront(null);
+        return true;
     }
 
-    async Task OpenElsewhereAsync(ViewerRequest request)
+    public void BringMainForward() => Bindings.OnMain(() =>
+        MainWindow?.MakeKeyAndOrderFront(null));
+
+    /// <summary>The main window, which MainWindowController names here when it opens.</summary>
+    public NSWindow? MainWindow { get; set; }
+
+    internal void Closed(ReaderWindow window)
     {
-        if (await otherApps.OpenAsync(request.DocumentId) is { } problem) prompts.Tell(problem, request.Title, PromptKind.Warning);
+        _windows.Remove(window);
+        window.Model.CloseWindowAsync().FireAndForget();
     }
 }
 
-/// <summary>The reader's own page drawing comes with the Mac reader; until then nothing asks for it.</summary>
-public sealed class NoReaderDocuments : IReaderDocuments
+/// <summary>A reader in a window of its own, titled with its book.</summary>
+sealed class ReaderWindow : NSWindowController
 {
-    public IReaderDocument Create(WorkerClient worker) => throw new NotSupportedException("The Mac reader isn't built yet.");
-}
+    readonly MacReaderWindows _owner;
+    readonly Bindings _bindings = new();
 
-/// <summary>The reader's page strip comes with the Mac reader.</summary>
-public sealed class NoPageThumbnails : IPageThumbnails
-{
-    public object? TryGet(string contentHash, int pageIndex) => null;
-
-    public Task<object?> LoadAsync(string contentHash, int pageIndex, double scale, IReaderDocument document, bool keepOnDisk, CancellationToken ct) =>
-        Task.FromResult<object?>(null);
-
-    public void Touch(string contentHash)
+    public ReaderWindow(PageViewModel model, MacReaderWindows owner)
+        : base(new NSWindow(new CGRect(0, 0, 980, 1000),
+            NSWindowStyle.Titled | NSWindowStyle.Closable | NSWindowStyle.Miniaturizable | NSWindowStyle.Resizable | NSWindowStyle.FullSizeContentView,
+            NSBackingStore.Buffered, false))
     {
+        Model = model;
+        _owner = owner;
+        var window = Window!;
+        window.ReleaseWhenClosed(false);
+        window.TitlebarAppearsTransparent = false;
+        window.ContentViewController = model is ViewerViewModel reader ? new ReaderController(reader, null) : new NSViewController { View = new NSView() };
+        window.SetContentSize(new CGSize(980, 1000));
+        window.Center();
+        window.FrameAutosaveName = "BibliotaphReader";
+        _bindings.Property(model, nameof(PageViewModel.Title), () => window.Title = model.Title);
+        window.WillClose += (_, _) =>
+        {
+            _bindings.Dispose();
+            _owner.Closed(this);
+        };
     }
+
+    public PageViewModel Model { get; }
 }

@@ -1,6 +1,7 @@
 using AppKit;
 using Bibliotaph.Catalog;
 using Bibliotaph.Mac.Binding;
+using Bibliotaph.Mac.Platform;
 using Bibliotaph.Presentation.Services;
 using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
@@ -52,6 +53,7 @@ public sealed class MainWindowController : NSWindowController
         window.ReleaseWhenClosed(false);
         window.FrameAutosaveName = "BibliotaphMain";
 
+        services.GetRequiredService<MacReaderWindows>().MainWindow = window;
         _navigation.Navigated += OnNavigated;
         _bindings.Add(() => _navigation.Navigated -= OnNavigated);
     }
