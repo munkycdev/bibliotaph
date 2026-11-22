@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The native Mac app: AppKit views over Bibliotaph.Presentation's view models, with the same services as the Windows
+    app. Apple silicon only. Not in Bibliotaph.slnx, whose build and CI run on Windows without the macOS workload.
+  -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)-macos</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RuntimeIdentifier>osx-arm64</RuntimeIdentifier>
+    <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
+    <ApplicationId>online.bibliotaph.mac</ApplicationId>
+    <ApplicationTitle>Bibliotaph</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <AssemblyName>Bibliotaph</AssemblyName>
+    <RootNamespace>Bibliotaph.Mac</RootNamespace>
+    <!-- Reflection-based JSON and DI are used throughout the shared code, which trimming would break. -->
+    <LinkMode>None</LinkMode>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Presentation\Bibliotaph.Presentation.csproj" />
+    <!-- Build order only: the worker is its own self-contained program, bundled whole below. -->
+    <ProjectReference Include="..\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" ReferenceOutputAssembly="false" Private="false"
+                      SkipGetTargetFrameworkProperties="true" GlobalPropertiesToRemove="TargetFramework;RuntimeIdentifier;SelfContained" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Serilog" />
+    <PackageReference Include="Serilog.Extensions.Hosting" />
+    <PackageReference Include="Serilog.Sinks.File" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="$(RepoRoot)LICENSE" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE.txt" PublishFolderType="Resource" Visible="false" />
+  </ItemGroup>
+
+  <!--
+    The PDF worker, with its own runtime, in the bundle's Resources/pdfworker, where MacComposition points the worker
+    pool. Bundled as resources, not published files, which the SDK would take for the app's own assemblies.
+  -->
+  <Target Name="BundlePdfWorker" BeforeTargets="_CollectBundleResources">
+    <MSBuild Projects="..\Bibliotaph.PdfWorker\Bibliotaph.PdfWorker.csproj" Targets="GetTargetPath" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="_PdfWorkerTarget" />
+    </MSBuild>
+    <ItemGroup>
+      <_PdfWorkerFile Include="%(_PdfWorkerTarget.RootDir)%(_PdfWorkerTarget.Directory)**\*" />
+      <BundleResource Include="@(_PdfWorkerFile)" LogicalName="pdfworker/%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+  </Target>
+</Project>
