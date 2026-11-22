@@ -4,9 +4,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
     /// <summary>catalog.db: the user's work.</summary>
     public static IServiceCollection AddCatalog(this IServiceCollection services, AppPaths paths)

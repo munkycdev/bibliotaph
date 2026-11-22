@@ -3,9 +3,9 @@ using Bibliotaph.Index;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
     /// <summary>index.db: derived, rebuildable. One writer; reads on their own connections.</summary>
     public static IServiceCollection AddIndex(this IServiceCollection services, AppPaths paths)

@@ -12,7 +12,8 @@
     -->
     <BibTfm Condition="'$(BibTfm)' == ''">net11.0</BibTfm>
 
-    <PlatformTarget>x64</PlatformTarget>
+    <!-- The Mac client runs on Apple silicon only, so x64 would not load there. -->
+    <PlatformTarget Condition="!$([MSBuild]::IsOSPlatform('OSX'))">x64</PlatformTarget>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>

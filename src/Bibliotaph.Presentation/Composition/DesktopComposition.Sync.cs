@@ -5,9 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
     /// <summary>Library sync, and what this PC shares with the user's other devices through the web library.</summary>
     public static IServiceCollection AddSync(this IServiceCollection services)

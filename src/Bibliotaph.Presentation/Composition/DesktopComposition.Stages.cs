@@ -3,9 +3,9 @@ using Bibliotaph.Index;
 using Bibliotaph.Processing;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
     /// <summary>The job queue's stages, and the services that read and change what they found.</summary>
     public static IServiceCollection AddStages(this IServiceCollection services)

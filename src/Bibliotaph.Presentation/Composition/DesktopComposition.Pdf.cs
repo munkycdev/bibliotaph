@@ -3,9 +3,9 @@ using Bibliotaph.Pdf.Host;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
-namespace Bibliotaph.App;
+namespace Bibliotaph.Presentation.Composition;
 
-static partial class Composition
+public static partial class DesktopComposition
 {
     /// <summary>PDFium runs only in worker processes; none starts until something asks for a page.</summary>
     public static IServiceCollection AddPdfWorkers(this IServiceCollection services)
