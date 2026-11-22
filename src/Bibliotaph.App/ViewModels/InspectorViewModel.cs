@@ -538,7 +538,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     public bool IsDetailsTab { get => !IsNotesTab; set { if (value) IsNotesTab = false; } }
 
     public static async Task<InspectorViewModel> LoadAsync(LibraryItemViewModel item, LibraryQueries queries, LibraryStore library, MetadataService metadata,
-        IJobControl indexing, IStageCatalog stages, CopiesService copies, PackService packs, ElsewhereService elsewhere, CoverImages covers,
+        IJobControl indexing, IStageCatalog stages, CopiesService copies, PackService packs, ElsewhereService elsewhere,
         PartsService parts, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log,
         CorrectionService? corrections = null, ChosenCovers? chosen = null, WebShelfCache? shelf = null, WebLibraryCopies? webCopies = null,
         LookupLinks? links = null, SourceBooksService? sourceBooks = null)
@@ -556,7 +556,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
             var place = await Task.Run(() => packs.GetPlaceAsync(item.EntryId));
             var folders = await Task.Run(() => packs.GetFoldersAsync(item.EntryId));
             images = [.. (await Task.Run(() => queries.GetPackImagesAsync(item.EntryId)))
-                .Select(i => new PackImageViewModel(i, covers, isCover: i.MemberEntryId == item.Entry.CoverMember))];
+                .Select(i => new PackImageViewModel(i, isCover: i.MemberEntryId == item.Entry.CoverMember))];
             var pdfs = item.HasPdfMembers || images.Any(i => i.IsPdf);
             locations = [.. place is null ? [] : new[] { new InspectorLocation(place.FullPath, DetailsText.PackPlaceState(place)) },
                 .. folders.Where(f => place is null || !string.Equals(f.FullPath, place.FullPath, StringComparison.OrdinalIgnoreCase))

@@ -10,9 +10,6 @@ namespace Bibliotaph.App.Tests;
 
 public class BookSelectionTests
 {
-    // The cards never ask for a cover in these tests, so the cache folder is never read.
-    static readonly CoverImages Covers = new(new CoverCache(new AppPaths(Path.GetTempPath())), NullLogger<CoverImages>.Instance);
-
     readonly BookSelection _selection = new();
     readonly List<LibraryItemViewModel> _shown = [.. new[] { "Mill Road", "The Sunken Bell", "Ashes of Varn", "The Lantern Fair", "Cold Harbour" }.Select(Book)];
 
@@ -23,7 +20,7 @@ public class BookSelectionTests
     }
 
     static LibraryItemViewModel Book(string title, int index) =>
-        new(new LibraryEntry(new EntryId(1000 + index), index + 1, title, "pdf", 32, null, null, DateTime.UtcNow, Searchable: true), Covers);
+        new(new LibraryEntry(new EntryId(1000 + index), index + 1, title, "pdf", 32, null, null, DateTime.UtcNow, Searchable: true));
 
     [Fact]
     public void Clicking_a_book_ticks_it()

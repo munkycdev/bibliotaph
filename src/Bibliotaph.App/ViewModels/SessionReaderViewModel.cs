@@ -27,7 +27,6 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly SessionsService _sessions;
     readonly SessionPages _sessionPages;
     readonly LibraryQueries _queries;
-    readonly CoverImages _covers;
     readonly ReaderWindows _readers;
     readonly OnlineReaders _online;
     readonly SessionDirectory _directory;
@@ -42,7 +41,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     long? _currentId;
     ViewerRequest? _startAt;
 
-    public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, CoverImages covers, ReaderWindows readers,
+    public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, ReaderWindows readers,
         SessionDirectory directory, PinDirectory pins, OnlineReaders online, IUiThread ui, TimeProvider time,
         ILogger<SessionReaderViewModel> log)
     {
@@ -53,7 +52,6 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         _sessions = sessions;
         _sessionPages = sessionPages;
         _queries = queries;
-        _covers = covers;
         _readers = readers;
         _log = log;
         _notesTimer = new UiTimer(ui, time, TimeSpan.FromMilliseconds(700), repeat: false, SaveNotesAsync);
@@ -226,7 +224,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             {
                 Interlocked.Decrement(ref _ownWrites);
             }
-            var rows = contents is null ? null : await SessionPackRows.BuildAsync(_sessions, _queries, _covers, contents);
+            var rows = contents is null ? null : await SessionPackRows.BuildAsync(_sessions, _queries, contents);
             if (version != _version) return;
             if (!Show(contents, rows)) return;
             // Coming Back to the binder reopens the item in hand where the reader left it.
@@ -336,7 +334,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
         try
         {
             var contents = await Task.Run(() => _sessions.GetAsync(PackId));
-            var rows = contents is null ? null : await SessionPackRows.BuildAsync(_sessions, _queries, _covers, contents);
+            var rows = contents is null ? null : await SessionPackRows.BuildAsync(_sessions, _queries, contents);
             if (version != _version) return;
             var editing = Items.FirstOrDefault(i => i.IsRenaming);
             if (!Show(contents, rows)) return;
@@ -400,7 +398,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             foreach (var pack in packs)
             {
                 if (await Task.Run(() => _sessions.GetAsync(pack.Id)) is not { } contents) continue;
-                var rows = await SessionPackRows.BuildAsync(_sessions, _queries, _covers, contents);
+                var rows = await SessionPackRows.BuildAsync(_sessions, _queries, contents);
                 binders.Add(new AtHandBinder(contents.Pack, [.. rows.OfType<SessionItemRow>()]));
             }
             return [.. AtHandGroups.Of(binders, b => b.Pack.GameSystem, systems).Select(g => new AtHandGroup(g.Heading, g.Binders))];

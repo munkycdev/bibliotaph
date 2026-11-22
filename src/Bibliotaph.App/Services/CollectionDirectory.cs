@@ -17,18 +17,16 @@ public sealed class CollectionDirectory : ICollectionChoices
     readonly CollectionsService _collections;
     readonly LibraryStore _library;
     readonly LibraryQueries _queries;
-    readonly CoverImages _covers;
     readonly NornisWorldStore _worlds;
     readonly ILogger<CollectionDirectory> _log;
     Dictionary<long, CollectionInfo> _byId = [];
 
-    public CollectionDirectory(CollectionsService collections, PinsService pins, LibraryStore library, LibraryQueries queries, CoverImages covers,
+    public CollectionDirectory(CollectionsService collections, PinsService pins, LibraryStore library, LibraryQueries queries,
         NornisWorldStore worlds, IUiThread ui, ILogger<CollectionDirectory> log)
     {
         _collections = collections;
         _library = library;
         _queries = queries;
-        _covers = covers;
         _worlds = worlds;
         _log = log;
         collections.Changed += (_, _) => ui.Post(LoadAsync);
@@ -115,7 +113,7 @@ public sealed class CollectionDirectory : ICollectionChoices
             var covers = await Task.Run(() => _queries.ListAsync(new LibraryFilter(visible, Sort: LibrarySort.RecentlyAdded, Group: key), limit: 2));
             var books = counts.GetValueOrDefault(key);
             var children = _byId.Values.Count(c => c.ParentId == collection.Id);
-            cards.Add(new CollectionCardViewModel(collection, CollectionText.Count(books, children), [.. covers.Select(e => new LibraryItemViewModel(e, _covers))],
+            cards.Add(new CollectionCardViewModel(collection, CollectionText.Count(books, children), [.. covers.Select(e => new LibraryItemViewModel(e))],
                 CollectionText.Badge(worlds, collection.Id)));
         }
         return cards;

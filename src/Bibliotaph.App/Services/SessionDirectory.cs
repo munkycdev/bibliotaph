@@ -18,15 +18,13 @@ public sealed class SessionDirectory : ISessionChoices
 {
     readonly SessionsService _sessions;
     readonly LibraryQueries _queries;
-    readonly CoverImages _covers;
     readonly TimeProvider _clock;
     readonly ILogger<SessionDirectory> _log;
 
-    public SessionDirectory(SessionsService sessions, LibraryQueries queries, CoverImages covers, IUiThread ui, TimeProvider clock, ILogger<SessionDirectory> log)
+    public SessionDirectory(SessionsService sessions, LibraryQueries queries, IUiThread ui, TimeProvider clock, ILogger<SessionDirectory> log)
     {
         _sessions = sessions;
         _queries = queries;
-        _covers = covers;
         _clock = clock;
         _log = log;
         sessions.Changed += (_, _) => ui.Post(LoadAsync);
@@ -113,7 +111,7 @@ public sealed class SessionDirectory : ISessionChoices
         var entryIds = packs.SelectMany(p => p.FirstEntries).Distinct().ToList();
         var entries = (await Task.Run(() => _queries.ListAsync(new LibraryFilter(entryIds)))).ToDictionary(e => e.EntryId);
         return [.. packs.Select(p => new SessionCardViewModel(p, p.KeepAtHand ? AtHandLabel(p) : DateLabel(p.Date), CountLabel(p.ItemCount),
-            [.. p.FirstEntries.Where(entries.ContainsKey).Select(e => new LibraryItemViewModel(entries[e], _covers))], !p.KeepAtHand && p.Date is { } d && d < Today))];
+            [.. p.FirstEntries.Where(entries.ContainsKey).Select(e => new LibraryItemViewModel(entries[e]))], !p.KeepAtHand && p.Date is { } d && d < Today))];
     }
 
     /// <summary>The Library limited to a pack's books.</summary>

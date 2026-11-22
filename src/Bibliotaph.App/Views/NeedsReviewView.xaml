@@ -764,7 +764,7 @@
                 <DataTemplate DataType="{x:Type vm:CoverTile}">
                   <Border Width="56" Height="56" Margin="0,0,6,0" CornerRadius="4" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1"
                           ClipToBounds="True" Background="{DynamicResource Bt.Side}">
-                    <Image Source="{Binding Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <Image c:CoverSource.Cover="{Binding Name}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
                   </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>

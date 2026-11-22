@@ -37,7 +37,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     readonly SourceRootStore _roots;
     readonly LibraryStore _library;
     readonly LibraryQueries _queries;
-    readonly CoverImages _covers;
     readonly LibraryFolders _folders;
     readonly MetadataService _metadata;
     readonly INavigationService _navigation;
@@ -74,7 +73,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     bool _sortSearching;
 
     public LibraryViewModel(SourceRootStore roots, LibraryStore library, LibraryQueries queries, LibraryActivity activity, SearchState search,
-        CoverImages covers, LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
+        LibraryFolders folders, MetadataService metadata, INavigationService navigation, SettingsLinks settings, ReaderWindows readers,
         PackService packs, ElsewhereService elsewhere, FavoritesService favorites, CollectionActions collections, SessionActions sessions,
         SmartViewDirectory views, LibraryPages pages, BookTextActions text, PinDirectory pins, CorrectionService corrections, AskService ask,
         ChosenCovers chosenCovers, LibraryAskScope askScope, IFilePicker files, InspectorFactory inspectors, LibrarySelectionFactory selection,
@@ -102,7 +101,6 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
         _library = library;
         _queries = queries;
         Search = search;
-        _covers = covers;
         _folders = folders;
         _metadata = metadata;
         _navigation = navigation;
@@ -612,7 +610,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     LibraryItemViewModel Item(LibraryEntry entry)
     {
         if (_known.TryGetValue(entry.CardId, out var item)) item.Update(entry);
-        else item = _known[entry.CardId] = new LibraryItemViewModel(entry, _covers);
+        else item = _known[entry.CardId] = new LibraryItemViewModel(entry);
         item.ShowAvailability(_away.GetValueOrDefault(entry.EntryId));
         return item;
     }

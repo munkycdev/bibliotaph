@@ -148,7 +148,7 @@ public sealed record AtHandPage(string BinderTitle, SessionItemRow Row);
 public static class SessionPackRows
 {
     /// <summary>The pack's rows in order: items before any section, then each section's heading and items, numbered throughout.</summary>
-    public static async Task<IReadOnlyList<object>> BuildAsync(SessionsService sessions, LibraryQueries queries, CoverImages covers, SessionPackContents contents)
+    public static async Task<IReadOnlyList<object>> BuildAsync(SessionsService sessions, LibraryQueries queries, SessionPackContents contents)
     {
         var built = await Task.Run(() => BinderRows.BuildAsync(sessions, queries, contents));
         var rows = new List<object>();
@@ -160,7 +160,7 @@ public static class SessionPackRows
                 continue;
             }
             var item = line.Item!;
-            var row = new SessionItemRow(item.Item, item.Number, item.BookTitle, item.Card is null ? null : new LibraryItemViewModel(item.Card, covers), item.Target)
+            var row = new SessionItemRow(item.Item, item.Number, item.BookTitle, item.Card is null ? null : new LibraryItemViewModel(item.Card), item.Target)
             {
                 OnlineLink = item.OnlineLink,
                 BookLink = item.BookLink,

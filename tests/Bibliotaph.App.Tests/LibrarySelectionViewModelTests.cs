@@ -11,9 +11,6 @@ namespace Bibliotaph.App.Tests;
 /// <summary>The Library's Select mode: ticking what the page shows, clearing, what the Select bar offers, and its note with Undo.</summary>
 public class LibrarySelectionViewModelTests
 {
-    // The cards never ask for a cover in these tests, so the cache folder is never read.
-    static readonly CoverImages Covers = new(new CoverCache(new AppPaths(Path.GetTempPath())), NullLogger<CoverImages>.Instance);
-
     /// <summary>The page the books are ticked on: what it shows, and how often it was asked to show the library again.</summary>
     sealed class FakePage : ILibrarySelectionPage
     {
@@ -67,7 +64,7 @@ public class LibrarySelectionViewModelTests
     }
 
     static LibraryItemViewModel Book(string title, int index, EntryKind kind = EntryKind.Whole) =>
-        new(new LibraryEntry(new EntryId(1000 + index), index + 1, title, "pdf", 32, null, null, DateTime.UtcNow, Searchable: true, EntryKind: kind), Covers);
+        new(new LibraryEntry(new EntryId(1000 + index), index + 1, title, "pdf", 32, null, null, DateTime.UtcNow, Searchable: true, EntryKind: kind));
 
     [Fact]
     public void Select_all_ticks_every_book_shown_once_Select_mode_is_on()

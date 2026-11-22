@@ -15,7 +15,7 @@ namespace Bibliotaph.App.ViewModels;
 /// the sidebar's pins in the same order. Before any folder is added it explains what Bibliotaph does.
 /// </summary>
 public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity activity, LibraryFolders folders, SettingsLinks links,
-    SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, CoverImages covers, LibraryPages pages,
+    SettingsStore settings, AiService ai, LibraryStore library, LibraryQueries queries, LibraryPages pages,
     ReaderWindows readers, FavoritesService favorites, CollectionActions collections, SessionActions sessions, SessionPages sessionPages,
     PinDirectory pins, PinOpener opener, BookTextActions text, AskService ask, TourViewModel tour, LibrarySummaryService summaries,
     OnlineImports onlineImports, OnlineLibrariesViewModel onlineLibraries, ILogger<HomeViewModel> log)
@@ -169,7 +169,7 @@ public sealed partial class HomeViewModel(SourceRootStore roots, LibraryActivity
     LibraryItemViewModel Item(LibraryEntry entry)
     {
         if (_known.TryGetValue(entry.EntryId, out var item)) item.Update(entry);
-        else item = _known[entry.EntryId] = new LibraryItemViewModel(entry, covers);
+        else item = _known[entry.EntryId] = new LibraryItemViewModel(entry);
         item.ShowAvailability(_away.GetValueOrDefault(entry.EntryId));
         return item;
     }

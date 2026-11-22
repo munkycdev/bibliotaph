@@ -1,5 +1,3 @@
-using System.Windows;
-using System.Windows.Media;
 using Bibliotaph.App.Services;
 using Bibliotaph.Core;
 using Bibliotaph.Index;
@@ -8,13 +6,9 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Bibliotaph.App.ViewModels;
 
-/// <summary>A book or image in the grid, list or results. Its cover loads the first time a cell asks for it.</summary>
-public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers) : ObservableObject
+/// <summary>A book or image in the grid, list or results. Its cover is named; the view loads it when a cell shows it.</summary>
+public sealed class LibraryItemViewModel(LibraryEntry entry) : ObservableObject
 {
-    bool _coverRequested;
-    bool _siteIconRequested;
-    bool _watchingSiteIcons;
-
     public LibraryEntry Entry { get; private set; } = entry;
 
     public EntryId EntryId => Entry.EntryId;
@@ -54,47 +48,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// </summary>
     public string BadgeLabel => CardText.Badge(Entry);
 
-    /// <summary>The icon of the site <see cref="OnlineLink"/> is on, for the badge; null until it loads, or when icons are off or it has none.</summary>
-    public ImageSource? SiteIcon
-    {
-        get
-        {
-            if (!_siteIconRequested && IsElsewhere && OnlineLink is { } link && covers.Sites is { } sites)
-            {
-                _siteIconRequested = true;
-                if (!_watchingSiteIcons)
-                {
-                    // Switching icons on or off in Settings shows or hides them on the cards already made.
-                    _watchingSiteIcons = true;
-                    WeakEventManager<SiteIconImages, EventArgs>.AddHandler(sites, nameof(SiteIconImages.Changed), (_, _) => RefreshSiteIcon());
-                }
-                field = sites.TryGet(link);
-                if (field is null) LoadSiteIconAsync(sites, link).FireAndForget();
-            }
-            return field;
-        }
-        private set
-        {
-            field = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(HasSiteIcon));
-        }
-    }
-
-    public bool HasSiteIcon => SiteIcon is not null;
-
-    async Task LoadSiteIconAsync(SiteIconImages sites, string link)
-    {
-        var icon = await sites.GetAsync(link);
-        if (icon is not null && link == OnlineLink) SiteIcon = icon;
-    }
-
-    /// <summary>Asks for the site icon again, as after "Show site icons" was switched on or off.</summary>
-    public void RefreshSiteIcon()
-    {
-        _siteIconRequested = false;
-        SiteIcon = null;
-    }
+    /// <summary>The address whose site's icon the badge shows, for a book owned online; the view loads the icon, if icons are on.</summary>
+    public string? SiteIconLink => IsElsewhere ? OnlineLink : null;
 
     /// <summary>A PDF whose text Bibliotaph can read, so it can be asked a question.</summary>
     public bool CanAsk => CanOpen && !Entry.IsPack && SourceFormats.HasPages(Entry.Format) && TextAccess == TextAccess.Readable;
@@ -201,13 +156,13 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     /// <summary>"120 images", or "6 files" when PDFs are among them, for a pack.</summary>
     public string MembersLabel => IsPack ? Members(Entry) : "";
 
-    /// <summary>The covers of a pack's first four files, for its mosaic. Each loads the first time a cell asks for it.</summary>
+    /// <summary>The covers of a pack's first four files, for its mosaic, by name.</summary>
     public IReadOnlyList<CoverTile> Mosaic
     {
         get
         {
             if (field is null || !field.Select(t => t.Name).SequenceEqual(Entry.MosaicCovers))
-                field = [.. Entry.MosaicCovers.Select(name => new CoverTile(name, covers))];
+                field = [.. Entry.MosaicCovers.Select(name => new CoverTile(name))];
             return field;
         }
     }
@@ -231,8 +186,6 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     /// <summary>The first letter of the title, for the placeholder cover.</summary>
     public string Initial => CardText.Initial(Title);
-
-    public bool HasCover => Cover is not null;
 
     bool? _favorite;
 
@@ -319,31 +272,8 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
 
     public const string DropNo = "no";
 
-    public ImageSource? Cover
-    {
-        get
-        {
-            if (!_coverRequested && Entry.Cover is { } name)
-            {
-                _coverRequested = true;
-                field = covers.TryGet(name);
-                if (field is null) LoadCoverAsync(name).FireAndForget();
-            }
-            return field;
-        }
-        private set
-        {
-            field = value;
-            OnPropertyChanged();
-            OnPropertyChanged(nameof(HasCover));
-        }
-    }
-
-    async Task LoadCoverAsync(string name)
-    {
-        var image = await covers.LoadAsync(name);
-        if (image is not null) Cover = image;
-    }
+    /// <summary>The cover's name in the cover cache; null for a placeholder, or a pack's mosaic.</summary>
+    public string? CoverName => Entry.Cover;
 
     /// <summary>Takes newer facts about the same entry, such as a cover that has just been made or another copy made current.</summary>
     public void Update(LibraryEntry entry)
@@ -351,14 +281,10 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
         if (entry == Entry) return;
         if (_favorite == entry.Favorite) _favorite = null;
         var coverChanged = entry.Cover != Entry.Cover;
-        var linkChanged = entry.OnlineLink != Entry.OnlineLink;
+        var linkChanged = entry.OnlineLink != Entry.OnlineLink || entry.IsElsewhere != Entry.IsElsewhere;
         Entry = entry;
-        if (linkChanged) RefreshSiteIcon();
-        if (coverChanged)
-        {
-            _coverRequested = false;
-            Cover = null;
-        }
+        if (linkChanged) OnPropertyChanged(nameof(SiteIconLink));
+        if (coverChanged) OnPropertyChanged(nameof(CoverName));
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(Meta));
         OnPropertyChanged(nameof(Folder));
@@ -414,39 +340,14 @@ public sealed class LibraryItemViewModel(LibraryEntry entry, CoverImages covers)
     public static string FormatName(string format) => CardText.FormatName(format);
 }
 
-/// <summary>One image's cover in a pack's mosaic or grid, loaded the first time it is asked for.</summary>
-public sealed class CoverTile(string name, CoverImages covers) : ObservableObject
-{
-    bool _requested;
-
-    public string Name { get; } = name;
-
-    public ImageSource? Cover
-    {
-        get
-        {
-            if (!_requested)
-            {
-                _requested = true;
-                field = covers.TryGet(Name);
-                if (field is null) LoadAsync().FireAndForget();
-            }
-            return field;
-        }
-        private set => SetProperty(ref field, value);
-    }
-
-    async Task LoadAsync()
-    {
-        if (await covers.LoadAsync(Name) is { } image) Cover = image;
-    }
-}
+/// <summary>One image's cover in a pack's mosaic or grid, by its name in the cover cache.</summary>
+public sealed record CoverTile(string Name);
 
 /// <summary>
 /// A file in a pack's inspector grid, an image or a PDF: its name and cover, and whether it is the pack's cover. Clicking
 /// it opens it in the viewer.
 /// </summary>
-public sealed class PackImageViewModel(PackImage image, CoverImages covers, bool isCover = false) : ObservableObject
+public sealed class PackImageViewModel(PackImage image, bool isCover = false) : ObservableObject
 {
     public PackImage Image { get; } = image;
 
@@ -462,7 +363,7 @@ public sealed class PackImageViewModel(PackImage image, CoverImages covers, bool
     /// <summary>A PDF in the pack, marked as one on its cover, which is its first page.</summary>
     public bool IsPdf => Image.Format == SourceFormats.Pdf;
 
-    public CoverTile? Tile { get; } = image.Cover is { } cover ? new CoverTile(cover, covers) : null;
+    public CoverTile? Tile { get; } = image.Cover is { } cover ? new CoverTile(cover) : null;
 }
 
 /// <summary>A page that matched a search, quoted around the hit.</summary>
