@@ -27,6 +27,7 @@ public sealed class PageHost(MacCovers covers, INavigationService navigation) : 
             SessionReaderViewModel binder => new BinderController(binder),
             SessionPackViewModel pack => new BinderEditController(pack),
             SummaryViewModel numbers => new SummaryController(numbers),
+            AiReadingViewModel reading => new AiReadingController(reading),
             null => null,
             _ => (NSViewController)new NotYetController(page, navigation),
         };
