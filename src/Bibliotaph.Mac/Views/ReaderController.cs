@@ -68,10 +68,15 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
                 menu.AddItem(new NSMenuItem(choice.Label, (_, _) => reader.AddPageToSessionCommand.Execute(new SessionRequest(null, choice))));
             menu.PopUpMenu(null, new CoreGraphics.CGPoint(0, addToBinder.Bounds.Height + 4), addToBinder);
         };
+        // Pages of a book in a Nornis world's collection, filed there as an excerpt.
+        var nornis = Button("paperplane", "Send to Nornis: file pages of this book as an excerpt in a Nornis world", null);
+        _bindings.Command(nornis, reader.SendToNornisCommand);
+        _bindings.Property(reader, nameof(ViewerViewModel.ShowsSendToNornis), () => nornis.Hidden = !reader.ShowsSendToNornis);
+        NornisSheet();
         _bindings.Command(notesToggle, reader.ToggleNotesCommand);
         _bindings.Command(outlineToggle, reader.ToggleOutlineCommand);
         _bindings.Command(stripToggle, reader.ToggleStripCommand);
-        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, fitPage, Separator(),
+        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), nornis, addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, fitPage, Separator(),
             findStatus, find, findPrevious, findNext]);
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
@@ -342,6 +347,80 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
     static void Run(CommunityToolkit.Mvvm.Input.IRelayCommand? command)
     {
         if (command?.CanExecute(null) == true) command.Execute(null);
+    }
+
+    /// <summary>Send to Nornis's pages, label and world, as a sheet over the reader while it's open.</summary>
+    void NornisSheet()
+    {
+        (Sheet Sheet, Bindings Bindings)? showing = null;
+        void Close()
+        {
+            if (showing is not { } old) return;
+            old.Bindings.Dispose();
+            old.Sheet.Close();
+            old.Sheet.Dispose();
+            showing = null;
+        }
+        _bindings.Property(reader, nameof(ViewerViewModel.NornisDialog), () =>
+        {
+            Close();
+            if (reader.NornisDialog is not { } dialog || View.Window is not { } host) return;
+            var sheet = new Sheet(440);
+            var bindings = new Bindings();
+            sheet.Content.AddArrangedSubview(PageParts.Section("NORNIS"));
+            sheet.Text("Send to Nornis", size: 17).Font = NSFont.SystemFontOfSize(17, NSFontWeight.Semibold)!;
+            sheet.Text("Nornis files these pages as an excerpt in the world, once you confirm there.", secondary: true);
+            NSTextField Box(string placeholder, string value, Action<string> changed)
+            {
+                var box = new NSTextField { PlaceholderString = placeholder, StringValue = value };
+                box.Changed += (_, _) => changed(box.StringValue);
+                return box;
+            }
+            var from = Box("From page", dialog.From, text => dialog.From = text);
+            var to = Box("To page", dialog.To, text => dialog.To = text);
+            var pages = NSStackView.FromViews([Labelled("From page", from), Labelled("To page", to)]);
+            pages.Distribution = NSStackViewDistribution.FillEqually;
+            pages.Spacing = 16;
+            sheet.AddWide(pages);
+            var problem = sheet.Text("", secondary: true, size: 11);
+            var label = Box("A name for the excerpt, such as Warehouse ambush", dialog.Label, text => dialog.Label = text);
+            sheet.AddWide(Labelled("Label", label));
+            if (dialog.ChoosesWorld)
+            {
+                var world = FormText.Choices(dialog.Worlds.Select(w => w.Name), at =>
+                {
+                    if (at >= 0 && at < dialog.Worlds.Count) dialog.World = dialog.Worlds[at];
+                });
+                sheet.AddWide(Labelled("World", world));
+            }
+            bindings.Properties(dialog, [nameof(SendToNornisDialogViewModel.From), nameof(SendToNornisDialogViewModel.To)], () =>
+            {
+                problem.StringValue = dialog.PagesProblem ?? "";
+                problem.Hidden = dialog.PagesProblem is null;
+                sheet.Fit();
+            });
+            var cancel = NSButton.CreateButton("Cancel", () => { });
+            cancel.KeyEquivalent = "\u001b";
+            bindings.Command(cancel, dialog.CancelCommand);
+            var open = NSButton.CreateButton("Open in Nornis", () => { });
+            bindings.Command(open, dialog.OpenCommand);
+            sheet.Buttons(cancel, open);
+            sheet.Show(host);
+            showing = (sheet, bindings);
+        });
+        _bindings.Add(Close);
+    }
+
+    static NSStackView Labelled(string label, NSView field)
+    {
+        var name = NSTextField.CreateLabel(label);
+        name.Font = NSFont.SystemFontOfSize(12, NSFontWeight.Medium)!;
+        var column = NSStackView.FromViews([name, field]);
+        column.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        column.Alignment = NSLayoutAttribute.Leading;
+        column.Spacing = 4;
+        field.WidthAnchor.ConstraintEqualTo(column.WidthAnchor).Active = true;
+        return column;
     }
 
     static NSButton Button(string symbol, string tip, Action? action)
