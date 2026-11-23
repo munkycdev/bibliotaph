@@ -95,7 +95,7 @@ public sealed class StorageConnecting(PcConnections connections, PcDrives drives
         if (clients.Find(kind.Id) is not { } client) return new(null, $"This build of Bibliotaph can't connect {kind.Name}.");
         var signIn = new LoopbackSignIn(http.Tokens, uri =>
         {
-            if (shell.Open(uri.AbsoluteUri) is { } problem) throw new IOException($"Windows couldn't open your browser: {problem.Message}", problem);
+            if (shell.Open(uri.AbsoluteUri) is { } problem) throw new IOException($"Your browser couldn't be opened: {problem.Message}", problem);
             return Task.CompletedTask;
         });
         try

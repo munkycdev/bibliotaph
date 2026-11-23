@@ -25,18 +25,19 @@ public interface ISourceLister
 
 /// <summary>
 /// The file system's listing. Symbolic links and junctions are not followed (no cycles), and attributes alone tell a
-/// cloud placeholder whose content is not on disk.
+/// cloud placeholder whose content is not on disk on Windows; elsewhere <paramref name="onlineOnly"/> asks, as the Mac's
+/// cloud files do, since the file system there doesn't say.
 /// </summary>
-public sealed class FileSystemSourceLister : ISourceLister
+public sealed class FileSystemSourceLister(Func<string, bool>? onlineOnly = null) : ISourceLister
 {
     // FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS and FILE_ATTRIBUTE_RECALL_ON_OPEN: a cloud placeholder whose content is not on disk.
     const FileAttributes RecallOnDataAccess = (FileAttributes)0x00400000;
     const FileAttributes RecallOnOpen = (FileAttributes)0x00040000;
 
     public Task<SourceListing?> ListAsync(string root, IReadOnlyCollection<string> otherRoots, CancellationToken ct) =>
-        Task.Run(() => List(root, otherRoots, ct), ct);
+        Task.Run(() => List(root, otherRoots, onlineOnly, ct), ct);
 
-    static SourceListing? List(string root, IReadOnlyCollection<string> otherRoots, CancellationToken ct)
+    static SourceListing? List(string root, IReadOnlyCollection<string> otherRoots, Func<string, bool>? onlineOnly, CancellationToken ct)
     {
         var rootInfo = new DirectoryInfo(root);
         try
@@ -83,7 +84,8 @@ public sealed class FileSystemSourceLister : ISourceLister
                     continue;
                 }
                 if (entry is not FileInfo file || entry.LinkTarget is not null) continue;
-                var isOnlineOnly = (file.Attributes & (RecallOnDataAccess | RecallOnOpen | FileAttributes.Offline)) != 0;
+                var isOnlineOnly = (file.Attributes & (RecallOnDataAccess | RecallOnOpen | FileAttributes.Offline)) != 0
+                    || onlineOnly?.Invoke(file.FullName) == true;
                 files.Add(new ScannedFile(Path.GetRelativePath(rootInfo.FullName, file.FullName), file.Length, file.LastWriteTimeUtc, isOnlineOnly));
             }
         }
