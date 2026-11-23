@@ -231,7 +231,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         _bindings.Properties(books, [nameof(BookSelection.IsActive), nameof(BookSelection.Summary), nameof(BookSelection.HasAny)], () =>
         {
             bar.Hidden = !books.IsActive;
-            summary.StringValue = books.Summary;
+            // With nothing ticked yet the bar says nothing: ticking books is as on any Mac, and needs no telling.
+            summary.StringValue = books.HasAny ? books.Summary : "";
+            summary.Hidden = !books.HasAny;
             toCollection.Enabled = toBinder.Enabled = books.HasAny;
         });
         _bindings.Properties(selection, [nameof(LibrarySelectionViewModel.CanJoinSelected), nameof(LibrarySelectionViewModel.CanPackSelected),
