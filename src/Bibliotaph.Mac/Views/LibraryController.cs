@@ -84,7 +84,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
 
         var root = new NSView();
         var hits = new PageHitsView(library, covers);
-        foreach (var view in new NSView[] { pageActions, bar, issue, scroll, listScroll, hits, empty })
+        // Organize's Books panel takes the trailing side while it's open, and the covers make room for it.
+        var books = new BooksPanel(library.Selection, () => _grid.Drag);
+        foreach (var view in new NSView[] { pageActions, bar, issue, scroll, listScroll, hits, empty, books })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
@@ -105,8 +107,11 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             issue.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -24),
             scroll.TopAnchor.ConstraintEqualTo(issue.BottomAnchor, 8),
             scroll.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
-            scroll.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
             scroll.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
+            books.TopAnchor.ConstraintEqualTo(scroll.TopAnchor, 4),
+            books.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -20),
+            books.BottomAnchor.ConstraintEqualTo(root.BottomAnchor, -16),
+            books.WidthAnchor.ConstraintEqualTo(300),
             hits.TopAnchor.ConstraintEqualTo(scroll.TopAnchor),
             hits.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
             hits.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
@@ -120,6 +125,22 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             empty.WidthAnchor.ConstraintLessThanOrEqualTo(440),
         ]);
         View = root;
+        var wide = scroll.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor);
+        var beside = scroll.TrailingAnchor.ConstraintEqualTo(books.LeadingAnchor, -12);
+        _bindings.Properties(library.Selection.Panel, [nameof(OrganizePanelViewModel.IsOpen)], () =>
+        {
+            var open = library.Selection.Panel.IsOpen && library.Selection.Books.IsActive;
+            books.Hidden = !open;
+            wide.Active = !open;
+            beside.Active = open;
+        });
+        _bindings.Property(library.Selection.Books, nameof(BookSelection.IsActive), () =>
+        {
+            var open = library.Selection.Panel.IsOpen && library.Selection.Books.IsActive;
+            books.Hidden = !open;
+            wide.Active = !open;
+            beside.Active = open;
+        });
 
         _bindings.Property(library, nameof(LibraryViewModel.Hits), () => hits.Show(library.Hits));
         _bindings.Property(library, nameof(LibraryViewModel.IssueText), () =>
@@ -217,6 +238,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     /// <summary>Where the last cards were dropped, in window coordinates, for the menu that asks what the drop means.</summary>
     internal CGPoint DropLocation { get; set; }
 
+    /// <summary>What dragging cards carries, which the Books panel's rows take too.</summary>
+    internal const string CardType = BookGrid.CardType;
+
     internal void Clicked(LibraryItemViewModel item)
     {
         var selection = library.Selection;
@@ -255,7 +279,14 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var links = ChoicePopup.Create(_bindings, selection, nameof(LibrarySelectionViewModel.LinkChoice), () => selection.LinkChoices,
             () => selection.LinkChoice, c => selection.LinkChoice = c);
         var keep = Small("", selection.KeepShownCommand);
-        var organize = NSStackView.FromViews([NSTextField.CreateLabel("Show"), links, keep]);
+        // The Books panel: books to drop maps and handouts on, or give the ticked cards to with Goes With.
+        var panel = Small("Books", selection.Panel.ToggleCommand);
+        panel.Image = NSImage.GetSystemSymbol("books.vertical", null)!;
+        panel.ImagePosition = NSCellImagePosition.ImageLeading;
+        panel.ToolTip = "Books to drop maps and handouts on";
+        _bindings.Property(selection.Panel, nameof(OrganizePanelViewModel.IsOpen), () =>
+            panel.TintProminence = selection.Panel.IsOpen ? NSTintProminence.Secondary : NSTintProminence.Automatic);
+        var organize = NSStackView.FromViews([NSTextField.CreateLabel("Show"), links, keep, panel]);
         organize.Spacing = 8;
 
         var bar = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 6 };
@@ -997,6 +1028,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
 
         NSEvent? _pressed;
         OrganizeDrag? _drag;
+
+        /// <summary>The cards being dragged, for the Books panel's rows to take.</summary>
+        public OrganizeDrag? Drag => _drag;
         LibraryItemViewModel? _over;
 
         // In Organize mode a card can be picked up and dropped on another: a map on its book, two copies of one book.
