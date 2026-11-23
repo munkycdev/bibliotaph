@@ -140,6 +140,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
             new Row(false, "Collections", "square.stack", null, Route.Collections),
             new Row(false, "Binders", "book.closed", null, Route.Sessions),
             new Row(false, "Needs review", "tray", null, Route.NeedsReview),
+            new Row(false, "Summary", "chart.bar.xaxis", null, Route.Summary),
             .. shell.Pinned.Count == 0 ? (IEnumerable<Row>)[] :
                 [new Row(true, "Pinned", "", null), .. shell.Pinned.Select(p => new Row(false, p.Label, Symbol(p.Icon), null, Pin: p))],
             new Row(true, "Library folders", "", null),
