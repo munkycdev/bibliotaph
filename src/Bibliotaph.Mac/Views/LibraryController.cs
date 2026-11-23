@@ -133,6 +133,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
 
         DialogSheet.Follow(_bindings, library.Collections, () => View.Window);
         OrganizeSheets.Follow(_bindings, library.Selection, () => View.Window);
+        ElsewhereSheet.Follow(_bindings, library, () => View.Window);
         NSAlert? naming = null;
         _bindings.Property(library.SmartViews, nameof(SmartViewsViewModel.ViewDialog), () =>
         {

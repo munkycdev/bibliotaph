@@ -1,4 +1,5 @@
 using AppKit;
+using Bibliotaph.Presentation.Services;
 using ObjCRuntime;
 
 namespace Bibliotaph.Mac.Views;
@@ -24,6 +25,7 @@ static class Menus
 
         bar.AddItem(Top("File",
             new NSMenuItem("Add Folder…", "o", (_, _) => main.AddFolder()),
+            new NSMenuItem("Add a Book I Own Elsewhere…", (_, _) => main.AddElsewhereAsync().FireAndForget()),
             new NSMenuItem("Check a Download…", (_, _) => main.Go(Presentation.Services.Route.DownloadCheck)),
             NSMenuItem.SeparatorItem,
             Item("Close Window", "performClose:", "w")));

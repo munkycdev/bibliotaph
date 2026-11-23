@@ -133,6 +133,15 @@ public sealed class MainWindowController : NSWindowController
 
     public void AddFolder() => _toolbar.AddFolder();
 
+    /// <summary>Add a Book I Own Elsewhere, on the Library, which shows first if another page is.</summary>
+    public async Task AddElsewhereAsync()
+    {
+        if (Library is null) _navigation.NavigateTo(Presentation.Services.Route.Library);
+        // The Library loads as it shows; its command waits for it.
+        for (var tries = 0; Library is null && tries < 20; tries++) await Task.Delay(50);
+        if (Library is { } library && library.AddElsewhereCommand.CanExecute(null)) library.AddElsewhereCommand.Execute(null);
+    }
+
     /// <summary>A page the menus open, as Check a Download.</summary>
     public void Go(Presentation.Services.Route route) => _navigation.NavigateTo(route);
 
