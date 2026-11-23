@@ -14,18 +14,18 @@ namespace Bibliotaph.Mac.Views;
 /// card has the Windows card's Accept, Edit and Reject; every other kind shows its question and its answers as buttons,
 /// so a new kind of card shows here without a view of its own. A decided card says what was done and offers Undo.
 /// </summary>
-public sealed partial class ReviewController(NeedsReviewViewModel review) : NSViewController
+public sealed partial class ReviewController(NeedsReviewViewModel review) : NSViewController, IWindowTitle
 {
+    /// <summary>Needs review, with how many wait under it.</summary>
+    public void FollowTitle(Bindings bindings, Action<string, string> show) =>
+        bindings.Property(review, nameof(NeedsReviewViewModel.Subtitle), () => show("Needs review", review.Subtitle));
+
     readonly Bindings _bindings = new();
     Bindings _cards = new();
     NSStackView _list = null!;
 
     public override void LoadView()
     {
-        var heading = NSTextField.CreateLabel("Needs review");
-        heading.Font = NSFont.SystemFontOfSize(22, NSFontWeight.Bold)!;
-        var subtitle = NSTextField.CreateLabel("");
-        subtitle.TextColor = NSColor.SecondaryLabel;
         var tabs = NSSegmentedControl.FromLabels(["", ""], NSSegmentSwitchTracking.SelectOne, () => { });
         tabs.Activated += (_, _) => review.IsSuggestionsTab = tabs.SelectedSegment == 0;
         var show = new NSPopUpButton();
@@ -36,21 +36,13 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
         };
         var reload = NSButton.CreateButton("Check again", () => { });
         _bindings.Command(reload, review.ReloadCommand);
-        // The heading and what it says on one line, which gives way before anything is pushed out of the window; the
-        // two lists to switch between and their controls on the next.
-        subtitle.LineBreakMode = NSLineBreakMode.TruncatingTail;
-        subtitle.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
-        var title = NSStackView.FromViews([heading, subtitle]);
-        title.Spacing = 10;
-        title.Alignment = NSLayoutAttribute.FirstBaseline;
+        // The page's name and how many wait are in the toolbar; the two lists to switch between and their controls start it.
         var controls = NSStackView.FromViews([tabs, new NSView(), show, reload]);
         controls.Spacing = 10;
         var top = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 10 };
-        top.AddArrangedSubview(title);
         top.AddArrangedSubview(controls);
-        title.WidthAnchor.ConstraintLessThanOrEqualTo(top.WidthAnchor, 1, -48).Active = true;
         controls.WidthAnchor.ConstraintEqualTo(top.WidthAnchor, 1, -48).Active = true;
-        top.EdgeInsets = new NSEdgeInsets(16, 24, 8, 24);
+        top.EdgeInsets = new NSEdgeInsets(12, 24, 8, 24);
 
         _list = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 12 };
         _list.EdgeInsets = new NSEdgeInsets(8, 24, 24, 24);
@@ -78,7 +70,6 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
         _bindings.Properties(review, [nameof(NeedsReviewViewModel.Subtitle), nameof(NeedsReviewViewModel.Remaining), nameof(NeedsReviewViewModel.HasFiles),
             nameof(NeedsReviewViewModel.IsSuggestionsTab)], () =>
         {
-            subtitle.StringValue = review.Subtitle;
             tabs.SetLabel(review.SuggestionsTabLabel, 0);
             tabs.SetLabel(review.FilesTabLabel, 1);
             tabs.SelectedSegment = review.IsSuggestionsTab ? 0 : 1;

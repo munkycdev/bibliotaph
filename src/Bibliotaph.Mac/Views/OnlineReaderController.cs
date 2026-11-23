@@ -17,8 +17,12 @@ namespace Bibliotaph.Mac.Views;
 /// It shares the import browser's sign-ins. A link off the book's site opens in the everyday browser; a download is
 /// saved where the import browser saves them.
 /// </summary>
-public sealed class OnlineReaderController : NSViewController
+public sealed class OnlineReaderController : NSViewController, IWindowTitle
 {
+    /// <summary>The book's title, with where it's read, "On D&amp;D Beyond", under it.</summary>
+    public void FollowTitle(Bindings bindings, Action<string, string> show) =>
+        bindings.Property(_reader, nameof(OnlineReaderViewModel.PageTitle), () => show(_reader.Title, _reader.PlaceLine));
+
     readonly OnlineReaderViewModel _reader;
     readonly MacOnlineDownloads _downloads;
     readonly ILogger _log;
@@ -91,7 +95,11 @@ public sealed class OnlineReaderController : NSViewController
         var returnTo = Symbol("arrow.down.right.and.arrow.up.left", "Return to the main window", () => _reader.ReturnToMainWindowCommand.Execute(null));
         returnTo.Hidden = !_reader.IsPoppedOut;
 
-        var bar = NSStackView.FromViews([back, forward, reload, titles, heart, pin, note, reading, addPage, toBinder, inBrowser, popOut, returnTo]);
+        // The book's title and where it's read are in the window's title; the bar keeps a space where they were.
+        titles.Hidden = true;
+        var spacer = new NSView();
+        spacer.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+        var bar = NSStackView.FromViews([back, forward, reload, spacer, titles, heart, pin, note, reading, addPage, toBinder, inBrowser, popOut, returnTo]);
         bar.Spacing = 6;
         bar.SetCustomSpacing(12, reload);
         bar.SetCustomSpacing(14, titles);

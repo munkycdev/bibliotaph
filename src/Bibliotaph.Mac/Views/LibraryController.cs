@@ -12,10 +12,15 @@ namespace Bibliotaph.Mac.Views;
 /// The Library: its heading and count, then the cover grid, or what to do when it's empty. A double-click opens a
 /// book, as on Windows.
 /// </summary>
-public sealed class LibraryController(LibraryViewModel library, MacCovers covers) : NSViewController, ITourAnchors
+public sealed class LibraryController(LibraryViewModel library, MacCovers covers) : NSViewController, ITourAnchors, IWindowTitle
 {
     readonly Bindings _bindings = new();
     BookGrid _grid = null!;
+
+    /// <summary>"Your library", a collection's or a saved search's name, with how many it holds under it.</summary>
+    public void FollowTitle(Bindings bindings, Action<string, string> show) =>
+        bindings.Properties(library, [nameof(LibraryViewModel.Heading), nameof(LibraryViewModel.CountText), nameof(LibraryViewModel.CountLabel)],
+            () => show(library.Heading, library.CountText.Length == 0 ? "" : $"{library.CountText} {library.CountLabel}"));
 
     /// <summary>The covers, or the list, as the Library shows its books.</summary>
     public NSView? Anchor(Core.TourAnchor anchor) =>
@@ -30,10 +35,6 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
 
     public override void LoadView()
     {
-        var heading = NSTextField.CreateLabel("");
-        heading.Font = NSFont.SystemFontOfSize(22, NSFontWeight.Bold)!;
-        var count = NSTextField.CreateLabel("");
-        count.TextColor = NSColor.SecondaryLabel;
         var issue = NSTextField.CreateWrappingLabel("");
         issue.TextColor = NSColor.SystemOrange;
 
@@ -77,7 +78,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var listScroll = new NSScrollView { DocumentView = _list, HasVerticalScroller = true, DrawsBackground = false };
 
         var root = new NSView();
-        foreach (var view in new NSView[] { heading, count, pageActions, bar, issue, scroll, listScroll, empty })
+        foreach (var view in new NSView[] { pageActions, bar, issue, scroll, listScroll, empty })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
@@ -85,16 +86,12 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         NSLayoutConstraint.ActivateConstraints(
         [
             // Below the toolbar, which the full-size content view draws under.
-            heading.TopAnchor.ConstraintEqualTo(root.SafeAreaLayoutGuide.TopAnchor, 16),
-            heading.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24),
-            count.FirstBaselineAnchor.ConstraintEqualTo(heading.FirstBaselineAnchor),
-            count.LeadingAnchor.ConstraintEqualTo(heading.TrailingAnchor, 10),
-            count.TrailingAnchor.ConstraintLessThanOrEqualTo(pageActions.LeadingAnchor, -12),
-            pageActions.CenterYAnchor.ConstraintEqualTo(heading.CenterYAnchor),
-            pageActions.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -24),
-            bar.TopAnchor.ConstraintEqualTo(heading.BottomAnchor, 8),
+            // The page's name and count are in the toolbar; the filters start the page, with its own actions beside them.
+            bar.TopAnchor.ConstraintEqualTo(root.SafeAreaLayoutGuide.TopAnchor, 12),
             bar.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24),
-            bar.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -24),
+            bar.TrailingAnchor.ConstraintLessThanOrEqualTo(pageActions.LeadingAnchor, -12),
+            pageActions.TopAnchor.ConstraintEqualTo(bar.TopAnchor),
+            pageActions.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -24),
             issue.TopAnchor.ConstraintEqualTo(bar.BottomAnchor, 6),
             issue.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24),
             issue.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -24),
@@ -112,9 +109,6 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         ]);
         View = root;
 
-        _bindings.Property(library, nameof(LibraryViewModel.Heading), () => heading.StringValue = library.Heading);
-        _bindings.Properties(library, [nameof(LibraryViewModel.CountText), nameof(LibraryViewModel.CountLabel)],
-            () => count.StringValue = library.CountText.Length == 0 ? "" : $"{library.CountText} {library.CountLabel}");
         _bindings.Property(library, nameof(LibraryViewModel.IssueText), () =>
         {
             issue.StringValue = library.IssueText ?? "";

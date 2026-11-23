@@ -28,7 +28,6 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
     void Build()
     {
         foreach (var view in _content.ArrangedSubviews) view.RemoveFromSuperview();
-        Add(PageParts.Heading("Summary"));
         if (summary.Page is not { } page) return;
         if (!page.HasBooks)
         {
@@ -38,7 +37,6 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
         }
 
         // What you own.
-        Space(6);
         Add(Eyebrow("The Hoard"));
         var owned = Label($"You own {page.BooksText}, {page.PagesText} and {page.SizeText} of RPG material.", 20, NSFontWeight.Semibold);
         Add(new Figure(owned, () => Open(SummaryViewModel.Everything), "Every book in the Library"), stretch: true);

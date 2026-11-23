@@ -12,7 +12,7 @@ namespace Bibliotaph.Mac.Views;
 /// The reader for <see cref="ViewerViewModel"/>: a bar with the way back, the page box, zoom and find, over the pages,
 /// a picture, or what went wrong. The view model opens the book, asks for its password and keeps the reader's place.
 /// </summary>
-public sealed class ReaderController(ViewerViewModel reader, INavigationService? navigation) : NSViewController
+public sealed class ReaderController(ViewerViewModel reader, INavigationService? navigation, bool titleInBar = false) : NSViewController
 {
     readonly Bindings _bindings = new();
     PagesView _pages = null!;
@@ -34,6 +34,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         title.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Semibold)!;
         title.LineBreakMode = NSLineBreakMode.TruncatingMiddle;
         title.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
+        // The window's title names the book; inside a binder, where it names the binder, the bar names the book too.
+        title.Hidden = !titleInBar;
 
         var previous = Button("chevron.up", "Previous page", null);
         var next = Button("chevron.down", "Next page", null);

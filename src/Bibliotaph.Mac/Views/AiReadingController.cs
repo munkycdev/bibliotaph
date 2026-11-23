@@ -40,7 +40,7 @@ public sealed class AiReadingController(AiReadingViewModel reading) : NSViewCont
         var recent = Column();
         recent.Spacing = 12;
 
-        foreach (var view in new NSView[] { PageParts.Heading("AI Reading"), subtitle, PageParts.Section("Now"), nowBox, idle, settings,
+        foreach (var view in new NSView[] { subtitle, PageParts.Section("Now"), nowBox, idle, settings,
             PageParts.Section("Last Read"), nothing, recent })
             content.AddArrangedSubview(view);
         content.SetCustomSpacing(22, subtitle);

@@ -8,18 +8,19 @@ namespace Bibliotaph.Mac.Views;
 /// Edit binder: its title and date, its notes, and its items in order by section, each moved up or down, opened or
 /// removed, with sections added, renamed and deleted. Done goes back to the binder at the table.
 /// </summary>
-public sealed class BinderEditController(SessionPackViewModel pack) : NSViewController
+public sealed class BinderEditController(SessionPackViewModel pack) : NSViewController, IWindowTitle
 {
     readonly Bindings _bindings = new();
     Bindings _rows = new();
     NSStackView _list = null!;
 
+    /// <summary>The binder's name, with when it's for and how many items under it.</summary>
+    public void FollowTitle(Bindings bindings, Action<string, string> show) =>
+        bindings.Property(pack, nameof(SessionPackViewModel.Pack), () => show(pack.Title, string.Join(" · ", new[] { pack.Eyebrow, pack.CountLabel }.Where(t => t.Length > 0))));
+
     public override void LoadView()
     {
         var (root, content) = PageParts.ScrollingPage();
-        var eyebrow = PageParts.Section("");
-        var title = PageParts.Heading("");
-        var count = PageParts.Secondary("");
         var actions = NSStackView.FromViews([
             Command("Done", pack.DoneCommand),
             Command("Rename or date…", pack.EditCommand),
@@ -33,17 +34,11 @@ public sealed class BinderEditController(SessionPackViewModel pack) : NSViewCont
         notes.Changed += (_, _) => pack.Notes = notes.StringValue;
         notes.HeightAnchor.ConstraintEqualTo(60).Active = true;
         _list = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 6 };
-        foreach (var view in new NSView[] { eyebrow, title, count, actions, notesLabel, notes, _list }) content.AddArrangedSubview(view);
+        foreach (var view in new NSView[] { actions, notesLabel, notes, _list }) content.AddArrangedSubview(view);
         notes.WidthAnchor.ConstraintEqualTo(content.WidthAnchor, 1, -48).Active = true;
         _list.WidthAnchor.ConstraintEqualTo(content.WidthAnchor, 1, -48).Active = true;
         View = root;
 
-        _bindings.Property(pack, nameof(SessionPackViewModel.Pack), () =>
-        {
-            eyebrow.StringValue = pack.Eyebrow;
-            title.StringValue = pack.Title;
-            count.StringValue = pack.CountLabel;
-        });
         _bindings.Property(pack, nameof(SessionPackViewModel.Notes), () =>
         {
             if (notes.CurrentEditor is null) notes.StringValue = pack.Notes;

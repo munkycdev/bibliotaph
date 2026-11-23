@@ -14,7 +14,7 @@ public sealed class CollectionsController(CollectionsViewModel collections, MacC
         var (root, content) = PageParts.ScrollingPage();
         var add = NSButton.CreateButton("New collection…", () => { });
         _bindings.Command(add, collections.NewCollectionCommand);
-        var top = NSStackView.FromViews([PageParts.Heading("Collections"), new NSView(), add]);
+        var top = NSStackView.FromViews([new NSView(), add]);
         var empty = PageParts.Secondary("No collections yet. A collection gathers books from anywhere in your library, such as everything for one campaign.");
         var grid = PageParts.Wrap();
         foreach (var view in new NSView[] { top, empty, grid }) content.AddArrangedSubview(view);
@@ -50,7 +50,7 @@ public sealed class BindersController(SessionsViewModel binders, MacCovers cover
         var (root, content) = PageParts.ScrollingPage();
         var add = NSButton.CreateButton("New binder…", () => { });
         _bindings.Command(add, binders.NewSessionCommand);
-        var top = NSStackView.FromViews([PageParts.Heading("Binders"), new NSView(), add]);
+        var top = NSStackView.FromViews([new NSView(), add]);
         var empty = PageParts.Secondary("No binders yet. A binder holds the pages you'll want at the table for a session: rules, maps, handouts.");
         var upcoming = Group("Coming up", binders.Upcoming);
         var atHand = Group("At hand", binders.AtHand);

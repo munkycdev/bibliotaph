@@ -44,7 +44,7 @@ public sealed class DownloadCheckController(DownloadCheckViewModel check) : NSVi
         status.Spacing = 4;
 
         _groups = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 24 };
-        foreach (var view in new NSView[] { PageParts.Heading("Check a Download"), subtitle, buttons, status, _groups }) content.AddArrangedSubview(view);
+        foreach (var view in new NSView[] { subtitle, buttons, status, _groups }) content.AddArrangedSubview(view);
         content.SetCustomSpacing(18, subtitle);
         foreach (var view in new NSView[] { subtitle, status, _groups }) view.WidthAnchor.ConstraintEqualTo(content.WidthAnchor, 1, -48).Active = true;
 

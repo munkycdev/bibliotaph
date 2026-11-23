@@ -137,7 +137,9 @@ sealed class ReaderWindow : NSWindowController
         window.SetContentSize(new CGSize(980, 1000));
         window.Center();
         window.FrameAutosaveName = "BibliotaphReader";
-        _bindings.Property(model, nameof(PageViewModel.Title), () => window.Title = model.Title);
+        if (window.ContentViewController is IWindowTitle titled)
+            titled.FollowTitle(_bindings, (title, subtitle) => (window.Title, window.Subtitle) = (title, subtitle));
+        else _bindings.Property(model, nameof(PageViewModel.Title), () => window.Title = model.Title);
         window.WillClose += (_, _) =>
         {
             _bindings.Dispose();

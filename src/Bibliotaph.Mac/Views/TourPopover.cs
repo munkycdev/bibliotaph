@@ -6,6 +6,15 @@ using Bibliotaph.Presentation.ViewModels;
 
 namespace Bibliotaph.Mac.Views;
 
+/// <summary>
+/// A page whose title and subtitle in the toolbar say more than its name: the Library's heading and how many, Home's
+/// totals. The page shows the rest at its top.
+/// </summary>
+interface IWindowTitle
+{
+    void FollowTitle(Bindings bindings, Action<string, string> show);
+}
+
 /// <summary>A page or pane that can point the tour at one of its controls.</summary>
 interface ITourAnchors
 {

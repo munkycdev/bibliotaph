@@ -31,6 +31,7 @@ public sealed class MainWindowController : NSWindowController
     readonly WebLibrary _web;
     readonly SourceRootStore _roots;
     readonly TourPopover _tour;
+    Bindings _title = new();
     PageViewModel? _shown;
 
     public MainWindowController(IServiceProvider services) : base(MakeWindow())
@@ -206,9 +207,28 @@ public sealed class MainWindowController : NSWindowController
         _inspector.Follow(page as LibraryViewModel);
         FollowReader(page as ViewerViewModel);
         _pages.Show(page);
-        Window!.Title = page?.Title ?? "Bibliotaph";
+        ShowTitle(page);
         if (page is not null) _ = LoadAsync(page);
     });
+
+    /// <summary>
+    /// The page's name in the toolbar, as the Mac's apps show it, with what it holds under it, "14 documents"; the page
+    /// itself starts with what can be done there.
+    /// </summary>
+    void ShowTitle(PageViewModel? page)
+    {
+        _title.Dispose();
+        _title = new Bindings();
+        var window = Window!;
+        void Show(string title, string subtitle)
+        {
+            window.Title = title.Length > 0 ? title : "Bibliotaph";
+            window.Subtitle = subtitle;
+        }
+        if (_pages.Current is IWindowTitle titled) titled.FollowTitle(_title, Show);
+        else if (page is not null) _title.Property(page, nameof(PageViewModel.Title), () => Show(page.Title, ""));
+        else Show("Bibliotaph", "");
+    }
 
     static async Task LoadAsync(PageViewModel page)
     {
@@ -227,9 +247,6 @@ public sealed class MainWindowController : NSWindowController
         NSBackingStore.Buffered, false)
     {
         Title = "Bibliotaph",
-        // Each page says what it is in its own heading, so the toolbar doesn't say it again; the title still names the
-        // window in the Window menu and Mission Control.
-        TitleVisibility = NSWindowTitleVisibility.Hidden,
         ToolbarStyle = NSWindowToolbarStyle.Unified,
     };
 }

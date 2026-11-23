@@ -14,6 +14,9 @@ public sealed class PageHost(MacCovers covers, INavigationService navigation, IS
 
     public override void LoadView() => View = new NSView();
 
+    /// <summary>The page showing, for its title in the window.</summary>
+    public NSViewController? Current => _current;
+
     /// <summary>What the tour points at on the page showing.</summary>
     public NSView? Anchor(Core.TourAnchor anchor) => (_current as ITourAnchors)?.Anchor(anchor);
 

@@ -67,7 +67,7 @@ public sealed class BinderController(SessionReaderViewModel binder) : NSViewCont
             side.WidthAnchor.ConstraintEqualTo(260),
         ]);
 
-        var reader = new ReaderController(binder.Viewer, null);
+        var reader = new ReaderController(binder.Viewer, null, titleInBar: true);
         AddChildViewController(reader);
         var split = new NSSplitView { IsVertical = true, DividerStyle = NSSplitViewDividerStyle.Thin };
         split.AddArrangedSubview(side);

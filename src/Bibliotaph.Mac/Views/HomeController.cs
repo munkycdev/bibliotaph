@@ -10,7 +10,7 @@ namespace Bibliotaph.Mac.Views;
 /// Home: what the library holds, the binder being prepared, what's pinned, and the books opened and added most
 /// recently, each a click from opening. A new library with no folders offers Add folder.
 /// </summary>
-public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSViewController, ITourAnchors
+public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSViewController, ITourAnchors, IWindowTitle
 {
     NSButton? _addFolder;
     readonly List<WrapView> _shelves = [];
@@ -25,10 +25,13 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         _ => null,
     };
 
+    /// <summary>Home, with what the library holds under it.</summary>
+    public void FollowTitle(Bindings bindings, Action<string, string> show) =>
+        bindings.Property(home, nameof(HomeViewModel.TotalsText), () => show("Home", home.TotalsText));
+
     public override void LoadView()
     {
         var (root, content) = PageParts.ScrollingPage();
-        var totals = PageParts.Secondary("");
         var addFolder = NSButton.CreateButton("Add a folder of books…", () => { });
         _bindings.Command(addFolder, home.AddFolderCommand);
         _addFolder = addFolder;
@@ -44,7 +47,7 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         var addedTitle = PageParts.Section("Recently added");
         var added = PageParts.Wrap();
 
-        foreach (var view in new NSView[] { PageParts.Heading("Home"), totals, start, preparing, pinsTitle, pins, openedTitle, opened, addedTitle, added })
+        foreach (var view in new NSView[] { start, preparing, pinsTitle, pins, openedTitle, opened, addedTitle, added })
             content.AddArrangedSubview(view);
         foreach (var grid in new[] { pins, opened, added }) grid.WidthAnchor.ConstraintEqualTo(content.WidthAnchor, 1, -48).Active = true;
         _shelves.AddRange([opened, added, pins]);
@@ -52,7 +55,6 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
 
         _bindings.Properties(home, [nameof(HomeViewModel.TotalsText), nameof(HomeViewModel.HasBooks)], () =>
         {
-            totals.StringValue = home.TotalsText;
             start.Hidden = home.HasBooks;
         });
         _bindings.Property(home, nameof(HomeViewModel.ContinuePreparing), () =>
