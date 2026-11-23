@@ -72,6 +72,11 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
   - The likeliest answer is the prominent button.
   - A kind the page doesn't know yet still shows its answers as plain buttons.
   - `--review-samples <png>` shows one made-up card of each kind and saves the whole list as a picture.
+- **Search guide.** Under the toolbar's search field, a panel lists the fields that can be searched and, after a
+  field's colon, the values in the library. It opens when the empty field takes the keyboard, and anywhere with ⌥Esc
+  (the Mac's completion key) or ↓. It never takes the keyboard from the field.
+- **Lists with their own controls on each line** (saved searches, Organize's Books panel) are popovers or panels, not
+  menus, since a menu can't hold buttons on a line.
 - **Tables.**
   - Columns can be resized.
   - Rows alternate in colour.
@@ -84,7 +89,13 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
 - The Edit menu has Find and Ask.
 - The File menu has what Windows puts behind the Library's Add button: Add Folder, Add a Book I Own Elsewhere and
   Check a Download.
-- The Go menu has Back (⌘[) and each page, as Finder's does. Back is also in the toolbar beside the page's name.
+- The Go menu has Back (⌘[) and each page, as Finder's does. Back is also in the toolbar beside the page's name, and
+  the mouse's back button and a swipe go back too. The Go menu also has First and Last Page (⌘Home, ⌘End) and the
+  binder's next and previous item (⌥⌘→, ⌥⌘←).
+- Reader commands are menu items that reach the reader through the responder chain, so they're dimmed with no reader
+  in reach: Find (⌘F; with no book, it searches the library), Find Next and Previous (⌘G, ⇧⌘G), Zoom In and Out,
+  Fit Width (⌘0) and Fit Page (⌥⌘0). Search Your Library is ⌘K from anywhere, as Ctrl+K is on Windows.
+- The File menu has Add a Folder from Storage and Import from an Online Library, as Windows' Add menu does.
 - The Help menu, last as on every Mac, has Keyboard Shortcuts (⌘/).
 
 ## Book details
@@ -93,6 +104,14 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
   capitals is title case here.
 - Fields line up as Get Info's do: names in a column, values beside them, a suggestion on the palette's soft green.
 - What's done less often (pin, reprocess, correct, show in Finder, remove) is in the header's More menu.
+
+## Cloud files and storage
+
+- A library folder in iCloud Drive or a File Provider folder (OneDrive, Dropbox, Google Drive for Mac) is read like
+  any other. The Mac's own cloud file state says which files are only in the cloud, and after indexing such a file goes
+  back to online-only with the same eviction Finder's Remove Download uses, when Settings › Processing says so.
+- Settings › Library's Storage connects online storage directly, as on Windows: the providers this build has an app
+  for, and WebDAV by address and password. Add from Storage picks a folder in it.
 
 ## Dialogs and tips
 
