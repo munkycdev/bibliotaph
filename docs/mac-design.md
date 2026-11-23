@@ -49,8 +49,8 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
 ## Sidebar
 
 - Use SF Symbols, and let the system tint them with the accent colour.
-- Show at most two levels: the pages, Pinned and Library folders. Connecting to the web library lives in Settings ›
-  Web Library, not the sidebar.
+- Show at most two levels: the pages and Pinned. Library folders live in Settings › Library and the Library's folder
+  filter, and connecting to the web library in Settings › Web Library, not the sidebar.
 - Nothing important goes at the sidebar's foot, where a window moved low would hide it; only the status line sits there.
 
 ## Pages

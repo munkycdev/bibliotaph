@@ -52,8 +52,7 @@ public sealed class MainWindowController : NSWindowController
             browser.Window!.WillClose += (_, _) => _browsers.Remove(browser);
             browser.Show();
         };
-        _sidebar = new SidebarController(_shell.Activity, folders, services.GetRequiredService<SourceRootStore>(), services.GetRequiredService<WebShelfCache>(),
-            services.GetRequiredService<INavigationService>(), _shell);
+        _sidebar = new SidebarController(_shell.Activity, services.GetRequiredService<INavigationService>(), _shell);
         // A folder just added is a new choice in the Library's folder filter, which it lists as it loads.
         folders.Added += (_, _) => Bindings.OnMain(() =>
         {

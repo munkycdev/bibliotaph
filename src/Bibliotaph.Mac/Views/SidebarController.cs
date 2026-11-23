@@ -12,29 +12,25 @@ namespace Bibliotaph.Mac.Views;
 
 /// <summary>
 /// A source list: the pages the Mac has, what is pinned (books, Favorites, collections, binders and saved searches),
-/// then each library folder, which narrows the Library to it as its folder filter does on Windows. Under it, what
-/// indexing is doing.
+/// and under them what indexing is doing. Library folders are in Settings › Library and the Library's folder filter,
+/// not here.
 /// </summary>
-public sealed class SidebarController(LibraryActivity activity, FolderAdding adding, SourceRootStore roots, WebShelfCache shelf,
-    INavigationService navigation, ShellViewModel shell) : NSViewController
+public sealed class SidebarController(LibraryActivity activity, INavigationService navigation, ShellViewModel shell) : NSViewController
 {
     /// <summary>
-    /// A page (<paramref name="Route"/>), a library folder (<paramref name="RootId"/>, in the Library), a pin
-    /// (<paramref name="Pin"/>), or a heading.
+    /// A page (<paramref name="Route"/>), a pin (<paramref name="Pin"/>), or a heading.
     /// </summary>
-    sealed record Row(bool IsHeader, string Title, string Symbol, long? RootId, Route Route = Route.Library, PinnedItemViewModel? Pin = null);
+    sealed record Row(bool IsHeader, string Title, string Symbol, Route Route = Route.Library, PinnedItemViewModel? Pin = null);
 
     readonly Bindings _bindings = new();
     Bindings _page = new();
     LibraryViewModel? _library;
     List<Row> _rows = [];
-    IReadOnlyList<SourceRoot> _folders = [];
     NSTableView _table = null!;
     NSTextField _status = null!;
     Source? _source;
     bool _selecting;
     PageViewModel? _shownPage;
-    long? _pendingRoot;
     string _reviewCount = "";
 
     public override void LoadView()
@@ -88,11 +84,8 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
             var row = _rows.FindIndex(r => r.Route == Route.NeedsReview);
             if (row >= 0) _table.ReloadData(NSIndexSet.FromIndex(row), NSIndexSet.FromIndex(0));
         });
-        EventHandler refreshed = (_, _) => Bindings.OnMain(() => ReloadAsync().FireAndForget());
-        adding.Added += refreshed;
-        _bindings.Add(() => adding.Added -= refreshed);
         _bindings.Collection(shell.Pinned, _ => ShowRows());
-        ReloadAsync().FireAndForget();
+        ShowRows();
     }
 
     /// <summary>
@@ -111,7 +104,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
             _ => null,
         };
         if (route is null) return null;
-        var row = _rows.FindIndex(r => !r.IsHeader && r.Pin is null && r.RootId is null && r.Route == route);
+        var row = _rows.FindIndex(r => !r.IsHeader && r.Pin is null && r.Route == route);
         return row < 0 ? null : _table.GetRowView(row, false);
     }
 
@@ -124,7 +117,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         public override void ResetCursorRects() => AddCursorRect(Bounds, NSCursor.PointingHandCursor);
     }
 
-    /// <summary>The page showing, which the sidebar marks; on the Library, the folder it narrows to.</summary>
+    /// <summary>The page showing, which the sidebar marks.</summary>
     public void Show(PageViewModel? page)
     {
         _page.Dispose();
@@ -132,41 +125,21 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         _shownPage = page;
         _library = page as LibraryViewModel;
         if (page is not null) _page.Property(page, nameof(PageViewModel.PinKey), SelectCurrent);
-        if (_library is { } library)
-            _page.Property(library.Filters, nameof(LibraryFilterState.FolderChoice), () =>
-            {
-                // A folder chosen on another page is applied once the Library has listed its folders.
-                if (_pendingRoot is { } root && library.Filters.FolderChoices.FirstOrDefault(c => c.Value == new FolderKey(root, "")) is { } choice)
-                {
-                    _pendingRoot = null;
-                    library.Filters.FolderChoice = choice;
-                }
-                SelectCurrent();
-            });
         SelectCurrent();
-    }
-
-    async Task ReloadAsync()
-    {
-        _folders = await roots.ListAsync();
-        ShowRows();
     }
 
     void ShowRows()
     {
-        var folders = _folders;
         _rows =
         [
-            new Row(false, "Home", "house", null, Route.Home),
-            new Row(false, "All books", "books.vertical", null),
-            new Row(false, "Collections", "square.stack", null, Route.Collections),
-            new Row(false, "Binders", "book.closed", null, Route.Sessions),
-            new Row(false, "Needs review", "tray", null, Route.NeedsReview),
-            new Row(false, "Summary", "chart.bar.xaxis", null, Route.Summary),
+            new Row(false, "Home", "house", Route.Home),
+            new Row(false, "All books", "books.vertical"),
+            new Row(false, "Collections", "square.stack", Route.Collections),
+            new Row(false, "Binders", "book.closed", Route.Sessions),
+            new Row(false, "Needs review", "tray", Route.NeedsReview),
+            new Row(false, "Summary", "chart.bar.xaxis", Route.Summary),
             .. shell.Pinned.Count == 0 ? (IEnumerable<Row>)[] :
-                [new Row(true, "Pinned", "", null), .. shell.Pinned.Select(p => new Row(false, p.Label, Symbol(p.Icon), null, Pin: p))],
-            new Row(true, "Library folders", "", null),
-            .. folders.Select(f => new Row(false, shelf.NameOf(f.Path), WebLibraryPaths.IsWebPath(f.Path) ? "globe" : "folder", f.Id)),
+                [new Row(true, "Pinned", ""), .. shell.Pinned.Select(p => new Row(false, p.Label, Symbol(p.Icon), Pin: p))],
         ];
         _table.ReloadData();
         SelectCurrent();
@@ -193,11 +166,8 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
             _selecting = false;
             return;
         }
-        var root = _library?.Filters.FolderChoice.Value is { Folder.Length: 0 } folder ? folder.RootId : (long?)null;
         var route = _shownPage?.NavRoute ?? Route.Library;
-        var index = route == Route.Library
-            ? _rows.FindIndex(r => !r.IsHeader && r.Pin is null && r.Route == Route.Library && r.RootId == root)
-            : _rows.FindIndex(r => r.Route == route && !r.IsHeader && r.Pin is null);
+        var index = _rows.FindIndex(r => r.Route == route && !r.IsHeader && r.Pin is null);
         _selecting = true;
         if (index >= 0) _table.SelectRow(index, false);
         else _table.DeselectAll(this);
@@ -214,14 +184,11 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         }
         if (row.Route != Route.Library || _library is not { } library)
         {
-            _pendingRoot = row.RootId;
             navigation.NavigateTo(row.Route);
             return;
         }
-        var filters = library.Filters;
-        filters.FolderChoice = row.RootId is { } id
-            ? filters.FolderChoices.FirstOrDefault(c => c.Value == new FolderKey(id, "")) ?? filters.FolderChoices[0]
-            : filters.FolderChoices[0];
+        // All books, clicked on the Library: every book, whatever folder it was narrowed to.
+        library.Filters.FolderChoice = library.Filters.FolderChoices[0];
     }
 
     /// <summary>A pin's right-click menu, as on Windows: open it, unpin it, move it, and rename or delete a saved search.</summary>
