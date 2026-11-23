@@ -4,6 +4,11 @@
     "asset": "llama-b11552-bin-win-vulkan-x64.zip",
     "sha256": "83dc16325b532ba603034719e8377e28ca5093c5d4370141a6522f1a0250386c"
   },
+  "engineMac": {
+    "release": "b11552",
+    "asset": "llama-b11552-bin-macos-arm64.tar.gz",
+    "sha256": "f4b33fe40d098033fb1a19a8a4a84383c4ca84c37b6a60d9f9a253f349b48c07"
+  },
   "testModel": {
     "repo": "ggml-org/models",
     "revision": "499bc8821c6b12b4e53c5bffcb21ec206f212d81",

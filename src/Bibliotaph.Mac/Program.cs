@@ -187,6 +187,12 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
         var ai = services.GetRequiredService<AiSettings>();
         await ai.LoadAsync();
         Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
+        // The built-in AI, as on Windows: its engine stops when nothing needs it, and books are read once it and its model are here.
+        services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IIndexingStatus>());
+        services.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey).StopWhenNotNeededForAsk(ai);
+        services.GetRequiredService<BuiltInModelDownloads>().WakeAiWhenDownloaded(ai);
+        services.GetRequiredService<BuiltInEngineDownload>().WakeAiWhenDownloaded(ai);
+        DownloadEngineInBackground(services);
 
         var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
         Log.Information("index.db: {Result}", index);
@@ -195,6 +201,23 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
         await services.GetRequiredService<Bibliotaph.Storage.Desktop.PcDrives>().ReloadAsync();
         services.GetRequiredService<ElsewhereService>().CheckFilesWhenProjected();
     }
+
+    /// <summary>
+    /// The built-in AI's engine, llama.cpp's Apple silicon build, downloaded in the background at each start until
+    /// it's here, whether or not the built-in AI is used, as on Windows.
+    /// </summary>
+    static void DownloadEngineInBackground(IServiceProvider services) =>
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await services.GetRequiredService<BuiltInEngineDownload>().EnsureAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Downloading the built-in AI engine failed");
+            }
+        });
 
     /// <summary>Copies catalog.db's metadata into index.db once the index writer runs, as the Windows app does at each start.</summary>
     static void ProjectMetadataInBackground(IServiceProvider services) =>

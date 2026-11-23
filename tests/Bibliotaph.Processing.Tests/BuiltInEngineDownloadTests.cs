@@ -132,7 +132,60 @@ public sealed class BuiltInEngineDownloadTests : IDisposable
     {
         var pin = EnginePin.Embedded;
         Assert.Matches("^b[0-9]+$", pin.Release);
-        Assert.EndsWith("-bin-win-vulkan-x64.zip", pin.Asset, StringComparison.Ordinal);
+        Assert.EndsWith(OperatingSystem.IsMacOS() ? "-bin-macos-arm64.tar.gz" : "-bin-win-vulkan-x64.zip", pin.Asset, StringComparison.Ordinal);
         Assert.Matches("^[0-9a-f]{64}$", pin.Sha256);
+    }
+
+    [Fact]
+    public void A_mac_downloads_the_apple_silicon_build_of_the_same_release()
+    {
+        Assert.Equal(EnginePin.Mac.Release, EnginePin.Load("engine").Release);
+        Assert.EndsWith("-bin-macos-arm64.tar.gz", EnginePin.Mac.Asset, StringComparison.Ordinal);
+        Assert.True(EnginePin.Mac.IsTarball);
+        Assert.Matches("^[0-9a-f]{64}$", EnginePin.Mac.Sha256);
+    }
+
+    /// <summary>The Mac's release: a tarball with everything in build/bin, libraries linked to one another, and tools not used.</summary>
+    static byte[] MacRelease()
+    {
+        using var memory = new MemoryStream();
+        using (var gzip = new GZipStream(memory, CompressionLevel.Fastest, leaveOpen: true))
+        using (var tar = new System.Formats.Tar.TarWriter(gzip))
+        {
+            foreach (var name in new[] { "llama-server", "llama-cli", "libllama.0.dylib", "libllama-server-impl.dylib", "libllama-cli-impl.dylib", "ggml-metal.metal", "LICENSE" })
+            {
+                var entry = new System.Formats.Tar.PaxTarEntry(System.Formats.Tar.TarEntryType.RegularFile, $"build/bin/{name}")
+                {
+                    DataStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(name)),
+                    Mode = UnixFileMode.UserRead | UnixFileMode.UserWrite,
+                };
+                tar.WriteEntry(entry);
+            }
+            tar.WriteEntry(new System.Formats.Tar.PaxTarEntry(System.Formats.Tar.TarEntryType.SymbolicLink, "build/bin/libllama.dylib") { LinkName = "libllama.0.dylib" });
+            tar.WriteEntry(new System.Formats.Tar.PaxTarEntry(System.Formats.Tar.TarEntryType.SymbolicLink, "build/bin/escape.dylib") { LinkName = "../../etc/passwd" });
+        }
+        return memory.ToArray();
+    }
+
+    [Fact]
+    public async Task A_tarball_release_keeps_the_server_runnable_its_libraries_and_their_links()
+    {
+        // Only a Mac downloads the tarball; Windows makes symbolic links only with Developer Mode on.
+        Assert.SkipWhen(OperatingSystem.IsWindows(), "The tarball is the Mac's.");
+        var release = MacRelease();
+        var engine = new BuiltInEngine(new BuiltInEngineOptions { ServerPath = Path.Combine(_folder, "aiworker", "llama-server"), DownloadFolder = EngineFolder },
+            new HttpClient());
+        var pin = new EnginePin("b1", "llama-b1-bin-macos-arm64.tar.gz", Convert.ToHexStringLower(SHA256.HashData(release)));
+#pragma warning disable CA2000 // The download's client owns the handler.
+        var download = new BuiltInEngineDownload(engine, new HttpClient(new GitHub(release)), pin);
+#pragma warning restore CA2000
+
+        Assert.True(await download.EnsureAsync(Ct));
+
+        Assert.True(engine.IsInstalled);
+        Assert.Equal(["LICENSE", "engine.txt", "ggml-metal.metal", "libllama-server-impl.dylib", "libllama.0.dylib", "libllama.dylib", "llama-server"],
+            Directory.GetFiles(EngineFolder).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.Equal("libllama.0.dylib", new FileInfo(Path.Combine(EngineFolder, "libllama.dylib")).LinkTarget);
+        if (!OperatingSystem.IsWindows()) Assert.True(File.GetUnixFileMode(Path.Combine(EngineFolder, "llama-server")).HasFlag(UnixFileMode.UserExecute));
     }
 }

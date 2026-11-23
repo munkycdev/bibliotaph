@@ -164,7 +164,7 @@ public sealed class MacAppLifetime(AppPaths paths, IForgetsSecrets secrets, ILog
 }
 
 /// <summary>About shows the standard panel; Keyboard Shortcuts and Test with a Book are the Mac's own.</summary>
-public sealed class MacAppDialogs(IUserPrompts prompts, AiService ai) : IAppDialogs
+public sealed class MacAppDialogs(AiService ai) : IAppDialogs
 {
     public void ShowAbout() => NSApplication.SharedApplication.OrderFrontStandardAboutPanel(null);
 
@@ -174,13 +174,15 @@ public sealed class MacAppDialogs(IUserPrompts prompts, AiService ai) : IAppDial
         Views.AiTestSheet.Show(new AiTestViewModel(ai, (progress, ct) => ai.TestAsync(endpoint, model, progress, ct), model));
 
     public void TestBuiltInModel(string model) =>
-        prompts.Tell("The built-in AI isn't available on the Mac yet.", "Bibliotaph", PromptKind.Information);
+        Views.AiTestSheet.Show(new AiTestViewModel(ai, (progress, ct) => ai.TestBuiltInAsync(model, progress, ct), BuiltInModels.NameFor(model)));
 }
 
-/// <summary>Apple silicon shares memory between the CPU and GPU, so there is no separate graphics memory to report.</summary>
+/// <summary>Apple silicon shares memory between the CPU and GPU; Metal says how much of it the GPU should use.</summary>
 public sealed class MacGraphicsMemory : IGraphicsMemory
 {
-    public long? Bytes => null;
+    // What Metal says the GPU can keep in its working set of the shared memory: the size a model must fit, as a
+    // card's own memory is on Windows.
+    public long? Bytes => Metal.MTLDevice.SystemDefault is { } gpu ? (long)gpu.RecommendedMaxWorkingSetSize : null;
 }
 
 /// <summary>A PDF's password, asked for in an alert with a secure field and the same choices as on Windows.</summary>
