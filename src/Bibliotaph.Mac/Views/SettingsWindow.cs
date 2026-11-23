@@ -141,11 +141,17 @@ public sealed partial class SettingsWindow : NSWindowController
         var bindings = Load(library);
 
         var form = new Form();
+        Storage(form, library, bindings);
+        FollowPicker(library, bindings, () => Window);
         var folders = form.Section("Library folders",
             "Bibliotaph reads your books from these folders. Files stay where they are and are only ever read; removing a folder keeps your work on its books.");
         var rescan = NSButton.CreateButton("Look for Changes", () => { });
         bindings.Command(rescan, library.RescanCommand);
-        form.Buttons(rescan, NSButton.CreateButton("Add Folder…", () => _adding.PickAsync().FireAndForget()));
+        var fromStorage = NSButton.CreateButton("Add from Storage…", () => { });
+        fromStorage.ToolTip = "A folder in the storage you connected above";
+        bindings.Command(fromStorage, library.AddFromStorageCommand);
+        bindings.Property(library.Storage, nameof(StorageAccountsViewModel.HasAccounts), () => fromStorage.Hidden = !library.Storage.HasAccounts);
+        form.Buttons(rescan, fromStorage, NSButton.CreateButton("Add Folder…", () => _adding.PickAsync().FireAndForget()));
         // The tour's Add a folder opens this pane for the picker.
         if (_services.GetRequiredService<LibraryFolders>().TakePickRequest())
             NSApplication.SharedApplication.BeginInvokeOnMainThread(() => _adding.PickAsync().FireAndForget());

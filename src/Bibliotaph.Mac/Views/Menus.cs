@@ -25,7 +25,9 @@ static class Menus
 
         bar.AddItem(Top("File",
             new NSMenuItem("Add Folder…", "o", (_, _) => main.AddFolder()),
+            new NSMenuItem("Add a Folder from Storage…", (_, _) => main.AddFromStorage()),
             new NSMenuItem("Add a Book I Own Elsewhere…", (_, _) => main.AddElsewhereAsync().FireAndForget()),
+            new NSMenuItem("Import from an Online Library…", (_, _) => main.ShowSettings(Presentation.Services.SettingsSection.OnlineLibraries)),
             new NSMenuItem("Check a Download…", (_, _) => main.Go(Presentation.Services.Route.DownloadCheck)),
             NSMenuItem.SeparatorItem,
             Item("Close Window", "performClose:", "w")));

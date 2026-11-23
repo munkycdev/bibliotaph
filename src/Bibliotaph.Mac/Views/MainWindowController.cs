@@ -165,6 +165,9 @@ public sealed class MainWindowController : NSWindowController
     [Foundation.Export("readerFind:")]
     void ReaderFind(Foundation.NSObject sender) => FocusSearch();
 
+    /// <summary>Settings > Library with the picker for a folder in connected storage, as Windows' Add menu has it.</summary>
+    public void AddFromStorage() => _services.GetRequiredService<LibraryFolders>().RequestStoragePick();
+
     /// <summary>Back to the page before, from the Go menu.</summary>
     public void GoBack()
     {
