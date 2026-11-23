@@ -133,6 +133,9 @@ public sealed class MainWindowController : NSWindowController
 
     public void AddFolder() => _toolbar.AddFolder();
 
+    /// <summary>A page the menus open, as Check a Download.</summary>
+    public void Go(Presentation.Services.Route route) => _navigation.NavigateTo(route);
+
     /// <summary>Connecting this Mac to its web library, in Settings.</summary>
     public void ShowDevices() => _settings.Open(Presentation.Services.SettingsSection.Devices);
 
