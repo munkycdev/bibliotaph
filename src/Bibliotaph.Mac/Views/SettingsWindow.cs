@@ -170,6 +170,25 @@ public sealed partial class SettingsWindow : NSWindowController
         bindings.Collection(library.Folders, _ => Refresh());
         bindings.Collection(library.Pending, _ => Refresh());
         Refresh();
+        // The folder rules answered in Needs review, each with its switch, so one can be turned off again, as on Windows.
+        var rules = form.Section("Folder Rules",
+            "Rules you answered in Needs review. A rule that's on suggests its value for every file in the folder and its subfolders, new ones too. Your own corrections always win.");
+        var ruleRows = new Bindings();
+        bindings.Add(() => ruleRows.Dispose());
+        bindings.Property(library, nameof(LibrarySectionViewModel.AnsweredRules), () =>
+        {
+            ruleRows.Dispose();
+            ruleRows = new Bindings();
+            rules.Clear();
+            foreach (var rule in library.AnsweredRules)
+            {
+                var toggle = FormText.Switch(on => rule.IsEnabled = on);
+                ruleRows.Property(rule, nameof(FolderRuleItem.IsEnabled), () => FormText.Set(toggle, rule.IsEnabled));
+                var row = rules.Row($"{rule.Folder} → {rule.Meaning}", rule.Detail, toggle);
+                row.ToolTip = rule.Detail;
+            }
+            rules.View.Hidden = !library.HasAnsweredRules;
+        });
         EventHandler added = (_, _) => Bindings.OnMain(() => library.LoadAsync().FireAndForget());
         _adding.Added += added;
         bindings.Add(() => _adding.Added -= added);

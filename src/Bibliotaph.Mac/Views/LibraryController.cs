@@ -75,7 +75,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var moreFilters = MoreFilters();
         var activeFilters = ActiveFilters();
         var filterBar = FilterBar();
-        foreach (var part in new NSView[] { filterBar, moreFilters, activeFilters, ScopeLine(), SubCollections(), OrganizeBar(), UndoLine(), SavedSearchLine() })
+        foreach (var part in new NSView[] { filterBar, moreFilters, activeFilters, CoverageLine(), ScopeLine(), SubCollections(), OrganizeBar(), UndoLine(), SavedSearchLine() })
             bar.AddArrangedSubview(part);
         var pageActions = PageActions();
         _list = new BookList(this);
@@ -755,6 +755,23 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             filling = false;
         });
         return box;
+    }
+
+    /// <summary>
+    /// How much of the library the words were looked for in, while some books can't be searched inside yet, or what an
+    /// Ask search took the words to mean, as Windows says beside its count.
+    /// </summary>
+    NSTextField CoverageLine()
+    {
+        var line = NSTextField.CreateWrappingLabel("");
+        line.Font = NSFont.SystemFontOfSize(11)!;
+        line.TextColor = NSColor.SecondaryLabel;
+        _bindings.Property(library, nameof(LibraryViewModel.Coverage), () =>
+        {
+            line.StringValue = library.Coverage ?? "";
+            line.Hidden = library.Coverage is null;
+        });
+        return line;
     }
 
     /// <summary>The part of the library shown, as Favorites or a collection, with a × that shows the whole library.</summary>

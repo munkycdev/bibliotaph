@@ -78,6 +78,8 @@ public sealed class SidebarController(LibraryActivity activity, INavigationServi
 
         _bindings.Property(activity, nameof(LibraryActivity.Summary), () => status.StringValue = activity.StatusName);
         _bindings.Property(activity, nameof(LibraryActivity.OfflineText), () => status.StringValue = activity.StatusName);
+        // The web library out of reach is said there too, as Windows says it under its status.
+        _bindings.Property(activity, nameof(LibraryActivity.WebText), () => status.StringValue = activity.StatusName);
         _bindings.Property(activity, nameof(LibraryActivity.ReviewCount), () =>
         {
             _reviewCount = activity.ReviewCount > 0 ? activity.ReviewCount.ToString("N0", System.Globalization.CultureInfo.CurrentCulture) : "";

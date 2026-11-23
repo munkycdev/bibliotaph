@@ -112,12 +112,20 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
     public override NSApplicationTerminateReply ApplicationShouldTerminate(NSApplication sender)
     {
         if (_host is null || _stopped) return NSApplicationTerminateReply.Now;
-        // Stop on the thread pool, as hosted services must not need the main thread to finish, then quit for real.
+        // The window lets go of its views here, on the main thread AppKit needs, then the services stop on the thread
+        // pool, as hosted services must not need the main thread to finish, and the app quits for real.
+        try
+        {
+            _main?.Unload();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Closing the window's views failed");
+        }
         _ = Task.Run(async () =>
         {
             try
             {
-                _main?.Unload();
                 await _host.StopAsync(TimeSpan.FromSeconds(5));
                 if (_host is IAsyncDisposable disposable) await disposable.DisposeAsync();
                 else _host.Dispose();

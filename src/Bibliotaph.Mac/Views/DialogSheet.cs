@@ -23,9 +23,9 @@ static class DialogSheet
             if (actions.Dialog is { } dialog && window() is { } host) Show(dialog, host);
         });
 
-    static void Show(CollectionDialogViewModel dialog, NSWindow host)
+    static void Show(CollectionDialogViewModel dialog, NSWindow host, string? problem = null)
     {
-        var alert = new NSAlert { MessageText = dialog.Heading };
+        var alert = new NSAlert { MessageText = dialog.Heading, InformativeText = problem ?? "" };
         NSTextField? name = null;
         NSTextField? description = null;
         NSPopUpButton? choices = null;
@@ -61,6 +61,12 @@ static class DialogSheet
                 dialog.Name = name.StringValue;
                 dialog.Description = description!.StringValue;
                 if (dialog.SaveCommand.CanExecute(null)) dialog.SaveCommand.Execute(null);
+                else if (dialog.Name.Trim().Length == 0)
+                {
+                    alert.Dispose();
+                    NSApplication.SharedApplication.BeginInvokeOnMainThread(() => Show(dialog, host, "Type a name."));
+                    return;
+                }
                 else dialog.CancelCommand.Execute(null);
             }
             else if (choices!.IndexOfSelectedItem is var at and >= 0 && at < dialog.Shown.Count) dialog.PickCommand.Execute(dialog.Shown[(int)at]);
@@ -69,9 +75,10 @@ static class DialogSheet
         });
     }
 
-    static void Show(SessionDialogViewModel dialog, NSWindow host)
+    static void Show(SessionDialogViewModel dialog, NSWindow host, string? problem = null)
     {
-        var alert = new NSAlert { MessageText = dialog.Heading };
+        // What was wrong with the last try shows under the heading, as Windows shows it under the box, and the dialog stays.
+        var alert = new NSAlert { MessageText = dialog.Heading, InformativeText = problem ?? "" };
         NSTextField? title = null;
         NSTextField? date = null;
         NSButton? atHand = null;
@@ -124,6 +131,18 @@ static class DialogSheet
                 if (system is not null && system.IndexOfSelectedItem is var at and >= 0 && at < dialog.SystemChoices.Count)
                     dialog.GameSystem = dialog.SystemChoices[(int)at];
                 if (dialog.SaveCommand.CanExecute(null)) dialog.SaveCommand.Execute(null);
+                else if (dialog.DateProblem is { } date)
+                {
+                    alert.Dispose();
+                    NSApplication.SharedApplication.BeginInvokeOnMainThread(() => Show(dialog, host, date));
+                    return;
+                }
+                else if (dialog.Title.Trim().Length == 0)
+                {
+                    alert.Dispose();
+                    NSApplication.SharedApplication.BeginInvokeOnMainThread(() => Show(dialog, host, $"Type a {dialog.TitleLabel.ToLowerInvariant()}."));
+                    return;
+                }
                 else dialog.CancelCommand.Execute(null);
             }
             else if (packs!.IndexOfSelectedItem is var at and >= 0 && at < dialog.Shown.Count) dialog.PickCommand.Execute(dialog.Shown[(int)at]);

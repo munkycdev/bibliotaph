@@ -87,7 +87,7 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
         _bindings.Property(review, nameof(NeedsReviewViewModel.Show), Choices);
         _bindings.Collection(review.Cards, _ => Rebuild());
         _bindings.Collection(review.Files, _ => Rebuild());
-        _bindings.Properties(review, [nameof(NeedsReviewViewModel.IsSuggestionsTab), nameof(NeedsReviewViewModel.IsLoading),
+        _bindings.Properties(review, [nameof(NeedsReviewViewModel.IsSuggestionsTab), nameof(NeedsReviewViewModel.IsLoading), nameof(NeedsReviewViewModel.HasUpdates),
             nameof(NeedsReviewViewModel.Hidden)], Rebuild);
     }
 
@@ -103,6 +103,15 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
         }
         if (review.IsSuggestionsTab)
         {
+            if (review.HasUpdates)
+            {
+                var note = Label("The suggestions have changed since this list was made.", secondary: true);
+                var reload = Button("Show the New List", review.ReloadCommand);
+                var line = Row(note, reload);
+                line.Alignment = NSLayoutAttribute.CenterY;
+                _list.AddArrangedSubview(Card(line));
+            }
+            _list.AddArrangedSubview(UndoBar.Create(_cards, review.BulkUndo, "Undo All"));
             if (review.ShowEmpty)
             {
                 _list.AddArrangedSubview(Label("Nothing needs review. Bibliotaph will put anything it isn't sure of here.", secondary: true));
@@ -159,12 +168,25 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
             suggested.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Medium)!;
             body.AddArrangedSubview(Compare(card.SuggestedLabel, new Tinted(suggested, Palette.Soft, 6, new NSEdgeInsets(3, 8, 3, 8))));
         }
-        if (card.HasEvidence) body.AddArrangedSubview(Label(card.Evidence, secondary: true, italic: true));
+        if (card.HasEvidence)
+        {
+            var evidence = Label("", secondary: true);
+            var text = new NSMutableAttributedString(card.Evidence, new NSStringAttributes { Font = NSFont.SystemFontOfSize(12)!, ForegroundColor = NSColor.SecondaryLabel }.Dictionary);
+            if (card.PageText.Length > 0)
+                text.Append(new NSAttributedString($" {card.PageText}", new NSStringAttributes { Font = NSFont.SystemFontOfSize(12, NSFontWeight.Semibold)!, ForegroundColor = NSColor.Label }.Dictionary));
+            evidence.AttributedStringValue = text;
+            var icon = new NSImageView { Image = NSImage.GetSystemSymbol("text.magnifyingglass", null)!, ContentTintColor = NSColor.SecondaryLabel };
+            var line = Row(icon, evidence);
+            line.Alignment = NSLayoutAttribute.Top;
+            body.AddArrangedSubview(line);
+        }
 
         var accept = Button("Accept", card.AcceptCommand);
         var acceptAll = Button(card.AcceptAllLabel, card.AcceptAllCommand);
         var edit = Button(card.EditLabel, card.EditCommand);
         var reject = Button(card.RejectLabel, card.RejectCommand);
+        reject.ToolTip = card.RejectHint;
+        acceptAll.ToolTip = card.AcceptAllHint;
         var open = Button("Open the Book", card.OpenCommand);
         var actions = Row(accept, acceptAll, edit, reject, open);
 
@@ -177,7 +199,27 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
         var cancel = Button("Cancel", card.CancelEditCommand);
         var problem = Label("", tint: NSColor.SystemRed);
         var resolution = Label("", secondary: true);
-        var editor = Stack(Row(field, save, cancel), resolution, problem);
+        // A field with its own list, as a game system has, picks from it as well as typing.
+        var choices = new NSPopUpButton { ControlSize = NSControlSize.Small };
+        if (card.UsesChoices)
+        {
+            choices.AddItem("Pick from the List");
+            foreach (var choice in card.Choices) choices.Menu!.AddItem(new NSMenuItem(choice));
+            choices.Activated += (_, _) =>
+            {
+                var at = (int)choices.IndexOfSelectedItem - 1;
+                if (at >= 0 && at < card.Choices.Count)
+                {
+                    card.PickedChoice = card.Choices[at];
+                    field.StringValue = card.EditText ?? "";
+                }
+                choices.SelectItem(0);
+            };
+        }
+        choices.Hidden = !card.UsesChoices;
+        var hint = Label(card.EditHint, secondary: true);
+        hint.Hidden = card.EditHint.Length == 0;
+        var editor = Stack(Row(field, save, cancel), hint, choices, resolution, problem);
         body.AddArrangedSubview(actions);
         body.AddArrangedSubview(editor);
 

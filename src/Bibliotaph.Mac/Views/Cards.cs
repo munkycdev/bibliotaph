@@ -209,12 +209,12 @@ sealed class WrapView : NSView
 /// <summary>What the last change did, on the soft green, with Undo where it can be undone and × to put it away.</summary>
 static class UndoBar
 {
-    public static Tinted Create(Bindings bindings, Presentation.ViewModels.UndoSlot slot)
+    public static Tinted Create(Bindings bindings, Presentation.ViewModels.UndoSlot slot, string undoTitle = "Undo")
     {
         var message = NSTextField.CreateWrappingLabel("");
         message.Font = NSFont.SystemFontOfSize(12)!;
         message.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
-        var undo = NSButton.CreateButton("Undo", () => { });
+        var undo = NSButton.CreateButton(undoTitle, () => { });
         undo.ControlSize = NSControlSize.Small;
         bindings.Command(undo, slot.UndoCommand);
         var close = NSButton.CreateButton(NSImage.GetSystemSymbol("xmark", "Hide")!, slot.Clear);
