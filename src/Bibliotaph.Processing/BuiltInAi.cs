@@ -17,7 +17,7 @@ namespace Bibliotaph.Processing;
 public sealed record BuiltInEngineOptions
 {
     /// <summary>llama.cpp's server, which the build puts in aiworker\ beside Bibliotaph.exe (build/fetch-engine.ps1).</summary>
-    public string ServerPath { get; init; } = Path.Combine(AppContext.BaseDirectory, "aiworker", "llama-server.exe");
+    public string ServerPath { get; init; } = Path.Combine(AppContext.BaseDirectory, "aiworker", BuiltInEngine.ServerFile);
 
     /// <summary>
     /// Where the engine is downloaded at startup when this copy of Bibliotaph doesn't have one beside it (a build made
@@ -157,7 +157,16 @@ public sealed class BuiltInEngine : IAsyncDisposable
 {
     public const string NotInstalled = "The built-in AI engine isn't on this computer yet. Bibliotaph downloads it when it starts.";
     public const string NoModel = "The built-in AI's model isn't downloaded yet.";
-    public const string ServerFile = "llama-server.exe";
+    /// <summary>llama.cpp's server as this system names its programs.</summary>
+    public static string ServerFile => OperatingSystem.IsWindows() ? "llama-server.exe" : "llama-server";
+
+    /// <summary>A file named as llama.cpp's server is, on either system.</summary>
+    public static bool IsServer(string name) =>
+        name.Equals("llama-server.exe", StringComparison.OrdinalIgnoreCase) || name.Equals("llama-server", StringComparison.Ordinal);
+
+    /// <summary>The server in <paramref name="folder"/>, as this system names it, or as the other does; null if neither is there.</summary>
+    public static string? ServerIn(string folder) =>
+        new[] { ServerFile, "llama-server.exe", "llama-server" }.Select(name => Path.Combine(folder, name)).FirstOrDefault(File.Exists);
 
     /// <summary>The service key of the second engine, in embedding mode, that Ask this book finds pages by meaning with.</summary>
     public const string EmbeddingKey = "embedding";
@@ -194,7 +203,7 @@ public sealed class BuiltInEngine : IAsyncDisposable
         !File.Exists(Options.ServerPath) && DownloadedServerPath is { } downloaded && File.Exists(downloaded) ? downloaded : Options.ServerPath;
 
     /// <summary>Where the downloaded server goes, or null when this engine is never downloaded.</summary>
-    public string? DownloadedServerPath => Options.DownloadFolder is { } folder ? Path.Combine(folder, ServerFile) : null;
+    public string? DownloadedServerPath => Options.DownloadFolder is { } folder ? ServerIn(folder) ?? Path.Combine(folder, ServerFile) : null;
 
     /// <summary>The server came with this copy of Bibliotaph, so nothing needs downloading.</summary>
     public bool IsBundled => File.Exists(Options.ServerPath);

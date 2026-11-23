@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Fixed: a misleading AI error with LM Studio.** When a model server refuses both a structured answer and plain
+  JSON, as LM Studio can, Test with a book now shows why the structured answer was refused, not "must be json_schema".
 - **Fixed: scanned pages that couldn't be read once are tried again.** A book whose text recognition couldn't run,
   as before a Windows OCR language was installed, is tried again each time Bibliotaph opens, instead of waiting for
   Run again.

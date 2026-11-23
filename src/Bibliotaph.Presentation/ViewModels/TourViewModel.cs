@@ -16,6 +16,9 @@ namespace Bibliotaph.Presentation.ViewModels;
 public sealed partial class TourViewModel(SourceRootStore roots, SettingsStore settings, LibraryFolders folders, INavigationService navigation,
     LibraryActivity activity, ILogger<TourViewModel> log) : ObservableObject
 {
+    // The Mac app's steps speak of its own keys and menus.
+    static TourClient Client => OperatingSystem.IsMacOS() ? TourClient.Mac : TourClient.Windows;
+
     IReadOnlyList<TourStep> _steps = [];
     int _index;
     bool _hooked;
@@ -89,7 +92,7 @@ public sealed partial class TourViewModel(SourceRootStore roots, SettingsStore s
     void Start(TourChapter chapter, int at = 0)
     {
         Hook();
-        _steps = Tour.Steps(chapter, TourClient.Windows);
+        _steps = Tour.Steps(chapter, Client);
         _index = at;
         IsOpen = true;
         StepChanged?.Invoke(this, EventArgs.Empty);
@@ -199,7 +202,7 @@ public sealed partial class TourViewModel(SourceRootStore roots, SettingsStore s
         {
             if ((await roots.ListAsync()).Count == 0) return;
             _awaitingFolder = false;
-            var steps = Tour.Steps(TourChapter.Folders, TourClient.Windows);
+            var steps = Tour.Steps(TourChapter.Folders, Client);
             Start(TourChapter.Folders, at: steps.Count - 1);
         }
         catch (Exception ex)
