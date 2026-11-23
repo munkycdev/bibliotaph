@@ -355,8 +355,20 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         if (inspector.HasCompanions)
         {
             if (inspector.ShowsGoesWith) Text(inspector.CompanionsHeading, secondary: true);
+            Text("These take the book's system, publisher, setting and tags unless they have their own.", secondary: true);
             foreach (var companion in inspector.Companions)
-                Link(companion.Title, companion.How, () => inspector.ShowCompanionCommand.Execute(companion));
+            {
+                // × says it isn't from this book, as Windows has it beside each one; Undo brings it back.
+                var link = LinkView(companion.Title, companion.How, () => inspector.ShowCompanionCommand.Execute(companion));
+                link.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+                var remove = NSButton.CreateButton(NSImage.GetSystemSymbol("xmark", "Not from this book")!, () => inspector.RemoveCompanionCommand.Execute(companion));
+                remove.Bordered = false;
+                remove.ContentTintColor = NSColor.TertiaryLabel;
+                remove.ToolTip = $"{companion.Title} is not from this book";
+                var row = Row(link, remove);
+                row.Alignment = NSLayoutAttribute.Top;
+                Add(row, stretch: true);
+            }
         }
     }
 
@@ -757,8 +769,10 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
     }
 
     /// <summary>
-    /// A field as Get Info lists one: its name, then its value, on the palette's soft green with why under it when
-    /// Bibliotaph only suggests it. The pencil types a value in its place; while correcting, Keep confirms a suggestion,
+    /// A field as Get Info lists one: its name, then its value, on the palette's soft green when Bibliotaph only
+    /// suggests it, marked Guessed while correcting. Under it, a store's links, and where the value came from, which
+    /// opens what each value rests on with Not right, Keep this, and the other values found with Use this. The pencil
+    /// types a value in its place, or picks one of the field's choices; while correcting, Keep confirms a suggestion,
     /// Reset goes back to what Bibliotaph found, and each other value it found has Use.
     /// </summary>
     NSStackView FieldRow(MetadataFieldViewModel field, bool correcting)
@@ -766,8 +780,30 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         var value = Label("", 13);
         value.Selectable = true;
         var shown = new Tinted(value, null, 5, new NSEdgeInsets(1, 5, 1, 5));
-        var why = Label("", 11);
-        why.TextColor = NSColor.SecondaryLabel;
+        var guessedText = Label("Guessed", 10);
+        guessedText.Font = NSFont.SystemFontOfSize(10, NSFontWeight.Semibold)!;
+        var guessed = new Tinted(guessedText, Palette.Soft, 8, new NSEdgeInsets(1, 6, 1, 6));
+        guessed.ToolTip = "Nobody has confirmed this yet";
+        var valueLine = Row(shown, guessed);
+        valueLine.Spacing = 6;
+        var why = Small("", () => field.ToggleEvidenceCommand.Execute(null));
+        why.Bordered = false;
+        why.Image = NSImage.GetSystemSymbol("sparkles", null)!;
+        why.ImagePosition = NSCellImagePosition.ImageLeading;
+        why.ContentTintColor = NSColor.SecondaryLabel;
+        why.Font = NSFont.SystemFontOfSize(11)!;
+        why.ToolTip = $"Where {field.Label} came from";
+        var links = Column();
+        links.Spacing = 2;
+        foreach (var link in field.Links)
+        {
+            var open = Inline(link.LinkText ?? link.Text, () => field.OpenLinkCommand.Execute(link));
+            open.Image = NSImage.GetSystemSymbol("arrow.up.forward.square", null)!;
+            open.ImagePosition = NSCellImagePosition.ImageLeading;
+            open.ToolTip = link.Url ?? "";
+            links.AddArrangedSubview(open);
+        }
+        var evidence = Evidence(field);
         var edit = NSButton.CreateButton(NSImage.GetSystemSymbol("pencil", "Edit")!, () => field.EditCommand.Execute(null));
         edit.Bordered = false;
         edit.ContentTintColor = NSColor.TertiaryLabel;
@@ -780,17 +816,31 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
 
         var text = new NSTextField { PlaceholderString = field.EditHint };
         text.Changed += (_, _) => field.EditText = text.StringValue;
+        // A field with a list of its own, as a game system has, picks from it as well as typing.
+        var choices = new NSPopUpButton { ControlSize = NSControlSize.Small };
+        if (field.UsesChoices)
+        {
+            choices.AddItem(field.ChoicesLabel);
+            foreach (var choice in field.Choices) choices.Menu!.AddItem(new NSMenuItem(choice));
+            choices.Activated += (_, _) =>
+            {
+                var at = (int)choices.IndexOfSelectedItem - 1;
+                if (at >= 0 && at < field.Choices.Count) field.PickedChoice = field.Choices[at];
+                choices.SelectItem(0);
+            };
+        }
+        choices.Hidden = !field.UsesChoices;
         text.Activated += (_, _) =>
         {
             if (field.SaveCommand.CanExecute(null)) field.SaveCommand.Execute(null);
         };
         var save = Small("Save", () => { });
         _built.Command(save, field.SaveCommand);
-        var editor = Column(text, Row(save, Small("Cancel", () => field.CancelEditCommand.Execute(null))));
+        var editor = Column(text, choices, Row(save, Small("Cancel", () => field.CancelEditCommand.Execute(null))));
         text.WidthAnchor.ConstraintEqualTo(editor.WidthAnchor).Active = true;
         var note = Label("", 11);
 
-        var column = Column(shown, why, decide, editor, note);
+        var column = Column(valueLine, links, why, evidence, decide, editor, note);
         column.Spacing = 3;
         if (correcting)
             foreach (var other in field.Alternatives)
@@ -801,8 +851,9 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
             }
         column.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
         column.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
-        foreach (var view in new NSView[] { shown, why, note })
+        foreach (var view in new NSView[] { valueLine, why, note, links })
             view.WidthAnchor.ConstraintLessThanOrEqualTo(column.WidthAnchor).Active = true;
+        evidence.WidthAnchor.ConstraintEqualTo(column.WidthAnchor).Active = true;
         editor.WidthAnchor.ConstraintEqualTo(column.WidthAnchor).Active = true;
 
         var row = Row(NameLabel(field.Label), column, edit);
@@ -811,14 +862,17 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         row.Spacing = 6;
 
         _built.Properties(field, [nameof(MetadataFieldViewModel.IsEditing), nameof(MetadataFieldViewModel.Problem), nameof(MetadataFieldViewModel.Resolution),
-            nameof(MetadataFieldViewModel.IsBusy)], () =>
+            nameof(MetadataFieldViewModel.IsBusy), nameof(MetadataFieldViewModel.ShowEvidence), nameof(MetadataFieldViewModel.ShowsGuessed)], () =>
         {
             value.StringValue = field.IsKnown ? field.Display : "—";
             value.TextColor = field.IsKnown ? NSColor.Label : NSColor.TertiaryLabel;
             shown.Fill = field.IsKnown && field.IsSuggested ? Palette.Soft : null;
             shown.Hidden = field.IsEditing;
-            why.StringValue = field.IsKnown && field.IsSuggested ? field.EvidenceLabel : "";
-            why.Hidden = field.IsEditing || why.StringValue.Length == 0;
+            why.Title = field.EvidenceLabel;
+            why.Hidden = field.IsEditing || !field.HasEvidence;
+            guessed.Hidden = field.IsEditing || !field.ShowsGuessed;
+            links.Hidden = field.IsEditing || !field.HasLinks;
+            evidence.Hidden = field.IsEditing || !field.ShowEvidence;
             editor.Hidden = !field.IsEditing;
             edit.Hidden = field.IsEditing;
             keep.Hidden = !correcting || !field.IsKnown || !field.IsSuggested;
@@ -835,6 +889,69 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
             row.AlphaValue = field.IsBusy ? 0.6f : 1;
         });
         return row;
+    }
+
+    /// <summary>
+    /// What a field's values rest on, as Windows shows under one: each value with where it was found and Not right,
+    /// Keep this for a suggestion, then the other values found, each with Use this and Not right.
+    /// </summary>
+    static Tinted Evidence(MetadataFieldViewModel field)
+    {
+        var column = Column();
+        column.Spacing = 8;
+        NSStackView Value(MetadataValueViewModel value, bool alternative)
+        {
+            var text = Label(value.Text, 11);
+            text.Font = NSFont.SystemFontOfSize(11, alternative ? NSFontWeight.Regular : NSFontWeight.Semibold)!;
+            text.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+            var head = Row(text);
+            if (alternative) head.AddArrangedSubview(Inline("Use this", () => field.UseCommand.Execute(value)));
+            head.AddArrangedSubview(Inline("Not right", () => field.RejectCommand.Execute(value)));
+            var block = Column(head);
+            block.Spacing = 2;
+            foreach (var source in value.Sources)
+            {
+                var line = Label(source, 11);
+                line.TextColor = NSColor.SecondaryLabel;
+                block.AddArrangedSubview(line);
+                line.WidthAnchor.ConstraintLessThanOrEqualTo(block.WidthAnchor).Active = true;
+            }
+            head.WidthAnchor.ConstraintEqualTo(block.WidthAnchor).Active = true;
+            return block;
+        }
+        foreach (var value in field.Values) Fill(column, Value(value, false));
+        if (field.IsSuggested)
+        {
+            var keep = Inline("Keep this", () => field.KeepCommand.Execute(null));
+            keep.Image = NSImage.GetSystemSymbol("checkmark", null)!;
+            keep.ImagePosition = NSCellImagePosition.ImageLeading;
+            column.AddArrangedSubview(keep);
+        }
+        if (field.HasAlternatives)
+        {
+            var heading = Label("OTHER SUGGESTIONS", 9);
+            heading.Font = NSFont.SystemFontOfSize(9, NSFontWeight.Semibold)!;
+            heading.TextColor = NSColor.SecondaryLabel;
+            column.AddArrangedSubview(heading);
+            foreach (var value in field.Alternatives) Fill(column, Value(value, true));
+        }
+        return new Tinted(column, NSColor.QuaternarySystemFill, 6, new NSEdgeInsets(10, 10, 10, 10));
+
+        static void Fill(NSStackView stack, NSView view)
+        {
+            stack.AddArrangedSubview(view);
+            view.WidthAnchor.ConstraintEqualTo(stack.WidthAnchor).Active = true;
+        }
+    }
+
+    /// <summary>A small text button that reads as a link, as Windows' are in its evidence.</summary>
+    static NSButton Inline(string title, Action action)
+    {
+        var button = NSButton.CreateButton(title, action);
+        button.Bordered = false;
+        button.Font = NSFont.SystemFontOfSize(11)!;
+        button.ContentTintColor = NSColor.ControlAccent;
+        return button;
     }
 
     /// <summary>A plain value beside its name, or one that opens something, as a page note opens its page.</summary>

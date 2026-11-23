@@ -231,6 +231,13 @@ static class DevArguments
                 library.ActivateCommand.Execute(library.Items[at]);
                 for (var waits = 0; notes && waits < 40 && library.Inspector is null; waits++) await Task.Delay(100);
                 if (notes && library.Inspector is { } inspector) inspector.IsNotesTab = true;
+                // The first field Bibliotaph only suggests, or else the first with a value, with what it rests on open.
+                if (Environment.GetCommandLineArgs().Contains("--evidence"))
+                {
+                    for (var waits = 0; waits < 40 && library.Inspector is not { Fields.Count: > 0 }; waits++) await Task.Delay(100);
+                    await Task.Delay(1500);
+                    if ((library.Inspector?.GlanceFields.FirstOrDefault(f => f.IsSuggested) ?? library.Inspector?.GlanceFields.FirstOrDefault(f => f.IsKnown)) is { } field) Bindings.OnMain(() => field.ShowEvidence = true);
+                }
                 return;
             }
         }
