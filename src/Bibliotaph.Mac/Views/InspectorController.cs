@@ -9,7 +9,7 @@ namespace Bibliotaph.Mac.Views;
 /// <summary>
 /// The book's details beside the grid or the book being read, ordered as the Windows panel orders them: what it is and
 /// Open first, then Details and Notes to switch between. Details fold into sections, most useful first: at a glance,
-/// what's inside and what it goes with, its collections; where it came from, the file, its copies and how far reading
+/// what's inside and what it goes with, its collections; where it came from, the file, its copies and how far processing
 /// it got start folded, as Finder's Get Info folds what's looked at less, and each stays as it was last left.
 /// </summary>
 public sealed class InspectorController(MacCovers covers) : NSViewController
@@ -210,7 +210,7 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         if (inspector.HasCopies)
             Fold(inspector.CopiesHeading, pane?.Copies ?? false, open => pane?.Copies = open, () => Copies(inspector));
         if (inspector.ShowsRead)
-            Fold("Reading It", pane?.Read ?? false, open => pane?.Read = open, () =>
+            Fold("Processing", pane?.Read ?? false, open => pane?.Read = open, () =>
             {
                 foreach (var stage in inspector.Stages) Pair(stage.Name, stage.Status);
                 foreach (var fact in inspector.LookupFacts) Pair(fact.Label, fact.Value);
