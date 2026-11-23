@@ -1,6 +1,8 @@
 using AppKit;
 using Bibliotaph.Mac.Binding;
+using Bibliotaph.Presentation.Services;
 using Bibliotaph.Presentation.ViewModels;
+using Bibliotaph.Processing;
 using Foundation;
 
 namespace Bibliotaph.Mac.Views;
@@ -39,7 +41,12 @@ public sealed class BinderController(SessionReaderViewModel binder) : NSViewCont
         more.Bordered = false;
         more.ToolTip = "More";
         more.Activated += (_, _) => MoreMenu().PopUpMenu(null, new CoreGraphics.CGPoint(0, more.Bounds.Height + 4), more);
-        var steps = NSStackView.FromViews([counter, new NSView(), edit, more, previous, next]);
+        // At Hand: a page from another binder kept at hand, in a window of its own. There only while some binder is.
+        var atHand = NSButton.CreateButton(NSImage.GetSystemSymbol("books.vertical", "At Hand")!, () => { });
+        atHand.Bordered = false;
+        atHand.ToolTip = "At Hand: open a page from a binder kept at hand, in a window of its own";
+        atHand.Activated += (_, _) => ShowAtHandAsync(atHand).FireAndForget();
+        var steps = NSStackView.FromViews([counter, new NSView(), edit, atHand, more, previous, next]);
         // Back to the item, once the pages have moved off it, as Windows has it.
         var backToItem = NSButton.CreateButton("Back to the item", () => { });
         backToItem.ControlSize = NSControlSize.Small;
@@ -98,8 +105,41 @@ public sealed class BinderController(SessionReaderViewModel binder) : NSViewCont
             counter.StringValue = binder.Counter;
             SelectCurrent();
         });
+        _bindings.Property(binder, nameof(SessionReaderViewModel.HasAtHand), () => atHand.Hidden = !binder.HasAtHand);
         _bindings.Collection(binder.Rows, _ => Reload());
         Reload();
+    }
+
+    /// <summary>
+    /// At Hand's menu, under its button: the other binders kept at hand, grouped as Windows groups them, each with its
+    /// pages. A page that can't be opened is dimmed, with why as its tooltip.
+    /// </summary>
+    async Task ShowAtHandAsync(NSButton under)
+    {
+        var groups = await binder.AtHandAsync();
+        var menu = new NSMenu { AutoEnablesItems = false };
+        foreach (var group in groups)
+        {
+            if (groups.Count > 1) menu.AddItem(NSMenuItem.CreateSectionHeader(group.Heading));
+            foreach (var kept in group.Binders)
+            {
+                menu.AddItem(new NSMenuItem(kept.Pack.Title) { Enabled = false });
+                foreach (var page in kept.Pages)
+                {
+                    var opens = page.CanOpen || page.OpensOnline;
+                    var picked = new AtHandPage(kept.Pack.Title, page);
+                    menu.AddItem(new NSMenuItem(page.Heading, (_, _) => binder.OpenAtHandCommand.Execute(picked))
+                    {
+                        IndentationLevel = 1,
+                        Enabled = opens,
+                        ToolTip = (opens ? page.Where : page.Reason) ?? "",
+                    });
+                }
+                if (kept.Pages.Count == 0) menu.AddItem(new NSMenuItem(AtHandGroups.NothingInIt) { IndentationLevel = 1, Enabled = false });
+            }
+        }
+        if (menu.Count == 0) menu.AddItem(new NSMenuItem(AtHandGroups.NoneAtHand) { Enabled = false });
+        menu.PopUpMenu(null, new CoreGraphics.CGPoint(0, under.Bounds.Height + 4), under);
     }
 
     void Reload()

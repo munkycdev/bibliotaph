@@ -313,4 +313,35 @@ static class AboutPanel
         };
         NSApplication.SharedApplication.OrderFrontStandardAboutPanelWithOptions(options);
     }
+
+    /// <summary>
+    /// Windows' Copy details, which the standard panel has no place for, so the Help menu has it: the builds a bug
+    /// report needs, on the clipboard. It names builds only, never paths or books.
+    /// </summary>
+    public static void CopyDetails()
+    {
+        var info = AboutInfo.ForThisApp();
+        var details = (info with
+        {
+            Windows = $"macOS {NSProcessInfo.ProcessInfo.OperatingSystemVersionString}",
+            Pdfium = info.Pdfium ?? PdfiumVersion(),
+        }).Details;
+        var board = NSPasteboard.GeneralPasteboard;
+        board.ClearContents();
+        board.SetStringForType(details, NSPasteboardType.String.GetConstant()!);
+    }
+
+    // The worker and its PDFium binding sit in the bundle's resources here, not beside the app's own assemblies.
+    static string? PdfiumVersion()
+    {
+        try
+        {
+            var path = System.IO.Path.Combine(NSBundle.MainBundle.ResourcePath ?? AppContext.BaseDirectory, "pdfworker", "PDFiumCore.dll");
+            return System.IO.File.Exists(path) ? System.Reflection.AssemblyName.GetAssemblyName(path).Version?.ToString(3) : null;
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or BadImageFormatException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
 }
