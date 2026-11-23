@@ -227,19 +227,21 @@ public sealed class MainWindowController : NSWindowController
         NSBackingStore.Buffered, false)
     {
         Title = "Bibliotaph",
+        // Each page says what it is in its own heading, so the toolbar doesn't say it again; the title still names the
+        // window in the Window menu and Mission Control.
+        TitleVisibility = NSWindowTitleVisibility.Hidden,
         ToolbarStyle = NSWindowToolbarStyle.Unified,
     };
 }
 
 /// <summary>
-/// The toolbar: the sidebar's toggle and Add folder at the leading edge; Ask, search, which searches the whole library as
-/// typing pauses, and the inspector's toggle at the trailing edge.
+/// The toolbar: the sidebar's toggle at the leading edge; search, which searches the whole library as typing pauses, and
+/// the inspector's toggle at the trailing edge. Adding a folder is in the File menu and Settings › Library, and asking
+/// in plain English in the Edit menu (⌥⌘F).
 /// </summary>
 sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToolbarDelegate
 {
     const string Search = "search";
-    const string Add = "add";
-    const string Ask = "ask";
     NSSearchToolbarItem? _search;
     AskPopover? _askPopover;
 
@@ -247,9 +249,7 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
     [
         NSToolbar.NSToolbarToggleSidebarItemIdentifier,
         NSToolbar.NSToolbarSidebarTrackingSeparatorItemIdentifier,
-        Add,
         NSToolbar.NSToolbarFlexibleSpaceItemIdentifier,
-        Ask,
         Search,
         // The inspector's own toggle sits over it, at the trailing edge, as the Mac's apps put it.
         NSToolbar.NSToolbarInspectorTrackingSeparatorItemIdentifier,
@@ -262,30 +262,6 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
 
     public override NSToolbarItem WillInsertItem(NSToolbar toolbar, string itemIdentifier, bool willBeInserted)
     {
-        if (itemIdentifier == Add)
-        {
-            var add = new NSToolbarItem(Add)
-            {
-                Label = "Add folder",
-                ToolTip = "Add a folder of books to your library",
-                Image = NSImage.GetSystemSymbol("folder.badge.plus", "Add folder")!,
-                Bordered = true,
-            };
-            add.Activated += (_, _) => AddFolder();
-            return add;
-        }
-        if (itemIdentifier == Ask)
-        {
-            var ask = new NSToolbarItem(Ask)
-            {
-                Label = "Ask",
-                ToolTip = "Ask in plain English: Return reads it as a search, Option-Return answers it from your books",
-                Image = NSImage.GetSystemSymbol("sparkle.magnifyingglass", "Ask")!,
-                Bordered = true,
-            };
-            ask.Activated += (_, _) => shell.PlainSearch.ToggleCommand.Execute(null);
-            return ask;
-        }
         if (itemIdentifier != Search) return null!;
         var item = new NSSearchToolbarItem(Search);
         _askPopover = new AskPopover(shell.PlainSearch, () => item.SearchField.StringValue);
