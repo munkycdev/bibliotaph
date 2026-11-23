@@ -71,6 +71,15 @@ public sealed class MacReaderDocument(WorkerClient worker) : IReaderDocument
         return new PageTextLayer(text.Text, [.. boxes.Select(PdfRects.ToPageRect)]);
     }
 
+    /// <summary>The page's links: to another page, with where on it, or to the web.</summary>
+    public async Task<IReadOnlyList<PageLink>> GetLinksAsync(int pageIndex, CancellationToken ct = default)
+    {
+        var session = await EnsureOpenAsync(ct);
+        var response = await worker.SendAsync(new Request { Op = Op.Links, DocId = session.DocId, PageIndex = pageIndex }, RenderTimeout, ct);
+        if (!response.Ok || response.Links is not { } links) return [];
+        return [.. links.Where(l => l.PageIndex >= 0 || l.Uri is not null).Select(l => new PageLink(l.Box.ToPageRect(), l.PageIndex, l.Top, l.Uri))];
+    }
+
     public async Task<IReadOnlyList<SearchHit>> FindAsync(string query, int pageIndex = -1, int maxHits = 2000, CancellationToken ct = default)
     {
         var session = await EnsureOpenAsync(ct);

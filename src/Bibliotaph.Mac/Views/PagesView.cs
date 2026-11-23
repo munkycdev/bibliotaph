@@ -15,7 +15,8 @@ namespace Bibliotaph.Mac.Views;
 /// A PDF's pages one under another in a scroll view, drawn by the viewer worker as they come into view and let go
 /// once far out of it. Sizes follow the reader's zoom the way the Windows page surface does: 100% is 96 points an
 /// inch, as WPF's units are, and fit width fits the most common page width. Text is selected on one page at a time, as
-/// on Windows: drag across it, double-click a word or triple-click a line, then Copy; Escape lets it go.
+/// on Windows: drag across it, double-click a word or triple-click a line, then Copy; Escape lets it go. Links go where
+/// they point, and the page numbers on a contents or index page are links too, as on Windows.
 /// </summary>
 public sealed class PagesView : NSScrollView
 {
@@ -36,6 +37,9 @@ public sealed class PagesView : NSScrollView
     bool _drawing;
     bool _drawAgain;
     Func<int, Task<PageTextLayer>>? _text;
+    Func<Task<PrintedPages>>? _printed;
+    IReadOnlySet<int> _listed = new HashSet<int>();
+    List<string?> _labels = [];
     PageLayer? _selectionPage;
     TextRange _selection;
     int? _anchor;
@@ -68,6 +72,9 @@ public sealed class PagesView : NSScrollView
     /// <summary>The page mostly in view, which the reader's page box and its saved place follow.</summary>
     public event EventHandler<int>? CurrentPageChanged;
 
+    /// <summary>A link clicked: to a page of the book, or to the web.</summary>
+    public event EventHandler<PageLink>? LinkClicked;
+
     /// <summary>Something to tell the reader, such as why Copy did nothing.</summary>
     public event EventHandler<string>? Notice;
 
@@ -77,11 +84,14 @@ public sealed class PagesView : NSScrollView
     /// <summary>Whether some text is selected, for Copy.</summary>
     public bool HasSelection => _selectionPage is not null && !_selection.IsEmpty;
 
-    public void Load(MacReaderDocument pdf, DocInfo doc, Func<int, Task<PageTextLayer>> text, int pageIndex, double? pdfTop)
+    public void Load(MacReaderDocument pdf, DocInfo doc, Func<int, Task<PageTextLayer>> text, Func<Task<PrintedPages>>? printed, int pageIndex, double? pdfTop)
     {
         Unload();
         _pdf = pdf;
         _text = text;
+        _printed = printed;
+        _labels = doc.PageLabels;
+        _listed = PageReferences.ListedPages([.. doc.Outline.Select(o => (o.Title, o.PageIndex, o.Depth))], doc.PageCount);
         for (var i = 0; i < doc.PageCount; i++)
         {
             var size = i < doc.PageSizes.Count ? doc.PageSizes[i] : new PageSize(612, 792);
@@ -100,6 +110,9 @@ public sealed class PagesView : NSScrollView
         _version++;
         ClearSelection();
         _text = null;
+        _printed = null;
+        _listed = new HashSet<int>();
+        _labels = [];
         foreach (var page in _pages) page.Layer.RemoveFromSuperLayer();
         _pages.Clear();
         _pdf = null;
@@ -209,7 +222,6 @@ public sealed class PagesView : NSScrollView
         ShowHighlights(_marked.Items, _marked.Current, bringIntoView: false);
         RefreshSelection();
         _document.SetFrameSize(new CGSize(width, y));
-        Window?.InvalidateCursorRectsForView(_document);
         if (anchor >= 0)
         {
             var frame = _pages[anchor].Frame;
@@ -270,6 +282,12 @@ public sealed class PagesView : NSScrollView
             return;
         }
         var clicks = e.ClickCount;
+        if (clicks == 1 && LinkAt(page, x, y) is { } link)
+        {
+            ClearSelection();
+            LinkClicked?.Invoke(this, link);
+            return;
+        }
         if (_selectionPage != page) ClearSelection();
         _selectionPage = page;
         _dragging = clicks == 1;
@@ -316,9 +334,73 @@ public sealed class PagesView : NSScrollView
         }
     }
 
+    /// <summary>
+    /// Reads a page's text and links as the pointer reaches it, so a drag can start at once, and shows the text cursor
+    /// over a page, the pointing hand over a link with where it goes as its tip.
+    /// </summary>
     void Hover(NSEvent e)
     {
-        if (PageAt(_document.ConvertPointFromView(e.LocationInWindow, null)) is var (page, _, _) && _text is not null) _ = TextOf(page);
+        if (PageAt(_document.ConvertPointFromView(e.LocationInWindow, null)) is not var (page, x, y) || _text is null)
+        {
+            NSCursor.ArrowCursor.Set();
+            _document.ToolTip = null;
+            return;
+        }
+        _ = TextOf(page);
+        _ = LinksOf(page);
+        var link = LinkAt(page, x, y);
+        (link is null ? NSCursor.IBeamCursor : NSCursor.PointingHandCursor).Set();
+        var tip = link is null ? null : TipFor(link);
+        if (_document.ToolTip != tip) _document.ToolTip = tip!;
+    }
+
+    static PageLink? LinkAt(PageLayer page, double x, double y) =>
+        page.Links is { IsCompletedSuccessfully: true } links ? links.Result.FirstOrDefault(l => l.Box.Contains(x, y)) : null;
+
+    /// <summary>A link's tip, as on Windows: the web address, or "Go to page 34" as the book numbers its pages.</summary>
+    string TipFor(PageLink link)
+    {
+        if (link.Uri is { } uri) return uri;
+        var label = link.PageIndex >= 0 && link.PageIndex < _labels.Count ? _labels[link.PageIndex] : null;
+        if (link.Printed is { } number) return PageReferences.Tip(number, link.PageIndex, label);
+        return $"Go to page {label ?? (link.PageIndex + 1).ToString(System.Globalization.CultureInfo.CurrentCulture)}";
+    }
+
+    /// <summary>A page's links, read once: the PDF's own, or those made from the printed page numbers it lists.</summary>
+    Task<IReadOnlyList<PageLink>> LinksOf(PageLayer page) => page.Links ??= LoadLinksAsync(page);
+
+    async Task<IReadOnlyList<PageLink>> LoadLinksAsync(PageLayer page)
+    {
+        try
+        {
+            if (_pdf is not { } pdf) return [];
+            var (printed, listed) = (_printed, _listed.Contains(page.Index));
+            var links = await pdf.GetLinksAsync(page.Index);
+            // A page with links of its own keeps them, and gets none guessed beside them.
+            if (links.Count > 0 || printed is null) return links;
+            var layer = await TextOf(page);
+            return NumberLinks(layer, await printed(), listed);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Links are a convenience, like selection: a page whose links can't be read just has none.
+            return [];
+        }
+    }
+
+    /// <summary>Links over the printed page numbers on an index or contents page, a range going to its first page.</summary>
+    static List<PageLink> NumberLinks(PageTextLayer layer, PrintedPages printed, bool listed)
+    {
+        var links = new List<PageLink>();
+        foreach (var reference in PageReferences.Find(layer.Text, printed, listed))
+        {
+            var rects = layer.RectsOf(reference.Range);
+            if (rects.Count == 0) continue;
+            var box = rects.Aggregate((a, b) => a.Union(b));
+            // A point of slack around the digits, so a narrow "4" is not fiddly to hit.
+            links.Add(new PageLink(new PageRect(box.Left - 1, box.Top + 1, box.Right + 1, box.Bottom - 1), reference.PageIndex, null, null, reference.Printed));
+        }
+        return links;
     }
 
     void SetSelection(TextRange range)
@@ -447,6 +529,7 @@ public sealed class PagesView : NSScrollView
         public CGRect Frame { get; set; }
         public double DrawnScale { get; private set; }
         public Task<PageTextLayer>? Text { get; set; }
+        public Task<IReadOnlyList<PageLink>>? Links { get; set; }
 
         public CALayer Layer { get; } = new()
         {
@@ -489,7 +572,7 @@ public sealed class PagesView : NSScrollView
 
     /// <summary>
     /// The scroll view's document: top-down like the book, able to take the keyboard for scrolling, and where text is
-    /// selected and copied, with the text cursor over the pages.
+    /// selected and copied, with the text cursor over the pages and the pointing hand over links.
     /// </summary>
     sealed class PagesDocument : NSView
     {
@@ -518,11 +601,6 @@ public sealed class PagesView : NSScrollView
         public override void MouseUp(NSEvent theEvent) => _owner.Release();
 
         public override void MouseMoved(NSEvent theEvent) => _owner.Hover(theEvent);
-
-        public override void ResetCursorRects()
-        {
-            foreach (var page in _owner._pages) AddCursorRect(page.Frame, NSCursor.IBeamCursor);
-        }
 
         public override void KeyDown(NSEvent theEvent)
         {

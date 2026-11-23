@@ -273,6 +273,9 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         EventHandler<int> moved = (_, page) => reader.CurrentPageIndex = page;
         _pages.CurrentPageChanged += moved;
         _bindings.Add(() => _pages.CurrentPageChanged -= moved);
+        EventHandler<PageLink> followed = (_, link) => reader.FollowLink(link);
+        _pages.LinkClicked += followed;
+        _bindings.Add(() => _pages.LinkClicked -= followed);
         EventHandler<string> told = (_, text) => reader.ShowNotice(text);
         _pages.Notice += told;
         _bindings.Add(() => _pages.Notice -= told);
@@ -298,7 +301,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             if (!_opened && reader.Zoom == ZoomSteps.FitWidth) reader.Zoom = ZoomSteps.FitPage;
             _opened = true;
             _pages.SetZoom(reader.Zoom);
-            _pages.Load(document, pdf.Doc, pdf.Text, pdf.PageIndex, pdf.PdfTop);
+            _pages.Load(document, pdf.Doc, pdf.Text, pdf.Numbering, pdf.PageIndex, pdf.PdfTop);
             View.Window?.MakeFirstResponder(_pages.DocumentView);
         }
         else _pages.Unload();
