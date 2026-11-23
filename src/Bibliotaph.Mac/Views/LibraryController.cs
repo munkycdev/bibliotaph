@@ -78,7 +78,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var listScroll = new NSScrollView { DocumentView = _list, HasVerticalScroller = true, DrawsBackground = false };
 
         var root = new NSView();
-        foreach (var view in new NSView[] { pageActions, bar, issue, scroll, listScroll, empty })
+        var hits = new PageHitsView(library, covers);
+        foreach (var view in new NSView[] { pageActions, bar, issue, scroll, listScroll, hits, empty })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
@@ -99,6 +100,10 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             scroll.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
             scroll.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
             scroll.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
+            hits.TopAnchor.ConstraintEqualTo(scroll.TopAnchor),
+            hits.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
+            hits.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
+            hits.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
             listScroll.TopAnchor.ConstraintEqualTo(scroll.TopAnchor),
             listScroll.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 16),
             listScroll.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -16),
@@ -109,17 +114,21 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         ]);
         View = root;
 
+        _bindings.Property(library, nameof(LibraryViewModel.Hits), () => hits.Show(library.Hits));
         _bindings.Property(library, nameof(LibraryViewModel.IssueText), () =>
         {
             issue.StringValue = library.IssueText ?? "";
             issue.Hidden = library.IssueText is null;
         });
         _bindings.Properties(library, [nameof(LibraryViewModel.IsEmpty), nameof(LibraryViewModel.EmptyTitle), nameof(LibraryViewModel.EmptyMessage),
-            nameof(LibraryViewModel.EmptyActionText), nameof(LibraryViewModel.Layout)], () =>
+            nameof(LibraryViewModel.EmptyActionText), nameof(LibraryViewModel.Layout), nameof(LibraryViewModel.ShowHits),
+            nameof(LibraryViewModel.ShowGrid), nameof(LibraryViewModel.ShowList)], () =>
         {
             empty.Hidden = !library.IsEmpty;
-            scroll.Hidden = library.IsEmpty || library.Layout == Bibliotaph.Index.LibraryLayout.List;
-            listScroll.Hidden = library.IsEmpty || library.Layout != Bibliotaph.Index.LibraryLayout.List;
+            // A search's pages show in place of the covers or the list, while its Inside documents tab is chosen.
+            scroll.Hidden = !library.ShowGrid;
+            listScroll.Hidden = !library.ShowList;
+            hits.Hidden = !library.ShowHits;
             emptyTitle.StringValue = library.EmptyTitle;
             emptyMessage.StringValue = library.EmptyMessage;
             emptyAction.Title = library.EmptyActionText ?? "";
@@ -464,8 +473,26 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         saved.Activated += (_, _) => ShowSavedSearches(saved);
         _bindings.Properties(views, [nameof(SmartViewsViewModel.CanSaveView), nameof(SmartViewsViewModel.HasSavedSearches)],
             () => saved.Hidden = !views.CanSaveView && !views.HasSavedSearches);
-        var bar = NSStackView.FromViews([sort, kind, system, type, folder, clear, layout, organize, saved]);
+        // While searching: the books that match, or the pages inside them the words were found on.
+        var results = NSSegmentedControl.FromLabels(["Documents", "Inside documents"], NSSegmentSwitchTracking.SelectOne, () => { });
+        results.ControlSize = NSControlSize.Small;
+        results.Activated += (_, _) =>
+        {
+            if (results.SelectedSegment == 0) library.IsDocumentsTab = true;
+            else library.IsPagesTab = true;
+        };
+        _bindings.Properties(library, [nameof(LibraryViewModel.IsSearching), nameof(LibraryViewModel.Tab), nameof(LibraryViewModel.DocumentsTabLabel),
+            nameof(LibraryViewModel.PagesTabLabel), nameof(LibraryViewModel.ShowLayoutChoice)], () =>
+        {
+            results.Hidden = !library.IsSearching;
+            results.SetLabel(library.DocumentsTabLabel, 0);
+            results.SetLabel(library.PagesTabLabel, 1);
+            results.SelectedSegment = library.IsPagesTab ? 1 : 0;
+            layout.Hidden = !library.ShowLayoutChoice;
+        });
+        var bar = NSStackView.FromViews([results, sort, kind, system, type, folder, clear, layout, organize, saved]);
         bar.Spacing = 8;
+        bar.SetCustomSpacing(16, results);
         return bar;
     }
 
