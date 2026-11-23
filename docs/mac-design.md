@@ -133,6 +133,16 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
   Add a Book I Own Elsewhere.
 - The first-run tour is a popover beside the control each step is about, and Esc skips it.
 
+## Secrets
+
+- What Windows keeps in Credential Manager (the web library key, remembered PDF passwords, endpoint and catalogue
+  keys, storage sign-ins) is in `secrets.json` in the data folder, readable only by the user's account and kept out of
+  Time Machine. Not the keychain: a local build is signed differently every time, so the login keychain would ask for
+  its password at every start, and the data-protection keychain needs a team-signed, provisioned build. Settings say
+  "kept on this Mac", never "in your Keychain".
+- A build that finds no file moves what earlier builds left in the login keychain, with the keychain's dialogs off, and
+  removes those items; whatever it couldn't read is asked for again, such as connecting the Mac to the web library.
+
 ## Built-in AI
 
 - The Mac runs llama.cpp's Apple silicon build, pinned beside the Windows build in build/engine.json; it draws on

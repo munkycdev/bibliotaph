@@ -76,6 +76,12 @@ public sealed record AppPaths(string Root)
     /// </summary>
     public string WebCopies => Path.Combine(Root, "cache", "web");
 
+    /// <summary>
+    /// The Mac's saved secrets (the web library key, PDF passwords, endpoint keys, storage sign-ins), readable only by
+    /// the user. Windows keeps them in Credential Manager instead and never has this file. Not part of a backup.
+    /// </summary>
+    public string Secrets => Path.Combine(Root, "secrets.json");
+
     public IEnumerable<string> Directories => [Root, Backups, Logs, Cache];
 
     public static AppPaths ForCurrentUser() =>
