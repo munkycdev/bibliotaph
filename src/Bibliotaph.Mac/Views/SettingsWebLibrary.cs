@@ -37,7 +37,9 @@ public sealed partial class SettingsWindow
         {
             if (at >= 0 && at < devices.RoomChoices.Count) devices.RoomGb = devices.RoomChoices[at];
         });
-        var roomRow = copies.Row("Room on this Mac", room);
+        // Free Up Space deletes the copies not kept offline, as on Windows; they come back as they're opened.
+        var free = Button("Free Up Space", devices.FreeUpSpaceCommand, bindings);
+        var roomRow = copies.Row("Room on this Mac", room, free);
 
         bindings.Properties(devices, [nameof(DevicesSectionViewModel.IsConnected), nameof(DevicesSectionViewModel.IsWaiting),
             nameof(DevicesSectionViewModel.Code), nameof(DevicesSectionViewModel.StatusLine), nameof(DevicesSectionViewModel.SyncLine),
