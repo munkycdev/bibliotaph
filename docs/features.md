@@ -199,7 +199,7 @@ Every AI value quotes the page it came from, and a quote that isn't on that page
 
 **Library folders sent to AI** keeps a folder away from the model. **See what the AI is reading** shows what the check kept and threw away. Changing the model, or an update that changes the prompt, never re-reads books unless the user asks (**Reclassify**, which counts the books an earlier model or prompt read), and neither does adding names to the vocabulary (the run-again button on Settings > Processing's Cataloguing with AI row sends every book the AI has read back to it, asked first; values the user decided stay; Settings > AI points there). If the model stops answering, AI waits and everything else carries on.
 
-The Windows app has no account or tracking, and needs no cloud service. It goes online only for updates, AI model downloads, a model server the user set up, ISBN lookups (the ISBNs a book prints, sent to Open Library, or through the web library when the PC is connected to one), the web library if the user connects one, and online libraries.
+The Windows app has no account or tracking, and needs no cloud service. It goes online only for updates, AI model downloads, a model server the user set up, book lookups (the ISBNs a book prints, sent to Open Library, and its title, sent to AdventureLookup, and to RPGGeek and Google Books when the user saved their own token or key in Settings > Online libraries, or all of it through the web library when the PC is connected to one), the web library if the user connects one, and online libraries.
 
 ## Your data
 

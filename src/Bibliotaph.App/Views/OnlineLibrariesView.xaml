@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:c="clr-namespace:Bibliotaph.App.Controls"
              xmlns:vm="clr-namespace:Bibliotaph.App.ViewModels"
+             xmlns:pvm="clr-namespace:Bibliotaph.Presentation.ViewModels;assembly=Bibliotaph.Presentation"
              xmlns:core="clr-namespace:Bibliotaph.Core;assembly=Bibliotaph.Core"
              mc:Ignorable="d"
              d:DataContext="{d:DesignInstance vm:OnlineLibrariesViewModel}">
@@ -15,13 +16,38 @@
     starts with its own heading as the other sections do.
   -->
   <UserControl.Resources>
+    <!-- Bt.TextBox's look, for a token or key. -->
+    <Style x:Key="KeyBox" TargetType="PasswordBox">
+      <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+      <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="CaretBrush" Value="{DynamicResource Bt.Text}" />
+      <Setter Property="SelectionBrush" Value="{DynamicResource Bt.Accent}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="PasswordBox">
+            <Border x:Name="Chrome" Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}"
+                    BorderThickness="1" CornerRadius="6" Padding="9,6" SnapsToDevicePixels="True">
+              <ScrollViewer x:Name="PART_ContentHost" Focusable="False" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Bt.Accent}" />
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+
     <!-- One service: its name and what importing from it does, with the button that opens it. -->
     <DataTemplate x:Key="OnlineServiceRow" DataType="{x:Type vm:OnlineServiceViewModel}">
       <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,10">
         <DockPanel>
           <StackPanel DockPanel.Dock="Right" VerticalAlignment="Top" Margin="16,0,0,0">
             <Button x:Name="OpenService" Style="{StaticResource Bt.Button.Primary}" Content="{Binding OpenLabel}" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}"
-                    Command="{Binding OpenCommand}" AutomationProperties.Name="{Binding Name, StringFormat='Open {0} in Bibliotaph\'s browser'}" />
+                    Command="{Binding DataContext.OpenSiteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}" AutomationProperties.Name="{Binding Name, StringFormat='Open {0} in Bibliotaph\'s browser'}" />
           </StackPanel>
           <StackPanel>
             <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="SemiBold" />
@@ -166,6 +192,53 @@
                        Text="Open shows a book you own on D&amp;D Beyond or Demiplane on its own page, in a reader like the PDF reader, signed in through Bibliotaph's browser. Off, it opens in your everyday browser." />
           </StackPanel>
         </CheckBox>
+      </StackPanel>
+    </Border>
+
+    <!-- The catalogues a PC on its own asks: those needing a token or key only with the user's own. -->
+    <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Margin="0,30,0,0" Padding="0,20,0,0">
+      <StackPanel DataContext="{Binding Lookups}">
+        <TextBlock Text="Book catalogues" FontSize="14" FontWeight="SemiBold" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="While this PC isn't connected to a web library, it looks books up itself: in AdventureLookup and Open Library, which need no key, and in RPGGeek and Google Books with a token or key of your own. Connected, it asks through the web library, which has its own. Only ISBNs, product codes and titles are sent, never your books." />
+
+        <TextBlock Text="RPGGeek token" FontSize="12" FontWeight="SemiBold" Margin="0,16,0,0" />
+        <DockPanel Margin="0,5,0,0">
+          <Button DockPanel.Dock="Right" Content="Forget" Command="{Binding ForgetRpgGeekTokenCommand}" Margin="8,0,0,0"
+                  AutomationProperties.Name="Forget the RPGGeek token"
+                  Visibility="{Binding HasRpgGeekToken, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button DockPanel.Dock="Right" Content="Save" Command="{Binding SaveRpgGeekTokenCommand}" Margin="8,0,0,0"
+                  AutomationProperties.Name="Save the RPGGeek token" />
+          <PasswordBox x:Name="RpgGeekTokenBox" Style="{StaticResource KeyBox}" PasswordChanged="OnRpgGeekTokenChanged"
+                       AutomationProperties.Name="RPGGeek token" />
+        </DockPanel>
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" Text="{Binding RpgGeekState}" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="Register an application for non-commercial use with BoardGameGeek, then make a token for it." />
+        <Button Style="{StaticResource Bt.Link}" Content="Register with BoardGameGeek" Command="{Binding DataContext.OpenSiteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                CommandParameter="{x:Static pvm:CatalogueKeysViewModel.RpgGeekRegistration}" Margin="0,4,0,0" HorizontalAlignment="Left" />
+
+        <TextBlock Text="Google Books API key" FontSize="12" FontWeight="SemiBold" Margin="0,16,0,0" />
+        <DockPanel Margin="0,5,0,0">
+          <Button DockPanel.Dock="Right" Content="Forget" Command="{Binding ForgetGoogleBooksKeyCommand}" Margin="8,0,0,0"
+                  AutomationProperties.Name="Forget the Google Books key"
+                  Visibility="{Binding HasGoogleBooksKey, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+          <Button DockPanel.Dock="Right" Content="Save" Command="{Binding SaveGoogleBooksKeyCommand}" Margin="8,0,0,0"
+                  AutomationProperties.Name="Save the Google Books key" />
+          <PasswordBox x:Name="GoogleBooksKeyBox" Style="{StaticResource KeyBox}" PasswordChanged="OnGoogleBooksKeyChanged"
+                       AutomationProperties.Name="Google Books API key" />
+        </DockPanel>
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap" Text="{Binding GoogleBooksState}" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,4,0,0" TextWrapping="Wrap"
+                   Text="Turn on the Books API in a Google Cloud project of your own, then make an API key under Credentials." />
+        <Button Style="{StaticResource Bt.Link}" Content="Open the Books API in Google Cloud" Command="{Binding DataContext.OpenSiteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                CommandParameter="{x:Static pvm:CatalogueKeysViewModel.GoogleBooksConsole}" Margin="0,4,0,0" HorizontalAlignment="Left" />
+
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,12,0,0" TextWrapping="Wrap" Foreground="{DynamicResource Bt.Danger}"
+                   Text="{Binding Problem}" Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
+        <TextBlock Style="{StaticResource Text.Small}" Margin="0,8,0,0" TextWrapping="Wrap"
+                   Text="Both are kept in Windows Credential Manager, never in Bibliotaph's files. Books found on RPGGeek show BoardGameGeek's credit." />
+        <Button Style="{StaticResource Bt.PoweredByBgg}" Margin="0,12,0,0" />
       </StackPanel>
     </Border>
   </StackPanel>

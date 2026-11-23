@@ -301,11 +301,15 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         public void Report((int Done, int Total) value) => Last = value;
     }
 
-    /// <summary>How many jobs there are and how many times they have run.</summary>
+    /// <summary>
+    /// How many jobs there are and how many times they have run. OCR blocked on a computer without it is tried again at
+    /// every start, as an update or a new OCR language may let it run, so its blocked attempts don't count as reading again.
+    /// </summary>
     async Task<(long Jobs, long Attempts)> JobsAsync()
     {
         await using var c = _index.OpenRead();
-        return await c.QuerySingleAsync<(long, long)>("SELECT count(*), coalesce(sum(attempts), 0) FROM job");
+        return await c.QuerySingleAsync<(long, long)>(
+            "SELECT count(*), coalesce(sum(CASE WHEN stage = 'Ocr' AND status = 'blocked' THEN 0 ELSE attempts END), 0) FROM job");
     }
 
     sealed class Factory(CatalogDatabase database) : IDbContextFactory<CatalogDbContext>
