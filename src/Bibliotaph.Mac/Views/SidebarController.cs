@@ -57,9 +57,28 @@ public sealed class SidebarController(LibraryActivity activity, INavigationServi
         status.ToolTip = "Show what Bibliotaph is doing in Settings › Processing";
         status.AddGestureRecognizer(new NSClickGestureRecognizer(() => StatusClicked?.Invoke(this, EventArgs.Empty)));
         _status = status;
+        // An update downloaded in the background: it waits for this click, as a game may be under way.
+        var update = NSButton.CreateButton("Restart to Update", () => shell.RestartToUpdateCommand.Execute(null));
+        update.ControlSize = NSControlSize.Small;
+        update.TintProminence = NSTintProminence.Primary;
+        update.ToolTip = "Quit Bibliotaph, update it and open it again";
+        var ready = NSTextField.CreateLabel("");
+        ready.Font = NSFont.SystemFontOfSize(11)!;
+        ready.TextColor = NSColor.SecondaryLabel;
+        var updateLine = NSStackView.FromViews([update, ready]);
+        updateLine.Spacing = 6;
+        var foot = NSStackView.FromViews([updateLine, status]);
+        foot.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        foot.Alignment = NSLayoutAttribute.Leading;
+        foot.Spacing = 8;
+        _bindings.Properties(shell.Updates, [nameof(IUpdateService.IsReady), nameof(IUpdateService.ReadyText)], () =>
+        {
+            updateLine.Hidden = !shell.Updates.IsReady;
+            ready.StringValue = shell.Updates.ReadyText;
+        });
 
         var root = new NSView();
-        foreach (var view in new NSView[] { scroll, status })
+        foreach (var view in new NSView[] { scroll, foot })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
@@ -69,10 +88,11 @@ public sealed class SidebarController(LibraryActivity activity, INavigationServi
             scroll.TopAnchor.ConstraintEqualTo(root.TopAnchor),
             scroll.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
             scroll.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
-            scroll.BottomAnchor.ConstraintEqualTo(status.TopAnchor, -8),
-            status.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 16),
-            status.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -12),
-            status.BottomAnchor.ConstraintEqualTo(root.BottomAnchor, -14),
+            scroll.BottomAnchor.ConstraintEqualTo(foot.TopAnchor, -8),
+            foot.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 16),
+            foot.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -12),
+            foot.BottomAnchor.ConstraintEqualTo(root.BottomAnchor, -14),
+            status.WidthAnchor.ConstraintEqualTo(foot.WidthAnchor),
         ]);
         View = root;
 

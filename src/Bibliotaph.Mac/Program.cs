@@ -20,6 +20,8 @@ static class Program
 {
     static void Main(string[] args)
     {
+        // Before anything else, as Velopack asks: an install or update may be running this copy only to finish itself.
+        Velopack.VelopackApp.Build().Run();
         NSApplication.Init();
         NSApplication.SharedApplication.Delegate = new AppDelegate(args);
         NSApplication.Main(args);
@@ -84,6 +86,8 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
             _main = new MainWindowController(services);
             NSApplication.SharedApplication.MainMenu = Menus.Build(_main);
             _main.ShowWindow(this);
+            // Once the window shows, as on Windows: a build that wasn't installed doesn't check.
+            services.GetRequiredService<Presentation.Services.IUpdateService>().Start();
             // A copy checking a build stays behind what the person at the Mac is doing, so it can't take their typing.
             if (!args.Contains("--screenshot")) NSApplication.SharedApplication.Activate();
             // Opens Home, or the Library when Settings says to start there, as on Windows.

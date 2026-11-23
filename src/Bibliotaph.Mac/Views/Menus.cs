@@ -13,6 +13,7 @@ static class Menus
 
         bar.AddItem(Top("Bibliotaph",
             new NSMenuItem("About Bibliotaph", (_, _) => AboutPanel.Show()),
+            RestartToUpdate(main),
             NSMenuItem.SeparatorItem,
             new NSMenuItem("Settings…", ",", (_, _) => main.ShowSettings()),
             new NSMenuItem("Your Web Library…", (_, _) => main.ShowDevices()),
@@ -81,6 +82,8 @@ static class Menus
             Item("Show Sidebar", "toggleSidebar:", "s", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask),
             Item("Show Inspector", "toggleInspector:", "i", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask),
             NSMenuItem.SeparatorItem,
+            NSMenuItem.SeparatorItem,
+            Appearance(main),
             Item("Enter Full Screen", "toggleFullScreen:", "f", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask));
         covers.ValidateMenuItem = list.ValidateMenuItem = _ => main.Library is not null;
         view.Submenu!.Delegate = new Layouts(main, covers, list, sortBy);
@@ -127,6 +130,36 @@ static class Menus
         public override void MenuWillHighlightItem(NSMenu menu, NSMenuItem? item)
         {
         }
+    }
+
+    /// <summary>
+    /// Appearance: as macOS, Light or Dark, ticked for the one in use; the Mac's place for what Windows' sidebar button
+    /// switches. Settings › Preferences has the same choice.
+    /// </summary>
+    static NSMenuItem Appearance(MainWindowController main)
+    {
+        var menu = new NSMenu("Appearance");
+        (string Title, Core.ThemePreference Preference)[] choices =
+            [("Same as macOS", Core.ThemePreference.System), ("Light", Core.ThemePreference.Light), ("Dark", Core.ThemePreference.Dark)];
+        foreach (var (title, preference) in choices)
+        {
+            var item = new NSMenuItem(title, (_, _) => main.Theme.SetPreferenceAsync(preference).FireAndForget());
+            item.ValidateMenuItem = entry =>
+            {
+                entry.State = main.Theme.Preference == preference ? NSCellStateValue.On : NSCellStateValue.Off;
+                return true;
+            };
+            menu.AddItem(item);
+        }
+        return new NSMenuItem("Appearance") { Submenu = menu };
+    }
+
+    /// <summary>An update downloaded in the background waits for this, as a game may be under way; dimmed until then.</summary>
+    static NSMenuItem RestartToUpdate(MainWindowController main)
+    {
+        var item = new NSMenuItem("Restart to Update", (_, _) => main.RestartToUpdate());
+        item.ValidateMenuItem = _ => main.UpdateReady;
+        return item;
     }
 
     static NSMenuItem Top(string title, params NSMenuItem[] items)

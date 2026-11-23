@@ -57,28 +57,6 @@ public sealed class MacTheme(SettingsStore settings) : IThemeService
     }
 }
 
-/// <summary>Updates come as a new build for now; nothing is downloaded in the background.</summary>
-public sealed class NoUpdates : IUpdateService
-{
-    public bool IsReady => false;
-
-    public string ReadyText => "";
-
-    public event PropertyChangedEventHandler? PropertyChanged
-    {
-        add { }
-        remove { }
-    }
-
-    public void Start()
-    {
-    }
-
-    public void RestartToUpdate()
-    {
-    }
-}
-
 /// <summary>Start over's part of the secrets: everything Bibliotaph saved, wherever it keeps them.</summary>
 public interface IForgetsSecrets
 {

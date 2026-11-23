@@ -168,6 +168,14 @@ public sealed class MainWindowController : NSWindowController
     /// <summary>Settings > Library with the picker for a folder in connected storage, as Windows' Add menu has it.</summary>
     public void AddFromStorage() => _services.GetRequiredService<LibraryFolders>().RequestStoragePick();
 
+    /// <summary>Light, dark or as macOS, for the View menu.</summary>
+    public MacTheme Theme => _services.GetRequiredService<MacTheme>();
+
+    /// <summary>An update has downloaded and waits for a restart.</summary>
+    public bool UpdateReady => _shell.Updates.IsReady;
+
+    public void RestartToUpdate() => _shell.RestartToUpdateCommand.Execute(null);
+
     /// <summary>Back to the page before, from the Go menu.</summary>
     public void GoBack()
     {
