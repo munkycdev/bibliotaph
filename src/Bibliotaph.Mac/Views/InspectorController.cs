@@ -3,6 +3,7 @@ using AppKit;
 using Bibliotaph.Mac.Binding;
 using Bibliotaph.Presentation.ViewModels;
 using CoreGraphics;
+using Foundation;
 
 namespace Bibliotaph.Mac.Views;
 
@@ -119,14 +120,19 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
             nameof(InspectorViewModel.ShowAllFields), nameof(InspectorViewModel.IsReprocessing), nameof(InspectorViewModel.IsCorrecting),
             nameof(InspectorViewModel.Collections), nameof(InspectorViewModel.SourceBook), nameof(InspectorViewModel.IsPickingBook),
             nameof(InspectorViewModel.Parts), nameof(InspectorViewModel.Chapters), nameof(InspectorViewModel.ShowsAllChapters),
-            nameof(InspectorViewModel.LookupFacts), nameof(InspectorViewModel.LookAlikeOffer), nameof(InspectorViewModel.RpgGeekRecord)], () =>
+            nameof(InspectorViewModel.LookupFacts), nameof(InspectorViewModel.LookAlikeOffer), nameof(InspectorViewModel.RpgGeekRecord),
+            nameof(InspectorViewModel.CanLinkRpgGeek), nameof(InspectorViewModel.IsLinkingRpgGeek), nameof(InspectorViewModel.FromRpgGeek),
+            nameof(InspectorViewModel.HasPackCover), nameof(InspectorViewModel.HasChosenCover), nameof(InspectorViewModel.CoverProblem),
+            nameof(InspectorViewModel.ChaptersMessage), nameof(InspectorViewModel.IsKeptOffline), nameof(InspectorViewModel.IsKeepingOffline),
+            nameof(InspectorViewModel.OfflineText)], () =>
         {
             if (!inspector.IsNotesTab) Rebuild(inspector);
         });
         _shown.Property(inspector, nameof(InspectorViewModel.IsNotesTab), () => Rebuild(inspector));
+        PartEditorSheet(inspector);
         if (inspector.Pane is { } pane)
             _shown.Properties(pane, [nameof(DetailsPaneViewModel.Glance), nameof(DetailsPaneViewModel.Adventures), nameof(DetailsPaneViewModel.InFile),
-                nameof(DetailsPaneViewModel.GoesWith), nameof(DetailsPaneViewModel.Inside), nameof(DetailsPaneViewModel.Collections),
+                nameof(DetailsPaneViewModel.GoesWith), nameof(DetailsPaneViewModel.Pack), nameof(DetailsPaneViewModel.Inside), nameof(DetailsPaneViewModel.Collections),
                 nameof(DetailsPaneViewModel.Publication), nameof(DetailsPaneViewModel.File), nameof(DetailsPaneViewModel.Copies),
                 nameof(DetailsPaneViewModel.Read)], () =>
             {
@@ -182,28 +188,33 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
                 Fields(inspector.GlanceFields, inspector.IsCorrecting);
                 if (inspector.HasHiddenGlanceFields) More(inspector);
             });
-        if (inspector.HasParts)
-            Fold(inspector.PartsHeading, pane?.Adventures ?? true, open => pane?.Adventures = open, () =>
-            {
-                foreach (var part in inspector.Parts) Link(part.Title, part.PagesText, () => inspector.ShowPartCommand.Execute(part));
-            });
+        if (inspector.HasParts || inspector.CanMarkParts)
+            Fold(inspector.PartsHeading, pane?.Adventures ?? true, open => pane?.Adventures = open, () => Adventures(inspector));
         if (inspector.IsPart)
             Fold("In a File", pane?.InFile ?? true, open => pane?.InFile = open, () =>
             {
                 Text(inspector.PartOf, secondary: true);
-                Add(Small("Show the Whole File", () => inspector.ShowPartFileCommand.Execute(null)));
+                Add(Row(Small("Show the Whole File", () => inspector.ShowPartFileCommand.Execute(null)),
+                    Small("Edit Pages…", () => inspector.EditPartRangeCommand.Execute(null)),
+                    Small("Remove Adventure", () => inspector.RemoveThisPartCommand.Execute(null))));
             });
         if (inspector.ShowsGoesWith || inspector.HasCompanions)
-            Fold("Goes With", pane?.GoesWith ?? true, open => pane?.GoesWith = open, () => GoesWith(inspector));
+            Fold("Goes With", pane?.GoesWith ?? true, open => pane?.GoesWith = open, () =>
+            {
+                Said(inspector.SourceUndo);
+                GoesWith(inspector);
+            });
+        if (inspector.IsPack)
+            Fold(inspector.PackImagesHeading, pane?.Pack ?? true, open => pane?.Pack = open, () => Pack(inspector));
         if (inspector.ShowsInside)
             Fold("Inside", pane?.Inside ?? true, open => pane?.Inside = open, () => Inside(inspector));
         Fold("Collections", pane?.Collections ?? true, open => pane?.Collections = open, () => Collections(inspector));
-        if (inspector.PublicationFields.Count > 0 || inspector.HasHiddenPublicationFields || inspector.HasRpgGeekRecord)
+        if (inspector.PublicationFields.Count > 0 || inspector.HasHiddenPublicationFields || inspector.ShowsRpgGeek)
             Fold("Publication", pane?.Publication ?? false, open => pane?.Publication = open, () =>
             {
                 Fields(inspector.PublicationFields, inspector.IsCorrecting);
-                if (inspector.HasRpgGeekRecord) Pair("RPGGeek", inspector.RpgGeekText, () => inspector.OpenRpgGeekCommand.Execute(null));
                 if (inspector.HasHiddenPublicationFields) More(inspector);
+                RpgGeek(inspector);
             });
         if (inspector.Facts.Count > 0 || inspector.Locations.Count > 0)
             Fold(inspector.FactsHeading, pane?.File ?? false, open => pane?.File = open, () => File(inspector));
@@ -257,6 +268,8 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         meta.TextColor = NSColor.TertiaryLabel;
         Add(meta, stretch: true);
         _stack.SetCustomSpacing(12, meta);
+
+        if (inspector.CanChooseCover) ChosenCover(inspector);
 
         var actions = new List<NSView>();
         if (inspector.CanOpen && _library is { } library)
@@ -367,6 +380,7 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
 
     void Inside(InspectorViewModel inspector)
     {
+        if (inspector.ChaptersMessage is { } message) Text(message, secondary: true);
         Fields(inspector.InsideFields, inspector.IsCorrecting);
         if (inspector.HasHiddenInsideFields && inspector.GlanceFields.Count == 0) More(inspector);
         foreach (var chapter in inspector.ShownChapters)
@@ -377,6 +391,250 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
             all.BezelStyle = NSBezelStyle.Inline;
             Indented(all);
         }
+        if (inspector.HasChapters)
+        {
+            var again = Small("Scan Chapters Again", () => { });
+            _built.Command(again, inspector.ScanAgainCommand);
+            again.ToolTip = "Ask the AI to read the chapters again";
+            Add(again);
+        }
+    }
+
+    /// <summary>
+    /// The adventures marked in this file, each opening its own card, with Edit Pages and Remove on its menu; Add marks
+    /// more pages as one.
+    /// </summary>
+    void Adventures(InspectorViewModel inspector)
+    {
+        Said(inspector.PartUndo);
+        foreach (var part in inspector.Parts)
+        {
+            var link = LinkView(part.Title, part.PagesText, () => inspector.ShowPartCommand.Execute(part));
+            var more = NSButton.CreateButton(NSImage.GetSystemSymbol("ellipsis", "More")!, () => { });
+            more.Bordered = false;
+            more.ContentTintColor = NSColor.SecondaryLabel;
+            more.ToolTip = $"Edit or remove {part.Title}";
+            more.Activated += (_, _) =>
+            {
+                var menu = new NSMenu();
+                menu.AddItem(new NSMenuItem("Edit Pages…", (_, _) => inspector.EditPartRangeCommand.Execute(part)));
+                menu.AddItem(new NSMenuItem("Remove Adventure", (_, _) => inspector.RemovePartCommand.Execute(part)));
+                menu.PopUpMenu(null, new CGPoint(0, more.Bounds.Height + 4), more);
+            };
+            link.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+            var row = Row(link, more);
+            row.Alignment = NSLayoutAttribute.Top;
+            row.Distribution = NSStackViewDistribution.Fill;
+            Add(row, stretch: true);
+        }
+        if (!inspector.HasParts) Text("Mark the pages of an adventure in this file, and it gets a card of its own.", secondary: true);
+        if (inspector.CanMarkParts)
+        {
+            var add = Small("Add Adventure…", () => inspector.AddPartCommand.Execute(null));
+            add.ToolTip = "Mark pages of this file as an adventure with a card of its own";
+            Add(add);
+        }
+    }
+
+    /// <summary>The pages of an adventure, typed as the file numbers them, in a sheet over the window while it's open.</summary>
+    void PartEditorSheet(InspectorViewModel inspector)
+    {
+        (Sheet Sheet, Bindings Bindings)? showing = null;
+        void Close()
+        {
+            if (showing is not { } old) return;
+            old.Bindings.Dispose();
+            old.Sheet.Close();
+            old.Sheet.Dispose();
+            showing = null;
+        }
+        _shown.Property(inspector, nameof(InspectorViewModel.PartEditor), () =>
+        {
+            Close();
+            if (inspector.PartEditor is not { } editor || View.Window is not { } host) return;
+            var sheet = new Sheet(420);
+            var bindings = new Bindings();
+            sheet.Text(editor.Heading, size: 15).Font = NSFont.SystemFontOfSize(15, NSFontWeight.Semibold)!;
+            if (editor.ShowsTitle)
+            {
+                var title = new NSTextField { PlaceholderString = "The adventure's title", StringValue = editor.Title };
+                title.Changed += (_, _) => editor.Title = title.StringValue;
+                sheet.AddWide(title);
+            }
+            var from = new NSTextField { PlaceholderString = "From page", StringValue = editor.From };
+            from.Changed += (_, _) => editor.From = from.StringValue;
+            var to = new NSTextField { PlaceholderString = "To page", StringValue = editor.To };
+            to.Changed += (_, _) => editor.To = to.StringValue;
+            var pages = Row(Label("Pages", 13), from, Label("to", 13), to);
+            from.WidthAnchor.ConstraintEqualTo(90).Active = true;
+            to.WidthAnchor.ConstraintEqualTo(90).Active = true;
+            sheet.Content.AddArrangedSubview(pages);
+            var hint = sheet.Text(Processing.DetailsText.PagesHint, secondary: true, size: 11);
+            var problem = sheet.Text("");
+            problem.TextColor = NSColor.SystemOrange;
+            bindings.Properties(editor, [nameof(PartEditorViewModel.Problem), nameof(PartEditorViewModel.From), nameof(PartEditorViewModel.To)], () =>
+            {
+                problem.StringValue = editor.Problem ?? "";
+                problem.Hidden = editor.Problem is null;
+                hint.TextColor = editor.PagesProblem is null ? NSColor.SecondaryLabel : NSColor.SystemOrange;
+                sheet.Fit();
+            });
+            var cancel = NSButton.CreateButton("Cancel", () => { });
+            cancel.KeyEquivalent = "\u001b";
+            bindings.Command(cancel, editor.CancelCommand);
+            var save = NSButton.CreateButton(editor.ActionText, () => { });
+            bindings.Command(save, editor.SaveCommand);
+            sheet.Buttons(cancel, save);
+            sheet.Show(host);
+            showing = (sheet, bindings);
+        });
+        _shown.Add(Close);
+    }
+
+    /// <summary>
+    /// A pack's files as thumbnails, each opening in the reader with the rest to step through; a file's menu makes it
+    /// the pack's cover, and Split gives every file its card back.
+    /// </summary>
+    void Pack(InspectorViewModel inspector)
+    {
+        var grid = new WrapView { Gap = 8 };
+        grid.SetItems(inspector.PackImages.Select(image =>
+        {
+            var thumb = new NSImageView { ImageScaling = NSImageScale.ProportionallyUpOrDown, WantsLayer = true };
+            thumb.Layer!.CornerRadius = 4;
+            thumb.Layer.MasksToBounds = true;
+            thumb.Layer.BackgroundColor = Palette.Soft.CGColor;
+            thumb.WidthAnchor.ConstraintEqualTo(80).Active = true;
+            thumb.HeightAnchor.ConstraintEqualTo(80).Active = true;
+            if (image.Tile is { } tile)
+            {
+                thumb.Image = covers.TryGet(tile.Name)!;
+                if (thumb.Image is null) _ = LoadCoverAsync(thumb, tile.Name);
+            }
+            var name = NSTextField.CreateLabel(image.IsPdf ? $"PDF · {image.Name}" : image.Name);
+            name.Font = NSFont.SystemFontOfSize(10)!;
+            name.TextColor = image.IsCover ? NSColor.ControlAccent : NSColor.SecondaryLabel;
+            name.LineBreakMode = NSLineBreakMode.TruncatingMiddle;
+            name.WidthAnchor.ConstraintEqualTo(80).Active = true;
+            var cell = Column(thumb, name);
+            cell.Spacing = 3;
+            cell.ToolTip = image.IsCover ? $"{image.Name} (the pack's cover)" : image.Name;
+            if (_library is { } library) cell.AddGestureRecognizer(new NSClickGestureRecognizer(() => library.OpenPackImageCommand.Execute(image)));
+            var menu = new NSMenu();
+            if (image.IsCover) menu.AddItem(new NSMenuItem("Use the Mosaic", (_, _) => inspector.UseMosaicCommand.Execute(null)));
+            else menu.AddItem(new NSMenuItem("Use as the Pack's Cover", (_, _) => inspector.UsePackCoverCommand.Execute(image)));
+            cell.Menu = menu;
+            cell.SetFrameSize(cell.FittingSize);
+            return (NSView)cell;
+        }));
+        Add(grid, stretch: true);
+        var actions = new List<NSView>();
+        if (inspector.HasPackCover) actions.Add(Small("Use the Mosaic", () => inspector.UseMosaicCommand.Execute(null)));
+        var split = Small(inspector.SplitPackLabel, () => inspector.SplitPackCommand.Execute(null));
+        split.ToolTip = inspector.SplitPackTip;
+        actions.Add(split);
+        Add(Row([.. actions]));
+        Text("Right-click a file to make it the pack's cover.", secondary: true);
+    }
+
+    /// <summary>
+    /// The book's record on RPGGeek with Not This Book, or a box to give it one by its page's address; RPGGeek's data
+    /// is credited to BoardGameGeek wherever it shows, as their terms ask.
+    /// </summary>
+    void RpgGeek(InspectorViewModel inspector)
+    {
+        if (inspector.HasRpgGeekRecord)
+        {
+            var record = LinkView(inspector.RpgGeekText, "", () => inspector.OpenRpgGeekCommand.Execute(null));
+            record.ToolTip = inspector.RpgGeekUrl ?? "";
+            var refuse = Small("Not This Book", () => { });
+            _built.Command(refuse, inspector.NotOnRpgGeekCommand);
+            record.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+            var row = Row(NameLabel("RPGGeek"), record, refuse);
+            row.Distribution = NSStackViewDistribution.Fill;
+            row.Alignment = NSLayoutAttribute.FirstBaseline;
+            Add(row, stretch: true);
+        }
+        if (inspector.OffersRpgGeekLink) Indented(Small(inspector.RpgGeekOffer, () => inspector.StartRpgGeekLinkCommand.Execute(null)));
+        if (inspector.IsLinkingRpgGeek)
+        {
+            var address = new NSTextField { PlaceholderString = "The book's page on RPGGeek", StringValue = inspector.RpgGeekLink };
+            address.Changed += (_, _) => inspector.RpgGeekLink = address.StringValue;
+            address.Activated += (_, _) => inspector.LinkRpgGeekCommand.Execute(null);
+            Add(address, stretch: true);
+            Text(Processing.LookupLinks.Hint, secondary: true);
+            var problem = Label("", 11);
+            problem.TextColor = NSColor.SystemOrange;
+            Add(problem, stretch: true);
+            var look = Small("", () => { });
+            _built.Command(look, inspector.LinkRpgGeekCommand);
+            look.KeyEquivalent = "\r";
+            var cancel = Small("Cancel", () => inspector.CancelRpgGeekLinkCommand.Execute(null));
+            Add(Row(look, cancel));
+            _built.Properties(inspector, [nameof(InspectorViewModel.RpgGeekProblem), nameof(InspectorViewModel.IsRpgGeekBusy)], () =>
+            {
+                problem.StringValue = inspector.RpgGeekProblem ?? "";
+                problem.Hidden = inspector.RpgGeekProblem is null;
+                look.Title = inspector.RpgGeekLookUpLabel;
+            });
+            Bindings.OnMain(() => address.Window?.MakeFirstResponder(address));
+        }
+        if (inspector.FromRpgGeek) Add(BggCredit());
+    }
+
+    /// <summary>BoardGameGeek's "Powered by BGG" logo, in the secondary text colour, opening boardgamegeek.com.</summary>
+    static NSButton BggCredit()
+    {
+        var logo = new NSImage(NSBundle.MainBundle.PathForResource("powered-by-bgg", "png") ?? "") { Template = true };
+        logo.Size = new CGSize(95, 22);
+        var credit = NSButton.CreateButton(logo, () => NSWorkspace.SharedWorkspace.OpenUrl(new NSUrl("https://boardgamegeek.com")));
+        credit.Bordered = false;
+        credit.ContentTintColor = NSColor.SecondaryLabel;
+        credit.ToolTip = "Book data looked up on RPGGeek comes from BoardGameGeek. Opens boardgamegeek.com";
+        return credit;
+    }
+
+    /// <summary>A picture of the user's own as the cover of a book owned elsewhere, or that picture taken off again.</summary>
+    void ChosenCover(InspectorViewModel inspector)
+    {
+        var choose = Small(inspector.HasChosenCover ? "Choose Another Picture…" : "Choose a Cover Image…", () => { });
+        _built.Command(choose, inspector.ChooseCoverCommand);
+        choose.ToolTip = "Use a picture of your own as this book's cover";
+        var buttons = new List<NSView> { choose };
+        if (inspector.HasChosenCover)
+        {
+            var remove = Small("Remove the Cover", () => { });
+            _built.Command(remove, inspector.RemoveCoverCommand);
+            buttons.Add(remove);
+        }
+        Add(Row([.. buttons]));
+        if (inspector.CoverProblem is { } problem)
+        {
+            var text = Label(problem, 11);
+            text.TextColor = NSColor.SystemOrange;
+            Add(text, stretch: true);
+        }
+    }
+
+    /// <summary>What the last change here did, with Undo where it can be undone.</summary>
+    void Said(UndoSlot slot)
+    {
+        var message = Label("", 12);
+        var undo = Small("Undo", () => { });
+        _built.Command(undo, slot.UndoCommand);
+        var close = NSButton.CreateButton(NSImage.GetSystemSymbol("xmark", "Hide")!, () => slot.Clear());
+        close.Bordered = false;
+        message.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+        var row = Row(message, undo, close);
+        row.Distribution = NSStackViewDistribution.Fill;
+        var box = new Tinted(row, Palette.Soft, 6, new NSEdgeInsets(6, 10, 6, 6));
+        Add(box, stretch: true);
+        _built.Properties(slot, [nameof(UndoSlot.Message), nameof(UndoSlot.HasUndo)], () =>
+        {
+            message.StringValue = slot.Message ?? "";
+            box.Hidden = slot.Message is null;
+            undo.Hidden = !slot.HasUndo;
+        });
     }
 
     /// <summary>The collections it's in, as chips with a × to take it out, and Add to Collection.</summary>
@@ -423,6 +681,16 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
 
     void File(InspectorViewModel inspector)
     {
+        if (inspector.CanKeepOffline)
+        {
+            var keep = NSButton.CreateCheckbox("Keep Offline on This Mac", () => { });
+            keep.State = inspector.IsKeptOffline ? NSCellStateValue.On : NSCellStateValue.Off;
+            keep.Enabled = inspector.CanChangeKeptOffline;
+            keep.Activated += (_, _) => inspector.IsKeptOffline = keep.State == NSCellStateValue.On;
+            keep.ToolTip = "Keep a copy of this web book here, so it opens without the internet";
+            Add(keep);
+            if (inspector.OfflineText is { } offline) Text(offline, secondary: true);
+        }
         foreach (var fact in inspector.Facts) Pair(fact.Label, fact.Value);
         foreach (var location in inspector.Locations)
         {
