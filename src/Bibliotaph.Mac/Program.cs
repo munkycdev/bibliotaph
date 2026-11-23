@@ -159,6 +159,8 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
             .AddSecrets(everyday)
             .AddDesktop(paths, dev: dev)
             .AddMacPdfWorker();
+        // After the shared registrations, which hold Windows' cloud files: iCloud Drive and File Provider folders instead.
+        builder.Services.AddSingleton<Bibliotaph.Processing.ICloudFiles, MacCloudFiles>();
         return builder.Build();
     }
 

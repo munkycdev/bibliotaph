@@ -219,6 +219,15 @@ static class BulkEditSheet
                 {
                     var mark = chip.IsAdding ? "+ " : chip.IsRemoving ? "− " : "";
                     toggle.Title = $"{mark}{chip.Text}  {chip.CountText}";
+                    // A value new to the library says so in italics after it, as on Windows.
+                    if (chip.NewNote is { } fresh)
+                    {
+                        var title = new NSMutableAttributedString($"{mark}{chip.Text} ");
+                        var italic = NSFontManager.SharedFontManager.ConvertFont(NSFont.SystemFontOfSize(10)!, NSFontTraitMask.Italic)!;
+                        title.Append(new NSAttributedString(fresh, new NSStringAttributes { Font = italic, ForegroundColor = NSColor.SecondaryLabel }.Dictionary));
+                        title.Append(new NSAttributedString($"  {chip.CountText}"));
+                        toggle.AttributedTitle = title;
+                    }
                     toggle.ToolTip = chip.Description;
                     toggle.ContentTintColor = chip.IsAdding ? NSColor.ControlAccent : chip.IsRemoving ? NSColor.TertiaryLabel : null!;
                     remove.ToolTip = chip.RemoveName;

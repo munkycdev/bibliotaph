@@ -32,12 +32,18 @@ public sealed partial class SettingsWindow
         var nowRow = now.Wide(nowText);
         var attention = now.Row("Files needing attention", Button("Show…", processing.OpenFilesNeedingAttentionCommand, bindings));
         var reading = now.Row("What the AI is reading", Button("Show…", processing.OpenAiReadingCommand, bindings));
-        bindings.Properties(activity, [nameof(LibraryActivity.Now), nameof(LibraryActivity.Notes), nameof(LibraryActivity.AiWaiting)], () =>
+        bindings.Properties(activity, [nameof(LibraryActivity.Now), nameof(LibraryActivity.Notes), nameof(LibraryActivity.AiWaiting),
+            nameof(LibraryActivity.NeedsAttention), nameof(LibraryActivity.WaitingForDiskSpace)], () =>
         {
             nowText.StringValue = string.Join("\n", activity.Now);
             nowRow.Hidden = activity.Now.Count == 0;
             attention.ShowDetail(activity.Notes);
-            now.Note(activity.IsAiWaiting ? $"Cataloguing with AI is waiting: {activity.AiWaiting}" : null);
+            // Only when some file needs it, as Windows' link to them shows.
+            attention.Hidden = !activity.NeedsAttention;
+            var waiting = new List<string>();
+            if (activity.WaitingForDiskSpace) waiting.Add("Online-only files are waiting: downloading more would leave less than 2 GB free on that disk.");
+            if (activity.IsAiWaiting) waiting.Add($"Cataloguing with AI is waiting: {activity.AiWaiting}");
+            now.Note(waiting.Count == 0 ? null : string.Join("\n", waiting));
             now.Footer.TextColor = NSColor.SystemOrange;
         });
         reading.ShowDetail("The books it is reading now, and those that failed");
@@ -61,6 +67,15 @@ public sealed partial class SettingsWindow
             pause.View.Hidden = indexRow.Hidden && ocrRow.Hidden && aiRow.Hidden;
         });
 
+        // Files in iCloud Drive or another cloud folder that reading downloaded go back to online-only, as Windows does
+        // for OneDrive, so a library bigger than the disk can still be read.
+        var cloud = form.Section("Cloud files");
+        var returns = FormText.Switch(on => processing.ReturnOnlineOnly = on);
+        cloud.Row("Return files to online-only after indexing",
+            "Files in iCloud Drive or a cloud folder that aren't downloaded download while Bibliotaph reads them. Once read, each goes back to online-only, as Remove Download does in Finder, so a library bigger than your disk still fits. Opening a book downloads it again.",
+            returns);
+        bindings.Property(processing, nameof(ProcessingSectionViewModel.ReturnOnlineOnly), () => FormText.Set(returns, processing.ReturnOnlineOnly));
+
         // What goes online, as a note at the foot of the pane: a box would look like a setting, and there is nothing to set.
         var lookUp = form.Section("What Bibliotaph looks up online");
         lookUp.Title.Font = NSFont.SystemFontOfSize(11, NSFontWeight.Semibold)!;
@@ -71,7 +86,7 @@ public sealed partial class SettingsWindow
         bindings.Property(processing, nameof(ProcessingSectionViewModel.HasFolders), () =>
         {
             empty.View.Hidden = processing.HasFolders;
-            foreach (var section in new[] { progress, now, lookUp }) section.View.Hidden = !processing.HasFolders;
+            foreach (var section in new[] { progress, now, cloud, lookUp }) section.View.Hidden = !processing.HasFolders;
         });
         return Pane(form);
     }

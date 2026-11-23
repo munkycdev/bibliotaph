@@ -103,7 +103,11 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
         }
         if (review.IsSuggestionsTab)
         {
-            if (review.ShowEmpty) _list.AddArrangedSubview(Label("Nothing needs review. Bibliotaph will put anything it isn't sure of here.", secondary: true));
+            if (review.ShowEmpty)
+            {
+                _list.AddArrangedSubview(Label("Nothing needs review. Bibliotaph will put anything it isn't sure of here.", secondary: true));
+                _list.AddArrangedSubview(Button("Return to Library", review.ReturnToLibraryCommand));
+            }
             foreach (var card in review.Cards) Add(card is ReviewCardViewModel metadata ? MetadataCard(metadata) : KindCard(card) ?? GenericCard(card));
             if (review.HasHidden)
             {
@@ -118,7 +122,10 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
             {
                 var all = NSButton.CreateButton("Try all again", () => { });
                 _cards.Command(all, review.RetryAllCommand);
-                _list.AddArrangedSubview(all);
+                var why = Label("Gives every file below another go, apart from locked and protected ones, which trying again can't help.", secondary: true);
+                var line = Row(why, all);
+                line.Alignment = NSLayoutAttribute.CenterY;
+                _list.AddArrangedSubview(line);
             }
             foreach (var group in review.Files) Add(FileCard(group));
         }
@@ -257,19 +264,70 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
         return box;
     }
 
-    /// <summary>A file Bibliotaph couldn't read, or a group of them for the same reason, with Try again.</summary>
+    /// <summary>
+    /// A file Bibliotaph couldn't read, or a group of them for the same reason, as on Windows: what's wrong, with Try
+    /// again for them all, and a group's Show files listing each with what helps it: Try again, Enter password, Open in
+    /// another app. A bug's card copies its details for a report.
+    /// </summary>
     CardView FileCard(AttentionGroup group)
     {
-        var body = Stack(Label(group.Heading, bold: true), Label(group.Detail, secondary: true));
+        var icon = new NSImageView { Image = NSImage.GetSystemSymbol("exclamationmark.triangle", null)!, ContentTintColor = NSColor.SystemOrange };
+        var heading = Label(group.Heading, bold: true);
+        var text = Stack(heading, Label(group.Detail, secondary: true));
+        var links = Row();
         if (group.IsMany)
-            foreach (var row in group.Rows.Take(12)) body.AddArrangedSubview(Label(row.Title, secondary: true));
+        {
+            var toggle = Inline(group.ToggleLabel, () => review.ToggleFilesCommand.Execute(group));
+            _cards.Property(group, nameof(AttentionGroup.ToggleLabel), () => toggle.Title = group.ToggleLabel);
+            links.AddArrangedSubview(toggle);
+        }
+        if (group.IsBug)
+        {
+            var copy = Inline(group.CopyLabel, () => review.CopyDetailsCommand.Execute(group));
+            copy.ToolTip = "Copies the version and the error, without file names, to paste into a bug report.";
+            _cards.Property(group, nameof(AttentionGroup.CopyLabel), () => copy.Title = group.CopyLabel);
+            links.AddArrangedSubview(copy);
+        }
+        if (links.ArrangedSubviews.Length > 0) text.AddArrangedSubview(links);
+        var files = Stack();
+        files.Spacing = 4;
+        foreach (var row in group.Rows)
+        {
+            var name = Label(row.Title, secondary: true);
+            name.MaximumNumberOfLines = 1;
+            name.LineBreakMode = NSLineBreakMode.TruncatingTail;
+            name.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+            name.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
+            var line = Row(name);
+            if (row.CanRetry) line.AddArrangedSubview(Inline("Try again", () => review.RetryCommand.Execute(row)));
+            if (row.CanUnlock) line.AddArrangedSubview(Inline("Open to unlock", () => review.UnlockCommand.Execute(row)));
+            if (row.CanOpenElsewhere) line.AddArrangedSubview(Inline("Open in another app", () => review.OpenElsewhereCommand.Execute(row)));
+            files.AddArrangedSubview(line);
+            line.WidthAnchor.ConstraintEqualTo(files.WidthAnchor).Active = true;
+        }
+        text.AddArrangedSubview(files);
+        files.WidthAnchor.ConstraintEqualTo(text.WidthAnchor).Active = true;
+        _cards.Property(group, nameof(AttentionGroup.IsExpanded), () => files.Hidden = !group.IsMany || !group.IsExpanded);
+
         var buttons = new List<NSView>();
         if (group.CanRetry) buttons.Add(Button("Try again", review.RetryGroupCommand, () => group));
-        if (group.CanUnlock) buttons.Add(Button("Enter password", review.UnlockCommand, () => group.First));
+        if (group.CanUnlock) buttons.Add(Button("Open to unlock", review.UnlockCommand, () => group.First));
         if (group.CanOpenElsewhere) buttons.Add(Button("Open in another app", review.OpenElsewhereCommand, () => group.First));
-        if (group.IsBug) buttons.Add(Button(group.CopyLabel, review.CopyDetailsCommand, () => group));
-        if (buttons.Count > 0) body.AddArrangedSubview(Row([.. buttons]));
-        return Card(body);
+        var actions = Row([.. buttons]);
+        text.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+        var card = Row(icon, text, actions);
+        card.Alignment = NSLayoutAttribute.Top;
+        card.Spacing = 10;
+        return Card(card);
+    }
+
+    static NSButton Inline(string title, Action action)
+    {
+        var button = NSButton.CreateButton(title, action);
+        button.Bordered = false;
+        button.Font = NSFont.SystemFontOfSize(12)!;
+        button.ContentTintColor = NSColor.ControlAccent;
+        return button;
     }
 
     /// <summary>The texts a card can have, in the order a card reads.</summary>
