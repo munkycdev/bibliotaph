@@ -25,6 +25,9 @@ public sealed class BinderEditController(SessionPackViewModel pack) : NSViewCont
             Command("Done", pack.DoneCommand),
             Command("Rename or date…", pack.EditCommand),
             Command("Add section…", pack.AddSectionCommand),
+            Suggested(),
+            Command("Find resources…", pack.FindResourcesCommand),
+            Command("Show its books", pack.ShowBooksCommand),
             Command("Duplicate", pack.DuplicateCommand),
             Command("Delete binder…", pack.DeleteCommand),
         ]);
@@ -77,12 +80,30 @@ public sealed class BinderEditController(SessionPackViewModel pack) : NSViewCont
                 text.Spacing = 1;
                 text.SetContentHuggingPriorityForOrientation(200, NSLayoutConstraintOrientation.Horizontal);
                 var line = NSStackView.FromViews([text, Command("↑", pack.MoveUpCommand, item), Command("↓", pack.MoveDownCommand, item),
-                    Command("Open", pack.OpenItemCommand, item), Command("Remove", pack.RemoveItemCommand, item)]);
+                    Command("Open", pack.OpenItemCommand, item), Command("In a window", pack.OpenItemInNewWindowCommand, item),
+                    Command("Remove", pack.RemoveItemCommand, item)]);
                 line.Alignment = NSLayoutAttribute.CenterY;
                 _list.AddArrangedSubview(line);
                 line.WidthAnchor.ConstraintEqualTo(_list.WidthAnchor).Active = true;
             }
         }
+    }
+
+    /// <summary>The sections binders usually have, as Windows offers them: a menu of those, each added with a click.</summary>
+    NSButton Suggested()
+    {
+        var button = NSButton.CreateButton("Suggested sections", () => { });
+        button.ControlSize = NSControlSize.Small;
+        button.Image = NSImage.GetSystemSymbol("chevron.down", null)!;
+        button.ImagePosition = NSCellImagePosition.ImageTrailing;
+        button.Activated += (_, _) =>
+        {
+            var menu = new NSMenu();
+            foreach (var name in SessionPackViewModel.SuggestedSections)
+                menu.AddItem(new NSMenuItem(name, (_, _) => pack.AddSuggestedSectionCommand.Execute(name)));
+            menu.PopUpMenu(null, new CoreGraphics.CGPoint(0, button.Bounds.Height + 4), button);
+        };
+        return button;
     }
 
     NSButton Command(string title, System.Windows.Input.ICommand command, object? parameter = null)
