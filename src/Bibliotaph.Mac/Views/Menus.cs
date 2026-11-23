@@ -54,16 +54,20 @@ static class Menus
         // The Library's layouts, as Finder's View menu has its own; ticked for the one showing, and off elsewhere.
         var covers = new NSMenuItem("as Covers", "1", (_, _) => { if (main.Library is { } library) library.Layout = Index.LibraryLayout.Grid; });
         var list = new NSMenuItem("as List", "2", (_, _) => { if (main.Library is { } library) library.Layout = Index.LibraryLayout.List; });
+        // Sort By, as Finder's View menu has it: the Library's orders, the one in use ticked.
+        var sortBy = new NSMenuItem("Sort By") { Submenu = new NSMenu("Sort By") };
         var view = Top("View",
             covers,
             list,
+            NSMenuItem.SeparatorItem,
+            sortBy,
             NSMenuItem.SeparatorItem,
             Item("Show Sidebar", "toggleSidebar:", "s", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask),
             Item("Show Inspector", "toggleInspector:", "i", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask),
             NSMenuItem.SeparatorItem,
             Item("Enter Full Screen", "toggleFullScreen:", "f", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask));
         covers.ValidateMenuItem = list.ValidateMenuItem = _ => main.Library is not null;
-        view.Submenu!.Delegate = new Layouts(main, covers, list);
+        view.Submenu!.Delegate = new Layouts(main, covers, list, sortBy);
         bar.AddItem(view);
 
         var window = Top("Window",
@@ -90,13 +94,18 @@ static class Menus
     }
 
     /// <summary>Ticks the Library's layout as the View menu opens.</summary>
-    sealed class Layouts(MainWindowController main, NSMenuItem covers, NSMenuItem list) : NSMenuDelegate
+    sealed class Layouts(MainWindowController main, NSMenuItem covers, NSMenuItem list, NSMenuItem sortBy) : NSMenuDelegate
     {
         public override void MenuWillOpen(NSMenu menu)
         {
             var library = main.Library;
             covers.State = library?.Layout == Index.LibraryLayout.Grid ? NSCellStateValue.On : NSCellStateValue.Off;
             list.State = library?.Layout == Index.LibraryLayout.List ? NSCellStateValue.On : NSCellStateValue.Off;
+            var orders = sortBy.Submenu!;
+            orders.RemoveAllItems();
+            if (library is not null)
+                foreach (var item in LibraryController.SortMenu(library).Skip(1)) orders.AddItem(item);
+            sortBy.Enabled = library is not null;
         }
 
         public override void MenuWillHighlightItem(NSMenu menu, NSMenuItem? item)

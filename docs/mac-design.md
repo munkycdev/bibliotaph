@@ -63,6 +63,8 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
   opening a saved one share one menu.
 - **Context menus** list only what applies. They keep submenus to one level, and everything in them can also be
   reached in the page or its inspector.
+- **Sorting isn't filtering.** The Library's order is a "Sort:" button with the sort symbol, after a divider beside
+  the layout, not a pop-up among the filters. Its menu has a Sort By heading and ticks the order in use.
 - **Needs review cards** follow the Windows card for each kind:
   - The title opens what the card is about; Option-click opens it in a window of its own.
   - The kind of question is a chip at the trailing edge. An offer also has × there, which gives its "don't ask again"
@@ -77,7 +79,7 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
 
 ## Menus
 
-- The View menu has the Library's layouts, with a tick on the current one. It also has the sidebar's and inspector's
+- The View menu has the Library's layouts, with a tick on the current one, and Sort By, as Finder's has. It also has the sidebar's and inspector's
   show and hide commands, which AppKit retitles as their state changes.
 - The Edit menu has Find and Ask.
 - The File menu has what Windows puts behind the Library's Add button: Add Folder, Add a Book I Own Elsewhere and

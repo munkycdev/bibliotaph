@@ -437,6 +437,28 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         return button;
     }
 
+    /// <summary>The orders the books can be in, under a "Sort By" heading, the one in use ticked.</summary>
+    internal IEnumerable<NSMenuItem> SortItems() => SortMenu(library);
+
+    internal static IEnumerable<NSMenuItem> SortMenu(LibraryViewModel library)
+    {
+        yield return NSMenuItem.CreateSectionHeader("Sort By");
+        foreach (var choice in library.SortChoices)
+            yield return new NSMenuItem(choice.Label, (_, _) => library.SortChoice = choice)
+            {
+                State = ReferenceEquals(choice, library.SortChoice) ? NSCellStateValue.On : NSCellStateValue.Off,
+            };
+    }
+
+    /// <summary>A short upright line between the filters and how the books are shown.</summary>
+    static NSBox Divider()
+    {
+        var line = new NSBox { BoxType = NSBoxType.NSBoxSeparator };
+        line.HeightAnchor.ConstraintEqualTo(16).Active = true;
+        line.WidthAnchor.ConstraintEqualTo(1).Active = true;
+        return line;
+    }
+
     static void Pop(NSButton under, IEnumerable<NSMenuItem> items)
     {
         var menu = new NSMenu();
@@ -446,16 +468,22 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     }
 
     /// <summary>
-    /// Sort, the filters most used (kind, game system, type, folder), Clear, and grid or list: what the Windows
-    /// Library's bar offers first, each the page's own choice.
+    /// The filters most used (kind, game system, type, folder) and Clear, then apart from them how the books are shown:
+    /// their order, grid or list, and packs. What the Windows Library's bar offers first, each the page's own choice.
     /// </summary>
     NSStackView FilterBar()
     {
         var filters = library.Filters;
-        var sort = ChoicePopup.Create(_bindings, library, nameof(LibraryViewModel.SortChoices), () => library.SortChoices, () => library.SortChoice, c => library.SortChoice = c);
-        _bindings.Property(library, nameof(LibraryViewModel.SortChoice), () =>
+        // The order isn't a filter, so it doesn't look like one: it stands with the layout, says "Sort:" and has the
+        // sort symbol, and its menu ticks the order in use, as the sort buttons in Finder and Mail do.
+        var sort = Small("", null);
+        sort.Image = NSImage.GetSystemSymbol("arrow.up.arrow.down", "Sort")!;
+        sort.ImagePosition = NSCellImagePosition.ImageLeading;
+        sort.ToolTip = "The order the books are in";
+        sort.Activated += (_, _) => Pop(sort, SortItems());
+        _bindings.Properties(library, [nameof(LibraryViewModel.SortChoice), nameof(LibraryViewModel.SortChoices)], () =>
         {
-            sort.SelectItem(IndexOf(library.SortChoices, library.SortChoice));
+            sort.Title = $"Sort: {library.SortChoice.Label}";
             _list?.ShowSort(library.SortChoice.Value);
         });
         var kind = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.KindChoice), () => filters.KindChoices, () => filters.KindChoice, c => filters.KindChoice = c);
@@ -525,9 +553,11 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         packs.SetToolTip("Each file in a pack on a card of its own", 1);
         packs.Activated += (_, _) => library.ShowPackFiles = packs.SelectedSegment == 1;
         _bindings.Property(library, nameof(LibraryViewModel.ShowPackFiles), () => packs.SelectedSegment = library.ShowPackFiles ? 1 : 0);
-        var bar = NSStackView.FromViews([results, sort, kind, system, type, folder, more, clear, layout, packs, organize, saved]);
+        var bar = NSStackView.FromViews([results, kind, system, type, folder, more, clear, Divider(), sort, layout, packs, organize, saved]);
         bar.Spacing = 8;
         bar.SetCustomSpacing(16, results);
+        bar.SetCustomSpacing(16, clear);
+        bar.SetCustomSpacing(16, more);
         return bar;
     }
 
