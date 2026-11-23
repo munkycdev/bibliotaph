@@ -29,6 +29,30 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
     public void FollowTitle(Bindings bindings, Action<string, string> show) =>
         bindings.Property(home, nameof(HomeViewModel.TotalsText), () => show("Home", home.TotalsText));
 
+    /// <summary>A card that offers something once, as Windows' Home does, with what to do about it.</summary>
+    static Tinted Offer(string heading, string text, NSView[] buttons)
+    {
+        var title = NSTextField.CreateWrappingLabel(heading);
+        title.Font = NSFont.SystemFontOfSize(14, NSFontWeight.Semibold)!;
+        var body = PageParts.Secondary(text);
+        body.WidthAnchor.ConstraintLessThanOrEqualTo(640).Active = true;
+        var row = NSStackView.FromViews(buttons);
+        row.Spacing = 8;
+        var column = NSStackView.FromViews([title, body, row]);
+        column.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        column.Alignment = NSLayoutAttribute.Leading;
+        column.Spacing = 8;
+        return new Tinted(column, Palette.Panel, 10, new NSEdgeInsets(14, 16, 14, 16));
+    }
+
+    NSButton Button(string title, System.Windows.Input.ICommand command, bool primary = false)
+    {
+        var button = NSButton.CreateButton(title, () => { });
+        _bindings.Command(button, command);
+        if (primary) button.TintProminence = NSTintProminence.Primary;
+        return button;
+    }
+
     public override void LoadView()
     {
         var (root, content) = PageParts.ScrollingPage();
@@ -47,8 +71,34 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         var addedTitle = PageParts.Section("Recently added");
         var added = PageParts.Wrap();
 
-        foreach (var view in new NSView[] { start, preparing, pinsTitle, pins, openedTitle, opened, addedTitle, added })
+        var ai = Offer("Fill in the catalog with AI?",
+            "An AI model running on this Mac can suggest each book's system, type, levels and more, quoting the page it found them on. Bibliotaph can download one and run it itself, or use one you already run, such as Ollama or LM Studio. You review the suggestions. It is off until you set it up, and you can do that later in Settings.",
+            [Button("Set Up AI…", home.SetUpAiCommand, primary: true), Button("Not Now", home.AiLaterCommand)]);
+        var coversText = PageParts.Secondary("");
+        var coversButtons = new NSStackView { Spacing = 8 };
+        var coversHeading = NSTextField.CreateWrappingLabel("");
+        coversHeading.Font = NSFont.SystemFontOfSize(14, NSFontWeight.Semibold)!;
+        var coversColumn = NSStackView.FromViews([coversHeading, coversText, coversButtons]);
+        coversColumn.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        coversColumn.Alignment = NSLayoutAttribute.Leading;
+        coversColumn.Spacing = 8;
+        var coversCard = new Tinted(coversColumn, Palette.Panel, 10, new NSEdgeInsets(14, 16, 14, 16));
+
+        foreach (var view in new NSView[] { start, ai, coversCard, preparing, pinsTitle, pins, openedTitle, opened, addedTitle, added })
             content.AddArrangedSubview(view);
+        foreach (var card in new NSView[] { ai, coversCard }) card.WidthAnchor.ConstraintLessThanOrEqualTo(content.WidthAnchor, 1, -48).Active = true;
+        foreach (var text in new NSView[] { coversText, coversHeading }) text.WidthAnchor.ConstraintLessThanOrEqualTo(640).Active = true;
+        _bindings.Property(home, nameof(HomeViewModel.ShowAiStep), () => ai.Hidden = !home.ShowAiStep);
+        _bindings.Properties(home, [nameof(HomeViewModel.MissingCoversHeading), nameof(HomeViewModel.MissingCoversHow), nameof(HomeViewModel.MissingCoversButtons)], () =>
+        {
+            coversCard.Hidden = home.MissingCoversHeading is null;
+            coversHeading.StringValue = home.MissingCoversHeading ?? "";
+            coversText.StringValue = home.MissingCoversHow;
+            foreach (var view in coversButtons.ArrangedSubviews) view.RemoveFromSuperview();
+            foreach (var store in home.MissingCoversButtons)
+                coversButtons.AddArrangedSubview(NSButton.CreateButton(store.Label, () => home.OpenMissingCoversCommand.Execute(store)));
+            coversButtons.AddArrangedSubview(Button("Not Now", home.CoversLaterCommand));
+        });
         foreach (var grid in new[] { pins, opened, added }) grid.WidthAnchor.ConstraintEqualTo(content.WidthAnchor, 1, -48).Active = true;
         _shelves.AddRange([opened, added, pins]);
         View = root;

@@ -75,7 +75,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var moreFilters = MoreFilters();
         var activeFilters = ActiveFilters();
         var filterBar = FilterBar();
-        foreach (var part in new NSView[] { filterBar, moreFilters, activeFilters, OrganizeBar(), UndoLine(), SavedSearchLine() }) bar.AddArrangedSubview(part);
+        foreach (var part in new NSView[] { filterBar, moreFilters, activeFilters, ScopeLine(), SubCollections(), OrganizeBar(), UndoLine(), SavedSearchLine() })
+            bar.AddArrangedSubview(part);
         var pageActions = PageActions();
         _list = new BookList(this);
         _list.ShowSort(library.SortChoice.Value);
@@ -516,7 +517,15 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var more = Small("", filters.ToggleMoreFiltersCommand);
         more.BezelStyle = NSBezelStyle.Inline;
         _bindings.Property(filters, nameof(LibraryFilterState.MoreFiltersLabel), () => more.Title = filters.MoreFiltersLabel);
-        var bar = NSStackView.FromViews([results, sort, kind, system, type, folder, more, clear, layout, organize, saved]);
+        // Packs as one card each, or every file in them on a card of its own.
+        var packs = NSSegmentedControl.FromImages(
+            [NSImage.GetSystemSymbol("square.stack.3d.up", "Packs")!, NSImage.GetSystemSymbol("doc.on.doc", "Each file")!], NSSegmentSwitchTracking.SelectOne, () => { });
+        packs.ControlSize = NSControlSize.Small;
+        packs.SetToolTip("Packs as one card each", 0);
+        packs.SetToolTip("Each file in a pack on a card of its own", 1);
+        packs.Activated += (_, _) => library.ShowPackFiles = packs.SelectedSegment == 1;
+        _bindings.Property(library, nameof(LibraryViewModel.ShowPackFiles), () => packs.SelectedSegment = library.ShowPackFiles ? 1 : 0);
+        var bar = NSStackView.FromViews([results, sort, kind, system, type, folder, more, clear, layout, packs, organize, saved]);
         bar.Spacing = 8;
         bar.SetCustomSpacing(16, results);
         return bar;
@@ -628,6 +637,52 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         return box;
     }
 
+    /// <summary>The part of the library shown, as Favorites or a collection, with a × that shows the whole library.</summary>
+    NSStackView ScopeLine()
+    {
+        var label = NSTextField.CreateLabel("");
+        label.Font = NSFont.SystemFontOfSize(11)!;
+        var clear = NSButton.CreateButton(NSImage.GetSystemSymbol("xmark", "Show your whole library")!, () => library.ClearScopeCommand.Execute(null));
+        clear.Bordered = false;
+        clear.SymbolConfiguration = NSImageSymbolConfiguration.Create(8, NSFontWeight.Bold);
+        clear.ToolTip = "Show your whole library";
+        var row = NSStackView.FromViews([label, clear]);
+        row.Spacing = 4;
+        var chip = new Tinted(row, Palette.Soft, 9, new NSEdgeInsets(2, 8, 2, 6));
+        var line = NSStackView.FromViews([chip]);
+        _bindings.Property(library, nameof(LibraryViewModel.Scope), () =>
+        {
+            label.StringValue = library.ScopeChip;
+            line.Hidden = !library.HasScope;
+        });
+        return line;
+    }
+
+    /// <summary>A collection's sub-collections as cards above its books, and the switch that leaves their books out.</summary>
+    NSStackView SubCollections()
+    {
+        var cards = new NSStackView { Spacing = 16, Alignment = NSLayoutAttribute.Top };
+        var only = NSButton.CreateCheckbox("Only books added here", () => { });
+        only.ControlSize = NSControlSize.Small;
+        only.ToolTip = "Leave out the books that are only in the collections inside this one";
+        only.Activated += (_, _) => library.OnlyAddedHere = only.State == NSCellStateValue.On;
+        var section = NSStackView.FromViews([cards, only]);
+        section.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        section.Alignment = NSLayoutAttribute.Leading;
+        section.Spacing = 8;
+        void Show()
+        {
+            foreach (var view in cards.ArrangedSubviews) view.RemoveFromSuperview();
+            foreach (var card in library.SubCollections)
+                cards.AddArrangedSubview(new ShelfCard(card.Name, card.CountLabel, card.Covers, covers, () => library.OpenCollectionCommand.Execute(card), card.Badge));
+            section.Hidden = !library.HasSubCollections;
+            only.State = library.OnlyAddedHere ? NSCellStateValue.On : NSCellStateValue.Off;
+        }
+        _bindings.Collection(library.SubCollections, _ => Show());
+        _bindings.Properties(library, [nameof(LibraryViewModel.HasSubCollections), nameof(LibraryViewModel.OnlyAddedHere)], Show);
+        return section;
+    }
+
     /// <summary>The filters that are on, as chips whose × turns one off, so they show with More filters folded away.</summary>
     NSStackView ActiveFilters()
     {
@@ -688,6 +743,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         Add("Open", library.OpenFromCardCommand);
         Add("Open in a new window", library.OpenBookInNewWindowCommand);
         Add("Show details", library.OpenDetailsCommand);
+        // Ask this book opens it with its Ask panel showing, as on Windows; a book with no readable text has none.
+        if (item.CanAsk) Add("Ask This Book…", library.AskBookCommand);
         menu.AddItem(NSMenuItem.SeparatorItem);
         menu.AddItem(Submenu("Add to collection", ((ICollectionChoices)library).MenuChoices
             .Select(choice => new NSMenuItem(choice.Label, (_, _) => library.AddToCollection(new CollectionRequest(item, choice))))));
@@ -1018,6 +1075,8 @@ sealed class CoverItem : NSCollectionViewItem
     NSTextField _title = null!;
     NSTextField _meta = null!;
     NSImageView _tick = null!;
+    NSStackView _badges = null!;
+    Tinted _away = null!;
     LibraryItemViewModel? _book;
     string? _coverName;
 
@@ -1051,12 +1110,17 @@ sealed class CoverItem : NSCollectionViewItem
         _meta.LineBreakMode = NSLineBreakMode.TruncatingTail;
 
         _tick = Tick(false);
+        // What the card holds or goes with, at the cover's foot, and whether its file is here, at its top.
+        _badges = new NSStackView { Spacing = 4 };
+        var away = NSTextField.CreateLabel("");
+        away.Font = NSFont.SystemFontOfSize(10, NSFontWeight.Semibold)!;
+        _away = new Tinted(away, NSColor.WindowBackground.ColorWithAlphaComponent(0.85f), 4, new NSEdgeInsets(1, 5, 1, 5));
 
         var root = new NSView();
-        foreach (var view in new NSView[] { _frame, _initial, _cover, _tick, _title, _meta })
+        foreach (var view in new NSView[] { _frame, _initial, _cover, _tick, _badges, _away, _title, _meta })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
-            (view == _cover || view == _initial || view == _tick ? _frame : root).AddSubview(view);
+            (view == _cover || view == _initial || view == _tick || view == _badges || view == _away ? _frame : root).AddSubview(view);
         }
         NSLayoutConstraint.ActivateConstraints(
         [
@@ -1073,6 +1137,11 @@ sealed class CoverItem : NSCollectionViewItem
             _tick.TopAnchor.ConstraintEqualTo(_frame.TopAnchor, 8),
             _tick.LeadingAnchor.ConstraintEqualTo(_frame.LeadingAnchor, 8),
             _tick.WidthAnchor.ConstraintEqualTo(22),
+            _badges.LeadingAnchor.ConstraintEqualTo(_frame.LeadingAnchor, 6),
+            _badges.BottomAnchor.ConstraintEqualTo(_frame.BottomAnchor, -6),
+            _badges.TrailingAnchor.ConstraintLessThanOrEqualTo(_frame.TrailingAnchor, -6),
+            _away.TopAnchor.ConstraintEqualTo(_frame.TopAnchor, 8),
+            _away.TrailingAnchor.ConstraintEqualTo(_frame.TrailingAnchor, -8),
             _tick.HeightAnchor.ConstraintEqualTo(22),
             _title.TopAnchor.ConstraintEqualTo(_frame.BottomAnchor, 8),
             _title.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
@@ -1137,6 +1206,39 @@ sealed class CoverItem : NSCollectionViewItem
         _cover.Image = (_coverName is null ? null : covers.TryGet(_coverName))!;
         _initial.Hidden = _cover.Image is not null;
         if (_coverName is { } name && _cover.Image is null) LoadAsync(name, covers).FireAndForget();
+        ShowBadges(book);
+    }
+
+    /// <summary>A pack's files, its adventures, its copies, what goes with it: a symbol and a count each, the tip saying more.</summary>
+    void ShowBadges(LibraryItemViewModel book)
+    {
+        foreach (var view in _badges.ArrangedSubviews) view.RemoveFromSuperview();
+        foreach (var badge in book.Badges)
+        {
+            var symbol = badge.Kind switch
+            {
+                Index.CardBadge.GoesWith => "link",
+                Index.CardBadge.Pack => "square.stack.3d.up",
+                Index.CardBadge.Adventures => "book",
+                Index.CardBadge.Companions => "paperclip",
+                Index.CardBadge.Copies => "doc.on.doc",
+                _ => "circle",
+            };
+            var icon = new NSImageView { Image = NSImage.GetSystemSymbol(symbol, badge.Tip)!, ContentTintColor = NSColor.Label };
+            icon.SymbolConfiguration = NSImageSymbolConfiguration.Create(9, NSFontWeight.Semibold);
+            var count = NSTextField.CreateLabel(badge.Count);
+            count.Font = NSFont.SystemFontOfSize(10, NSFontWeight.Semibold)!;
+            count.Hidden = badge.Count.Length == 0;
+            var content = NSStackView.FromViews([icon, count]);
+            content.Spacing = 2;
+            // A book the rules only suggested it goes with is marked fainter, as Windows dashes it.
+            var pill = new Tinted(content, NSColor.WindowBackground.ColorWithAlphaComponent(badge.Suggested ? 0.55f : 0.85f), 4, new NSEdgeInsets(1, 4, 1, 5));
+            pill.ToolTip = badge.Tip;
+            _badges.AddArrangedSubview(pill);
+        }
+        ((NSTextField)_away.Subviews[0]).StringValue = book.AvailabilityLabel;
+        _away.Hidden = book.AvailabilityLabel.Length == 0;
+        _away.ToolTip = book.AvailabilityTip ?? "";
     }
 
     async Task LoadAsync(string name, MacCovers covers)

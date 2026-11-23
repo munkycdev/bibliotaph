@@ -601,6 +601,9 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
                 NSView content = name;
                 if (_library is { } library)
                 {
+                    // The chip's name shows the collection in the Library, as on Windows.
+                    name.AddGestureRecognizer(new NSClickGestureRecognizer(() => library.OpenInspectorCollectionCommand.Execute(chip)));
+                    name.ToolTip = $"Show {chip.Path}";
                     var remove = NSButton.CreateButton(NSImage.GetSystemSymbol("xmark", "Remove")!, () => library.RemoveFromInspectorCollectionCommand.Execute(chip));
                     remove.Bordered = false;
                     remove.SymbolConfiguration = NSImageSymbolConfiguration.Create(9, NSFontWeight.Bold);
