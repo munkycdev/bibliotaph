@@ -73,6 +73,27 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
 - The View menu has the Library's layouts, with a tick on the current one. It also has the sidebar's and inspector's
   show and hide commands, which AppKit retitles as their state changes.
 - The Edit menu has Find and Ask.
+- The File menu has what Windows puts behind the Library's Add button: Add Folder, Add a Book I Own Elsewhere and
+  Check a Download.
+- The Help menu, last as on every Mac, has Keyboard Shortcuts (⌘/).
+
+## Book details
+
+- The inspector folds into sections in the Windows panel's order, each opening as it was left. A Windows heading in
+  capitals is title case here.
+- Fields line up as Get Info's do: names in a column, values beside them, a suggestion on the palette's soft green.
+- What's done less often (pin, reprocess, correct, show in Finder, remove) is in the header's More menu.
+
+## Dialogs and tips
+
+- A dialog that belongs to a window is a sheet on it: Test with a Book, the pages of an adventure, Send to Nornis,
+  Add a Book I Own Elsewhere.
+- The first-run tour is a popover beside the control each step is about, and Esc skips it.
+
+## Built-in AI
+
+- The Mac runs llama.cpp's Apple silicon build, pinned beside the Windows build in build/engine.json; it draws on
+  Metal. How big a model fits comes from Metal's recommended working set, as the GPU shares the Mac's memory.
 
 ## Sources
 
