@@ -54,6 +54,19 @@ static class DevArguments
             {
                 if (services.GetRequiredService<INavigationService>().Current is Presentation.ViewModels.LibraryViewModel library) library.Layout = Index.LibraryLayout.List;
             }), TaskScheduler.Default);
+        if (args.Contains("--guide"))
+            _ = Task.Delay(TimeSpan.FromSeconds(3)).ContinueWith(_ => Bindings.OnMain(() =>
+            {
+                // The search guide, open at the empty field or after what's given: "--guide system:".
+                main.FocusSearch();
+                var guide = services.GetRequiredService<Presentation.ViewModels.SearchGuideViewModel>();
+                if (Value(args, "--guide") is { } typed && !typed.StartsWith("--", StringComparison.Ordinal))
+                {
+                    if (main.SearchBox is { } field) field.StringValue = typed;
+                    guide.Request(typed, typed.Length);
+                }
+                else guide.Focused("", 0);
+            }), TaskScheduler.Default);
         if (Value(args, "--run") is { } command) RunAsync(services, command).FireAndForget();
         if (args.Contains("--review-samples")) ReviewSamplesAsync(services, main, Value(args, "--review-samples")).FireAndForget();
         if (int.TryParse(Value(args, "--organize"), out var tick)) OrganizeAsync(services, tick, args.Contains("--bulk-edit")).FireAndForget();
@@ -230,6 +243,10 @@ static class DevArguments
             // A popover or panel that has the keyboard isn't the window to show; the window under it is.
             var shown = NSApplication.SharedApplication.KeyWindow is { ContentView.Superview: not null, IsSheet: false } key && key is not NSPanel ? key : window;
             Take(shown.AttachedSheet ?? shown, file);
+            // Windows that ride on it, as the search guide does, each in a picture beside it.
+            var children = window.ChildWindows ?? [];
+            for (var i = 0; i < children.Length; i++)
+                if (children[i].IsVisible) Take(children[i], Path.ChangeExtension(file, null) + $"-child{i}.png");
         }
     }
 

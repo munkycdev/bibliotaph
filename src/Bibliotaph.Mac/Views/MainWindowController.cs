@@ -77,7 +77,7 @@ public sealed class MainWindowController : NSWindowController
 
         var window = Window!;
         window.ContentViewController = split;
-        _toolbar = new ToolbarDelegate(_shell, folders);
+        _toolbar = new ToolbarDelegate(_shell, folders, services.GetRequiredService<SearchGuideViewModel>());
         window.Toolbar = new NSToolbar("main") { Delegate = _toolbar, DisplayMode = NSToolbarDisplayMode.Icon };
         window.SetContentSize(new CGSize(1320, 840));
         window.Center();
@@ -130,6 +130,9 @@ public sealed class MainWindowController : NSWindowController
     }
 
     public void FocusSearch() => _toolbar.FocusSearch();
+
+    /// <summary>The toolbar's search field.</summary>
+    public NSSearchField? SearchBox => _toolbar.SearchField as NSSearchField;
 
     public void ToggleAsk() => _shell.PlainSearch.ToggleCommand.Execute(null);
 
@@ -262,8 +265,9 @@ public sealed class MainWindowController : NSWindowController
 /// the inspector's toggle at the trailing edge. Adding a folder is in the File menu and Settings › Library, and asking
 /// in plain English in the Edit menu (⌥⌘F).
 /// </summary>
-sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToolbarDelegate
+sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders, SearchGuideViewModel guide) : NSToolbarDelegate
 {
+    SearchGuidePanel? _guide;
     const string Search = "search";
     const string Back = "back";
     NSSearchToolbarItem? _search;
@@ -310,9 +314,15 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
         }
         if (itemIdentifier != Search) return null!;
         var item = new NSSearchToolbarItem(Search);
+        // A field that says when it takes the keyboard, for the search guide, which Windows shows under its box.
+        var field = new GuideSearchField();
+        item.SearchField = field;
         _askPopover = new AskPopover(shell.PlainSearch, () => item.SearchField.StringValue);
         item.SearchField.PlaceholderString = shell.SearchPlaceholder;
-        item.SearchField.Changed += (_, _) => shell.SearchText = item.SearchField.StringValue;
+        void Typed(string text) => shell.SearchText = text;
+        _guide = new SearchGuidePanel(guide, field, () => shell.PlainSearch.IsOn, Typed);
+        field.Delegate = new GuideFieldDelegate(Typed, () => _guide);
+        field.Focused += (_, _) => _guide.Focused();
         item.SearchField.Activated += (_, _) =>
         {
             if (!shell.PlainSearch.IsOn)
@@ -333,7 +343,11 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
             {
                 item.SearchField.PlaceholderString = shell.SearchPlaceholder;
                 if (!shell.PlainSearch.IsOn) _askPopover.Close();
-                else item.SearchField.Window?.MakeFirstResponder(item.SearchField);
+                else
+                {
+                    _guide.Close();
+                    item.SearchField.Window?.MakeFirstResponder(item.SearchField);
+                }
             });
         };
         shell.PropertyChanged += (_, e) =>
