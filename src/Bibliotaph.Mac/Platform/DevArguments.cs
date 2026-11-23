@@ -171,7 +171,8 @@ static class DevArguments
         while (window.IsVisible)
         {
             await Task.Delay(every);
-            var shown = NSApplication.SharedApplication.KeyWindow ?? window;
+            // A popover or panel that has the keyboard isn't the window to show; the window under it is.
+            var shown = NSApplication.SharedApplication.KeyWindow is { ContentView.Superview: not null, IsSheet: false } key && key is not NSPanel ? key : window;
             Take(shown.AttachedSheet ?? shown, file);
         }
     }

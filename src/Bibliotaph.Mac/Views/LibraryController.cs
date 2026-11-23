@@ -71,7 +71,10 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         empty.Spacing = 10;
 
         var bar = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 6 };
-        foreach (var part in new NSView[] { FilterBar(), OrganizeBar(), UndoLine(), SavedSearchLine() }) bar.AddArrangedSubview(part);
+        var moreFilters = MoreFilters();
+        var activeFilters = ActiveFilters();
+        var filterBar = FilterBar();
+        foreach (var part in new NSView[] { filterBar, moreFilters, activeFilters, OrganizeBar(), UndoLine(), SavedSearchLine() }) bar.AddArrangedSubview(part);
         var pageActions = PageActions();
         _list = new BookList(this);
         _list.ShowSort(library.SortChoice.Value);
@@ -90,8 +93,10 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             // The page's name and count are in the toolbar; the filters start the page, with its own actions beside them.
             bar.TopAnchor.ConstraintEqualTo(root.SafeAreaLayoutGuide.TopAnchor, 12),
             bar.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24),
-            bar.TrailingAnchor.ConstraintLessThanOrEqualTo(pageActions.LeadingAnchor, -12),
+            bar.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -24),
+            filterBar.TrailingAnchor.ConstraintLessThanOrEqualTo(pageActions.LeadingAnchor, -12),
             pageActions.TopAnchor.ConstraintEqualTo(bar.TopAnchor),
+
             pageActions.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor, -24),
             issue.TopAnchor.ConstraintEqualTo(bar.BottomAnchor, 6),
             issue.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 24),
@@ -490,10 +495,146 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             results.SelectedSegment = library.IsPagesTab ? 1 : 0;
             layout.Hidden = !library.ShowLayoutChoice;
         });
-        var bar = NSStackView.FromViews([results, sort, kind, system, type, folder, clear, layout, organize, saved]);
+        var more = Small("", filters.ToggleMoreFiltersCommand);
+        more.BezelStyle = NSBezelStyle.Inline;
+        _bindings.Property(filters, nameof(LibraryFilterState.MoreFiltersLabel), () => more.Title = filters.MoreFiltersLabel);
+        var bar = NSStackView.FromViews([results, sort, kind, system, type, folder, more, clear, layout, organize, saved]);
         bar.Spacing = 8;
         bar.SetCustomSpacing(16, results);
         return bar;
+    }
+
+    /// <summary>
+    /// The filters past the common ones, as Windows folds them under More filters: an adventure's level, players, style
+    /// and length; where a book is owned, bought or found; whether the AI read it, its copies, source, collections,
+    /// adventures and what goes with it; and its themes, settings and the rest, typed with suggestions. Each shows once
+    /// some book has it.
+    /// </summary>
+    NSStackView MoreFilters()
+    {
+        var filters = library.Filters;
+        // Rows of a few each, rather than a view that wraps itself, so the bar's height never chases the panel's.
+        var panel = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 6 };
+        var views = new List<(NSView View, Func<bool> Shows)>();
+        void Add<T>(string property, Func<IReadOnlyList<Choice<T>>> choices, Func<Choice<T>> chosen, Action<Choice<T>> choose, Func<bool> shows)
+        {
+            var popup = ChoicePopup.Create(_bindings, filters, property, choices, () => chosen(), choose);
+            views.Add((popup, shows));
+        }
+        Add(nameof(LibraryFilterState.LevelChoice), () => filters.LevelChoices, () => filters.LevelChoice, c => filters.LevelChoice = c, () => true);
+        var unknown = NSButton.CreateCheckbox("Include unknown levels", () => { });
+        unknown.ControlSize = NSControlSize.Small;
+        unknown.Font = NSFont.SystemFontOfSize(NSFont.SmallSystemFontSize)!;
+        unknown.Activated += (_, _) => filters.IncludeUnknownLevels = unknown.State == NSCellStateValue.On;
+        views.Add((unknown, () => filters.HasLevelChoice));
+        Add(nameof(LibraryFilterState.PlayersChoice), () => filters.PlayersChoices, () => filters.PlayersChoice, c => filters.PlayersChoice = c, () => true);
+        Add(nameof(LibraryFilterState.StyleChoice), () => filters.StyleChoices, () => filters.StyleChoice, c => filters.StyleChoice = c, () => filters.ShowStyleChoice);
+        Add(nameof(LibraryFilterState.DurationChoice), () => filters.DurationChoices, () => filters.DurationChoice, c => filters.DurationChoice = c, () => filters.ShowDurationChoice);
+        Add(nameof(LibraryFilterState.OwnChoice), () => filters.OwnChoices, () => filters.OwnChoice, c => filters.OwnChoice = c, () => filters.ShowOwnChoice);
+        Add(nameof(LibraryFilterState.StoreChoice), () => filters.StoreChoices, () => filters.StoreChoice, c => filters.StoreChoice = c, () => filters.ShowStoreChoice);
+        Add(nameof(LibraryFilterState.FoundChoice), () => filters.FoundChoices, () => filters.FoundChoice, c => filters.FoundChoice = c, () => filters.ShowFoundChoice);
+        Add(nameof(LibraryFilterState.AiChoice), () => filters.AiChoices, () => filters.AiChoice, c => filters.AiChoice = c, () => filters.ShowAiChoice);
+        Add(nameof(LibraryFilterState.CopiesChoice), () => filters.CopiesChoices, () => filters.CopiesChoice, c => filters.CopiesChoice = c, () => filters.ShowCopiesChoice);
+        Add(nameof(LibraryFilterState.SourceChoice), () => filters.SourceChoices, () => filters.SourceChoice, c => filters.SourceChoice = c, () => true);
+        Add(nameof(LibraryFilterState.CollectionChoice), () => filters.CollectionChoices, () => filters.CollectionChoice, c => filters.CollectionChoice = c, () => filters.ShowCollectionChoice);
+        Add(nameof(LibraryFilterState.PartsChoice), () => filters.PartsChoices, () => filters.PartsChoice, c => filters.PartsChoice = c, () => filters.ShowPartsChoice);
+        Add(nameof(LibraryFilterState.CompanionsChoice), () => filters.CompanionsChoices, () => filters.CompanionsChoice, c => filters.CompanionsChoice = c, () => filters.ShowCompanionsChoice);
+        foreach (var chip in filters.ChipFilters) views.Add((ChipBox(chip), () => chip.IsOffered));
+
+        void Show()
+        {
+            unknown.State = filters.IncludeUnknownLevels ? NSCellStateValue.On : NSCellStateValue.Off;
+            foreach (var row in panel.ArrangedSubviews)
+            {
+                foreach (var view in ((NSStackView)row).ArrangedSubviews) ((NSStackView)row).RemoveArrangedSubview(view);
+                row.RemoveFromSuperview();
+            }
+            foreach (var row in views.Where(v => v.Shows()).Select(v => v.View).Chunk(6))
+            {
+                var line = NSStackView.FromViews([.. row]);
+                line.Spacing = 8;
+                panel.AddArrangedSubview(line);
+            }
+            panel.Hidden = !filters.ShowMoreFilters;
+        }
+        _bindings.Properties(filters, [nameof(LibraryFilterState.ShowMoreFilters), nameof(LibraryFilterState.HasLevelChoice), nameof(LibraryFilterState.IncludeUnknownLevels),
+            nameof(LibraryFilterState.ShowStyleChoice), nameof(LibraryFilterState.ShowDurationChoice), nameof(LibraryFilterState.ShowOwnChoice),
+            nameof(LibraryFilterState.ShowStoreChoice), nameof(LibraryFilterState.ShowFoundChoice), nameof(LibraryFilterState.ShowAiChoice),
+            nameof(LibraryFilterState.ShowCopiesChoice), nameof(LibraryFilterState.ShowCollectionChoice), nameof(LibraryFilterState.ShowPartsChoice),
+            nameof(LibraryFilterState.ShowCompanionsChoice)], Show);
+        foreach (var chip in filters.ChipFilters) _bindings.Property(chip, nameof(ChipFilterViewModel.IsOffered), Show);
+        return panel;
+    }
+
+    /// <summary>A theme, setting or the like, typed with the values books have as suggestions; picking one makes a chip.</summary>
+    NSComboBox ChipBox(ChipFilterViewModel chip)
+    {
+        var box = new NSComboBox { PlaceholderString = chip.Hint, Completes = false, ControlSize = NSControlSize.Small };
+        box.Font = NSFont.SystemFontOfSize(NSFont.SmallSystemFontSize)!;
+        box.ToolTip = chip.Label;
+        box.WidthAnchor.ConstraintEqualTo(150).Active = true;
+        // Filling the list in moves its selection, which mustn't pick anything.
+        var filling = false;
+        box.Changed += (_, _) =>
+        {
+            if (!filling) chip.Text = box.StringValue;
+        };
+        void Pick(int at)
+        {
+            if (filling || at < 0 || at >= chip.Suggestions.Count) return;
+            var suggestion = chip.Suggestions[at];
+            filling = true;
+            box.StringValue = "";
+            filling = false;
+            chip.PickCommand.Execute(suggestion);
+        }
+        box.SelectionChanged += (_, _) =>
+        {
+            var at = (int)box.SelectedIndex;
+            Bindings.OnMain(() => Pick(at));
+        };
+        box.Activated += (_, _) =>
+        {
+            if (filling) return;
+            var typed = box.StringValue.Trim();
+            var at = chip.Suggestions.ToList().FindIndex(s => s.Label.Equals(typed, StringComparison.CurrentCultureIgnoreCase));
+            Pick(at >= 0 ? at : chip.Suggestions.Count > 0 ? 0 : -1);
+        };
+        _bindings.Collection(chip.Suggestions, _ =>
+        {
+            filling = true;
+            box.RemoveAll();
+            foreach (var suggestion in chip.Suggestions) box.Add(new NSString($"{suggestion.Label}  ({suggestion.Count})"));
+            filling = false;
+        });
+        return box;
+    }
+
+    /// <summary>The filters that are on, as chips whose × turns one off, so they show with More filters folded away.</summary>
+    NSStackView ActiveFilters()
+    {
+        var filters = library.Filters;
+        var chips = new NSStackView { Spacing = 6 };
+        _bindings.Collection(filters.ActiveFilters, _ => Show());
+        void Show()
+        {
+            foreach (var view in chips.ArrangedSubviews) view.RemoveFromSuperview();
+            foreach (var view in filters.ActiveFilters.Select(chip =>
+            {
+                var label = NSTextField.CreateLabel(chip.Label);
+                label.Font = NSFont.SystemFontOfSize(11)!;
+                var remove = NSButton.CreateButton(NSImage.GetSystemSymbol("xmark", chip.Name)!, () => chip.Clear.Execute(null));
+                remove.Bordered = false;
+                remove.SymbolConfiguration = NSImageSymbolConfiguration.Create(8, NSFontWeight.Bold);
+                remove.ToolTip = chip.Name;
+                var row = NSStackView.FromViews([label, remove]);
+                row.Spacing = 4;
+                return new Tinted(row, Palette.Soft, 9, new NSEdgeInsets(2, 8, 2, 6));
+            })) chips.AddArrangedSubview(view);
+            chips.Hidden = filters.ActiveFilters.Count == 0;
+        }
+        Show();
+        return chips;
     }
 
     static nint IndexOf<T>(IReadOnlyList<Choice<T>> list, Choice<T> choice)

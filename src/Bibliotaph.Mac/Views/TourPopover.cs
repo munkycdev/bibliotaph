@@ -110,14 +110,16 @@ sealed class TourPopover : IDisposable
         _popover = null;
         Showing = null;
         popover.Delegate = null!;
+        // Closed at once, and left to AppKit to let go of: freeing it while its closing animation runs crashes.
+        popover.Animates = false;
         popover.Close();
-        popover.Dispose();
     }
 
     public void Dispose()
     {
         _bindings.Dispose();
-        Close();
+        // The window closes from the app's shutdown, off the main thread; the popover is AppKit's.
+        Bindings.OnMain(Close);
     }
 
     /// <summary>Esc on the popover skips the tour, as it does on Windows.</summary>
