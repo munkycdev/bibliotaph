@@ -113,6 +113,14 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
 - Settings › Library's Storage connects online storage directly, as on Windows: the providers this build has an app
   for, and WebDAV by address and password. Add from Storage picks a folder in it.
 
+## Words and headings
+
+- Buttons and menu items take title-style capitalization ("Open in Another App", "Try Again"), as the HIG asks.
+  Sentences, notes and tips stay in sentence case.
+- Headings are title case, not all caps: Windows' and the web's eyebrows ("SAVED SEARCHES") become title-case headings
+  ("Saved Searches"), and a sheet's bold title needs no eyebrow above it.
+- A form's fields have their names beside them, right-aligned; a placeholder only shows an example or "Required".
+
 ## Dialogs and tips
 
 - A dialog that belongs to a window is a sheet on it: Test with a Book, the pages of an adventure, Send to Nornis,

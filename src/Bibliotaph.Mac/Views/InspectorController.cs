@@ -246,7 +246,7 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         // What kind of book it is, unless that's only its format, which the line under the title starts with.
         if (!item.Meta.StartsWith(inspector.Eyebrow, StringComparison.OrdinalIgnoreCase))
         {
-            var eyebrow = NSTextField.CreateLabel(inspector.Eyebrow.ToUpperInvariant());
+            var eyebrow = NSTextField.CreateLabel(inspector.Eyebrow);
             eyebrow.Font = NSFont.SystemFontOfSize(10, NSFontWeight.Semibold)!;
             eyebrow.TextColor = NSColor.SecondaryLabel;
             Add(eyebrow, stretch: true);
@@ -905,8 +905,8 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
             text.Font = NSFont.SystemFontOfSize(11, alternative ? NSFontWeight.Regular : NSFontWeight.Semibold)!;
             text.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
             var head = Row(text);
-            if (alternative) head.AddArrangedSubview(Inline("Use this", () => field.UseCommand.Execute(value)));
-            head.AddArrangedSubview(Inline("Not right", () => field.RejectCommand.Execute(value)));
+            if (alternative) head.AddArrangedSubview(Inline("Use This", () => field.UseCommand.Execute(value)));
+            head.AddArrangedSubview(Inline("Not Right", () => field.RejectCommand.Execute(value)));
             var block = Column(head);
             block.Spacing = 2;
             foreach (var source in value.Sources)
@@ -922,15 +922,15 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         foreach (var value in field.Values) Fill(column, Value(value, false));
         if (field.IsSuggested)
         {
-            var keep = Inline("Keep this", () => field.KeepCommand.Execute(null));
+            var keep = Inline("Keep This", () => field.KeepCommand.Execute(null));
             keep.Image = NSImage.GetSystemSymbol("checkmark", null)!;
             keep.ImagePosition = NSCellImagePosition.ImageLeading;
             column.AddArrangedSubview(keep);
         }
         if (field.HasAlternatives)
         {
-            var heading = Label("OTHER SUGGESTIONS", 9);
-            heading.Font = NSFont.SystemFontOfSize(9, NSFontWeight.Semibold)!;
+            var heading = Label("Other Suggestions", 10);
+            heading.Font = NSFont.SystemFontOfSize(10, NSFontWeight.Semibold)!;
             heading.TextColor = NSColor.SecondaryLabel;
             column.AddArrangedSubview(heading);
             foreach (var value in field.Alternatives) Fill(column, Value(value, true));

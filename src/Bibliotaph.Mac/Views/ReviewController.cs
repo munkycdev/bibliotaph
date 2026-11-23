@@ -34,7 +34,7 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
             var index = (int)show.IndexOfSelectedItem;
             if (index >= 0 && index < review.ShowChoices.Count) review.Show = review.ShowChoices[index];
         };
-        var reload = NSButton.CreateButton("Check again", () => { });
+        var reload = NSButton.CreateButton("Check Again", () => { });
         _bindings.Command(reload, review.ReloadCommand);
         // The page's name and how many wait are in the toolbar; the two lists to switch between and their controls start it.
         var controls = NSStackView.FromViews([tabs, new NSView(), show, reload]);
@@ -120,7 +120,7 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
         {
             if (review.CanRetryAll)
             {
-                var all = NSButton.CreateButton("Try all again", () => { });
+                var all = NSButton.CreateButton("Try All Again", () => { });
                 _cards.Command(all, review.RetryAllCommand);
                 var why = Label("Gives every file below another go, apart from locked and protected ones, which trying again can't help.", secondary: true);
                 var line = Row(why, all);
@@ -165,7 +165,7 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
         var acceptAll = Button(card.AcceptAllLabel, card.AcceptAllCommand);
         var edit = Button(card.EditLabel, card.EditCommand);
         var reject = Button(card.RejectLabel, card.RejectCommand);
-        var open = Button("Open the book", card.OpenCommand);
+        var open = Button("Open the Book", card.OpenCommand);
         var actions = Row(accept, acceptAll, edit, reject, open);
 
         var field = new NSTextField { PlaceholderString = card.EditHint };
@@ -299,9 +299,9 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
             name.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
             name.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
             var line = Row(name);
-            if (row.CanRetry) line.AddArrangedSubview(Inline("Try again", () => review.RetryCommand.Execute(row)));
-            if (row.CanUnlock) line.AddArrangedSubview(Inline("Open to unlock", () => review.UnlockCommand.Execute(row)));
-            if (row.CanOpenElsewhere) line.AddArrangedSubview(Inline("Open in another app", () => review.OpenElsewhereCommand.Execute(row)));
+            if (row.CanRetry) line.AddArrangedSubview(Inline("Try Again", () => review.RetryCommand.Execute(row)));
+            if (row.CanUnlock) line.AddArrangedSubview(Inline("Open to Unlock", () => review.UnlockCommand.Execute(row)));
+            if (row.CanOpenElsewhere) line.AddArrangedSubview(Inline("Open in Another App", () => review.OpenElsewhereCommand.Execute(row)));
             files.AddArrangedSubview(line);
             line.WidthAnchor.ConstraintEqualTo(files.WidthAnchor).Active = true;
         }
@@ -310,9 +310,9 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
         _cards.Property(group, nameof(AttentionGroup.IsExpanded), () => files.Hidden = !group.IsMany || !group.IsExpanded);
 
         var buttons = new List<NSView>();
-        if (group.CanRetry) buttons.Add(Button("Try again", review.RetryGroupCommand, () => group));
-        if (group.CanUnlock) buttons.Add(Button("Open to unlock", review.UnlockCommand, () => group.First));
-        if (group.CanOpenElsewhere) buttons.Add(Button("Open in another app", review.OpenElsewhereCommand, () => group.First));
+        if (group.CanRetry) buttons.Add(Button("Try Again", review.RetryGroupCommand, () => group));
+        if (group.CanUnlock) buttons.Add(Button("Open to Unlock", review.UnlockCommand, () => group.First));
+        if (group.CanOpenElsewhere) buttons.Add(Button("Open in Another App", review.OpenElsewhereCommand, () => group.First));
         var actions = Row([.. buttons]);
         text.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
         var card = Row(icon, text, actions);

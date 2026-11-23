@@ -211,7 +211,7 @@ public sealed class BinderController(SessionReaderViewModel binder) : NSViewCont
 
         public override NSView GetViewForItem(NSTableView tableView, NSTableColumn tableColumn, nint row)
         {
-            if (owner._rows[(int)row] is SessionSectionRow section) return Text(section.Name.ToUpperInvariant(), NSFont.SystemFontOfSize(10, NSFontWeight.Semibold)!, NSColor.SecondaryLabel);
+            if (owner._rows[(int)row] is SessionSectionRow section) return Text(section.Name, NSFont.SystemFontOfSize(11, NSFontWeight.Semibold)!, NSColor.SecondaryLabel);
             if (owner._rows[(int)row] is not SessionItemRow item) return new NSView();
             var heading = Text($"{item.Number}  {item.Heading}", NSFont.SystemFontOfSize(12, NSFontWeight.Medium)!, item.IsDimmed ? NSColor.TertiaryLabel : NSColor.Label);
             var where = Text(item.Reason ?? item.Where, NSFont.SystemFontOfSize(11)!, item.HasReason ? NSColor.SystemOrange : NSColor.SecondaryLabel);

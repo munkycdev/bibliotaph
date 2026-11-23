@@ -42,11 +42,10 @@ static class OrganizeSheets
     {
         var sheet = new Sheet(500);
         var bindings = new Bindings();
-        sheet.Content.AddArrangedSubview(PageParts.Section("SAME BOOK"));
         sheet.Text(dialog.Heading, size: 17).Font = NSFont.SystemFontOfSize(17, NSFontWeight.Semibold)!;
         sheet.Text("Copies and versions of one book share a card. Nothing on disk changes.", secondary: true);
         sheet.Text(dialog.Elsewhere, secondary: true);
-        sheet.Content.AddArrangedSubview(PageParts.Section("WHICH FILE OPENS"));
+        sheet.Content.AddArrangedSubview(PageParts.Section("Which File Opens"));
         foreach (var file in dialog.Files)
         {
             var radio = NSButton.CreateRadioButton(file.Name, () => file.Opens = true);
@@ -87,7 +86,7 @@ static class OrganizeSheets
         sheet.Content.AddArrangedSubview(PageParts.Section(dialog.Eyebrow));
         sheet.Text(dialog.Heading).Font = NSFont.SystemFontOfSize(17, NSFontWeight.Semibold)!;
         sheet.Text(dialog.Explanation, secondary: true);
-        sheet.Content.AddArrangedSubview(PageParts.Section("NAME"));
+        sheet.Content.AddArrangedSubview(PageParts.Section("Name"));
         var name = new NSTextField { StringValue = dialog.Name };
         name.Changed += (_, _) => dialog.Name = name.StringValue;
         sheet.AddWide(name);

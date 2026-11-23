@@ -15,7 +15,6 @@ static class BulkEditSheet
     {
         var sheet = new Sheet(620);
         var bindings = new Bindings();
-        sheet.Content.AddArrangedSubview(PageParts.Section("EDIT METADATA"));
         var heading = sheet.Text(editor.Heading);
         heading.Font = NSFont.SystemFontOfSize(17, NSFontWeight.Semibold)!;
 
@@ -42,7 +41,7 @@ static class BulkEditSheet
         bindings.Property(editor, nameof(BulkEditViewModel.Summary), () =>
         {
             foreach (var view in summary.ArrangedSubviews) view.RemoveFromSuperview();
-            summary.AddArrangedSubview(PageParts.Section("WHAT WILL CHANGE"));
+            summary.AddArrangedSubview(PageParts.Section("What Will Change"));
             foreach (var line in editor.Summary)
             {
                 var text = Label($"{line.Field}: {line.Text}", 13);

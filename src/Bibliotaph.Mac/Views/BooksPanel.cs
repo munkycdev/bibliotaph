@@ -28,7 +28,7 @@ sealed class BooksPanel : NSView
         WantsLayer = true;
         Layer!.CornerRadius = 8;
 
-        var title = NSTextField.CreateLabel("BOOKS");
+        var title = NSTextField.CreateLabel("Books");
         title.Font = NSFont.SystemFontOfSize(11, NSFontWeight.Semibold)!;
         title.TextColor = NSColor.SecondaryLabel;
         var close = NSButton.CreateButton(NSImage.GetSystemSymbol("xmark", "Close the Books panel")!, () => _panel.CloseCommand.Execute(null));
@@ -79,20 +79,20 @@ sealed class BooksPanel : NSView
         foreach (var view in _rows.ArrangedSubviews) view.RemoveFromSuperview();
         if (_panel.IsFinding)
         {
-            Heading("FOUND");
+            Heading("Found");
             if (_panel.NoneFound) Note("No book has those words in its title.");
             foreach (var book in _panel.Found) Add(new BookRow(book, this));
             return;
         }
         if (_panel.HasNear)
         {
-            Heading("IN THIS FOLDER");
+            Heading("In This Folder");
             if (!_panel.HasNearBooks) Note("No books beside it.");
             foreach (var book in _panel.NearBooks) Add(new BookRow(book, this));
         }
         if (_panel.HasRecent)
         {
-            Heading("DROPPED ON LATELY");
+            Heading("Dropped On Lately");
             foreach (var book in _panel.Recent) Add(new BookRow(book, this));
         }
         if (_panel.ShowsHint) Note("Tick or drag a map, and the books in its folder show here. Or find a book by its title.");

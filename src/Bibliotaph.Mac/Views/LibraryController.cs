@@ -259,18 +259,18 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var books = selection.Books;
         var summary = NSTextField.CreateLabel("");
         summary.Font = NSFont.SystemFontOfSize(12, NSFontWeight.Medium)!;
-        var edit = Small("Edit metadata…", selection.EditSelectedCommand);
-        var toCollection = Small("Add to collection", null);
+        var edit = Small("Edit Metadata…", selection.EditSelectedCommand);
+        var toCollection = Small("Add to Collection", null);
         toCollection.Activated += (_, _) => Pop(toCollection, ((ICollectionChoices)library).MenuChoices.Select(choice =>
             new NSMenuItem(choice.Label, (_, _) => library.AddSelectedToCollectionCommand.Execute(new CollectionRequest(library, choice)))));
-        var toBinder = Small("Add to binder", null);
+        var toBinder = Small("Add to Binder", null);
         toBinder.Activated += (_, _) => Pop(toBinder, ((ISessionChoices)library).MenuChoices.Select(choice =>
             new NSMenuItem(choice.Label, (_, _) => library.AddSelectedToSessionCommand.Execute(new SessionRequest(library, choice)))));
-        var join = Small("Same book…", selection.JoinSelectedCommand);
-        var pack = Small("Pack together…", selection.PackSelectedCommand);
-        var removeParts = Small("Remove adventures", selection.RemoveSelectedPartsCommand);
-        var removeFromCollection = Small("Remove from collection", library.RemoveSelectedFromCollectionCommand);
-        var export = Small("Export these…", selection.ExportSelectedCommand);
+        var join = Small("Same Book…", selection.JoinSelectedCommand);
+        var pack = Small("Pack Together…", selection.PackSelectedCommand);
+        var removeParts = Small("Remove Adventures", selection.RemoveSelectedPartsCommand);
+        var removeFromCollection = Small("Remove from Collection", library.RemoveSelectedFromCollectionCommand);
+        var export = Small("Export These…", selection.ExportSelectedCommand);
         var clear = Small("Clear", selection.ClearSelectionCommand);
         var actions = NSStackView.FromViews([summary, edit, toCollection, toBinder, join, pack, removeParts, removeFromCollection, export, clear]);
         actions.Spacing = 8;
@@ -377,8 +377,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var views = library.SmartViews;
         var changed = NSTextField.CreateLabel("This saved search has changed.");
         changed.Font = NSFont.SystemFontOfSize(12)!;
-        var update = Small("Update saved search", views.UpdateViewCommand);
-        var saveNew = Small("Save as new…", views.SaveViewAsNewCommand);
+        var update = Small("Update Saved Search", views.UpdateViewCommand);
+        var saveNew = Small("Save as New…", views.SaveViewAsNewCommand);
         var note = NSTextField.CreateWrappingLabel("");
         note.Font = NSFont.SystemFontOfSize(12)!;
         note.TextColor = NSColor.SecondaryLabel;
@@ -415,7 +415,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         _savedPopover?.Close();
         var list = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 2 };
         list.EdgeInsets = new NSEdgeInsets(10, 10, 10, 10);
-        var heading = NSTextField.CreateLabel("SAVED SEARCHES");
+        var heading = NSTextField.CreateLabel("Saved Searches");
         heading.Font = NSFont.SystemFontOfSize(10, NSFontWeight.Semibold)!;
         heading.TextColor = NSColor.SecondaryLabel;
         list.AddArrangedSubview(heading);
@@ -546,7 +546,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     {
         var menu = new NSMenu();
         foreach (var item in items) menu.AddItem(item);
-        if (menu.Count == 0) menu.AddItem(new NSMenuItem("None yet") { Enabled = false });
+        if (menu.Count == 0) menu.AddItem(new NSMenuItem("None Yet") { Enabled = false });
         menu.PopUpMenu(null, new CGPoint(0, under.Bounds.Height + 4), under);
     }
 
@@ -573,7 +573,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var system = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.SystemChoice), () => filters.SystemChoices, () => filters.SystemChoice, c => filters.SystemChoice = c);
         var type = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.TypeChoice), () => filters.TypeChoices, () => filters.TypeChoice, c => filters.TypeChoice = c);
         var folder = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.FolderChoice), () => filters.FolderChoices, () => filters.FolderChoice, c => filters.FolderChoice = c);
-        var clear = NSButton.CreateButton("Clear filters", () => filters.ClearFiltersCommand.Execute(null));
+        var clear = NSButton.CreateButton("Clear Filters", () => filters.ClearFiltersCommand.Execute(null));
         clear.ControlSize = NSControlSize.Small;
         clear.BezelStyle = NSBezelStyle.Inline;
         _bindings.Property(filters, nameof(LibraryFilterState.IsFiltering), () => clear.Hidden = !filters.IsFiltering);

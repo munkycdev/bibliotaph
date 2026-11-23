@@ -26,11 +26,11 @@ public sealed partial class SettingsWindow
         bindings.Command(cancel, storage.CancelConnectingCommand);
         var address = new NSTextField { PlaceholderString = "https://cloud.example.com/remote.php/dav/files/you/Books" };
         address.Changed += (_, _) => storage.WebDavAddress = address.StringValue;
-        var user = new NSTextField { PlaceholderString = "User name" };
+        var user = new NSTextField { PlaceholderString = "Required" };
         user.Changed += (_, _) => storage.WebDavUser = user.StringValue;
-        var password = new NSSecureTextField { PlaceholderString = "Password" };
+        var password = new NSSecureTextField { PlaceholderString = "Required" };
         password.Changed += (_, _) => storage.WebDavPassword = password.StringValue;
-        foreach (var field in new[] { address, user, (NSTextField)password }) field.WidthAnchor.ConstraintEqualTo(360).Active = true;
+        foreach (var field in new[] { address, user, (NSTextField)password }) field.WidthAnchor.ConstraintEqualTo(380).Active = true;
         var webDavProblem = FormText.Note("", 11);
         webDavProblem.TextColor = NSColor.SystemOrange;
         var connectWebDav = NSButton.CreateButton("Connect", () => { });
@@ -43,7 +43,18 @@ public sealed partial class SettingsWindow
             + "Use an app password made for Bibliotaph where your server offers one (in Nextcloud, Personal settings › Security › Create new app password), so you can take it back without changing your own.",
             11);
         webDavHelp.PreferredMaxLayoutWidth = 560;
-        var webDav = NSStackView.FromViews([webDavHelp, address, user, password, webDavProblem, NSStackView.FromViews([closeWebDav, connectWebDav])]);
+        // Each box with its name beside it, right-aligned, as a Mac form has them, not the name only as a placeholder.
+        static NSStackView Labelled(string name, NSView field)
+        {
+            var label = NSTextField.CreateLabel(name);
+            label.Alignment = NSTextAlignment.Right;
+            label.WidthAnchor.ConstraintEqualTo(80).Active = true;
+            var row = NSStackView.FromViews([label, field]);
+            row.Spacing = 8;
+            return row;
+        }
+        var webDav = NSStackView.FromViews([webDavHelp, Labelled("Address:", address), Labelled("User Name:", user), Labelled("Password:", password), webDavProblem,
+            NSStackView.FromViews([closeWebDav, connectWebDav])]);
         webDav.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
         webDav.Alignment = NSLayoutAttribute.Leading;
         webDav.Spacing = 8;

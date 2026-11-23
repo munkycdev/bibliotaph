@@ -33,7 +33,6 @@ static class ElsewhereSheet
     {
         var sheet = new Sheet(480);
         var bindings = new Bindings();
-        sheet.Content.AddArrangedSubview(PageParts.Section("OWNED ELSEWHERE"));
         sheet.Text("Add a Book You Own Elsewhere", size: 17).Font = NSFont.SystemFontOfSize(17, NSFontWeight.Semibold)!;
         sheet.Text("In print or on a virtual tabletop. It gets a card with no file, so search finds it with the rest.", secondary: true);
 

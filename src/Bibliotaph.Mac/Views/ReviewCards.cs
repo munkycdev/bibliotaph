@@ -40,7 +40,7 @@ public sealed partial class ReviewController
         if (card.HasExample) body.AddArrangedSubview(Evidence(card.Example));
         // The term can be filed under one already in the vocabulary, picked here, as another name for it.
         var targets = new NSPopUpButton { ControlSize = NSControlSize.Small, ToolTip = "Another name for an existing term" };
-        targets.AddItem("File under…");
+        targets.AddItem("File Under…");
         foreach (var target in card.Targets) targets.AddItem(target.Label);
         targets.Activated += (_, _) =>
         {
@@ -48,7 +48,7 @@ public sealed partial class ReviewController
             card.Target = index >= 0 && index < card.Targets.Count ? card.Targets[index] : null;
         };
         targets.Hidden = card.Targets.Count == 0;
-        var map = Answer("File under it", card.MapCommand, "Another name for the term picked");
+        var map = Answer("File Under It", card.MapCommand, "Another name for the term picked");
         map.Hidden = targets.Hidden;
         body.AddArrangedSubview(Answers(
             Answer(card.AddLabel, card.AddCommand, "", primary: true),
@@ -83,14 +83,14 @@ public sealed partial class ReviewController
             Label(card.Heading, secondary: true));
         if (card.Path.Length > 0) body.AddArrangedSubview(PathLine(card.Path));
         body.AddArrangedSubview(Evidence(card.Evidence, card.Detail));
-        var book = TitleLink("Open the book", card.OpenBookCommand, card.OpenBookInWindowCommand, card.BookPath.Length > 0 ? card.BookPath : "Open the book");
+        var book = TitleLink("Open the Book", card.OpenBookCommand, card.OpenBookInWindowCommand, card.BookPath.Length > 0 ? card.BookPath : "Open the book");
         book.Font = NSFont.SystemFontOfSize(12)!;
         book.ContentTintColor = NSColor.Link;
         body.AddArrangedSubview(book);
         body.AddArrangedSubview(Answers(
             Answer(card.MakeCurrentLabel, card.MakeCurrentCommand, card.MakeCurrentHint),
             Answer(card.KeepAsCopyLabel, card.KeepAsCopyCommand, card.KeepAsCopyHint),
-            Answer("Separate book", card.SeparateBookCommand, VersionCardText.SeparateHint)));
+            Answer("Separate Book", card.SeparateBookCommand, VersionCardText.SeparateHint)));
         return Decided(card, body);
     }
 
@@ -152,8 +152,8 @@ public sealed partial class ReviewController
         if (card.Path.Length > 0) body.AddArrangedSubview(PathLine(card.Path));
         if (card.Detail.Length > 0) body.AddArrangedSubview(Evidence(card.Detail));
         body.AddArrangedSubview(Answers(
-            Answer("Same book", card.SameBookCommand, "One card: the book you own elsewhere, now opening this file. What you set on it stays.", primary: true),
-            Answer("Separate book", card.SeparateBookCommand, "Two cards, as now. Bibliotaph won't ask about these two again.")));
+            Answer("Same Book", card.SameBookCommand, "One card: the book you own elsewhere, now opening this file. What you set on it stays.", primary: true),
+            Answer("Separate Book", card.SeparateBookCommand, "Two cards, as now. Bibliotaph won't ask about these two again.")));
         return Decided(card, body);
     }
 
@@ -165,8 +165,8 @@ public sealed partial class ReviewController
         if (card.Path.Length > 0) body.AddArrangedSubview(PathLine(card.Path));
         body.AddArrangedSubview(Evidence(card.Evidence, card.Detail));
         body.AddArrangedSubview(Answers(
-            Answer("Same book", card.SameBookCommand, "Fill in what this record gives, as the catalogue's suggestions. Anything you set yourself stays.", primary: true),
-            Answer("Not this book", card.NotThisBookCommand, "Bibliotaph won't use this record for this book.")));
+            Answer("Same Book", card.SameBookCommand, "Fill in what this record gives, as the catalogue's suggestions. Anything you set yourself stays.", primary: true),
+            Answer("Not This Book", card.NotThisBookCommand, "Bibliotaph won't use this record for this book.")));
         return Decided(card, body);
     }
 
@@ -181,7 +181,7 @@ public sealed partial class ReviewController
         books.Spacing = 4;
         foreach (var book in card.Books)
         {
-            var goes = Answer($"Goes with {book.Title}", card.GoesWithCommand, "It takes the book's system, publisher, setting and tags, and shows inside it.",
+            var goes = Answer($"Goes With {book.Title}", card.GoesWithCommand, "It takes the book's system, publisher, setting and tags, and shows inside it.",
                 parameter: () => book);
             goes.Image = NSImage.GetSystemSymbol("checkmark", null)!;
             goes.ImagePosition = NSCellImagePosition.ImageLeading;
@@ -203,7 +203,7 @@ public sealed partial class ReviewController
         var fix = Answer("Fix It", card.FixItCommand, "Open its details, with the values Bibliotaph guessed marked", primary: true);
         fix.Image = NSImage.GetSystemSymbol("pencil", null)!;
         fix.ImagePosition = NSCellImagePosition.ImageLeading;
-        body.AddArrangedSubview(Answers(fix, Answer("It's fine now", card.ItsFineCommand, "Leave it as it is, and take this card away")));
+        body.AddArrangedSubview(Answers(fix, Answer("It's Fine Now", card.ItsFineCommand, "Leave it as it is, and take this card away")));
         return Decided(card, body);
     }
 

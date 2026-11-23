@@ -27,13 +27,13 @@ public sealed class BinderEditController(SessionPackViewModel pack) : NSViewCont
         var (root, content) = PageParts.ScrollingPage();
         var actions = NSStackView.FromViews([
             Command("Done", pack.DoneCommand),
-            Command("Rename or date…", pack.EditCommand),
-            Command("Add section…", pack.AddSectionCommand),
+            Command("Rename or Date…", pack.EditCommand),
+            Command("Add Section…", pack.AddSectionCommand),
             Suggested(),
-            Command("Find resources…", pack.FindResourcesCommand),
-            Command("Show its books", pack.ShowBooksCommand),
+            Command("Find Resources…", pack.FindResourcesCommand),
+            Command("Show Its Books", pack.ShowBooksCommand),
             Command("Duplicate", pack.DuplicateCommand),
-            Command("Delete binder…", pack.DeleteCommand),
+            Command("Delete Binder…", pack.DeleteCommand),
         ]);
         actions.Spacing = 8;
         var notesLabel = PageParts.Section("Notes for the session");
@@ -78,7 +78,7 @@ public sealed class BinderEditController(SessionPackViewModel pack) : NSViewCont
         {
             if (row is SessionSectionRow section)
             {
-                var name = PageParts.Section(section.Name.ToUpperInvariant());
+                var name = PageParts.Section(section.Name);
                 var line = NSStackView.FromViews([name, new NSView(), Command("Rename…", pack.RenameSectionCommand, section), Command("Delete", pack.DeleteSectionCommand, section)]);
                 // Dropping an item on a heading puts it first under it.
                 var heading = new DropRow(line, section, pack);
@@ -97,7 +97,7 @@ public sealed class BinderEditController(SessionPackViewModel pack) : NSViewCont
     /// <summary>The sections binders usually have, as Windows offers them: a menu of those, each added with a click.</summary>
     NSButton Suggested()
     {
-        var button = NSButton.CreateButton("Suggested sections", () => { });
+        var button = NSButton.CreateButton("Suggested Sections", () => { });
         button.ControlSize = NSControlSize.Small;
         button.Image = NSImage.GetSystemSymbol("chevron.down", null)!;
         button.ImagePosition = NSCellImagePosition.ImageTrailing;

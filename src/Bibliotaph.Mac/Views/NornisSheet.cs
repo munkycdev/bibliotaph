@@ -26,7 +26,6 @@ static class NornisSheet
             if (current() is not { } dialog || window() is not { } host) return;
             var sheet = new Sheet(440);
             var bindings = new Bindings();
-            sheet.Content.AddArrangedSubview(PageParts.Section("NORNIS"));
             sheet.Text("Send to Nornis", size: 17).Font = NSFont.SystemFontOfSize(17, NSFontWeight.Semibold)!;
             sheet.Text("Nornis files these pages as an excerpt in the world, once you confirm there.", secondary: true);
             NSTextField Box(string placeholder, string value, Action<string> changed)

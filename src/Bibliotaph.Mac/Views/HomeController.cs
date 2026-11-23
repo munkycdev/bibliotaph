@@ -78,7 +78,7 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
     public override void LoadView()
     {
         var (root, content) = PageParts.ScrollingPage();
-        var addFolder = NSButton.CreateButton("Add a folder of books…", () => { });
+        var addFolder = NSButton.CreateButton("Add a Folder of Books…", () => { });
         _bindings.Command(addFolder, home.AddFolderCommand);
         _addFolder = addFolder;
         var start = NSStackView.FromViews([PageParts.Secondary("Add the folders where your books are. Bibliotaph reads them where they are and never changes them."), addFolder]);
