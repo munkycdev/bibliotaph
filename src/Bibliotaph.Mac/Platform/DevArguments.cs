@@ -11,7 +11,7 @@ namespace Bibliotaph.Mac.Platform;
 
 /// <summary>
 /// Arguments for checking a build with nobody at the Mac, as the Windows app's --screenshots: <c>--add-folder</c>
-/// adds a library folder without the picker, <c>--open</c> opens a document by its id (at <c>--at-page</c>'s page), <c>--devices</c> and <c>--settings</c> open those windows (Settings at a section named after it), <c>--page</c> shows a page by its route, <c>--quit-after</c> quits after that many seconds, <c>--details-first</c> shows the first book's details (or the one at the index after it; with <c>--notes</c>, at its Notes), <c>--zoom</c> zooms the book opened, <c>--select-all</c> selects its page's text, <c>--check-download</c> checks a folder or ZIP against the library, <c>--list</c> shows the Library as a list, <c>--online</c> opens a service's browser by its key (at a saved page after it, if given), <c>--organize</c> ticks that many books in Organize mode (and <c>--bulk-edit</c> opens the editor for them), and <c>--screenshot</c> saves the
+/// adds a library folder without the picker, <c>--open</c> opens a document by its id (at <c>--at-page</c>'s page), <c>--devices</c> and <c>--settings</c> open those windows (Settings at a section named after it), <c>--page</c> shows a page by its route, <c>--quit-after</c> quits after that many seconds, <c>--details-first</c> shows the first book's details (or the one at the index after it; with <c>--notes</c>, at its Notes), <c>--zoom</c> zooms the book opened, <c>--select-all</c> selects its page's text, <c>--check-download</c> checks a folder or ZIP against the library, <c>--online-reader</c> opens a page in the online reader, <c>--list</c> shows the Library as a list, <c>--online</c> opens a service's browser by its key (at a saved page after it, if given), <c>--organize</c> ticks that many books in Organize mode (and <c>--bulk-edit</c> opens the editor for them), and <c>--screenshot</c> saves the
 /// key window as a PNG every few seconds. The
 /// app draws the picture itself, so it needs no Screen Recording permission; AppKit leaves the sidebar's glass and what's on
 /// it out of such a picture.
@@ -67,6 +67,12 @@ static class DevArguments
             services.GetRequiredService<INavigationService>().NavigateTo(Presentation.Services.Route.DownloadCheck);
             if (services.GetRequiredService<INavigationService>().Current is Presentation.ViewModels.DownloadCheckViewModel check)
                 check.StartAsync(Path.GetFullPath(download)).FireAndForget();
+        }
+        if (Value(args, "--online-reader") is { } page)
+        {
+            var readers = services.GetRequiredService<OnlineReaders>();
+            services.GetRequiredService<INavigationService>().Show(
+                readers.Create(new OnlineReaderRequest(new Core.EntryId(1), "Test page", new Uri(Path.GetFullPath(page)).AbsoluteUri)));
         }
         // Selects the text on the page being read, as Select All does, once the book has opened.
         if (args.Contains("--select-all"))

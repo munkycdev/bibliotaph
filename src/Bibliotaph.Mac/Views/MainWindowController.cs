@@ -58,7 +58,7 @@ public sealed class MainWindowController : NSWindowController
         {
             if (_shown is LibraryViewModel library) _ = LoadAsync(library);
         });
-        _pages = new PageHost(services.GetRequiredService<MacCovers>(), _navigation);
+        _pages = new PageHost(services.GetRequiredService<MacCovers>(), _navigation, services);
 
         var split = new NSSplitViewController();
         var sidebar = NSSplitViewItem.CreateSidebar(_sidebar);

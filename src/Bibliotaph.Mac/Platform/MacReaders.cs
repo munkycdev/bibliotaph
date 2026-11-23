@@ -13,7 +13,7 @@ namespace Bibliotaph.Mac.Platform;
 /// Where books open: in the main window in place of the Library, with Back to return, or in a window of their own. A
 /// reader window holds its own viewer worker, so two books draw at once.
 /// </summary>
-public sealed class MacReaderWindows(ViewerServices viewer, INavigationService navigation, ILogger<MacReaderWindows> log) : IReaderWindows
+public sealed class MacReaderWindows(ViewerServices viewer, INavigationService navigation, IServiceProvider services, ILogger<MacReaderWindows> log) : IReaderWindows
 {
     readonly List<ReaderWindow> _windows = [];
     ViewerLease? _mainLease;
@@ -100,6 +100,9 @@ public sealed class MacReaderWindows(ViewerServices viewer, INavigationService n
     /// <summary>The main window, which MainWindowController names here when it opens.</summary>
     public NSWindow? MainWindow { get; set; }
 
+    /// <summary>What a reader in a window of its own is made with.</summary>
+    internal IServiceProvider Services => services;
+
     internal void Closed(ReaderWindow window)
     {
         _windows.Remove(window);
@@ -125,7 +128,12 @@ sealed class ReaderWindow : NSWindowController
         // Tab goes through the controls as they are now, as pages and panes change them.
         window.AutorecalculatesKeyViewLoop = true;
         window.TitlebarAppearsTransparent = false;
-        window.ContentViewController = model is ViewerViewModel reader ? new ReaderController(reader, null) : new NSViewController { View = new NSView() };
+        window.ContentViewController = model switch
+        {
+            ViewerViewModel reader => new ReaderController(reader, null),
+            OnlineReaderViewModel online => OnlineReaderController.For(online, owner.Services),
+            _ => new NSViewController { View = new NSView() },
+        };
         window.SetContentSize(new CGSize(980, 1000));
         window.Center();
         window.FrameAutosaveName = "BibliotaphReader";

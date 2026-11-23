@@ -195,10 +195,10 @@ public sealed class MacPasswordPrompt : IPasswordPrompt
     }
 }
 
-/// <summary>Books owned online open in the everyday browser: the Mac has no online reader yet.</summary>
-public sealed class NoInAppBrowser : IInAppBrowser
+/// <summary>Bibliotaph's own browser is WebKit, which every Mac has, so books owned online can always open in it.</summary>
+public sealed class MacInAppBrowser : IInAppBrowser
 {
-    public bool IsInstalled => false;
+    public bool IsInstalled => true;
 }
 
 /// <summary>The e-book reader isn't on the Mac yet.</summary>

@@ -73,7 +73,7 @@ static class MacComposition
         services.AddSingleton<IPictureDecoder>(sp => sp.GetRequiredService<MacImageCodec>());
         services.AddSingleton<IPageThumbnails, MacPageThumbnails>();
         services.AddSingleton<IGraphicsMemory, MacGraphicsMemory>();
-        services.AddSingleton<IInAppBrowser, NoInAppBrowser>();
+        services.AddSingleton<IInAppBrowser, MacInAppBrowser>();
         services.AddSingleton<IEbookBrowser, NoEbookBrowser>();
         services.AddSingleton<MacTheme>();
         services.AddSingleton<IThemeService>(sp => sp.GetRequiredService<MacTheme>());

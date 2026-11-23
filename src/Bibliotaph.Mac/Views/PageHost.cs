@@ -8,7 +8,7 @@ namespace Bibliotaph.Mac.Views;
 /// The window's content: the view for the page the shell shows. A page the Mac has no view for yet says so and
 /// offers the way back to the Library, so a link from a shared view model never leaves the window empty.
 /// </summary>
-public sealed class PageHost(MacCovers covers, INavigationService navigation) : NSViewController
+public sealed class PageHost(MacCovers covers, INavigationService navigation, IServiceProvider services) : NSViewController
 {
     NSViewController? _current;
 
@@ -29,6 +29,7 @@ public sealed class PageHost(MacCovers covers, INavigationService navigation) : 
             SummaryViewModel numbers => new SummaryController(numbers),
             AiReadingViewModel reading => new AiReadingController(reading),
             DownloadCheckViewModel download => new DownloadCheckController(download),
+            OnlineReaderViewModel online => OnlineReaderController.For(online, services),
             null => null,
             _ => (NSViewController)new NotYetController(page, navigation),
         };
