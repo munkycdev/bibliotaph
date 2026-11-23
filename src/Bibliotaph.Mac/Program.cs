@@ -1,0 +1,251 @@
+using AppKit;
+using Bibliotaph.Catalog;
+using Bibliotaph.Core;
+using Bibliotaph.Index;
+using Bibliotaph.Mac.Composition;
+using Bibliotaph.Mac.Platform;
+using Bibliotaph.Mac.Views;
+using Bibliotaph.Presentation.Composition;
+using Bibliotaph.Presentation.Services;
+using Bibliotaph.Presentation.ViewModels;
+using Bibliotaph.Processing;
+using Foundation;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Serilog;
+
+namespace Bibliotaph.Mac;
+
+static class Program
+{
+    static void Main(string[] args)
+    {
+        // Before anything else, as Velopack asks: an install or update may be running this copy only to finish itself.
+        Velopack.VelopackApp.Build().Run();
+        NSApplication.Init();
+        NSApplication.SharedApplication.Delegate = new AppDelegate(args);
+        NSApplication.Main(args);
+    }
+}
+
+/// <summary>
+/// The composition root, as the Windows app's App: builds the Generic Host, prepares both databases and opens the
+/// window. Quitting stops the host, which stops all processing.
+/// </summary>
+[Register(nameof(AppDelegate))]
+sealed class AppDelegate(string[] args) : NSApplicationDelegate
+{
+    IHost? _host;
+    MainWindowController? _main;
+    bool _stopped;
+    System.Runtime.InteropServices.PosixSignalRegistration? _terminate;
+
+    public override async void DidFinishLaunching(NSNotification notification)
+    {
+        var paths = DataRoot(args) is { } root ? new AppPaths(root) : AppPaths.ForCurrentUser();
+        foreach (var directory in paths.Directories) Directory.CreateDirectory(directory);
+
+        // Page text and passwords are never logged; file paths are.
+        Log.Logger = new LoggerConfiguration()
+            .MinimumLevel.Information()
+            .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+            .Enrich.FromLogContext()
+            .WriteTo.File(Path.Combine(paths.Logs, "bibliotaph-.log"),
+                rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}")
+            .CreateLogger();
+        // A quit from outside (kill, a logout) quits as the menu does, so the host stops and the databases close.
+        _terminate = System.Runtime.InteropServices.PosixSignalRegistration.Create(System.Runtime.InteropServices.PosixSignal.SIGTERM, signal =>
+        {
+            signal.Cancel = true;
+            NSApplication.SharedApplication.BeginInvokeOnMainThread(() => NSApplication.SharedApplication.Terminate(this));
+        });
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Log.Fatal(e.ExceptionObject as Exception, "Unhandled exception");
+        TaskScheduler.UnobservedTaskException += (_, e) => Log.Error(e.Exception, "Unobserved task exception");
+        Log.Information("Bibliotaph for Mac {Version} starting; data in {Root}", typeof(AppDelegate).Assembly.GetName().Version, paths.Root);
+
+        try
+        {
+            // A restore chosen before the restart swaps its catalog in now, once the copy that chose it has closed it.
+            await MacAppLifetime.WaitForAsync(args);
+            // Start over, asked for before the restart, deletes the library data before anything opens it.
+            if (DataPurge.RunIfRequested(paths)) Log.Information("Started over: the library data was deleted");
+            var restored = await PendingRestore.ApplyIfRequestedAsync(paths);
+            if (restored is not null) Log.Information("Restore of {Backup}: {Result}", restored.Request?.Backup, restored.Problem ?? "restored");
+            var everyday = DataRoot(args) is null;
+            _host = BuildHost(paths, everyday, args.Contains("--dev"));
+            await PrepareDatabasesAsync(_host.Services);
+            await _host.StartAsync();
+            var services = _host.Services;
+            ProjectMetadataInBackground(services);
+
+            await services.GetRequiredService<MacTheme>().InitializeAsync();
+            await services.GetRequiredService<LibrarySorts>().InitializeAsync();
+            await services.GetRequiredService<LibraryPackView>().InitializeAsync();
+
+            _main = new MainWindowController(services);
+            NSApplication.SharedApplication.MainMenu = Menus.Build(_main);
+            _main.ShowWindow(this);
+            // Once the window shows, as on Windows: a build that wasn't installed doesn't check.
+            services.GetRequiredService<Presentation.Services.IUpdateService>().Start();
+            // A copy checking a build stays behind what the person at the Mac is doing, so it can't take their typing.
+            if (!args.Contains("--screenshot")) NSApplication.SharedApplication.Activate();
+            // Opens Home, or the Library when Settings says to start there, as on Windows.
+            await services.GetRequiredService<ShellViewModel>().StartAsync();
+            await DevArguments.ApplyAsync(args, services, _main);
+            _main.CheckConnectionAsync(offer: DataRoot(args) is null).FireAndForget();
+            if (restored is not null) MacAppLifetime.Tell(restored, _main.Window);
+            if (everyday) BackUpWeeklyInBackground(services);
+        }
+        catch (Exception ex)
+        {
+            Log.Fatal(ex, "Startup failed");
+            using var alert = new NSAlert
+            {
+                AlertStyle = NSAlertStyle.Critical,
+                MessageText = "Bibliotaph could not start",
+                InformativeText = $"{ex.Message}\n\nDetails are in the log folder:\n{paths.Logs}",
+            };
+            alert.RunModal();
+            NSApplication.SharedApplication.Terminate(this);
+        }
+    }
+
+    public override bool ApplicationShouldTerminateAfterLastWindowClosed(NSApplication sender) => true;
+
+    public override NSApplicationTerminateReply ApplicationShouldTerminate(NSApplication sender)
+    {
+        if (_host is null || _stopped) return NSApplicationTerminateReply.Now;
+        // The window lets go of its views here, on the main thread AppKit needs, then the services stop on the thread
+        // pool, as hosted services must not need the main thread to finish, and the app quits for real.
+        try
+        {
+            _main?.Unload();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Closing the window's views failed");
+        }
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _host.StopAsync(TimeSpan.FromSeconds(5));
+                if (_host is IAsyncDisposable disposable) await disposable.DisposeAsync();
+                else _host.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Stopping Bibliotaph failed");
+            }
+            Log.Information("Bibliotaph stopped");
+            await Log.CloseAndFlushAsync();
+            _stopped = true;
+            NSApplication.SharedApplication.BeginInvokeOnMainThread(() => sender.ReplyToApplicationShouldTerminate(true));
+        });
+        return NSApplicationTerminateReply.Later;
+    }
+
+    /// <summary><c>--data-root &lt;folder&gt;</c> keeps the databases and logs somewhere other than Application Support.</summary>
+    static string? DataRoot(string[] args)
+    {
+        var at = Array.IndexOf(args, "--data-root");
+        return at >= 0 && at + 1 < args.Length ? Path.GetFullPath(args[at + 1]) : null;
+    }
+
+    static IHost BuildHost(AppPaths paths, bool everyday, bool dev)
+    {
+        var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            ContentRootPath = AppContext.BaseDirectory,
+            DisableDefaults = true,
+        });
+        // A missing registration fails at startup, not when a page first opens.
+        builder.ConfigureContainer(new DefaultServiceProviderFactory(new ServiceProviderOptions { ValidateOnBuild = true }));
+        builder.Services.AddSerilog();
+        builder.Services.AddSingleton(paths);
+        builder.Services.AddSingleton(TimeProvider.System);
+
+        builder.Services
+            .AddMacHost()
+            .AddSecrets(everyday)
+            .AddDesktop(paths, dev: dev)
+            .AddMacPdfWorker();
+        // After the shared registrations, which hold Windows' cloud files: iCloud Drive and File Provider folders instead.
+        builder.Services.AddSingleton<Bibliotaph.Processing.ICloudFiles, MacCloudFiles>();
+        return builder.Build();
+    }
+
+    static void BackUpWeeklyInBackground(IServiceProvider services) =>
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (await services.GetRequiredService<BackupService>().BackUpWeeklyIfDueAsync() is { } backup)
+                    Log.Information("Weekly backup saved to {Backup}", backup.Path);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "The weekly backup failed");
+            }
+        });
+
+    static async Task PrepareDatabasesAsync(IServiceProvider services)
+    {
+        var catalog = await services.GetRequiredService<CatalogDatabase>().MigrateAsync();
+        if (catalog.BackupPath is not null) Log.Information("catalog.db was backed up to {Backup}", catalog.BackupPath);
+
+        var added = await services.GetRequiredService<VocabularyStore>().SeedAsync();
+        if (added > 0) Log.Information("Added {Count} starter vocabulary terms", added);
+
+        var ai = services.GetRequiredService<AiSettings>();
+        await ai.LoadAsync();
+        Log.Information("AI: {State}", ai.Setup.IsReady ? $"on, {ai.Setup.RunProvider} model {ai.Setup.ModelName}" : "off");
+        // The built-in AI, as on Windows: its engine stops when nothing needs it, and books are read once it and its model are here.
+        services.GetRequiredService<BuiltInEngine>().StopWhenNotNeeded(ai, services.GetRequiredService<IIndexingStatus>());
+        services.GetRequiredKeyedService<BuiltInEngine>(BuiltInEngine.EmbeddingKey).StopWhenNotNeededForAsk(ai);
+        services.GetRequiredService<BuiltInModelDownloads>().WakeAiWhenDownloaded(ai);
+        services.GetRequiredService<BuiltInEngineDownload>().WakeAiWhenDownloaded(ai);
+        DownloadEngineInBackground(services);
+
+        var index = await services.GetRequiredService<IndexDatabase>().InitializeAsync();
+        Log.Information("index.db: {Result}", index);
+
+        // Before the first scan, so folders in connected storage aren't taken for unreachable.
+        await services.GetRequiredService<Bibliotaph.Storage.Desktop.PcDrives>().ReloadAsync();
+        services.GetRequiredService<ElsewhereService>().CheckFilesWhenProjected();
+    }
+
+    /// <summary>
+    /// The built-in AI's engine, llama.cpp's Apple silicon build, downloaded in the background at each start until
+    /// it's here, whether or not the built-in AI is used, as on Windows.
+    /// </summary>
+    static void DownloadEngineInBackground(IServiceProvider services) =>
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await services.GetRequiredService<BuiltInEngineDownload>().EnsureAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Downloading the built-in AI engine failed");
+            }
+        });
+
+    /// <summary>Copies catalog.db's metadata into index.db once the index writer runs, as the Windows app does at each start.</summary>
+    static void ProjectMetadataInBackground(IServiceProvider services) =>
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await services.GetRequiredService<MetadataProjector>().ProjectAllAsync();
+                services.GetRequiredService<LostCovers>().Start();
+                await services.GetRequiredService<ChapterProjection>().RestoreAsync();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Projecting metadata into index.db failed");
+            }
+        });
+}

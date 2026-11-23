@@ -24,7 +24,7 @@ interface IOcrEngine
 
 static class OcrEngines
 {
-    /// <summary>Windows OCR in the user's languages, or null with the reason when it can't run here.</summary>
+    /// <summary>Windows OCR in the user's languages, Vision on a Mac, Tesseract elsewhere; or null with the reason when it can't run here.</summary>
     public static IOcrEngine? Create(out string? reason)
     {
 #if WINDOWS
@@ -37,6 +37,7 @@ static class OcrEngines
         reason = engine is null ? "Windows OCR has no language installed for this user (Settings > Time & language > Language & region)." : null;
         return engine;
 #else
+        if (OperatingSystem.IsMacOS()) return VisionOcrEngine.TryCreate(out reason);
         return TesseractOcrEngine.TryCreate(out reason);
 #endif
     }
