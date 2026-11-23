@@ -10,11 +10,11 @@ using CoreGraphics;
 namespace Bibliotaph.Mac.Views;
 
 /// <summary>
-/// Needs review: the suggestions Bibliotaph wants a word on, one card each, and the files it couldn't read. A metadata
-/// card has the Windows card's Accept, Edit and Reject; every other kind shows its question and its answers as buttons,
-/// so a new kind of card shows here without a view of its own. A decided card says what was done and offers Undo.
+/// Needs review: the suggestions Bibliotaph wants a word on, one card each, and the files it couldn't read. Each kind
+/// of card is laid out as on Windows; a kind this page doesn't know yet shows its question and its answers as buttons,
+/// so it can still be answered. A decided card says what was done and offers Undo.
 /// </summary>
-public sealed partial class ReviewController(NeedsReviewViewModel review) : NSViewController, IWindowTitle
+public sealed partial class ReviewController(NeedsReviewViewModel review, MacCovers covers) : NSViewController, IWindowTitle
 {
     /// <summary>Needs review, with how many wait under it.</summary>
     public void FollowTitle(Bindings bindings, Action<string, string> show) =>
@@ -104,7 +104,7 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
         if (review.IsSuggestionsTab)
         {
             if (review.ShowEmpty) _list.AddArrangedSubview(Label("Nothing needs review. Bibliotaph will put anything it isn't sure of here.", secondary: true));
-            foreach (var card in review.Cards) Add(card is ReviewCardViewModel metadata ? MetadataCard(metadata) : GenericCard(card));
+            foreach (var card in review.Cards) Add(card is ReviewCardViewModel metadata ? MetadataCard(metadata) : KindCard(card) ?? GenericCard(card));
             if (review.HasHidden)
             {
                 var more = NSButton.CreateButton(review.MoreLabel, () => { });
@@ -242,7 +242,11 @@ public sealed partial class ReviewController(NeedsReviewViewModel review) : NSVi
         var done = Label("", secondary: true);
         var undo = Button("Undo", card.UndoCommand);
         var decided = Row(done, undo);
-        var box = Card(Stack(body, decided));
+        var column = Stack(body, decided);
+        // The card's lines span it, so a chip or a button at the trailing edge sits at the card's.
+        body.WidthAnchor.ConstraintEqualTo(column.WidthAnchor).Active = true;
+        if (body.ArrangedSubviews is [NSStackView head, ..]) head.WidthAnchor.ConstraintEqualTo(body.WidthAnchor).Active = true;
+        var box = Card(column);
         _cards.Properties(card, [nameof(DecidedCardViewModel.IsDone), nameof(DecidedCardViewModel.DoneText), nameof(DecidedCardViewModel.IsBusy)], () =>
         {
             body.Hidden = card.IsDone;

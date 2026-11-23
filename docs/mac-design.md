@@ -63,6 +63,13 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
   opening a saved one share one menu.
 - **Context menus** list only what applies. They keep submenus to one level, and everything in them can also be
   reached in the page or its inspector.
+- **Needs review cards** follow the Windows card for each kind:
+  - The title opens what the card is about; Option-click opens it in a window of its own.
+  - The kind of question is a chip at the trailing edge. An offer also has × there, which gives its "don't ask again"
+    answer.
+  - The likeliest answer is the prominent button.
+  - A kind the page doesn't know yet still shows its answers as plain buttons.
+  - `--review-samples <png>` shows one made-up card of each kind and saves the whole list as a picture.
 - **Tables.**
   - Columns can be resized.
   - Rows alternate in colour.
@@ -75,6 +82,7 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
 - The Edit menu has Find and Ask.
 - The File menu has what Windows puts behind the Library's Add button: Add Folder, Add a Book I Own Elsewhere and
   Check a Download.
+- The Go menu has Back (⌘[) and each page, as Finder's does. Back is also in the toolbar beside the page's name.
 - The Help menu, last as on every Mac, has Keyboard Shortcuts (⌘/).
 
 ## Book details

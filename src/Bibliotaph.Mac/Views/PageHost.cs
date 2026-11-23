@@ -27,7 +27,7 @@ public sealed class PageHost(MacCovers covers, INavigationService navigation, IS
             HomeViewModel home => new HomeController(home, covers),
             LibraryViewModel library => new LibraryController(library, covers),
             ViewerViewModel reader => new ReaderController(reader, navigation),
-            NeedsReviewViewModel review => new ReviewController(review),
+            NeedsReviewViewModel review => new ReviewController(review, covers),
             CollectionsViewModel collections => new CollectionsController(collections, covers),
             SessionsViewModel binders => new BindersController(binders, covers),
             SessionReaderViewModel binder => new BinderController(binder),

@@ -54,6 +54,7 @@ static class DevArguments
             {
                 if (services.GetRequiredService<INavigationService>().Current is Presentation.ViewModels.LibraryViewModel library) library.Layout = Index.LibraryLayout.List;
             }), TaskScheduler.Default);
+        if (args.Contains("--review-samples")) ReviewSamplesAsync(services, main, Value(args, "--review-samples")).FireAndForget();
         if (int.TryParse(Value(args, "--organize"), out var tick)) OrganizeAsync(services, tick, args.Contains("--bulk-edit")).FireAndForget();
         if (Value(args, "--online") is { } key
             && services.GetRequiredService<MacOnlineLibraries>() is var online && online.Services.FirstOrDefault(s => s.Reader.Key == key) is { } service)
@@ -115,6 +116,42 @@ static class DevArguments
     }
 
     /// <summary>Organize mode with the first books ticked, once the Library has listed them.</summary>
+    /// <summary>One made-up card of each kind on Needs review, once its own list has loaded.</summary>
+    static async Task ReviewSamplesAsync(IServiceProvider services, Views.MainWindowController main, string? picture)
+    {
+        services.GetRequiredService<INavigationService>().NavigateTo(Presentation.Services.Route.NeedsReview);
+        for (var tries = 0; tries < 40; tries++)
+        {
+            await Task.Delay(250);
+            if (services.GetRequiredService<INavigationService>().Current is Presentation.ViewModels.NeedsReviewViewModel { IsLoading: false } review)
+            {
+                Bindings.OnMain(() =>
+                {
+                    foreach (var card in DevReviewSamples.Make(review)) review.Cards.Add(card);
+                });
+                // The whole list, past the window's foot, as one picture.
+                if (picture is null || picture.StartsWith("--", StringComparison.Ordinal)) return;
+                await Task.Delay(2500);
+                Bindings.OnMain(() =>
+                {
+                    if (Tallest(main.Window!.ContentView!) is not { } list) return;
+                    var rep = list.BitmapImageRepForCachingDisplayInRect(list.Bounds)!;
+                    list.CacheDisplay(list.Bounds, rep);
+                    rep.RepresentationUsingTypeProperties(NSBitmapImageFileType.Png)!.Save(NSUrl.FromFilename(picture), true);
+                });
+                return;
+            }
+        }
+    }
+
+    static NSView? Tallest(NSView view)
+    {
+        NSView? best = view is NSScrollView { DocumentView: { } document } ? document : null;
+        foreach (var child in view.Subviews)
+            if (Tallest(child) is { } found && (best is null || found.Bounds.Height > best.Bounds.Height)) best = found;
+        return best;
+    }
+
     static async Task OrganizeAsync(IServiceProvider services, int count, bool edit)
     {
         for (var tries = 0; tries < 40; tries++)
