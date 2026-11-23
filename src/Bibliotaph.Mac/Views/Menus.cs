@@ -12,7 +12,7 @@ static class Menus
         var bar = new NSMenu();
 
         bar.AddItem(Top("Bibliotaph",
-            Item("About Bibliotaph", "orderFrontStandardAboutPanel:"),
+            new NSMenuItem("About Bibliotaph", (_, _) => AboutPanel.Show()),
             NSMenuItem.SeparatorItem,
             new NSMenuItem("Settings…", ",", (_, _) => main.ShowSettings()),
             new NSMenuItem("Your Web Library…", (_, _) => main.ShowDevices()),
@@ -41,6 +41,15 @@ static class Menus
             NSMenuItem.SeparatorItem,
             new NSMenuItem("Find", "f", (_, _) => main.FocusSearch()),
             Shortcut(new NSMenuItem("Ask Your Library", "f", (_, _) => main.ToggleAsk()), NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask)));
+
+        bar.AddItem(Top("Go",
+            new NSMenuItem("Back", "[", (_, _) => main.GoBack()),
+            new NSMenuItem("Home", "H", (_, _) => main.Go(Route.Home)),
+            new NSMenuItem("Library", "L", (_, _) => main.Go(Route.Library)),
+            new NSMenuItem("Collections", "", (_, _) => main.Go(Route.Collections)),
+            new NSMenuItem("Binders", "", (_, _) => main.Go(Route.Sessions)),
+            new NSMenuItem("Needs Review", "", (_, _) => main.Go(Route.NeedsReview)),
+            new NSMenuItem("Summary", "", (_, _) => main.Go(Route.Summary))));
 
         // The Library's layouts, as Finder's View menu has its own; ticked for the one showing, and off elsewhere.
         var covers = new NSMenuItem("as Covers", "1", (_, _) => { if (main.Library is { } library) library.Layout = Index.LibraryLayout.Grid; });

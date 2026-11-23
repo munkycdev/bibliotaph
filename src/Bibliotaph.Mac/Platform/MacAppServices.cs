@@ -166,7 +166,7 @@ public sealed class MacAppLifetime(AppPaths paths, IForgetsSecrets secrets, ILog
 /// <summary>About shows the standard panel; Keyboard Shortcuts and Test with a Book are the Mac's own.</summary>
 public sealed class MacAppDialogs(AiService ai) : IAppDialogs
 {
-    public void ShowAbout() => NSApplication.SharedApplication.OrderFrontStandardAboutPanel(null);
+    public void ShowAbout() => Views.AboutPanel.Show();
 
     public void ShowShortcuts() => Views.ShortcutsWindow.Show();
 

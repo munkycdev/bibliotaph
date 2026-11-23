@@ -2,6 +2,7 @@ using AppKit;
 using Bibliotaph.Mac.Binding;
 using Bibliotaph.Presentation.Services;
 using Bibliotaph.Presentation.ViewModels;
+using Foundation;
 
 namespace Bibliotaph.Mac.Views;
 
@@ -242,5 +243,49 @@ static class ShortcutsWindow
         window.WillClose += (_, _) => _window = null;
         _window = window;
         window.MakeKeyAndOrderFront(null);
+    }
+}
+
+/// <summary>
+/// About Bibliotaph: the standard panel, with what Windows' About says under it: that it's free software under the GPL,
+/// the licence and third-party notices that come with it, its source and where to report a problem, and the credit
+/// BoardGameGeek's terms ask for where RPGGeek's data shows.
+/// </summary>
+static class AboutPanel
+{
+    public static void Show()
+    {
+        var text = new NSMutableAttributedString();
+        var body = new NSStringAttributes { Font = NSFont.SystemFontOfSize(11)!, ForegroundColor = NSColor.SecondaryLabel };
+        void Add(string words) => text.Append(new NSAttributedString(words, body));
+        void Link(string words, string url)
+        {
+            var link = new NSMutableAttributedString(words, new NSStringAttributes { Font = NSFont.SystemFontOfSize(11)! }.Dictionary);
+            link.AddAttribute(NSStringAttributeKey.Link, new NSUrl(url), new NSRange(0, link.Length));
+            text.Append(link);
+        }
+        string File(string name) => NSBundle.MainBundle.PathForResource(System.IO.Path.GetFileNameWithoutExtension(name), System.IO.Path.GetExtension(name).TrimStart('.'))
+            is { } path ? NSUrl.CreateFileUrl(path, false, null).AbsoluteString! : AboutInfo.SourceUrl;
+
+        Add("Bibliotaph is free software: you can share and change it under the GNU General Public License, version 3 or any later version. It comes with no warranty.\n\n");
+        Link("Licence", File("LICENSE.txt"));
+        Add("  ·  ");
+        Link("Third-party notices", File("THIRD-PARTY-NOTICES.md"));
+        Add("  ·  ");
+        Link("Source code", AboutInfo.SourceUrl);
+        Add("  ·  ");
+        Link("Report a problem", AboutInfo.IssuesUrl);
+        Add("\n\nBook data looked up on RPGGeek comes from BoardGameGeek: ");
+        Link("powered by BGG", "https://boardgamegeek.com");
+        Add(". The built-in AI runs llama.cpp (MIT), downloaded from its own releases.");
+        var centred = new NSMutableParagraphStyle { Alignment = NSTextAlignment.Center };
+        text.AddAttribute(NSStringAttributeKey.ParagraphStyle, centred, new NSRange(0, text.Length));
+
+        var options = new NSMutableDictionary
+        {
+            [new NSString("Credits")] = text,
+            [new NSString("Copyright")] = new NSString(AboutInfo.Copyright),
+        };
+        NSApplication.SharedApplication.OrderFrontStandardAboutPanelWithOptions(options);
     }
 }

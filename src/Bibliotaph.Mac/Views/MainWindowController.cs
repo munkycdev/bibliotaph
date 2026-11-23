@@ -147,6 +147,12 @@ public sealed class MainWindowController : NSWindowController
         if (Library is { } library && library.AddElsewhereCommand.CanExecute(null)) library.AddElsewhereCommand.Execute(null);
     }
 
+    /// <summary>Back to the page before, from the Go menu.</summary>
+    public void GoBack()
+    {
+        if (_shell.GoBackCommand.CanExecute(null)) _shell.GoBackCommand.Execute(null);
+    }
+
     /// <summary>A page the menus open, as Check a Download.</summary>
     public void Go(Presentation.Services.Route route) => _navigation.NavigateTo(route);
 
@@ -252,13 +258,14 @@ public sealed class MainWindowController : NSWindowController
 }
 
 /// <summary>
-/// The toolbar: the sidebar's toggle at the leading edge; search, which searches the whole library as typing pauses, and
+/// The toolbar: the sidebar's toggle and Back at the leading edge; search, which searches the whole library as typing pauses, and
 /// the inspector's toggle at the trailing edge. Adding a folder is in the File menu and Settings › Library, and asking
 /// in plain English in the Edit menu (⌥⌘F).
 /// </summary>
 sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToolbarDelegate
 {
     const string Search = "search";
+    const string Back = "back";
     NSSearchToolbarItem? _search;
     AskPopover? _askPopover;
 
@@ -266,6 +273,7 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
     [
         NSToolbar.NSToolbarToggleSidebarItemIdentifier,
         NSToolbar.NSToolbarSidebarTrackingSeparatorItemIdentifier,
+        Back,
         NSToolbar.NSToolbarFlexibleSpaceItemIdentifier,
         Search,
         // The inspector's own toggle sits over it, at the trailing edge, as the Mac's apps put it.
@@ -279,6 +287,27 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
 
     public override NSToolbarItem WillInsertItem(NSToolbar toolbar, string itemIdentifier, bool willBeInserted)
     {
+        if (itemIdentifier == Back)
+        {
+            // Back through the pages shown, as Windows' title bar has it, beside the page's name as Finder's is.
+            var back = new NSToolbarItem(Back)
+            {
+                Label = "Back",
+                ToolTip = "Back to the page before (⌘[)",
+                Image = NSImage.GetSystemSymbol("chevron.backward", "Back")!,
+                Navigational = true,
+                Bordered = true,
+                Autovalidates = false,
+            };
+            back.Activated += (_, _) => shell.GoBackCommand.Execute(null);
+            void Enable() => back.Enabled = shell.CanGoBack;
+            shell.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(ShellViewModel.CanGoBack)) Bindings.OnMain(Enable);
+            };
+            Enable();
+            return back;
+        }
         if (itemIdentifier != Search) return null!;
         var item = new NSSearchToolbarItem(Search);
         _askPopover = new AskPopover(shell.PlainSearch, () => item.SearchField.StringValue);
