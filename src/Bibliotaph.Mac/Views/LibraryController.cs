@@ -872,26 +872,35 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     internal NSMenu? MenuFor(LibraryItemViewModel item)
     {
         var menu = new NSMenu();
-        void Add(string title, System.Windows.Input.ICommand command, object? parameter = null)
+        void Add(string title, System.Windows.Input.ICommand command, object? parameter = null, string? tip = null)
         {
             if (!command.CanExecute(parameter ?? item)) return;
-            menu.AddItem(new NSMenuItem(title, (_, _) => command.Execute(parameter ?? item)));
+            var entry = new NSMenuItem(title, (_, _) => command.Execute(parameter ?? item));
+            if (tip is not null) entry.ToolTip = tip;
+            menu.AddItem(entry);
         }
         Add("Open", library.OpenFromCardCommand);
-        Add("Open in a new window", library.OpenBookInNewWindowCommand);
-        Add("Show details", library.OpenDetailsCommand);
+        Add("Open in New Window", library.OpenBookInNewWindowCommand);
+        Add("Show Details", library.OpenDetailsCommand);
         // Ask this book opens it with its Ask panel showing, as on Windows; a book with no readable text has none.
         if (item.CanAsk) Add("Ask This Book…", library.AskBookCommand);
         menu.AddItem(NSMenuItem.SeparatorItem);
-        menu.AddItem(Submenu("Add to collection", ((ICollectionChoices)library).MenuChoices
+        menu.AddItem(Submenu("Add to Collection", ((ICollectionChoices)library).MenuChoices
             .Select(choice => new NSMenuItem(choice.Label, (_, _) => library.AddToCollection(new CollectionRequest(item, choice))))));
-        menu.AddItem(Submenu("Add to binder", ((ISessionChoices)library).MenuChoices
+        menu.AddItem(Submenu("Add to Binder", ((ISessionChoices)library).MenuChoices
             .Select(choice => new NSMenuItem(choice.Label, (_, _) => library.AddToSession(new SessionRequest(item, choice))))));
         Add(item.FavoriteAction, library.ToggleFavoriteCommand);
+        // Named as the menu opens, since the book may have been pinned or unpinned from the sidebar since.
+        Add(MenuChoiceSource.PinLabel(library, item), library.TogglePinBookCommand, tip: "Pinned books show in the sidebar and on Home");
+        Add("Cataloged Wrong…", library.CatalogedWrongCommand, tip: "Correct its details: the values Bibliotaph guessed are marked");
         menu.AddItem(NSMenuItem.SeparatorItem);
         if (item.ShowOpenOnline) Add(item.OnlineAction, library.OpenOnlineCommand);
-        if (item.CanOpenElsewhere) Add("Open in another app", library.OpenElsewhereCommand);
-        Add("Remove from library…", library.RemoveFromLibraryCommand);
+        if (item.CanOpenElsewhere) Add("Open in Another App", library.OpenElsewhereCommand);
+        // Each shows only for a book it can run on: one whose text was read, and one whose text was forgotten.
+        Add("Forget Its Text", library.ForgetTextCommand,
+            tip: "Removes its pages, search text, cover and AI results from Bibliotaph, and stops reading it. The file isn't touched.");
+        Add("Read It Again", library.ReadTextAgainCommand);
+        Add("Remove from Library…", library.RemoveFromLibraryCommand, tip: "Takes the book you added out of your library. Undo brings it back.");
         if (menu.Count > 0 && menu.ItemAt(menu.Count - 1)!.IsSeparatorItem) menu.RemoveItemAt(menu.Count - 1);
         return menu;
     }

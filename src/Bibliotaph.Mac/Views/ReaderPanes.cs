@@ -7,7 +7,10 @@ using ObjCRuntime;
 
 namespace Bibliotaph.Mac.Views;
 
-/// <summary>The book's bookmarks beside its pages, indented by level, each going to its page with a click.</summary>
+/// <summary>
+/// The book's bookmarks beside its pages, indented by level, each going to its page with a click. A right-click offers
+/// to index a bookmark as an adventure of its own, as on Windows.
+/// </summary>
 sealed class OutlineList : NSScrollView
 {
     readonly ViewerViewModel _reader;
@@ -17,7 +20,7 @@ sealed class OutlineList : NSScrollView
     public OutlineList(ViewerViewModel reader)
     {
         _reader = reader;
-        _table = new NSTableView { Style = NSTableViewStyle.SourceList, HeaderView = null!, UsesAutomaticRowHeights = true };
+        _table = new BookmarkMenus(this) { Style = NSTableViewStyle.SourceList, HeaderView = null!, UsesAutomaticRowHeights = true };
         _table.AddColumn(new NSTableColumn("entry"));
         var source = new Source(this);
         _table.DataSource = source;
@@ -38,6 +41,21 @@ sealed class OutlineList : NSScrollView
         if (ReferenceEquals(entries, _entries)) return;
         _entries = entries;
         _table.ReloadData();
+    }
+
+    NSMenu? MenuFor(nint row)
+    {
+        if (row < 0 || row >= _entries.Count) return null;
+        var entry = _entries[(int)row];
+        if (!_reader.IndexBookmarkCommand.CanExecute(entry)) return null;
+        var menu = new NSMenu();
+        menu.AddItem(new NSMenuItem("Index as Its Own Adventure…", (_, _) => _reader.IndexBookmarkCommand.Execute(entry)));
+        return menu;
+    }
+
+    sealed class BookmarkMenus(OutlineList owner) : NSTableView
+    {
+        public override NSMenu? MenuForEvent(NSEvent theEvent) => owner.MenuFor(GetRow(ConvertPointFromView(theEvent.LocationInWindow, null)));
     }
 
     sealed class Source(OutlineList owner) : NSTableViewDelegate, INSTableViewDataSource
@@ -202,7 +220,11 @@ sealed class NotesPane : NSView
         var add = NSButton.CreateButton("Add note…", () => { });
         add.ControlSize = NSControlSize.Small;
         _bindings.Command(add, notes.AddCommand);
-        var top = NSStackView.FromViews([heading, new NSView(), add]);
+        // Under the heading, what was just done to a note, with Undo for a deleted one, as on Windows.
+        var top = NSStackView.FromViews([NSStackView.FromViews([heading, new NSView(), add]), UndoBar.Create(_bindings, notes.Undo)]);
+        top.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        top.Alignment = NSLayoutAttribute.Width;
+        top.Spacing = 8;
         _list = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 10 };
         var document = new Flipped();
         _list.TranslatesAutoresizingMaskIntoConstraints = false;

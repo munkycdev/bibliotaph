@@ -96,7 +96,13 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
   in reach: Find (⌘F; with no book, it searches the library), Find Next and Previous (⌘G, ⇧⌘G), Zoom In and Out,
   Fit Width (⌘0) and Fit Page (⌥⌘0). Search Your Library is ⌘K from anywhere, as Ctrl+K is on Windows.
 - The File menu has Add a Folder from Storage and Import from an Online Library, as Windows' Add menu does.
-- The Help menu, last as on every Mac, has Keyboard Shortcuts (⌘/).
+- The Help menu, last as on every Mac, has Keyboard Shortcuts (⌘/) and Copy Details for a Bug Report: Windows' Copy
+  details, which the standard About panel has no place for.
+- A book's right-click menu has everything Windows' has, in the same order: Pin or Unpin, Cataloged Wrong, and Forget
+  Its Text or Read It Again for the books they apply to. A bookmark's right-click in the reader indexes it as an
+  adventure of its own.
+- At Hand, in a binder's side list, is a button with only a symbol and a tooltip, since the row is narrow. Its menu
+  indents each binder's pages under the binder's name.
 
 ## Book details
 

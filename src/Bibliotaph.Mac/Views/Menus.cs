@@ -99,7 +99,9 @@ static class Menus
 
         // Last, as on every Mac.
         var help = Top("Help",
-            Shortcut(new NSMenuItem("Keyboard Shortcuts", "/", (_, _) => ShortcutsWindow.Show()), NSEventModifierMask.CommandKeyMask));
+            Shortcut(new NSMenuItem("Keyboard Shortcuts", "/", (_, _) => ShortcutsWindow.Show()), NSEventModifierMask.CommandKeyMask),
+            NSMenuItem.SeparatorItem,
+            new NSMenuItem("Copy Details for a Bug Report", (_, _) => AboutPanel.CopyDetails()));
         bar.AddItem(help);
         NSApplication.SharedApplication.HelpMenu = help.Submenu;
 
