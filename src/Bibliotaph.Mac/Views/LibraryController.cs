@@ -371,24 +371,76 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         return line;
     }
 
-    /// <summary>Saved Searches: each one, opened by choosing it, with a pin on those pinned; then saving the search showing.</summary>
+    NSPopover? _savedPopover;
+
+    /// <summary>
+    /// Saved Searches, as Windows' list under its button: each search, opened by clicking its name, with its pin, Rename
+    /// and Delete beside it; then saving the search showing. A popover, since a menu can't hold buttons on each line.
+    /// </summary>
     void ShowSavedSearches(NSButton under)
     {
         var views = library.SmartViews;
         views.ShowSavedSearchRows();
-        var items = new List<NSMenuItem>();
+        _savedPopover?.Close();
+        var list = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 2 };
+        list.EdgeInsets = new NSEdgeInsets(10, 10, 10, 10);
+        var heading = NSTextField.CreateLabel("SAVED SEARCHES");
+        heading.Font = NSFont.SystemFontOfSize(10, NSFontWeight.Semibold)!;
+        heading.TextColor = NSColor.SecondaryLabel;
+        list.AddArrangedSubview(heading);
+        var popover = new NSPopover { Behavior = NSPopoverBehavior.Transient, Animates = false };
+        _savedPopover = popover;
+        NSButton Icon(string symbol, string tip, Action action)
+        {
+            var button = NSButton.CreateButton(NSImage.GetSystemSymbol(symbol, tip)!, () =>
+            {
+                popover.Close();
+                action();
+            });
+            button.Bordered = false;
+            button.ContentTintColor = NSColor.SecondaryLabel;
+            button.ToolTip = tip;
+            return button;
+        }
         foreach (var row in views.SavedSearches)
         {
-            var item = new NSMenuItem(row.Name, (_, _) => views.OpenSavedSearchCommand.Execute(row));
-            if (row.IsPinned) item.Image = NSImage.GetSystemSymbol("pin.fill", "Pinned")!;
-            items.Add(item);
+            var name = NSButton.CreateButton(row.Name, () =>
+            {
+                popover.Close();
+                views.OpenSavedSearchCommand.Execute(row);
+            });
+            name.Bordered = false;
+            name.Alignment = NSTextAlignment.Left;
+            name.ContentTintColor = NSColor.Label;
+            name.ToolTip = $"Open {row.Name}";
+            name.LineBreakMode = NSLineBreakMode.TruncatingTail;
+            name.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+            name.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
+            var pin = Icon(row.IsPinned ? "pin.fill" : "pin", row.PinAction, () => views.TogglePinSavedSearchCommand.Execute(row));
+            if (row.IsPinned) pin.ContentTintColor = NSColor.ControlAccent;
+            var line = NSStackView.FromViews([name, pin, Icon("pencil", "Rename", () => views.RenameSavedSearchCommand.Execute(row)),
+                Icon("trash", "Delete. Your books stay as they are, and Undo brings it back.", () => views.DeleteSavedSearchCommand.Execute(row))]);
+            line.Spacing = 6;
+            list.AddArrangedSubview(line);
+            line.WidthAnchor.ConstraintEqualTo(300).Active = true;
         }
+        if (views.SavedSearches.Count == 0) list.AddArrangedSubview(PageParts.Secondary("No saved searches yet."));
         if (views.CanSaveView)
         {
-            if (items.Count > 0) items.Add(NSMenuItem.SeparatorItem);
-            items.Add(new NSMenuItem("Save Current Search…", (_, _) => views.SaveViewCommand.Execute(null)));
+            var save = NSButton.CreateButton("Save Current Search…", () =>
+            {
+                popover.Close();
+                views.SaveViewCommand.Execute(null);
+            });
+            save.ControlSize = NSControlSize.Small;
+            list.SetCustomSpacing(10, list.ArrangedSubviews[^1]);
+            list.AddArrangedSubview(save);
         }
-        Pop(under, items);
+        var controller = new NSViewController { View = list };
+        list.SetFrameSize(list.FittingSize);
+        popover.ContentViewController = controller;
+        popover.ContentSize = list.FittingSize;
+        popover.Show(under.Bounds, under, NSRectEdge.MaxYEdge);
     }
 
     /// <summary>Save search, Save as new and Rename's name, as a sheet.</summary>
@@ -523,6 +575,13 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         saved.Image = NSImage.GetSystemSymbol("chevron.down", null)!;
         saved.ImagePosition = NSCellImagePosition.ImageTrailing;
         saved.Activated += (_, _) => ShowSavedSearches(saved);
+        // The page's own Saved Searches command, as the Windows button runs, opens the same list.
+        _bindings.Property(views, nameof(SmartViewsViewModel.IsSavedSearchesOpen), () =>
+        {
+            if (!views.IsSavedSearchesOpen) return;
+            views.IsSavedSearchesOpen = false;
+            Bindings.OnMain(() => ShowSavedSearches(saved));
+        });
         _bindings.Properties(views, [nameof(SmartViewsViewModel.CanSaveView), nameof(SmartViewsViewModel.HasSavedSearches)],
             () => saved.Hidden = !views.CanSaveView && !views.HasSavedSearches);
         // While searching: the books that match, or the pages inside them the words were found on.
