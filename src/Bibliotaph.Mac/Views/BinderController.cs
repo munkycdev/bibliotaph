@@ -185,6 +185,19 @@ public sealed class BinderController(SessionReaderViewModel binder) : NSViewCont
         });
     }
 
+    // The Go menu's ⌥⌘→ and ⌥⌘←, as Ctrl+Right and Ctrl+Left step through a binder on Windows.
+    [Foundation.Export("binderNextItem:")]
+    void NextItem(Foundation.NSObject sender)
+    {
+        if (binder.NextItemCommand.CanExecute(null)) binder.NextItemCommand.Execute(null);
+    }
+
+    [Foundation.Export("binderPreviousItem:")]
+    void PreviousItem(Foundation.NSObject sender)
+    {
+        if (binder.PreviousItemCommand.CanExecute(null)) binder.PreviousItemCommand.Execute(null);
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing) _bindings.Dispose();

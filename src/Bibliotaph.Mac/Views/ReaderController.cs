@@ -18,6 +18,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
     PagesView _pages = null!;
     OutlineList _outline = null!;
     StripView _strip = null!;
+    NSSearchField? _find;
     NotesPane _notesPane = null!;
     AskPane _askPane = null!;
     OpenPdf? _shownPdf;
@@ -45,13 +46,24 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         pageCount.TextColor = NSColor.SecondaryLabel;
         var zoomOut = Button("minus.magnifyingglass", "Zoom out", () => StepZoom(-1));
         var zoomIn = Button("plus.magnifyingglass", "Zoom in", () => StepZoom(1));
-        var fit = Button("arrow.left.and.right", "Fit width", null);
-        // The whole page in view, as Preview's Zoom to Fit: the page being read, from its top.
-        var fitPage = Button("arrow.up.and.down.and.arrow.left.and.right", "Fit the whole page", FitPage);
+        // The zoom in use, and the others to pick, as Windows' zoom list: fit width, fit page, then each size.
+        var zoom = new NSPopUpButton { ControlSize = NSControlSize.Small, ToolTip = "Zoom" };
+        zoom.Activated += (_, _) =>
+        {
+            var at = (int)zoom.IndexOfSelectedItem;
+            if (at < 0 || at >= reader.ZoomChoices.Count) return;
+            if (reader.ZoomChoices[at].Value == ZoomSteps.FitPage) FitPage();
+            else reader.Zoom = reader.ZoomChoices[at].Value;
+        };
         var find = new NSSearchField { PlaceholderString = "Find in this book", SendsWholeSearchString = true };
+        _find = find;
         find.WidthAnchor.ConstraintEqualTo(220).Active = true;
         var findPrevious = Button("chevron.left", "Previous match", null);
         var findNext = Button("chevron.right", "Next match", null);
+        // Inside an adventure, find keeps to its pages unless this is ticked.
+        var wholeFile = NSButton.CreateCheckbox("Whole file", () => { });
+        wholeFile.ControlSize = NSControlSize.Small;
+        wholeFile.ToolTip = "Find in the whole file, not only this adventure's pages";
         var findStatus = NSTextField.CreateLabel("");
         findStatus.TextColor = NSColor.SecondaryLabel;
         findStatus.Font = NSFont.SystemFontOfSize(11)!;
@@ -82,8 +94,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         // adventure, use a page as the cover, add pages to a binder, open it elsewhere, and its own window.
         var more = Button("ellipsis.circle", "More", null);
         more.Activated += (_, _) => MoreMenu().PopUpMenu(null, new CoreGraphics.CGPoint(0, more.Bounds.Height + 4), more);
-        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), more, nornis, addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, fitPage, Separator(),
-            findStatus, find, findPrevious, findNext]);
+        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), more, nornis, addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoom, zoomIn, Separator(),
+            findStatus, find, wholeFile, findPrevious, findNext]);
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
         bar.EdgeInsets = new NSEdgeInsets(6, 12, 6, 12);
@@ -192,9 +204,9 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             action.Hidden = !reader.ShowEmptyState || reader.EmptyActionText is null || reader.EmptyCommand is null;
             secondary.Title = reader.EmptySecondaryText ?? "";
             secondary.Hidden = !reader.ShowEmptyState || reader.EmptySecondaryText is null || reader.EmptySecondaryCommand is null;
-            foreach (var control in new NSControl[] { previous, next, pageBox, zoomOut, zoomIn, fit, find, findPrevious, findNext })
+            foreach (var control in new NSControl[] { previous, next, pageBox, zoomOut, zoomIn, zoom, find, findPrevious, findNext })
                 control.Hidden = !reader.HasPages;
-            fitPage.Hidden = !reader.IsPdf;
+            wholeFile.Hidden = !reader.HasPages || !reader.IsPart;
             pageCount.Hidden = !reader.HasPages;
         });
         _bindings.Property(reader, nameof(ViewerViewModel.Pdf), ShowPdf);
@@ -203,6 +215,19 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         {
             picture.Image = (reader.Image as NSImage)!;
             if (reader.Image is NSImage image) picture.SetFrameSize(image.Size);
+        });
+        _bindings.Properties(reader, [nameof(ViewerViewModel.Zoom), nameof(ViewerViewModel.ZoomChoices)], () =>
+        {
+            zoom.RemoveAllItems();
+            foreach (var choice in reader.ZoomChoices) zoom.Menu!.AddItem(new NSMenuItem(choice.Label));
+            var shown = reader.ZoomChoices.ToList().FindIndex(c => Math.Abs(c.Value - reader.Zoom) < 0.001);
+            if (shown >= 0) zoom.SelectItem(shown);
+            else
+            {
+                // A size between the steps, as pinching leaves, shows as itself.
+                zoom.Menu!.AddItem(new NSMenuItem((reader.Zoom > 0 ? reader.Zoom : _pages.ZoomInUse).ToString("P0", System.Globalization.CultureInfo.CurrentCulture)));
+                zoom.SelectItem(zoom.ItemCount - 1);
+            }
         });
         _bindings.Property(reader, nameof(ViewerViewModel.Zoom), () =>
         {
@@ -260,7 +285,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         PartSheet.Follow(_bindings, reader, nameof(ViewerViewModel.PartEditor), () => reader.PartEditor, () => View.Window);
         _bindings.Command(previous, reader.PreviousPageCommand);
         _bindings.Command(next, reader.NextPageCommand);
-        _bindings.Command(fit, reader.ResetZoomCommand);
+        wholeFile.Activated += (_, _) => reader.Find.WholeFile = wholeFile.State == NSCellStateValue.On;
+        _bindings.Property(reader.Find, nameof(FindViewModel.WholeFile), () => wholeFile.State = reader.Find.WholeFile ? NSCellStateValue.On : NSCellStateValue.Off);
         pageBox.Activated += (_, _) =>
         {
             reader.PageEntry = pageBox.StringValue;
@@ -333,6 +359,41 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         }
     }
 
+    // The View and Go menus' reader commands, which reach the reader with the keyboard anywhere in it, as Windows'
+    // Ctrl+F, F3, Ctrl+Plus, Ctrl+0 and Ctrl+Home do. A menu item with no reader in reach is dimmed.
+    [Export("readerFind:")]
+    void FindCommand(NSObject sender) => View.Window?.MakeFirstResponder(_find);
+
+    [Export("readerFindNext:")]
+    void FindNext(NSObject sender) => Run(reader.Find.NextCommand);
+
+    [Export("readerFindPrevious:")]
+    void FindPrevious(NSObject sender) => Run(reader.Find.PreviousCommand);
+
+    [Export("readerZoomIn:")]
+    void ZoomIn(NSObject sender) => StepZoom(1);
+
+    [Export("readerZoomOut:")]
+    void ZoomOut(NSObject sender) => StepZoom(-1);
+
+    [Export("readerFitWidth:")]
+    void FitWidth(NSObject sender) => Run(reader.ResetZoomCommand);
+
+    [Export("readerFitPage:")]
+    void FitPageCommand(NSObject sender) => FitPage();
+
+    [Export("readerFirstPage:")]
+    void FirstPage(NSObject sender) => ShowPage(0);
+
+    [Export("readerLastPage:")]
+    void LastPage(NSObject sender) => ShowPage(Math.Max(0, reader.PageCount - 1));
+
+    void ShowPage(int index)
+    {
+        if (reader.IsEbook || _shownEbook is not null) _ebook.GoTo(index);
+        else _pages.GoToPage(index, null);
+    }
+
     void FitPage()
     {
         if (!reader.IsPdf) return;
@@ -394,7 +455,16 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         var pack = NSStackView.FromViews([previous, position, next]);
         pack.Spacing = 4;
 
-        var lines = NSStackView.FromViews([notice, linkBack, session, part, pack]);
+        // Why text can't be copied from this PDF, as Windows says at the reader's foot.
+        var copyNote = NSTextField.CreateLabel("");
+        copyNote.Font = NSFont.SystemFontOfSize(11)!;
+        copyNote.TextColor = NSColor.SecondaryLabel;
+        _bindings.Properties(reader, [nameof(ViewerViewModel.CopyNote), nameof(ViewerViewModel.Mode)], () =>
+        {
+            copyNote.StringValue = reader.CopyNote;
+            copyNote.Hidden = !reader.IsPdf || reader.CopyNote.Length == 0;
+        });
+        var lines = NSStackView.FromViews([notice, copyNote, linkBack, session, part, pack]);
         lines.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
         lines.Alignment = NSLayoutAttribute.Leading;
         lines.Spacing = 4;

@@ -39,7 +39,11 @@ static class Menus
             Item("Paste", "paste:", "v"),
             Item("Select All", "selectAll:", "a"),
             NSMenuItem.SeparatorItem,
-            new NSMenuItem("Find", "f", (_, _) => main.FocusSearch()),
+            // In a book, Find looks in it, as Ctrl+F does on Windows; elsewhere it searches the library.
+            Item("Find", "readerFind:", "f"),
+            Item("Find Next", "readerFindNext:", "g"),
+            Item("Find Previous", "readerFindPrevious:", "G"),
+            new NSMenuItem("Search Your Library", "k", (_, _) => main.FocusSearch()),
             Shortcut(new NSMenuItem("Ask Your Library", "f", (_, _) => main.ToggleAsk()), NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask)));
 
         bar.AddItem(Top("Go",
@@ -49,7 +53,12 @@ static class Menus
             new NSMenuItem("Collections", "", (_, _) => main.Go(Route.Collections)),
             new NSMenuItem("Binders", "", (_, _) => main.Go(Route.Sessions)),
             new NSMenuItem("Needs Review", "", (_, _) => main.Go(Route.NeedsReview)),
-            new NSMenuItem("Summary", "", (_, _) => main.Go(Route.Summary))));
+            new NSMenuItem("Summary", "", (_, _) => main.Go(Route.Summary)),
+            NSMenuItem.SeparatorItem,
+            Item("First Page", "readerFirstPage:", "\uF729", NSEventModifierMask.CommandKeyMask),
+            Item("Last Page", "readerLastPage:", "\uF72B", NSEventModifierMask.CommandKeyMask),
+            Item("Next Item in Binder", "binderNextItem:", "\uF703", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask),
+            Item("Previous Item in Binder", "binderPreviousItem:", "\uF702", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask)));
 
         // The Library's layouts, as Finder's View menu has its own; ticked for the one showing, and off elsewhere.
         var covers = new NSMenuItem("as Covers", "1", (_, _) => { if (main.Library is { } library) library.Layout = Index.LibraryLayout.Grid; });
@@ -59,6 +68,11 @@ static class Menus
         var view = Top("View",
             covers,
             list,
+            NSMenuItem.SeparatorItem,
+            Item("Zoom In", "readerZoomIn:", "+"),
+            Item("Zoom Out", "readerZoomOut:", "-"),
+            Item("Fit Width", "readerFitWidth:", "0"),
+            Item("Fit Page", "readerFitPage:", "0", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask),
             NSMenuItem.SeparatorItem,
             sortBy,
             NSMenuItem.SeparatorItem,

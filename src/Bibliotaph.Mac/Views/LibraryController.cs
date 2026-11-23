@@ -1001,7 +1001,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
 
         public override void KeyDown(NSEvent theEvent)
         {
-            if (!BookGrid.OrganizeKey(_owner, theEvent)) base.KeyDown(theEvent);
+            var item = SelectedRow >= 0 && SelectedRow < _owner.Library.Items.Count ? _owner.Library.Items[(int)SelectedRow] : null;
+            if (!BookGrid.OrganizeKey(_owner, theEvent) && !BookGrid.OpenKey(_owner, theEvent, item)) base.KeyDown(theEvent);
         }
 
         public override bool PerformKeyEquivalent(NSEvent theEvent) => BookGrid.OrganizeKey(_owner, theEvent) || base.PerformKeyEquivalent(theEvent);
@@ -1125,7 +1126,36 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
 
         public override void KeyDown(NSEvent theEvent)
         {
-            if (!OrganizeKey(owner, theEvent)) base.KeyDown(theEvent);
+            var item = SelectionIndexPaths.AnyObject is NSIndexPath path && (int)path.Item < owner.Library.Items.Count ? owner.Library.Items[(int)path.Item] : null;
+            if (!OrganizeKey(owner, theEvent) && !OpenKey(owner, theEvent, item)) base.KeyDown(theEvent);
+        }
+
+        /// <summary>
+        /// Return opens the book in focus, as a double-click does, and Shift-Return in a window of its own, as Windows'
+        /// Enter and Shift+Enter; in Organize mode Return ticks it instead. ⌘↓ opens it too, as in Finder.
+        /// </summary>
+        internal static bool OpenKey(LibraryController owner, NSEvent theEvent, LibraryItemViewModel? item)
+        {
+            if (item is null) return false;
+            var mods = theEvent.ModifierFlags & (NSEventModifierMask.ShiftKeyMask | NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask | NSEventModifierMask.ControlKeyMask);
+            var library = owner.Library;
+            var isReturn = theEvent.KeyCode is 36 or 76;
+            if (isReturn && owner.Organizing && mods == 0)
+            {
+                library.ActivateCommand.Execute(item);
+                return true;
+            }
+            if (isReturn && mods == NSEventModifierMask.ShiftKeyMask)
+            {
+                library.OpenBookInNewWindowCommand.Execute(item);
+                return true;
+            }
+            if ((isReturn && mods == 0) || (theEvent.KeyCode == 125 && mods == NSEventModifierMask.CommandKeyMask))
+            {
+                if (library.OpenFromCardCommand.CanExecute(item)) library.OpenFromCardCommand.Execute(item);
+                return true;
+            }
+            return false;
         }
 
         public override bool PerformKeyEquivalent(NSEvent theEvent) => OrganizeKey(owner, theEvent) || base.PerformKeyEquivalent(theEvent);

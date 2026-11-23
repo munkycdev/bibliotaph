@@ -98,6 +98,17 @@ public sealed class MainWindowController : NSWindowController
         _bindings.Add(_tour.Dispose);
         _navigation.Navigated += OnNavigated;
         _bindings.Add(() => _navigation.Navigated -= OnNavigated);
+        // The mouse's back button and a swipe to the right go back, as the mouse's back button does on Windows and a
+        // swipe does in Finder and Safari.
+        var back = NSEvent.AddLocalMonitorForEventsMatchingMask(NSEventMask.OtherMouseDown | NSEventMask.EventSwipe, theEvent =>
+        {
+            if (theEvent.Window != Window) return theEvent;
+            var goBack = theEvent.Type == NSEventType.OtherMouseDown ? theEvent.ButtonNumber == 3 : theEvent.DeltaX > 0;
+            if (!goBack || !_shell.CanGoBack) return theEvent;
+            GoBack();
+            return null!;
+        });
+        _bindings.Add(() => { if (back is not null) NSEvent.RemoveMonitor(back); });
     }
 
     /// <summary>
@@ -149,6 +160,10 @@ public sealed class MainWindowController : NSWindowController
         for (var tries = 0; Library is null && tries < 20; tries++) await Task.Delay(50);
         if (Library is { } library && library.AddElsewhereCommand.CanExecute(null)) library.AddElsewhereCommand.Execute(null);
     }
+
+    /// <summary>Find with no book in reach searches the library, as the search field does.</summary>
+    [Foundation.Export("readerFind:")]
+    void ReaderFind(Foundation.NSObject sender) => FocusSearch();
 
     /// <summary>Back to the page before, from the Go menu.</summary>
     public void GoBack()
