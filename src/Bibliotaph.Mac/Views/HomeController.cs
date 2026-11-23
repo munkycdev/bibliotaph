@@ -45,6 +45,28 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         return new Tinted(column, Palette.Panel, 10, new NSEdgeInsets(14, 16, 14, 16));
     }
 
+    /// <summary>A shelf's heading, with the way to all of it at the trailing end.</summary>
+    (NSStackView Line, NSButton Link) SectionLine(string title, string link, System.Windows.Input.ICommand command)
+    {
+        var button = Link(link, "arrow.right", command);
+        button.ImagePosition = NSCellImagePosition.ImageTrailing;
+        var line = NSStackView.FromViews([PageParts.Section(title), new NSView(), button]);
+        line.WidthAnchor.ConstraintGreaterThanOrEqualTo(480).Active = true;
+        return (line, button);
+    }
+
+    NSButton Link(string title, string symbol, System.Windows.Input.ICommand command)
+    {
+        var button = NSButton.CreateButton(title, () => { });
+        _bindings.Command(button, command);
+        button.Bordered = false;
+        button.ContentTintColor = NSColor.ControlAccent;
+        button.Font = NSFont.SystemFontOfSize(12)!;
+        button.Image = NSImage.GetSystemSymbol(symbol, null)!;
+        button.ImagePosition = NSCellImagePosition.ImageLeading;
+        return button;
+    }
+
     NSButton Button(string title, System.Windows.Input.ICommand command, bool primary = false)
     {
         var button = NSButton.CreateButton(title, () => { });
@@ -63,12 +85,24 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         start.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
         start.Alignment = NSLayoutAttribute.Leading;
 
+        // Folders added but nothing read yet: what's happening, and the folders.
+        var indexing = NSStackView.FromViews([PageParts.Section("Indexing your library."),
+            PageParts.Secondary("Your books show here as Bibliotaph reads them. It works only while the app is open."), Button("Manage Folders…", home.ManageFoldersCommand)]);
+        indexing.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        indexing.Alignment = NSLayoutAttribute.Leading;
+        // The library's size, and the way to the Summary page that says more, as Windows has under its welcome.
+        var totals = PageParts.Secondary("");
+        var summary = Link(Bibliotaph.Core.SummaryText.SeeIt, "chart.bar", home.OpenSummaryCommand);
+        var totalsLine = NSStackView.FromViews([totals, summary]);
+        totalsLine.Spacing = 8;
+
         var preparing = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 8 };
-        var pinsTitle = PageParts.Section("Pinned");
+        // Each shelf's heading has the way to the whole of it at its end, as on Windows.
+        var (pinsTitle, _) = SectionLine("Pinned", "All collections", home.BrowseCollectionsCommand);
         var pins = PageParts.Wrap();
-        var openedTitle = PageParts.Section("Recently opened");
+        var (openedTitle, _) = SectionLine("Recently opened", "Browse your library", home.BrowseLibraryCommand);
         var opened = PageParts.Wrap();
-        var addedTitle = PageParts.Section("Recently added");
+        var (addedTitle, addedBrowse) = SectionLine("Recently added", "Browse your library", home.BrowseLibraryCommand);
         var added = PageParts.Wrap();
 
         var ai = Offer("Fill in the catalog with AI?",
@@ -84,7 +118,7 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         coversColumn.Spacing = 8;
         var coversCard = new Tinted(coversColumn, Palette.Panel, 10, new NSEdgeInsets(14, 16, 14, 16));
 
-        foreach (var view in new NSView[] { start, ai, coversCard, preparing, pinsTitle, pins, openedTitle, opened, addedTitle, added })
+        foreach (var view in new NSView[] { start, indexing, totalsLine, ai, coversCard, preparing, pinsTitle, pins, openedTitle, opened, addedTitle, added })
             content.AddArrangedSubview(view);
         foreach (var card in new NSView[] { ai, coversCard }) card.WidthAnchor.ConstraintLessThanOrEqualTo(content.WidthAnchor, 1, -48).Active = true;
         foreach (var text in new NSView[] { coversText, coversHeading }) text.WidthAnchor.ConstraintLessThanOrEqualTo(640).Active = true;
@@ -103,16 +137,22 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         _shelves.AddRange([opened, added, pins]);
         View = root;
 
-        _bindings.Properties(home, [nameof(HomeViewModel.TotalsText), nameof(HomeViewModel.HasBooks)], () =>
+        _bindings.Properties(home, [nameof(HomeViewModel.TotalsText), nameof(HomeViewModel.HasBooks), nameof(HomeViewModel.HasFolders),
+            nameof(HomeViewModel.HasRecentlyOpened)], () =>
         {
-            start.Hidden = home.HasBooks;
+            start.Hidden = home.HasBooks || home.HasFolders;
+            indexing.Hidden = home.HasBooks || !home.HasFolders;
+            totals.StringValue = home.TotalsText;
+            totalsLine.Hidden = !home.HasBooks;
+            // One way to the library is enough: under Recently opened when there is one.
+            addedBrowse.Hidden = home.HasRecentlyOpened;
         });
         _bindings.Property(home, nameof(HomeViewModel.ContinuePreparing), () =>
         {
             foreach (var view in preparing.ArrangedSubviews) view.RemoveFromSuperview();
             preparing.Hidden = home.ContinuePreparing is null;
             if (home.ContinuePreparing is not { } card) return;
-            preparing.AddArrangedSubview(PageParts.Section("Continue preparing"));
+            preparing.AddArrangedSubview(SectionLine("Continue preparing", "All binders", home.BrowseSessionsCommand).Line);
             preparing.AddArrangedSubview(new ShelfCard(card.Title, $"{card.DateLabel} · {card.CountLabel}", card.Covers, covers,
                 () => home.OpenSessionCommand.Execute(card)));
         });

@@ -84,9 +84,8 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
         {
             Space(10);
             Add(Label("Growth since your first book", 13, NSFontWeight.Semibold));
-            var chart = new GrowthChart(page.Growth);
+            var chart = new GrowthChart(page.Growth, page.GrowthLabels);
             chart.HeightAnchor.ConstraintEqualTo(140).Active = true;
-            chart.ToolTip = page.GrowthEnd;
             Add(chart, stretch: true);
             var ticks = new NSStackView { Distribution = NSStackViewDistribution.EqualCentering };
             foreach (var tick in new[] { page.GrowthStart, page.GrowthMiddle, page.GrowthEnd }) ticks.AddArrangedSubview(Small(tick));
@@ -359,17 +358,58 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
     }
 
     /// <summary>Books in the library month by month, as a line with the area under it lightly filled.</summary>
-    sealed class GrowthChart(IReadOnlyList<double> values) : NSView
+    /// <summary>
+    /// The library's growth as a line, filled under. Pointing at it marks the nearest day and says what it was, as
+    /// Windows' chart does with its labels.
+    /// </summary>
+    sealed class GrowthChart : NSView
     {
+        readonly IReadOnlyList<double> _values;
+        readonly IReadOnlyList<string> _labels;
+        int? _at;
+
+        public GrowthChart(IReadOnlyList<double> values, IReadOnlyList<string> labels)
+        {
+            _values = values;
+            _labels = labels;
+            AddTrackingArea(new NSTrackingArea(CGRect.Empty,
+                NSTrackingAreaOptions.MouseMoved | NSTrackingAreaOptions.MouseEnteredAndExited | NSTrackingAreaOptions.ActiveInKeyWindow | NSTrackingAreaOptions.InVisibleRect,
+                this, null));
+        }
+
+        CGRect Area => Bounds.Inset(1, 2);
+
+        CGPoint At(int i)
+        {
+            var top = Math.Max(1, _values.Max());
+            var bounds = Area;
+            return new(bounds.X + bounds.Width * i / (_values.Count - 1), bounds.Y + (bounds.Height - 18) * _values[i] / top);
+        }
+
+        public override void MouseMoved(NSEvent theEvent)
+        {
+            if (_values.Count < 2) return;
+            var x = ConvertPointFromView(theEvent.LocationInWindow, null).X;
+            var at = (int)Math.Round((x - Area.X) / Area.Width * (_values.Count - 1));
+            at = Math.Clamp(at, 0, _values.Count - 1);
+            if (at == _at) return;
+            _at = at;
+            NeedsDisplay = true;
+        }
+
+        public override void MouseExited(NSEvent theEvent)
+        {
+            _at = null;
+            NeedsDisplay = true;
+        }
+
         public override void DrawRect(CGRect dirtyRect)
         {
-            if (values.Count < 2) return;
-            var top = Math.Max(1, values.Max());
-            var bounds = Bounds.Inset(1, 2);
-            CGPoint At(int i) => new(bounds.X + bounds.Width * i / (values.Count - 1), bounds.Y + bounds.Height * values[i] / top);
+            if (_values.Count < 2) return;
+            var bounds = Area;
             var line = new NSBezierPath();
             line.MoveTo(At(0));
-            for (var i = 1; i < values.Count; i++) line.LineTo(At(i));
+            for (var i = 1; i < _values.Count; i++) line.LineTo(At(i));
             var area = (NSBezierPath)line.Copy();
             area.LineTo(new CGPoint(bounds.Right, bounds.Y));
             area.LineTo(new CGPoint(bounds.X, bounds.Y));
@@ -380,6 +420,15 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
             line.LineWidth = 2;
             line.LineJoinStyle = NSLineJoinStyle.Round;
             line.Stroke();
+            if (_at is not { } at) return;
+            var point = At(at);
+            NSColor.ControlAccent.SetFill();
+            NSBezierPath.FromOvalInRect(new CGRect(point.X - 4, point.Y - 4, 8, 8)).Fill();
+            if (at >= _labels.Count) return;
+            var text = new NSAttributedString(_labels[at], new NSStringAttributes { Font = NSFont.SystemFontOfSize(11, NSFontWeight.Medium)!, ForegroundColor = NSColor.Label }.Dictionary);
+            var size = text.Size;
+            var x = Math.Clamp(point.X - size.Width / 2, bounds.X, bounds.Right - size.Width);
+            text.DrawAtPoint(new CGPoint(x, Math.Min(point.Y + 6, bounds.Bottom - size.Height)));
         }
     }
 }

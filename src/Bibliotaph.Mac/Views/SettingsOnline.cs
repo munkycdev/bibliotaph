@@ -104,6 +104,17 @@ public sealed partial class SettingsWindow
         // As Windows has it: books owned online open in Bibliotaph's own reader, or in the everyday browser.
         var readers = _services.GetRequiredService<OnlineReaders>();
         var owned = form.Section("Books you own online");
+        var sites = _services.GetRequiredService<MacSiteIcons>();
+        var siteIcons = FormText.Switch(on => sites.SetOnAsync(on).FireAndForget());
+        owned.Row("Show site icons",
+            "A book you own online shows its site's icon, such as D&D Beyond's, in the corner of its cover. Bibliotaph fetches each site's icon once and keeps it. Off, a plain cloud shows and nothing is fetched.",
+            siteIcons);
+        LoadSitesAsync().FireAndForget();
+        async Task LoadSitesAsync()
+        {
+            var on = await sites.IsOnAsync();
+            Bindings.OnMain(() => FormText.Set(siteIcons, on));
+        }
         var inApp = FormText.Switch(on => readers.SetOpensInAppAsync(on).FireAndForget());
         owned.Row("Read them in Bibliotaph",
             "Open shows a book you own on D&D Beyond or Demiplane on its own page, in a reader like the PDF reader, signed in through Bibliotaph's browser. Off, it opens in your everyday browser.",

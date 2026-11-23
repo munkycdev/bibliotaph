@@ -11,8 +11,11 @@ namespace Bibliotaph.Mac.Views;
 /// Cover images for the grid, decoded off the main thread at display size, with the most recently used few hundred
 /// kept. Covers live in Bibliotaph's own cache folder; a missing or unreadable one just has no image.
 /// </summary>
-public sealed class MacCovers(CoverCache cache, ILogger<MacCovers> log)
+public sealed class MacCovers(CoverCache cache, Platform.MacSiteIcons sites, ILogger<MacCovers> log)
 {
+    /// <summary>The icons of the sites books owned online are on, for their covers' badge.</summary>
+    public Platform.MacSiteIcons Sites => sites;
+
     /// <summary>Grid covers are about 156 by 208 points; twice that on the long side stays sharp on a Retina screen.</summary>
     const int DecodeLongSide = 420;
     const int Capacity = 600;

@@ -1230,6 +1230,7 @@ sealed class CoverItem : NSCollectionViewItem
     NSImageView _tick = null!;
     NSStackView _badges = null!;
     Tinted _away = null!;
+    NSImageView _site = null!;
     LibraryItemViewModel? _book;
     string? _coverName;
 
@@ -1270,10 +1271,15 @@ sealed class CoverItem : NSCollectionViewItem
         _away = new Tinted(away, NSColor.WindowBackground.ColorWithAlphaComponent(0.85f), 4, new NSEdgeInsets(1, 5, 1, 5));
 
         var root = new NSView();
-        foreach (var view in new NSView[] { _frame, _initial, _cover, _tick, _badges, _away, _title, _meta })
+        // A book owned online has its site's icon in the cover's corner, or a cloud with site icons off.
+        _site = new NSImageView { ImageScaling = NSImageScale.ProportionallyUpOrDown, WantsLayer = true };
+        _site.Layer!.CornerRadius = 4;
+        _site.Layer.MasksToBounds = true;
+        _site.Layer.BackgroundColor = NSColor.WindowBackground.ColorWithAlphaComponent(0.85f).CGColor;
+        foreach (var view in new NSView[] { _frame, _initial, _cover, _tick, _badges, _away, _site, _title, _meta })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
-            (view == _cover || view == _initial || view == _tick || view == _badges || view == _away ? _frame : root).AddSubview(view);
+            (view == _cover || view == _initial || view == _tick || view == _badges || view == _away || view == _site ? _frame : root).AddSubview(view);
         }
         NSLayoutConstraint.ActivateConstraints(
         [
@@ -1293,6 +1299,10 @@ sealed class CoverItem : NSCollectionViewItem
             _badges.LeadingAnchor.ConstraintEqualTo(_frame.LeadingAnchor, 6),
             _badges.BottomAnchor.ConstraintEqualTo(_frame.BottomAnchor, -6),
             _badges.TrailingAnchor.ConstraintLessThanOrEqualTo(_frame.TrailingAnchor, -6),
+            _site.TrailingAnchor.ConstraintEqualTo(_frame.TrailingAnchor, -6),
+            _site.BottomAnchor.ConstraintEqualTo(_frame.BottomAnchor, -6),
+            _site.WidthAnchor.ConstraintEqualTo(18),
+            _site.HeightAnchor.ConstraintEqualTo(18),
             _away.TopAnchor.ConstraintEqualTo(_frame.TopAnchor, 8),
             _away.TrailingAnchor.ConstraintEqualTo(_frame.TrailingAnchor, -8),
             _tick.HeightAnchor.ConstraintEqualTo(22),
@@ -1351,6 +1361,7 @@ sealed class CoverItem : NSCollectionViewItem
     public void Show(LibraryItemViewModel book, MacCovers covers)
     {
         _book = book;
+        _covers = covers;
         _coverName = book.CoverName;
         _title.StringValue = book.Title;
         _meta.StringValue = book.Meta;
@@ -1392,6 +1403,37 @@ sealed class CoverItem : NSCollectionViewItem
         ((NSTextField)_away.Subviews[0]).StringValue = book.AvailabilityLabel;
         _away.Hidden = book.AvailabilityLabel.Length == 0;
         _away.ToolTip = book.AvailabilityTip ?? "";
+        ShowSite(book);
+    }
+
+    MacCovers? _sites;
+    MacCovers? _covers;
+
+    void ShowSite(LibraryItemViewModel book)
+    {
+        _site.Hidden = book.SiteIconLink is null;
+        if (book.SiteIconLink is not { } link || _covers is not { } covers) return;
+        _site.Image = NSImage.GetSystemSymbol("cloud", "Owned online")!;
+        _site.ToolTip = "Owned online";
+        if (!ReferenceEquals(_sites, covers))
+        {
+            // The setting turned on or off shows or hides the icons on cards already made.
+            _sites = covers;
+            covers.Sites.Changed += (_, _) => Bindings.OnMain(() =>
+            {
+                if (_book is { } shown) ShowSite(shown);
+            });
+        }
+        LoadSiteAsync(book, link, covers).FireAndForget();
+    }
+
+    async Task LoadSiteAsync(LibraryItemViewModel book, string link, MacCovers covers)
+    {
+        var icon = await covers.Sites.GetAsync(link);
+        Bindings.OnMain(() =>
+        {
+            if (icon is not null && ReferenceEquals(_book, book)) _site.Image = icon;
+        });
     }
 
     async Task LoadAsync(string name, MacCovers covers)

@@ -157,6 +157,8 @@ public sealed class OnlineReaderController : NSViewController, IWindowTitle
         {
             place.StringValue = _reader.PlaceLine;
             place.Hidden = _reader.PlaceLine.Length == 0;
+            // In a binder, its header already names the page.
+            titles.Hidden = _reader.IsInBinder;
             back.Enabled = _reader.CanGoBack;
             forward.Enabled = _reader.CanGoForward;
             heart.Image = NSImage.GetSystemSymbol(_reader.IsFavorite ? "heart.fill" : "heart", _reader.FavoriteAction)!;
