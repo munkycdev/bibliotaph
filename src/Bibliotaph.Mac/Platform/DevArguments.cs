@@ -67,6 +67,7 @@ static class DevArguments
                 }
                 else guide.Focused("", 0);
             }), TaskScheduler.Default);
+        if (long.TryParse(Value(args, "--binder"), out var binder)) services.GetRequiredService<Presentation.Services.SessionPages>().Open(binder);
         if (Value(args, "--run") is { } command) RunAsync(services, command).FireAndForget();
         if (args.Contains("--review-samples")) ReviewSamplesAsync(services, main, Value(args, "--review-samples")).FireAndForget();
         if (int.TryParse(Value(args, "--organize"), out var tick)) OrganizeAsync(services, tick, args.Contains("--bulk-edit")).FireAndForget();

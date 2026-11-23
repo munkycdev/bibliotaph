@@ -205,3 +205,30 @@ sealed class WrapView : NSView
         else if (Math.Abs(_height.Constant - height) > 0.5) _height.Constant = (nfloat)height;
     }
 }
+
+/// <summary>What the last change did, on the soft green, with Undo where it can be undone and × to put it away.</summary>
+static class UndoBar
+{
+    public static Tinted Create(Bindings bindings, Presentation.ViewModels.UndoSlot slot)
+    {
+        var message = NSTextField.CreateWrappingLabel("");
+        message.Font = NSFont.SystemFontOfSize(12)!;
+        message.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+        var undo = NSButton.CreateButton("Undo", () => { });
+        undo.ControlSize = NSControlSize.Small;
+        bindings.Command(undo, slot.UndoCommand);
+        var close = NSButton.CreateButton(NSImage.GetSystemSymbol("xmark", "Hide")!, slot.Clear);
+        close.Bordered = false;
+        close.ToolTip = "Hide";
+        var row = NSStackView.FromViews([message, undo, close]);
+        row.Spacing = 8;
+        var box = new Tinted(row, Palette.Soft, 6, new NSEdgeInsets(6, 10, 6, 6));
+        bindings.Properties(slot, [nameof(Presentation.ViewModels.UndoSlot.Message), nameof(Presentation.ViewModels.UndoSlot.HasUndo)], () =>
+        {
+            message.StringValue = slot.Message ?? "";
+            box.Hidden = slot.Message is null;
+            undo.Hidden = !slot.HasUndo;
+        });
+        return box;
+    }
+}
