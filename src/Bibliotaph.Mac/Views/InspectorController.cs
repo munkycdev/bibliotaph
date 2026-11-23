@@ -437,59 +437,8 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
     }
 
     /// <summary>The pages of an adventure, typed as the file numbers them, in a sheet over the window while it's open.</summary>
-    void PartEditorSheet(InspectorViewModel inspector)
-    {
-        (Sheet Sheet, Bindings Bindings)? showing = null;
-        void Close()
-        {
-            if (showing is not { } old) return;
-            old.Bindings.Dispose();
-            old.Sheet.Close();
-            old.Sheet.Dispose();
-            showing = null;
-        }
-        _shown.Property(inspector, nameof(InspectorViewModel.PartEditor), () =>
-        {
-            Close();
-            if (inspector.PartEditor is not { } editor || View.Window is not { } host) return;
-            var sheet = new Sheet(420);
-            var bindings = new Bindings();
-            sheet.Text(editor.Heading, size: 15).Font = NSFont.SystemFontOfSize(15, NSFontWeight.Semibold)!;
-            if (editor.ShowsTitle)
-            {
-                var title = new NSTextField { PlaceholderString = "The adventure's title", StringValue = editor.Title };
-                title.Changed += (_, _) => editor.Title = title.StringValue;
-                sheet.AddWide(title);
-            }
-            var from = new NSTextField { PlaceholderString = "From page", StringValue = editor.From };
-            from.Changed += (_, _) => editor.From = from.StringValue;
-            var to = new NSTextField { PlaceholderString = "To page", StringValue = editor.To };
-            to.Changed += (_, _) => editor.To = to.StringValue;
-            var pages = Row(Label("Pages", 13), from, Label("to", 13), to);
-            from.WidthAnchor.ConstraintEqualTo(90).Active = true;
-            to.WidthAnchor.ConstraintEqualTo(90).Active = true;
-            sheet.Content.AddArrangedSubview(pages);
-            var hint = sheet.Text(Processing.DetailsText.PagesHint, secondary: true, size: 11);
-            var problem = sheet.Text("");
-            problem.TextColor = NSColor.SystemOrange;
-            bindings.Properties(editor, [nameof(PartEditorViewModel.Problem), nameof(PartEditorViewModel.From), nameof(PartEditorViewModel.To)], () =>
-            {
-                problem.StringValue = editor.Problem ?? "";
-                problem.Hidden = editor.Problem is null;
-                hint.TextColor = editor.PagesProblem is null ? NSColor.SecondaryLabel : NSColor.SystemOrange;
-                sheet.Fit();
-            });
-            var cancel = NSButton.CreateButton("Cancel", () => { });
-            cancel.KeyEquivalent = "\u001b";
-            bindings.Command(cancel, editor.CancelCommand);
-            var save = NSButton.CreateButton(editor.ActionText, () => { });
-            bindings.Command(save, editor.SaveCommand);
-            sheet.Buttons(cancel, save);
-            sheet.Show(host);
-            showing = (sheet, bindings);
-        });
-        _shown.Add(Close);
-    }
+    void PartEditorSheet(InspectorViewModel inspector) =>
+        PartSheet.Follow(_shown, inspector, nameof(InspectorViewModel.PartEditor), () => inspector.PartEditor, () => View.Window);
 
     /// <summary>
     /// A pack's files as thumbnails, each opening in the reader with the rest to step through; a file's menu makes it

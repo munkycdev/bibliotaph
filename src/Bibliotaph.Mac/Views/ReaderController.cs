@@ -78,7 +78,11 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         _bindings.Command(notesToggle, reader.ToggleNotesCommand);
         _bindings.Command(outlineToggle, reader.ToggleOutlineCommand);
         _bindings.Command(stripToggle, reader.ToggleStripCommand);
-        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), nornis, addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, fitPage, Separator(),
+        // What's done less often, as Windows has them about the reader: pin and favorite the book, mark pages as an
+        // adventure, use a page as the cover, add pages to a binder, open it elsewhere, and its own window.
+        var more = Button("ellipsis.circle", "More", null);
+        more.Activated += (_, _) => MoreMenu().PopUpMenu(null, new CoreGraphics.CGPoint(0, more.Bounds.Height + 4), more);
+        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), more, nornis, addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoomIn, fit, fitPage, Separator(),
             findStatus, find, findPrevious, findNext]);
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
@@ -102,6 +106,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         message.Spacing = 10;
         var notice = NSTextField.CreateWrappingLabel("");
         notice.TextColor = NSColor.SystemOrange;
+        var lines = Lines(notice);
 
         // The book's area: the pages, a picture or what's wrong, with its bookmarks beside it and its page strip under it.
         var content = new NSView();
@@ -125,7 +130,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         column.Alignment = NSLayoutAttribute.Width;
 
         var root = new NSView();
-        foreach (var view in new NSView[] { bar, column, notice })
+        foreach (var view in new NSView[] { bar, column, lines })
         {
             view.TranslatesAutoresizingMaskIntoConstraints = false;
             root.AddSubview(view);
@@ -135,10 +140,10 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             bar.TopAnchor.ConstraintEqualTo(root.SafeAreaLayoutGuide.TopAnchor),
             bar.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
             bar.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
-            notice.TopAnchor.ConstraintEqualTo(bar.BottomAnchor),
-            notice.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor, 16),
-            notice.TrailingAnchor.ConstraintLessThanOrEqualTo(root.TrailingAnchor, -16),
-            column.TopAnchor.ConstraintEqualTo(notice.BottomAnchor, 2),
+            lines.TopAnchor.ConstraintEqualTo(bar.BottomAnchor),
+            lines.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
+            lines.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
+            column.TopAnchor.ConstraintEqualTo(lines.BottomAnchor),
             column.LeadingAnchor.ConstraintEqualTo(root.LeadingAnchor),
             column.TrailingAnchor.ConstraintEqualTo(root.TrailingAnchor),
             column.BottomAnchor.ConstraintEqualTo(root.BottomAnchor),
@@ -252,6 +257,7 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
             notice.StringValue = reader.Notice ?? "";
             notice.Hidden = reader.Notice is null;
         });
+        PartSheet.Follow(_bindings, reader, nameof(ViewerViewModel.PartEditor), () => reader.PartEditor, () => View.Window);
         _bindings.Command(previous, reader.PreviousPageCommand);
         _bindings.Command(next, reader.NextPageCommand);
         _bindings.Command(fit, reader.ResetZoomCommand);
@@ -349,6 +355,89 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
     static void Run(CommunityToolkit.Mvvm.Input.IRelayCommand? command)
     {
         if (command?.CanExecute(null) == true) command.Execute(null);
+    }
+
+    /// <summary>
+    /// The lines under the bar, each there only while it says something: a note, Back to the page a link was followed
+    /// from, why a binder item's pages weren't where they were with Use This Page, where the page is in the adventure,
+    /// and a pack's files to step through.
+    /// </summary>
+    NSStackView Lines(NSTextField notice)
+    {
+        var linkBack = NSButton.CreateButton("", () => reader.BackFromLinkCommand.Execute(null));
+        linkBack.ControlSize = NSControlSize.Small;
+        linkBack.Image = NSImage.GetSystemSymbol("arrow.uturn.backward", null)!;
+        linkBack.ImagePosition = NSCellImagePosition.ImageLeading;
+
+        var banner = NSTextField.CreateWrappingLabel("");
+        banner.Font = NSFont.SystemFontOfSize(12)!;
+        var usePage = NSButton.CreateButton("Use This Page", () => { });
+        usePage.ControlSize = NSControlSize.Small;
+        _bindings.Command(usePage, reader.UsePageCommand);
+        var dismiss = NSButton.CreateButton(NSImage.GetSystemSymbol("xmark", "Hide")!, () => reader.DismissSessionBannerCommand.Execute(null));
+        dismiss.Bordered = false;
+        banner.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+        var bannerRow = NSStackView.FromViews([banner, usePage, dismiss]);
+        bannerRow.Spacing = 8;
+        var session = new Tinted(bannerRow, Palette.Soft, 6, new NSEdgeInsets(6, 10, 6, 6));
+
+        var part = NSTextField.CreateLabel("");
+        part.Font = NSFont.SystemFontOfSize(11)!;
+        part.TextColor = NSColor.SecondaryLabel;
+
+        var previous = Button("chevron.left", "", null);
+        _bindings.Command(previous, reader.PreviousImageCommand);
+        var position = NSTextField.CreateLabel("");
+        position.Font = NSFont.SystemFontOfSize(11, NSFontWeight.Medium)!;
+        var next = Button("chevron.right", "", null);
+        _bindings.Command(next, reader.NextImageCommand);
+        var pack = NSStackView.FromViews([previous, position, next]);
+        pack.Spacing = 4;
+
+        var lines = NSStackView.FromViews([notice, linkBack, session, part, pack]);
+        lines.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
+        lines.Alignment = NSLayoutAttribute.Leading;
+        lines.Spacing = 4;
+        lines.EdgeInsets = new NSEdgeInsets(2, 16, 4, 16);
+        _bindings.Properties(reader, [nameof(ViewerViewModel.LinkBackPage), nameof(ViewerViewModel.SessionBanner), nameof(ViewerViewModel.CanUsePage),
+            nameof(ViewerViewModel.CurrentPageIndex), nameof(ViewerViewModel.Mode)], () =>
+        {
+            linkBack.Title = reader.LinkBackLabel;
+            linkBack.Hidden = !reader.HasLinkBack;
+            banner.StringValue = reader.SessionBanner ?? "";
+            session.Hidden = reader.SessionBanner is null;
+            usePage.Hidden = !reader.CanUsePage;
+            part.StringValue = reader.IsPart ? reader.PartPosition : "";
+            part.Hidden = !reader.IsPart;
+            pack.Hidden = !reader.IsInPack;
+            position.StringValue = reader.IsInPack ? reader.PackPosition : "";
+            previous.ToolTip = reader.PreviousStepTip;
+            next.ToolTip = reader.NextStepTip;
+        });
+        return lines;
+    }
+
+    /// <summary>What's done less often with the book, as it stands now; what can't be done is left out, as Mac menus do.</summary>
+    NSMenu MoreMenu()
+    {
+        var menu = new NSMenu();
+        void Item(string title, System.Windows.Input.ICommand command)
+        {
+            if (command.CanExecute(null)) menu.AddItem(new NSMenuItem(title, (_, _) => command.Execute(null)));
+        }
+        Item(reader.FavoriteAction, reader.ToggleFavoriteCommand);
+        Item(reader.PinAction, reader.TogglePinCommand);
+        if (menu.Count > 0) menu.AddItem(NSMenuItem.SeparatorItem);
+        Item("Mark Pages as an Adventure…", reader.MarkPagesCommand);
+        Item("Add Pages to a Binder…", reader.AddPagesCommand);
+        Item("Use This Page as the Cover", reader.UseAsCoverCommand);
+        if (reader.CanUseAsPackCover) Item("Use as the Pack's Cover", reader.UseAsPackCoverCommand);
+        if (menu.Count > 0 && menu.ItemAt(menu.Count - 1)?.IsSeparatorItem == false) menu.AddItem(NSMenuItem.SeparatorItem);
+        Item("Open in Another App", reader.OpenElsewhereCommand);
+        if (reader.ShowsPopOut) Item("Open in a Window of Its Own", reader.PopOutCommand);
+        if (reader.ShowsReturn) Item("Return to the Main Window", reader.ReturnToMainWindowCommand);
+        if (menu.Count > 0 && menu.ItemAt(menu.Count - 1)?.IsSeparatorItem == true) menu.RemoveItemAt(menu.Count - 1);
+        return menu;
     }
 
     /// <summary>Send to Nornis's pages, label and world, as a sheet over the reader while it's open.</summary>
