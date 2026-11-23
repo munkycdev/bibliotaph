@@ -53,6 +53,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             BackgroundColors = [NSColor.Clear],
         };
         _grid.RegisterClassForItem(typeof(CoverItem), CoverItem.Id);
+        _grid.RegisterForDraggedTypes([BookGrid.CardType]);
         _source = new GridSource(this);
         _grid.DataSource = _source;
         _grid.Delegate = _source;
@@ -147,6 +148,20 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         DialogSheet.Follow(_bindings, library.Collections, () => View.Window);
         OrganizeSheets.Follow(_bindings, library.Selection, () => View.Window);
         ElsewhereSheet.Follow(_bindings, library, () => View.Window);
+        // Cards dropped on a card that could mean two things: a menu where they were dropped asks which.
+        _bindings.Property(library.Selection, nameof(LibrarySelectionViewModel.DropChoice), () =>
+        {
+            if (library.Selection.DropChoice is not { } choice) return;
+            var menu = new NSMenu { AutoEnablesItems = false };
+            menu.AddItem(new NSMenuItem(choice.GoesWithLabel, (_, _) => library.Selection.ChooseGoesWithCommand.Execute(null)));
+            menu.AddItem(new NSMenuItem(choice.SameBookLabel, (_, _) => library.Selection.ChooseSameBookCommand.Execute(null)));
+            NSApplication.SharedApplication.BeginInvokeOnMainThread(() =>
+            {
+                menu.PopUpMenu(null, _grid.ConvertPointFromView(DropLocation, null), _grid);
+                // A menu closed without a choice does nothing, as Esc does on Windows.
+                if (library.Selection.IsChoosingDrop) library.Selection.CancelDropChoiceCommand.Execute(null);
+            });
+        });
         NSAlert? naming = null;
         _bindings.Property(library.SmartViews, nameof(SmartViewsViewModel.ViewDialog), () =>
         {
@@ -198,6 +213,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     /// A click on a book in Organize mode ticks it, and with Shift every book from the last one clicked, as on Windows;
     /// otherwise it shows the book's details.
     /// </summary>
+    /// <summary>Where the last cards were dropped, in window coordinates, for the menu that asks what the drop means.</summary>
+    internal CGPoint DropLocation { get; set; }
+
     internal void Clicked(LibraryItemViewModel item)
     {
         var selection = library.Selection;
@@ -826,8 +844,105 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     }
 
     /// <summary>The grid, which gives a right-click on a cover that book's menu.</summary>
-    sealed class BookGrid(LibraryController owner) : NSCollectionView
+    sealed class BookGrid(LibraryController owner) : NSCollectionView, INSDraggingSource
     {
+        /// <summary>What dragging carries: only ever this app's own cards, within this window.</summary>
+        public const string CardType = "online.bibliotaph.cards";
+
+        NSEvent? _pressed;
+        OrganizeDrag? _drag;
+        LibraryItemViewModel? _over;
+
+        // In Organize mode a card can be picked up and dropped on another: a map on its book, two copies of one book.
+        public override void MouseDown(NSEvent theEvent)
+        {
+            _pressed = owner.Organizing ? theEvent : null;
+            base.MouseDown(theEvent);
+        }
+
+        public override void MouseDragged(NSEvent theEvent)
+        {
+            if (_pressed is not { } pressed || _drag is not null || ItemAt(pressed) is not { } card)
+            {
+                base.MouseDragged(theEvent);
+                return;
+            }
+            _pressed = null;
+            if (owner.Library.Selection.Pick(card) is not { } drag) return;
+            _drag = drag;
+            var item = new NSPasteboardItem();
+            item.SetStringForType(card.EntryId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture), CardType);
+            var dragging = new NSDraggingItem(item);
+            var at = ConvertPointFromView(pressed.LocationInWindow, null);
+            var image = GetIndexPath(at) is { } path && GetItem(path) is { View: { } view } ? Snapshot(view) : NSImage.GetSystemSymbol("book", null)!;
+            dragging.SetDraggingFrame(new CGRect(at.X - 40, at.Y - 54, 80, 108), image);
+            BeginDraggingSession([dragging], theEvent, this);
+        }
+
+        static NSImage Snapshot(NSView view)
+        {
+            var rep = view.BitmapImageRepForCachingDisplayInRect(view.Bounds)!;
+            view.CacheDisplay(view.Bounds, rep);
+            var image = new NSImage(view.Bounds.Size);
+            image.AddRepresentation(rep);
+            return image;
+        }
+
+        LibraryItemViewModel? ItemAt(NSEvent theEvent) => ItemAt(ConvertPointFromView(theEvent.LocationInWindow, null));
+
+        LibraryItemViewModel? ItemAt(CGPoint point) =>
+            GetIndexPath(point) is { } path && (int)path.Item < owner.Library.Items.Count ? owner.Library.Items[(int)path.Item] : null;
+
+        [Export("draggingSession:sourceOperationMaskForDraggingContext:")]
+        public NSDragOperation SourceOperationMaskForDraggingContext(NSDraggingSession session, NSDraggingContext context) =>
+            context == NSDraggingContext.WithinApplication && owner.Organizing ? NSDragOperation.Generic : NSDragOperation.None;
+
+        [Export("draggingSession:endedAtPoint:operation:")]
+        public void DraggingSessionEnded(NSDraggingSession session, CGPoint screenPoint, NSDragOperation operation)
+        {
+            _drag = null;
+            Mark(null);
+        }
+
+        // A card the cards can go on is outlined; one they can't takes nothing, and the tip says why.
+        public override NSDragOperation DraggingEntered(INSDraggingInfo sender) => DraggingUpdated(sender);
+
+        public override NSDragOperation DraggingUpdated(INSDraggingInfo sender)
+        {
+            if (_drag is not { } drag) return NSDragOperation.None;
+            var target = ItemAt(ConvertPointFromView(sender.DraggingLocation, null));
+            if (target is null || drag.EntryIds.Contains(target.EntryId))
+            {
+                Mark(null);
+                return NSDragOperation.None;
+            }
+            var plan = LibrarySelectionViewModel.PlanOn(drag, target);
+            Mark(plan.CanDrop ? target : null);
+            ToolTip = plan.Label;
+            return plan.CanDrop ? NSDragOperation.Generic : NSDragOperation.None;
+        }
+
+        public override void DraggingExited(INSDraggingInfo? sender) => Mark(null);
+
+        public override bool PerformDragOperation(INSDraggingInfo sender)
+        {
+            if (_drag is not { } drag || ItemAt(ConvertPointFromView(sender.DraggingLocation, null)) is not { } target) return false;
+            Mark(null);
+            ToolTip = null!;
+            owner.DropLocation = sender.DraggingLocation;
+            owner.Library.Selection.DropOnAsync(drag, target).FireAndForget();
+            return true;
+        }
+
+        /// <summary>The card the cards would go on, outlined in the accent.</summary>
+        void Mark(LibraryItemViewModel? card)
+        {
+            if (ReferenceEquals(card, _over)) return;
+            foreach (var item in VisibleItems)
+                if (item is CoverItem cover) cover.Marked(card is not null && ReferenceEquals(card, cover.Book));
+            _over = card;
+        }
+
         public override void KeyDown(NSEvent theEvent)
         {
             if (!OrganizeKey(owner, theEvent)) base.KeyDown(theEvent);
@@ -848,6 +963,12 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             if (theEvent.ModifierFlags.HasFlag(NSEventModifierMask.CommandKeyMask) && theEvent.CharactersIgnoringModifiers == "a")
             {
                 if (selection.SelectAllCommand.CanExecute(null)) selection.SelectAllCommand.Execute(null);
+                return true;
+            }
+            // ⌘Z takes back the newest change made in Organize mode that still stands, as Ctrl+Z does on Windows.
+            if (theEvent.ModifierFlags.HasFlag(NSEventModifierMask.CommandKeyMask) && theEvent.CharactersIgnoringModifiers == "z")
+            {
+                selection.UndoLastCommand.Execute(null);
                 return true;
             }
             return false;
@@ -981,6 +1102,20 @@ sealed class CoverItem : NSCollectionViewItem
         view.SymbolConfiguration = NSImageSymbolConfiguration.Create(17, NSFontWeight.Semibold);
         view.Image = ticked ? image.GetImage(NSImageSymbolConfiguration.Create([NSColor.White, NSColor.ControlAccent]))! : image;
         view.ContentTintColor = ticked ? null! : NSColor.White;
+    }
+
+    /// <summary>The book whose card this is now, as the grid reuses cards.</summary>
+    public LibraryItemViewModel? Book => _book;
+
+    /// <summary>
+    /// Outlined while cards being dragged would go on it, more strongly than a tick's outline; as it was once they
+    /// move on.
+    /// </summary>
+    public void Marked(bool on)
+    {
+        if (_frame?.Layer is not { } layer) return;
+        if (on) layer.BorderWidth = 6;
+        else ShowTick(true);
     }
 
     public void ShowTick(bool organizing)

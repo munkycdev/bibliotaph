@@ -177,6 +177,8 @@ static class ShortcutsWindow
             ("⌘2", "Show books as a list"),
             ("Click, Shift-click", "In Organize, tick a book, or every book up to it"),
             ("⌘A", "In Organize, tick every book shown"),
+            ("Drag a card", "In Organize, onto its book, or onto another copy of it"),
+            ("⌘Z", "In Organize, take back the last change"),
             ("Esc", "Leave Organize"),
         ]),
         ("Reading a book",
