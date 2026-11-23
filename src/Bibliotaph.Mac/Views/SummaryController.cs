@@ -77,7 +77,8 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
         Add(opened);
         opened.WidthAnchor.ConstraintLessThanOrEqualTo(620).Active = true;
         var openedWidth = opened.WidthAnchor.ConstraintEqualTo(_content.WidthAnchor, 1, -48);
-        openedWidth.Priority = 500;
+        // Below the split view's own holding priorities, so the bar follows the page's width and never sets it.
+        openedWidth.Priority = 200;
         openedWidth.Active = true;
         Add(Tiles(page.Work), stretch: true);
         Add(Secondary(page.ReadingText), stretch: true);
@@ -191,7 +192,8 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
         strip.WidthAnchor.ConstraintLessThanOrEqualTo(column.WidthAnchor).Active = true;
         strip.WidthAnchor.ConstraintLessThanOrEqualTo(columns.Count * 56).Active = true;
         var fill = strip.WidthAnchor.ConstraintEqualTo(column.WidthAnchor);
-        fill.Priority = 500;
+        // Below the split view's holding priorities: a strip of a few decades must not narrow the page to fit it.
+        fill.Priority = 200;
         fill.Active = true;
         column.AddArrangedSubview(Secondary(text));
         return column;

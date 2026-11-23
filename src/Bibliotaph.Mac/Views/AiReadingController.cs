@@ -50,7 +50,8 @@ public sealed class AiReadingController(AiReadingViewModel reading) : NSViewCont
         foreach (var view in new NSView[] { nowBox, recent })
         {
             var wide = view.WidthAnchor.ConstraintEqualTo(860);
-            wide.Priority = 500;
+            // Below the split view's holding priorities, so this asks for room without taking it from the sidebar.
+            wide.Priority = 200;
             wide.Active = true;
         }
         head.WidthAnchor.ConstraintEqualTo(now.WidthAnchor).Active = true;
