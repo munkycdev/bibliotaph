@@ -7,6 +7,7 @@ using Bibliotaph.Presentation.Services;
 using Bibliotaph.Presentation.ViewModels;
 using Bibliotaph.Processing;
 using Foundation;
+using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.Mac.Platform;
 
@@ -78,17 +79,26 @@ public sealed class NoUpdates : IUpdateService
     }
 }
 
+/// <summary>Start over's part of the secrets: everything Bibliotaph saved, wherever it keeps them.</summary>
+public interface IForgetsSecrets
+{
+    int ForgetEverything();
+}
+
 /// <summary>
 /// Restart relaunches the bundle, which waits for this copy to have closed its databases before it starts, as a
-/// restore swaps them in then. Start over isn't offered on the Mac yet.
+/// restore swaps them in then. Start over (with --dev) forgets the secrets now and asks the next start to delete the
+/// library data before it opens anything, as on Windows.
 /// </summary>
-public sealed class MacAppLifetime(IUserPrompts prompts, AppPaths paths) : IAppLifetime
+public sealed class MacAppLifetime(AppPaths paths, IForgetsSecrets secrets, ILogger<MacAppLifetime> log) : IAppLifetime
 {
     public const string WaitFor = "--wait-for";
 
-    public void Restart()
+    public void Restart() => Relaunch();
+
+    void Relaunch(params string[] more)
     {
-        List<string> arguments = ["-n", NSBundle.MainBundle.BundlePath, "--args", WaitFor, Environment.ProcessId.ToString(CultureInfo.InvariantCulture)];
+        List<string> arguments = ["-n", NSBundle.MainBundle.BundlePath, "--args", WaitFor, Environment.ProcessId.ToString(CultureInfo.InvariantCulture), .. more];
         // Only a data folder of its own is named, as naming one turns off what an everyday start does.
         if (paths.Root != AppPaths.ForCurrentUser().Root) arguments.AddRange(["--data-root", paths.Root]);
         using var process = System.Diagnostics.Process.Start("/usr/bin/open", arguments);
@@ -143,19 +153,25 @@ public sealed class MacAppLifetime(IUserPrompts prompts, AppPaths paths) : IAppL
         else alert.RunModal();
     }
 
-    public void StartOver() =>
-        prompts.Tell("Start over isn't available on the Mac yet.", "Bibliotaph", PromptKind.Information);
+    public void StartOver()
+    {
+        var forgotten = secrets.ForgetEverything();
+        DataPurge.Request(paths);
+        log.LogInformation("Starting over: forgot {Count} saved secrets; restarting to delete the library data", forgotten);
+        // Start over is reached only with --dev, so the new start keeps it.
+        Relaunch("--dev");
+    }
 }
 
-/// <summary>About shows the standard panel; the rest are Windows popups the Mac doesn't have yet.</summary>
-public sealed class MacAppDialogs(IUserPrompts prompts) : IAppDialogs
+/// <summary>About shows the standard panel; Keyboard Shortcuts and Test with a Book are the Mac's own.</summary>
+public sealed class MacAppDialogs(IUserPrompts prompts, AiService ai) : IAppDialogs
 {
     public void ShowAbout() => NSApplication.SharedApplication.OrderFrontStandardAboutPanel(null);
 
-    public void ShowShortcuts() => prompts.Tell("Keyboard shortcuts are listed in the menus.", "Bibliotaph", PromptKind.Information);
+    public void ShowShortcuts() => Views.ShortcutsWindow.Show();
 
     public void TestModelServer(string endpoint, string model) =>
-        prompts.Tell("Testing a model server isn't available on the Mac yet.", "Bibliotaph", PromptKind.Information);
+        Views.AiTestSheet.Show(new AiTestViewModel(ai, (progress, ct) => ai.TestAsync(endpoint, model, progress, ct), model));
 
     public void TestBuiltInModel(string model) =>
         prompts.Tell("The built-in AI isn't available on the Mac yet.", "Bibliotaph", PromptKind.Information);

@@ -14,8 +14,16 @@ namespace Bibliotaph.Mac.Platform;
 /// databases or logs. A build that isn't signed changes signature with every build, and macOS asks once per build
 /// whether it may read the items an earlier build saved.
 /// </summary>
-public sealed class KeychainSecrets(ILogger<KeychainSecrets> log) : IPasswordVault, IApiKeyStore, IConnectionSecrets, IWebLibraryKey
+public sealed class KeychainSecrets(ILogger<KeychainSecrets> log) : IPasswordVault, IApiKeyStore, IConnectionSecrets, IWebLibraryKey, IForgetsSecrets
 {
+    /// <summary>Start over: every item Bibliotaph saved in the keychain.</summary>
+    public int ForgetEverything()
+    {
+        var accounts = List("");
+        foreach (var account in accounts) Delete(account);
+        return accounts.Count;
+    }
+
     const string Service = "online.bibliotaph.mac";
     const string DeviceKey = "web:device";
     const string PdfPrefix = "pdf:";

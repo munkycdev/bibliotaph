@@ -155,6 +155,15 @@ public sealed partial class SettingsWindow
         export.Row("Everything (JSON)", Button("Export…", backup.ExportJsonCommand, bindings));
         bindings.Property(backup, nameof(BackupSectionViewModel.ExportNote), () => export.Note(backup.ExportNote ??
             "CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON has everything in the catalog, for other programs."));
+
+        // A development aid, as on Windows: only with --dev, and last, so it isn't chosen by accident.
+        if (_services.GetRequiredService<DevMode>().IsOn)
+        {
+            var startOver = _services.GetRequiredService<StartOverSectionViewModel>();
+            var over = form.Section("Start over",
+                "Forgets your library folders, the index, covers, settings, remembered PDF passwords, AI keys and the web library connection, then restarts as if newly installed. Your books and other files are not touched.");
+            over.Row("Start over", Button("Start Over…", startOver.StartOverCommand, bindings));
+        }
         return Pane(form);
     }
 

@@ -268,7 +268,12 @@ public sealed partial class SettingsWindow : NSWindowController
         var save = NSButton.CreateButton("Save", () => { });
         save.KeyEquivalent = "\r";
         bindings.Command(save, ai.SaveCommand);
-        var status = state.Row("", save);
+        // Test with a Book reads one of your books with what's on screen, saved or not, and stores nothing.
+        var test = NSButton.CreateButton("Test with a Book…", () => { });
+        bindings.Command(test, ai.TestCommand);
+        var status = state.Row("", test, save);
+        state.Row("AI reading", "The book the AI is reading now, and what it kept from the last ones",
+            NSButton.CreateButton("Show", () => ai.OpenAiReadingCommand.Execute(null)));
 
         var foldersSection = form.Section("Folders it may read", "Only books in the folders ticked here are sent to the model.");
 

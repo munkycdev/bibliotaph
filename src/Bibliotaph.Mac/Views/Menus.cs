@@ -65,6 +65,12 @@ static class Menus
         bar.AddItem(window);
         NSApplication.SharedApplication.WindowsMenu = window.Submenu;
 
+        // Last, as on every Mac.
+        var help = Top("Help",
+            Shortcut(new NSMenuItem("Keyboard Shortcuts", "/", (_, _) => ShortcutsWindow.Show()), NSEventModifierMask.CommandKeyMask));
+        bar.AddItem(help);
+        NSApplication.SharedApplication.HelpMenu = help.Submenu;
+
         return bar;
     }
 

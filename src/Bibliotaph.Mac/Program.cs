@@ -66,10 +66,12 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
         {
             // A restore chosen before the restart swaps its catalog in now, once the copy that chose it has closed it.
             await MacAppLifetime.WaitForAsync(args);
+            // Start over, asked for before the restart, deletes the library data before anything opens it.
+            if (DataPurge.RunIfRequested(paths)) Log.Information("Started over: the library data was deleted");
             var restored = await PendingRestore.ApplyIfRequestedAsync(paths);
             if (restored is not null) Log.Information("Restore of {Backup}: {Result}", restored.Request?.Backup, restored.Problem ?? "restored");
             var everyday = DataRoot(args) is null;
-            _host = BuildHost(paths, everyday);
+            _host = BuildHost(paths, everyday, args.Contains("--dev"));
             await PrepareDatabasesAsync(_host.Services);
             await _host.StartAsync();
             var services = _host.Services;
@@ -139,7 +141,7 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
         return at >= 0 && at + 1 < args.Length ? Path.GetFullPath(args[at + 1]) : null;
     }
 
-    static IHost BuildHost(AppPaths paths, bool everyday)
+    static IHost BuildHost(AppPaths paths, bool everyday, bool dev)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -155,7 +157,7 @@ sealed class AppDelegate(string[] args) : NSApplicationDelegate
         builder.Services
             .AddMacHost()
             .AddSecrets(everyday)
-            .AddDesktop(paths)
+            .AddDesktop(paths, dev: dev)
             .AddMacPdfWorker();
         return builder.Build();
     }

@@ -126,6 +126,24 @@ public class LocalModelClientTests
     }
 
     [Fact]
+    public async Task A_refusal_of_json_mode_too_says_why_the_schema_was_refused()
+    {
+        // LM Studio refuses JSON mode outright, so its refusal would hide the schema request's own, such as the model having stopped.
+        var (client, _) = Connect("http://127.0.0.1:1234", (path, body) => path switch
+        {
+            "/v1/models" => Ok("""{"data":[{"id":"m"}]}"""),
+            "/v1/chat/completions" when body!["response_format"]!["type"]!.GetValue<string>() == "json_schema"
+                => (HttpStatusCode.BadRequest, """{"error":"Error: Channel Error"}"""),
+            "/v1/chat/completions" => (HttpStatusCode.BadRequest, """{"error":"'response_format.type' must be 'json_schema' or 'text'"}"""),
+            _ => NotFound,
+        });
+
+        var refused = await Assert.ThrowsAsync<ModelEndpointException>(() => client.CompleteAsync(Request, TestContext.Current.CancellationToken));
+
+        Assert.Contains("Channel Error", refused.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Says_what_went_wrong_when_the_key_is_refused_or_nothing_answers()
     {
         var (refusing, _) = Connect("https://models.example.com", (path, _) => path == "/api/version"

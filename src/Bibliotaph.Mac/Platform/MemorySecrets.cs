@@ -6,8 +6,17 @@ using Bibliotaph.Storage.Desktop;
 namespace Bibliotaph.Mac.Platform;
 
 /// <summary>Secrets for this sitting only, for a library kept somewhere else with --data-root (see MacComposition.AddSecrets).</summary>
-public sealed class MemorySecrets : IPasswordVault, IApiKeyStore, IConnectionSecrets
+public sealed class MemorySecrets : IPasswordVault, IApiKeyStore, IConnectionSecrets, IForgetsSecrets
 {
+    public int ForgetEverything()
+    {
+        var count = _passwords.Count + _keys.Count + _connections.Count;
+        _passwords.Clear();
+        _keys.Clear();
+        _connections.Clear();
+        return count;
+    }
+
     readonly ConcurrentDictionary<string, string> _passwords = new();
     readonly ConcurrentDictionary<string, string> _keys = new();
     readonly ConcurrentDictionary<string, string> _connections = new();

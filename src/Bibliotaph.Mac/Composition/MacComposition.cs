@@ -53,8 +53,9 @@ static class MacComposition
         }
         return services;
 
-        static void Forward<T>(IServiceCollection services) where T : class, IPasswordVault, IApiKeyStore, IConnectionSecrets
+        static void Forward<T>(IServiceCollection services) where T : class, IPasswordVault, IApiKeyStore, IConnectionSecrets, IForgetsSecrets
         {
+            services.AddSingleton<IForgetsSecrets>(sp => sp.GetRequiredService<T>());
             services.AddSingleton<IPasswordVault>(sp => sp.GetRequiredService<T>());
             services.AddSingleton<IApiKeyStore>(sp => sp.GetRequiredService<T>());
             services.AddSingleton<IConnectionSecrets>(sp => sp.GetRequiredService<T>());
