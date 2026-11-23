@@ -54,6 +54,7 @@ static class DevArguments
             {
                 if (services.GetRequiredService<INavigationService>().Current is Presentation.ViewModels.LibraryViewModel library) library.Layout = Index.LibraryLayout.List;
             }), TaskScheduler.Default);
+        if (Value(args, "--run") is { } command) RunAsync(services, command).FireAndForget();
         if (args.Contains("--review-samples")) ReviewSamplesAsync(services, main, Value(args, "--review-samples")).FireAndForget();
         if (int.TryParse(Value(args, "--organize"), out var tick)) OrganizeAsync(services, tick, args.Contains("--bulk-edit")).FireAndForget();
         if (Value(args, "--online") is { } key
@@ -116,6 +117,24 @@ static class DevArguments
     }
 
     /// <summary>Organize mode with the first books ticked, once the Library has listed them.</summary>
+    /// <summary>
+    /// A command of the page showing, by its name, once the page has settled: "--run AddPagesCommand" in the reader opens
+    /// Add pages, so a dialog can be looked at without clicking to it. A dotted name reaches into the page: "Selection.X".
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2075", Justification = "The app isn't trimmed (LinkMode None).")]
+    static async Task RunAsync(IServiceProvider services, string name)
+    {
+        await Task.Delay(3000);
+        Bindings.OnMain(() =>
+        {
+            object? target = services.GetRequiredService<INavigationService>().Current;
+            foreach (var part in name.Split('.'))
+                target = target?.GetType().GetProperty(part)?.GetValue(target);
+            if (target is System.Windows.Input.ICommand command && command.CanExecute(null)) command.Execute(null);
+            else Log.Warning("--run {Command}: no such command on the page, or it can't run now", name);
+        });
+    }
+
     /// <summary>One made-up card of each kind on Needs review, once its own list has loaded.</summary>
     static async Task ReviewSamplesAsync(IServiceProvider services, Views.MainWindowController main, string? picture)
     {
