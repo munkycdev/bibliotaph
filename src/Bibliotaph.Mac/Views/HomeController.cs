@@ -10,9 +10,20 @@ namespace Bibliotaph.Mac.Views;
 /// Home: what the library holds, the binder being prepared, what's pinned, and the books opened and added most
 /// recently, each a click from opening. A new library with no folders offers Add folder.
 /// </summary>
-public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSViewController
+public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSViewController, ITourAnchors
 {
+    NSButton? _addFolder;
+    readonly List<WrapView> _shelves = [];
+
     readonly Bindings _bindings = new();
+
+    /// <summary>Add a folder before any is in, and the first books once they are.</summary>
+    public NSView? Anchor(Core.TourAnchor anchor) => anchor switch
+    {
+        Core.TourAnchor.AddFolder => _addFolder,
+        Core.TourAnchor.FirstBooks => _shelves.FirstOrDefault(s => !s.Hidden && s.Subviews.Length > 0)?.Subviews[0],
+        _ => null,
+    };
 
     public override void LoadView()
     {
@@ -20,6 +31,7 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         var totals = PageParts.Secondary("");
         var addFolder = NSButton.CreateButton("Add a folder of books…", () => { });
         _bindings.Command(addFolder, home.AddFolderCommand);
+        _addFolder = addFolder;
         var start = NSStackView.FromViews([PageParts.Secondary("Add the folders where your books are. Bibliotaph reads them where they are and never changes them."), addFolder]);
         start.Orientation = NSUserInterfaceLayoutOrientation.Vertical;
         start.Alignment = NSLayoutAttribute.Leading;
@@ -35,6 +47,7 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         foreach (var view in new NSView[] { PageParts.Heading("Home"), totals, start, preparing, pinsTitle, pins, openedTitle, opened, addedTitle, added })
             content.AddArrangedSubview(view);
         foreach (var grid in new[] { pins, opened, added }) grid.WidthAnchor.ConstraintEqualTo(content.WidthAnchor, 1, -48).Active = true;
+        _shelves.AddRange([opened, added, pins]);
         View = root;
 
         _bindings.Properties(home, [nameof(HomeViewModel.TotalsText), nameof(HomeViewModel.HasBooks)], () =>

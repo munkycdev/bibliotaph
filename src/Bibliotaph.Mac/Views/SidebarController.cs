@@ -30,6 +30,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
     List<Row> _rows = [];
     IReadOnlyList<SourceRoot> _folders = [];
     NSTableView _table = null!;
+    NSTextField _status = null!;
     Source? _source;
     bool _selecting;
     PageViewModel? _shownPage;
@@ -59,6 +60,7 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         status.MaximumNumberOfLines = 3;
         status.ToolTip = "Show what Bibliotaph is doing in Settings › Processing";
         status.AddGestureRecognizer(new NSClickGestureRecognizer(() => StatusClicked?.Invoke(this, EventArgs.Empty)));
+        _status = status;
 
         var root = new NSView();
         foreach (var view in new NSView[] { scroll, status })
@@ -91,6 +93,26 @@ public sealed class SidebarController(LibraryActivity activity, FolderAdding add
         _bindings.Add(() => adding.Added -= refreshed);
         _bindings.Collection(shell.Pinned, _ => ShowRows());
         ReloadAsync().FireAndForget();
+    }
+
+    /// <summary>
+    /// What the tour points at in the sidebar: the status line, which opens Settings, and the rows for the Library and
+    /// the pages beside it.
+    /// </summary>
+    public NSView? Anchor(Core.TourAnchor anchor)
+    {
+        if (anchor is Core.TourAnchor.Status or Core.TourAnchor.Settings) return _status;
+        Route? route = anchor switch
+        {
+            Core.TourAnchor.Library => Route.Library,
+            Core.TourAnchor.NeedsReview => Route.NeedsReview,
+            Core.TourAnchor.Collections => Route.Collections,
+            Core.TourAnchor.Binders => Route.Sessions,
+            _ => null,
+        };
+        if (route is null) return null;
+        var row = _rows.FindIndex(r => !r.IsHeader && r.Pin is null && r.RootId is null && r.Route == route);
+        return row < 0 ? null : _table.GetRowView(row, false);
     }
 
     /// <summary>The status line was clicked.</summary>

@@ -146,6 +146,9 @@ public sealed partial class SettingsWindow : NSWindowController
         var rescan = NSButton.CreateButton("Look for Changes", () => { });
         bindings.Command(rescan, library.RescanCommand);
         form.Buttons(rescan, NSButton.CreateButton("Add Folder…", () => _adding.PickAsync().FireAndForget()));
+        // The tour's Add a folder opens this pane for the picker.
+        if (_services.GetRequiredService<LibraryFolders>().TakePickRequest())
+            NSApplication.SharedApplication.BeginInvokeOnMainThread(() => _adding.PickAsync().FireAndForget());
 
         var rows = new Bindings();
         bindings.Add(() => rows.Dispose());
@@ -573,6 +576,8 @@ public sealed partial class SettingsWindow : NSWindowController
             else preferences.ReviewEverything = true;
         });
         review.Row("Show", ask);
+        var tour = form.Section("Tour");
+        tour.Row("Show the tour again", "On Home, the part your library is ready for", NSButton.CreateButton("Show Tour", () => preferences.ShowTourCommand.Execute(null)));
         bindings.Properties(preferences, [nameof(PreferencesSectionViewModel.ReviewWhenUnsure), nameof(PreferencesSectionViewModel.ReviewEverything),
             nameof(PreferencesSectionViewModel.ReviewNote)], () =>
         {

@@ -12,10 +12,15 @@ namespace Bibliotaph.Mac.Views;
 /// The Library: its heading and count, then the cover grid, or what to do when it's empty. A double-click opens a
 /// book, as on Windows.
 /// </summary>
-public sealed class LibraryController(LibraryViewModel library, MacCovers covers) : NSViewController
+public sealed class LibraryController(LibraryViewModel library, MacCovers covers) : NSViewController, ITourAnchors
 {
     readonly Bindings _bindings = new();
     BookGrid _grid = null!;
+
+    /// <summary>The covers, or the list, as the Library shows its books.</summary>
+    public NSView? Anchor(Core.TourAnchor anchor) =>
+        anchor == Core.TourAnchor.FirstBooks ? (library.Layout == Bibliotaph.Index.LibraryLayout.List ? _list : _grid.GetItem(0)?.View ?? _grid) : null;
+
     BookList _list = null!;
     GridSource? _source;
 

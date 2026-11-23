@@ -30,6 +30,7 @@ public sealed class MainWindowController : NSWindowController
     readonly List<OnlineBrowserWindow> _browsers = [];
     readonly WebLibrary _web;
     readonly SourceRootStore _roots;
+    readonly TourPopover _tour;
     PageViewModel? _shown;
 
     public MainWindowController(IServiceProvider services) : base(MakeWindow())
@@ -91,6 +92,10 @@ public sealed class MainWindowController : NSWindowController
         _web = services.GetRequiredService<WebLibrary>();
         _roots = services.GetRequiredService<SourceRootStore>();
         _sidebar.StatusClicked += (_, _) => _settings.Open(Presentation.Services.SettingsSection.Processing);
+        _tour = new TourPopover(services.GetRequiredService<TourViewModel>(), anchor => anchor == Core.TourAnchor.Search
+            ? _toolbar.SearchField
+            : _sidebar.Anchor(anchor) ?? _pages.Anchor(anchor));
+        _bindings.Add(_tour.Dispose);
         _navigation.Navigated += OnNavigated;
         _bindings.Add(() => _navigation.Navigated -= OnNavigated);
     }
@@ -320,6 +325,9 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders) : NSToo
     }
 
     public void FocusSearch() => _search?.BeginSearchInteraction();
+
+    /// <summary>The search field, for the tour to point at.</summary>
+    public NSView? SearchField => _search?.SearchField;
 
     public void AddFolder() => folders.PickAsync().FireAndForget();
 }
