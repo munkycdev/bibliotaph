@@ -25,7 +25,9 @@ public static partial class DesktopComposition
         // Storage connected on this PC lists through its drives; the web library's folders from its list of files.
         services.AddSingleton<ISourceLister>(sp => new Bibliotaph.Storage.Desktop.StorageAwareSourceLister(
             new Bibliotaph.Storage.StorageSourceLister(sp.GetRequiredService<Bibliotaph.Storage.IStorageDrives>()),
-            new WebAwareSourceLister(new FileSystemSourceLister(), sp.GetRequiredService<WebShelfCache>())));
+            // Windows' file attributes say which files are only in the cloud; elsewhere the platform's cloud files are asked.
+            new WebAwareSourceLister(new FileSystemSourceLister(OperatingSystem.IsWindows() ? null : path => sp.GetRequiredService<ICloudFiles>().StateOf(path) == CloudFileState.OnlineOnly),
+                sp.GetRequiredService<WebShelfCache>())));
         services.AddSingleton<WebLibraryCopies>();
         services.AddSingleton<IKeptCopies>(sp => sp.GetRequiredService<WebLibraryCopies>());
         services.AddSingleton<WebReadings>();
