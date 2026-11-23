@@ -36,6 +36,7 @@ public enum TourClient
 {
     Windows,
     Web,
+    Mac,
 }
 
 /// <summary>
@@ -58,7 +59,7 @@ public static class Tour
 
     public static IReadOnlyList<TourStep> Steps(TourChapter chapter, TourClient client) => chapter switch
     {
-        TourChapter.Folders when client == TourClient.Windows =>
+        TourChapter.Folders when client is TourClient.Windows or TourClient.Mac =>
         [
             new(chapter, [TourAnchor.AddFolder], "Start with a folder",
                 "Pick the top folder that holds your RPG files; everything under it is included. Your files stay exactly where they are: nothing is moved, renamed or changed.",
@@ -78,6 +79,24 @@ public static class Tour
                 "Pick the top folder that holds your RPG files; everything under it is included. You can add more folders, and more storage, later."),
             new(chapter, [TourAnchor.Status], "While your books are read",
                 "Bibliotaph finds your files, reads their text and makes covers. This line says what it's doing, and Settings > Processing has the details. Books appear in the Library as they're found, and you can search and read straight away."),
+        ],
+        // The Mac's own keys and menus: ⌘F, Control-click, and Settings in the app menu.
+        TourChapter.Books when client == TourClient.Mac =>
+        [
+            new(chapter, [TourAnchor.FirstBooks], "Your first books",
+                "Click a cover for its details and everything you can do with the book. Double-click to open it where you left off, and Control-click for the rest."),
+            new(chapter, [TourAnchor.Library], "Every book, map and handout",
+                "The Library holds everything, as covers or a list. Narrow it by system, type, level or where a book is owned, and your place is kept when you come back. Organize ticks books to change them together, and lets you drag a map onto its book."),
+            new(chapter, [TourAnchor.Library], "Books you own online",
+                "Own books on D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG? Settings › Online imports them, so they're found and opened alongside your files."),
+            new(chapter, [TourAnchor.Search], "Any word on any page",
+                "Search titles and systems, or any word printed on any page of any book. Results list books and the pages the words were found on. ⌘F gets here from anywhere, and ⌥⌘F asks your library a question."),
+            new(chapter, [TourAnchor.NeedsReview], "Check, don't catalog",
+                "Bibliotaph catalogs your books itself and asks only when it's unsure. Suggestions to check land here, each with the page it came from, and the number is how many are waiting."),
+            new(chapter, [TourAnchor.Collections, TourAnchor.Binders], "For campaigns and sessions",
+                "Collections gather books around a campaign or a setting. Binders hold the pages for one session, in order, ready to run."),
+            new(chapter, [TourAnchor.Settings], "Folders, AI and more",
+                "Settings (⌘,) adds or removes folders, sets up AI to fill in the catalog, follows processing and backs up your work; this line opens it at Processing. You can take this tour again from Settings › Preferences."),
         ],
         TourChapter.Books =>
         [

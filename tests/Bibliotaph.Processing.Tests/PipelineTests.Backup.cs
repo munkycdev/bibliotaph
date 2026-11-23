@@ -224,6 +224,7 @@ public abstract partial class PipelineTests
             var harbor = (await search.ListAsync(new LibraryFilter(), ct: Ct)).Single(c => c.Title == "Harbor Map");
             Assert.Equal(EntryAvailability.Offline, (await _libraryStore.GetUnavailableAsync(Ct)).GetValueOrDefault(harbor.EntryId));
             // Nothing was read again: the index came with the backup.
+            await SettleAsync();
             Assert.Equal(jobs, await JobsAsync());
 
             // Settings > Library > Point to its new place, as offered for an offline folder.

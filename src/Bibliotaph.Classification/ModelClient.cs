@@ -390,7 +390,14 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
                 }
                 catch (ModelEndpointException ex) when (schema is not null && Refused(ex) is not null && !NamesThinkingSwitch(ex))
                 {
-                    return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), request, ollama: false, ct);
+                    try
+                    {
+                        return await StreamAsync(new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), request, ollama: false, ct);
+                    }
+                    catch (ModelEndpointException json) when (Refused(json) is not null)
+                    {
+                        throw Original(ex);
+                    }
                 }
             }
             HttpResponseMessage completion;
@@ -402,7 +409,14 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
             {
                 // Some servers don't take a schema; plain JSON mode still keeps the answer to an object, and the evidence
                 // check doesn't care which.
-                completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), ct);
+                try
+                {
+                    completion = await SendAsync(HttpMethod.Post, new Uri(OpenAiBase, "chat/completions"), JsonMode(chat), ct);
+                }
+                catch (ModelEndpointException json) when (Refused(json) is not null)
+                {
+                    throw Original(ex);
+                }
             }
             using (completion)
             {
@@ -449,6 +463,12 @@ public sealed partial class LocalModelClient : IModelClient, IEmbeddingClient
         request.SchemaJson is not null && reason == "length" ? throw new ModelAnswerCutOffException(answer, request.MaxTokens) : answer;
 
     static string? Reason(JsonNode? node) => node is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
+
+    /// <summary>
+    /// The schema's refusal, when plain JSON mode is refused too: LM Studio takes only a schema or text, so its refusal of
+    /// JSON mode would hide why the schema was refused, such as the model having stopped.
+    /// </summary>
+    static ModelEndpointException Original(ModelEndpointException schemaRefused) => schemaRefused;
 
     static JsonObject JsonMode(JsonObject chat)
     {
