@@ -522,7 +522,7 @@ public sealed partial class SettingsWindow : NSWindowController
         key.Changed += (_, _) => ai.NewKey = key.StringValue;
         var forgetKey = NSButton.CreateButton("Forget", () => { });
         bindings.Command(forgetKey, ai.ForgetKeyCommand);
-        server.Row("API key", "Kept in your keychain, never in Bibliotaph's files", key, forgetKey);
+        server.Row("API key", "Kept on this Mac, never in your library or its backups", key, forgetKey);
         var remote = FormText.Switch(on => ai.RemoteAllowed = on);
         var remoteRow = server.Row("Send excerpts to this server", "It isn't on this Mac or your network: each book's excerpt, a few thousand words of its text, would be sent there", remote);
 

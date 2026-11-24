@@ -32,8 +32,8 @@ static class MacComposition
     }
 
     /// <summary>
-    /// The web library key, PDF passwords, endpoint keys and storage sign-ins: in the Keychain, or for a library kept
-    /// somewhere else with --data-root, in memory. The Keychain belongs to the Mac account, not the data folder, so a
+    /// The web library key, PDF passwords, endpoint keys and storage sign-ins: in the everyday data folder's secrets file,
+    /// or for a library kept somewhere else with --data-root, in memory. They belong to this Mac, not to a library, so a
     /// throwaway library would otherwise sync into the user's web library as this Mac, as the Windows app's smoke test
     /// would.
     /// </summary>
@@ -41,9 +41,9 @@ static class MacComposition
     {
         if (everyday)
         {
-            services.AddSingleton<KeychainSecrets>();
-            services.AddSingleton<IWebLibraryKey>(sp => sp.GetRequiredService<KeychainSecrets>());
-            Forward<KeychainSecrets>(services);
+            services.AddSingleton<MacSecrets>();
+            services.AddSingleton<IWebLibraryKey>(sp => sp.GetRequiredService<MacSecrets>());
+            Forward<MacSecrets>(services);
         }
         else
         {

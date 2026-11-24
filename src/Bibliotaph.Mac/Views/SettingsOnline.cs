@@ -139,7 +139,7 @@ public sealed partial class SettingsWindow
     static void CatalogueKeys(Form form, CatalogueKeysViewModel keys, Bindings bindings)
     {
         var section = form.Section("Book catalogues",
-            "While this Mac isn't connected to bibliotaph.online, it looks books up itself: AdventureLookup and Open Library always, and RPGGeek and Google Books with a token or key of your own. They're kept in your Keychain. Only ISBNs, product codes and titles are sent. RPGGeek's data is powered by BGG.");
+            "While this Mac isn't connected to bibliotaph.online, it looks books up itself: AdventureLookup and Open Library always, and RPGGeek and Google Books with a token or key of your own. They're kept on this Mac, readable only by your account. Only ISBNs, product codes and titles are sent. RPGGeek's data is powered by BGG.");
         Key(section, "RPGGeek token", keys.RpgGeekState, CatalogueKeysViewModel.RpgGeekRegistration, "Register an app with BoardGameGeek for one",
             () => keys.NewRpgGeekToken, v => keys.NewRpgGeekToken = v, keys.SaveRpgGeekTokenCommand, keys.ForgetRpgGeekTokenCommand,
             () => keys.HasRpgGeekToken, nameof(CatalogueKeysViewModel.RpgGeekState), () => keys.RpgGeekState, keys, bindings);

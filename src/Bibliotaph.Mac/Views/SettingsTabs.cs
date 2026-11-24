@@ -199,14 +199,14 @@ public sealed partial class SettingsWindow
         });
     }
 
-    /// <summary>The books whose PDF password is remembered in the Keychain, each with Forget, and Forget All.</summary>
+    /// <summary>The books whose PDF password is remembered on this Mac, each with Forget, and Forget All.</summary>
     NSScrollView PasswordsTab()
     {
         var passwords = _services.GetRequiredService<PasswordsSectionViewModel>();
         var bindings = Load(passwords);
         var form = new Form();
         var list = form.Section("Remembered passwords",
-            "PDF passwords you chose to remember, kept in your Keychain on this Mac, never in Bibliotaph's own files. Forget one and you'll be asked for it the next time you open the book; text already read stays searchable.");
+            "PDF passwords you chose to remember, kept on this Mac and readable only by your account, never in your library or its backups. Forget one and you'll be asked for it the next time you open the book; text already read stays searchable.");
         var forgetAll = Button("Forget All…", passwords.ForgetAllCommand, bindings);
         var buttons = form.Buttons(forgetAll);
         void Show()
