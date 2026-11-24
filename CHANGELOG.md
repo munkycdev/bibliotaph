@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed: OneDrive, Dropbox and Google Drive missing from Settings > Library > Storage.** Builds made since 1.6.1304
+  offered only WebDAV, as they no longer found the providers' sign-in details the build gives them. No published
+  release had this. The Mac app, built with the same `BIBLIOTAPH_*_CLIENT_ID` variables, now offers them too.
 - **Fixed: a misleading AI error with LM Studio.** When a model server refuses both a structured answer and plain
   JSON, as LM Studio can, Test with a book now shows why the structured answer was refused, not "must be json_schema".
 - **Fixed: scanned pages that couldn't be read once are tried again.** A book whose text recognition couldn't run,
