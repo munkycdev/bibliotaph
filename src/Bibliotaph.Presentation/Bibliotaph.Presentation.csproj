@@ -21,6 +21,17 @@
     <!-- The e-book reader page's own stylesheet and script, served to it from memory. -->
     <EmbeddedResource Include="Assets\Ebook\*" LogicalName="Bibliotaph.Presentation.Ebook.%(Filename)%(Extension)" />
   </ItemGroup>
+  <!--
+    The storage providers' desktop OAuth apps, from the build's environment (the repository's variables in CI), so no
+    client ID is in the source and a fork's own builds use its own apps. A provider left out can't be connected. They
+    go on this assembly because DesktopStorageApps reads its own, so the Windows and Mac apps both carry them.
+  -->
+  <ItemGroup>
+    <AssemblyMetadata Include="Storage.onedrive.ClientId" Value="$(BIBLIOTAPH_ONEDRIVE_CLIENT_ID)" Condition="'$(BIBLIOTAPH_ONEDRIVE_CLIENT_ID)' != ''" />
+    <AssemblyMetadata Include="Storage.dropbox.ClientId" Value="$(BIBLIOTAPH_DROPBOX_CLIENT_ID)" Condition="'$(BIBLIOTAPH_DROPBOX_CLIENT_ID)' != ''" />
+    <AssemblyMetadata Include="Storage.googledrive.ClientId" Value="$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID)" Condition="'$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_ID)' != ''" />
+    <AssemblyMetadata Include="Storage.googledrive.ClientSecret" Value="$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET)" Condition="'$(BIBLIOTAPH_GOOGLEDRIVE_CLIENT_SECRET)' != ''" />
+  </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.Extensions.Hosting" />
