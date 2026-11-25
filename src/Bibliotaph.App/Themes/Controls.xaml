@@ -220,9 +220,10 @@
               <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
               <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
             </Trigger>
+            <!-- The accent green, so the current screen reads as chosen and not only hovered. -->
             <Trigger Property="c:Ui.IsActive" Value="True">
               <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Bt.Soft}" />
-              <Setter Property="Foreground" Value="{DynamicResource Bt.Text}" />
+              <Setter Property="Foreground" Value="{DynamicResource Bt.Accent}" />
               <Setter Property="FontWeight" Value="SemiBold" />
             </Trigger>
           </ControlTemplate.Triggers>
