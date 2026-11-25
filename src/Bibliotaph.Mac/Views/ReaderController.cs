@@ -59,7 +59,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         _find = find;
         // Narrower in a narrow window, down to a size that still takes a word or two.
         var findWidth = find.WidthAnchor.ConstraintEqualTo(220);
-        findWidth.Priority = 300;
+        // Under the bar's clipping resistance, so the field narrows before the bar cuts it off.
+        findWidth.Priority = 200;
         findWidth.Active = true;
         find.WidthAnchor.ConstraintGreaterThanOrEqualTo(120).Active = true;
         var findPrevious = Button("chevron.left", "Previous match", null);

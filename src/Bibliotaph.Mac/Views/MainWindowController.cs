@@ -80,6 +80,8 @@ public sealed class MainWindowController : NSWindowController
         _toolbar = new ToolbarDelegate(_shell, folders, services.GetRequiredService<SearchGuideViewModel>());
         window.Toolbar = new NSToolbar("main") { Delegate = _toolbar, DisplayMode = NSToolbarDisplayMode.Icon };
         window.SetContentSize(new CGSize(1320, 840));
+        // The sidebar, one column of covers and the reader's bar; the pages' own rows wrap to fit anything wider.
+        window.ContentMinSize = new CGSize(720, 480);
         window.Center();
         window.ReleaseWhenClosed(false);
         // Tab goes through the controls as they are now, as pages and panes change them.
