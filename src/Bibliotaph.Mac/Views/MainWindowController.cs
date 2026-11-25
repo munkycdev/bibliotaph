@@ -84,7 +84,8 @@ public sealed class MainWindowController : NSWindowController
         window.ReleaseWhenClosed(false);
         // Tab goes through the controls as they are now, as pages and panes change them.
         window.AutorecalculatesKeyViewLoop = true;
-        window.FrameAutosaveName = "BibliotaphMain";
+        // Not the first name it had: frames saved under that one were stretched by a Library that couldn't narrow.
+        window.FrameAutosaveName = "BibliotaphMainWindow";
         // The Windows app's page colour, under the pages; the sidebar and toolbar keep their glass.
         window.BackgroundColor = Palette.Background;
 

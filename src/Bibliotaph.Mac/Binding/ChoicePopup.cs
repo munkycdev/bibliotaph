@@ -16,6 +16,10 @@ static class ChoicePopup
     {
         var popup = new NSPopUpButton { ControlSize = NSControlSize.Small };
         popup.Font = NSFont.SystemFontOfSize(NSFont.SmallSystemFontSize)!;
+        // A pop-up is as wide as its longest choice, which for a folder or a game system can be very long; past this
+        // the title shortens instead.
+        popup.WidthAnchor.ConstraintLessThanOrEqualTo(240).Active = true;
+        popup.Cell.LineBreakMode = NSLineBreakMode.TruncatingMiddle;
         var showing = false;
         void Show()
         {

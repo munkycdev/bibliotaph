@@ -24,6 +24,12 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
   name.
 - **Quitting.** Sheets and alerts that can wait set `PreventsApplicationTerminationWhenModal = false`, so they don't
   stop the app quitting. A dialog left open shouldn't block a restart or an overnight update.
+- **Size.** No row of controls may set how narrow a window can be. AppKit keeps a window at least as wide as its
+  content needs, and a horizontal `NSStackView` needs all its views side by side, so a long row of filters or buttons
+  holds the window wide. Rows that can outgrow a narrow window are a `WrapRow` (`Views/WrapRow.cs`), which carries on in
+  a line below as Windows' WrapPanel does, or, for a bar that must stay one line, a stack view with low clipping
+  resistance whose less used controls have a lower visibility priority. Pop-ups whose choices can be long cap their
+  width and shorten the title.
 - **Keyboard.** Every window sets `AutorecalculatesKeyViewLoop`, so Tab moves through the controls a page shows now.
 - **Settings.**
   - The window has no minimize or zoom. It takes each pane's height, up to a limit, and the pane scrolls beyond it.

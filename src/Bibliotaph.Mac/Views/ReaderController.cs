@@ -57,7 +57,11 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         };
         var find = new NSSearchField { PlaceholderString = "Find in this book", SendsWholeSearchString = true };
         _find = find;
-        find.WidthAnchor.ConstraintEqualTo(220).Active = true;
+        // Narrower in a narrow window, down to a size that still takes a word or two.
+        var findWidth = find.WidthAnchor.ConstraintEqualTo(220);
+        findWidth.Priority = 300;
+        findWidth.Active = true;
+        find.WidthAnchor.ConstraintGreaterThanOrEqualTo(120).Active = true;
         var findPrevious = Button("chevron.left", "Previous match", null);
         var findNext = Button("chevron.right", "Next match", null);
         // Inside an adventure, find keeps to its pages unless this is ticked.
@@ -99,6 +103,13 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
         bar.EdgeInsets = new NSEdgeInsets(6, 12, 6, 12);
+        // In a narrow window the bar lets its less used controls go, find's own buttons first and then zoom's, rather
+        // than hold the window wide; ⌘G, ⇧⌘G, ⌘+ and ⌘− still do what they did, from the menus.
+        bar.SetClippingResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
+        foreach (var view in new NSView[] { findStatus, wholeFile, findPrevious, findNext })
+            bar.SetVisibilityPriority(700, view);
+        foreach (var view in new NSView[] { zoomOut, zoom, zoomIn })
+            bar.SetVisibilityPriority(800, view);
 
         _pages = new PagesView();
         var picture = new NSImageView { ImageScaling = NSImageScale.ProportionallyDown };
