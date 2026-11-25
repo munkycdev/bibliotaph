@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Fixed: the Mac window couldn't be made narrower.** The Library's filters, Organize's actions and a binder's
+  buttons each stood in one long row that AppKit wouldn't shrink, so the window stayed as wide as the longest row,
+  often the whole screen. Those rows now carry on in a line below when the window is narrow, as on Windows, long folder
+  and game system names shorten in their pop-ups, and the reader's bar lets find's buttons and zoom go before it holds
+  the window wide. The window opens once at its first size, as the width it remembered was set by the bug. The search
+  guide also stays on the screen when the search field is near its edge. On the Mac.
 - **Fixed: OneDrive, Dropbox and Google Drive missing from Settings > Library > Storage.** Builds made since 1.6.1304
   offered only WebDAV, as they no longer found the providers' sign-in details the build gives them. No published
   release had this. The Mac app, built with the same `BIBLIOTAPH_*_CLIENT_ID` variables, now offers them too.

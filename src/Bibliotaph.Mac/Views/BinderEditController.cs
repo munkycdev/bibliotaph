@@ -25,7 +25,8 @@ public sealed class BinderEditController(SessionPackViewModel pack) : NSViewCont
     public override void LoadView()
     {
         var (root, content) = PageParts.ScrollingPage();
-        var actions = NSStackView.FromViews([
+        var actions = new WrapRow(8);
+        actions.AddRange([
             Command("Done", pack.DoneCommand),
             Command("Rename or Date…", pack.EditCommand),
             Command("Add Section…", pack.AddSectionCommand),
@@ -35,7 +36,6 @@ public sealed class BinderEditController(SessionPackViewModel pack) : NSViewCont
             Command("Duplicate", pack.DuplicateCommand),
             Command("Delete Binder…", pack.DeleteCommand),
         ]);
-        actions.Spacing = 8;
         var notesLabel = PageParts.Section("Notes for the session");
         var notes = new NSTextField { PlaceholderString = "What to remember at the table" };
         notes.Changed += (_, _) => pack.Notes = notes.StringValue;

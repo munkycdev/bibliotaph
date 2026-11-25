@@ -183,7 +183,11 @@ sealed class SearchGuidePanel : IDisposable
         var rowsHeight = _rows.FittingSize.Height;
         var height = (nfloat)Math.Min(rowsHeight, 320) + 40;
         var field = host.ConvertRectToScreen(_field.ConvertRectToView(_field.Bounds, null));
-        var frame = new CGRect(field.X, field.Y - height - 6, Math.Max(Width, field.Width), height);
+        var width = (nfloat)Math.Max(Width, field.Width);
+        // Under the field, but kept on the screen when the field is near its trailing edge.
+        var x = field.X;
+        if (host.Screen?.VisibleFrame is { } screen) x = (nfloat)Math.Max(screen.X, Math.Min(x, screen.Right - width));
+        var frame = new CGRect(x, field.Y - height - 6, width, height);
         _panel.SetFrame(frame, true);
         if (_panel.ParentWindow is null) host.AddChildWindow(_panel, NSWindowOrderingMode.Above);
         _panel.OrderFront(null);

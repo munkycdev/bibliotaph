@@ -272,9 +272,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var removeFromCollection = Small("Remove from Collection", library.RemoveSelectedFromCollectionCommand);
         var export = Small("Export These…", selection.ExportSelectedCommand);
         var clear = Small("Clear", selection.ClearSelectionCommand);
-        var actions = NSStackView.FromViews([summary, edit, toCollection, toBinder, join, pack, removeParts, removeFromCollection, export, clear]);
-        actions.Spacing = 8;
-        actions.SetCustomSpacing(16, summary);
+        var actions = new WrapRow(8);
+        actions.Add(summary, 16);
+        actions.AddRange([edit, toCollection, toBinder, join, pack, removeParts, removeFromCollection, export, clear]);
 
         var links = ChoicePopup.Create(_bindings, selection, nameof(LibrarySelectionViewModel.LinkChoice), () => selection.LinkChoices,
             () => selection.LinkChoice, c => selection.LinkChoice = c);
@@ -286,8 +286,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         panel.ToolTip = "Books to drop maps and handouts on";
         _bindings.Property(selection.Panel, nameof(OrganizePanelViewModel.IsOpen), () =>
             panel.TintProminence = selection.Panel.IsOpen ? NSTintProminence.Secondary : NSTintProminence.Automatic);
-        var organize = NSStackView.FromViews([NSTextField.CreateLabel("Show"), links, keep, panel]);
-        organize.Spacing = 8;
+        var organize = new WrapRow(8);
+        organize.AddRange([NSTextField.CreateLabel("Show"), links, keep, panel]);
 
         var bar = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 6 };
         bar.AddArrangedSubview(actions);
@@ -385,6 +385,10 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var message = NSTextField.CreateLabel("");
         message.Font = NSFont.SystemFontOfSize(12)!;
         var undo = Small("Undo", views.ViewUndo.UndoCommand);
+        // The words give way, wrapping, before the line holds the window wide.
+        note.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
+        message.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
+        message.LineBreakMode = NSLineBreakMode.TruncatingTail;
         var line = NSStackView.FromViews([changed, update, saveNew, note, message, undo]);
         line.Spacing = 8;
         void Show()
@@ -501,6 +505,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         var message = NSTextField.CreateWrappingLabel("");
         message.Font = NSFont.SystemFontOfSize(12)!;
         var button = Small("Undo", undo.UndoCommand);
+        message.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
         var line = NSStackView.FromViews([message, button]);
         line.Spacing = 10;
         _bindings.Properties(undo, [nameof(UndoSlot.Message), nameof(UndoSlot.HasUndo)], () =>
@@ -554,7 +559,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     /// The filters most used (kind, game system, type, folder) and Clear, then apart from them how the books are shown:
     /// their order, grid or list, and packs. What the Windows Library's bar offers first, each the page's own choice.
     /// </summary>
-    NSStackView FilterBar()
+    WrapRow FilterBar()
     {
         var filters = library.Filters;
         // The order isn't a filter, so it doesn't look like one: it stands with the layout, says "Sort:" and has the
@@ -643,11 +648,12 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         packs.SetToolTip("Each file in a pack on a card of its own", 1);
         packs.Activated += (_, _) => library.ShowPackFiles = packs.SelectedSegment == 1;
         _bindings.Property(library, nameof(LibraryViewModel.ShowPackFiles), () => packs.SelectedSegment = library.ShowPackFiles ? 1 : 0);
-        var bar = NSStackView.FromViews([results, kind, system, type, folder, more, clear, Divider(), sort, layout, packs, organize, saved]);
-        bar.Spacing = 8;
-        bar.SetCustomSpacing(16, results);
-        bar.SetCustomSpacing(16, clear);
-        bar.SetCustomSpacing(16, more);
+        var bar = new WrapRow(8);
+        bar.Add(results, 16);
+        bar.AddRange([kind, system, type, folder]);
+        bar.Add(more, 16);
+        bar.Add(clear, 16);
+        bar.AddRange([Divider(), sort, layout, packs, organize, saved]);
         return bar;
     }
 
@@ -657,11 +663,10 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     /// adventures and what goes with it; and its themes, settings and the rest, typed with suggestions. Each shows once
     /// some book has it.
     /// </summary>
-    NSStackView MoreFilters()
+    WrapRow MoreFilters()
     {
         var filters = library.Filters;
-        // Rows of a few each, rather than a view that wraps itself, so the bar's height never chases the panel's.
-        var panel = new NSStackView { Orientation = NSUserInterfaceLayoutOrientation.Vertical, Alignment = NSLayoutAttribute.Leading, Spacing = 6 };
+        var panel = new WrapRow(8);
         var views = new List<(NSView View, Func<bool> Shows)>();
         void Add<T>(string property, Func<IReadOnlyList<Choice<T>>> choices, Func<Choice<T>> chosen, Action<Choice<T>> choose, Func<bool> shows)
         {
@@ -691,17 +696,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         void Show()
         {
             unknown.State = filters.IncludeUnknownLevels ? NSCellStateValue.On : NSCellStateValue.Off;
-            foreach (var row in panel.ArrangedSubviews)
-            {
-                foreach (var view in ((NSStackView)row).ArrangedSubviews) ((NSStackView)row).RemoveArrangedSubview(view);
-                row.RemoveFromSuperview();
-            }
-            foreach (var row in views.Where(v => v.Shows()).Select(v => v.View).Chunk(6))
-            {
-                var line = NSStackView.FromViews([.. row]);
-                line.Spacing = 8;
-                panel.AddArrangedSubview(line);
-            }
+            if (!panel.Views.Any()) panel.AddRange(views.Select(v => v.View));
+            foreach (var (view, shows) in views) view.Hidden = !shows();
             panel.Hidden = !filters.ShowMoreFilters;
         }
         _bindings.Properties(filters, [nameof(LibraryFilterState.ShowMoreFilters), nameof(LibraryFilterState.HasLevelChoice), nameof(LibraryFilterState.IncludeUnknownLevels),
@@ -798,7 +794,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     /// <summary>A collection's sub-collections as cards above its books, and the switch that leaves their books out.</summary>
     NSStackView SubCollections()
     {
-        var cards = new NSStackView { Spacing = 16, Alignment = NSLayoutAttribute.Top };
+        var cards = new WrapRow(16, 16) { AlignTops = true };
         var only = NSButton.CreateCheckbox("Only books added here", () => { });
         only.ControlSize = NSControlSize.Small;
         only.ToolTip = "Leave out the books that are only in the collections inside this one";
@@ -809,9 +805,9 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         section.Spacing = 8;
         void Show()
         {
-            foreach (var view in cards.ArrangedSubviews) view.RemoveFromSuperview();
+            cards.RemoveAll();
             foreach (var card in library.SubCollections)
-                cards.AddArrangedSubview(new ShelfCard(card.Name, card.CountLabel, card.Covers, covers, () => library.OpenCollectionCommand.Execute(card), card.Badge));
+                cards.Add(new ShelfCard(card.Name, card.CountLabel, card.Covers, covers, () => library.OpenCollectionCommand.Execute(card), card.Badge));
             section.Hidden = !library.HasSubCollections;
             only.State = library.OnlyAddedHere ? NSCellStateValue.On : NSCellStateValue.Off;
         }
@@ -821,15 +817,15 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     }
 
     /// <summary>The filters that are on, as chips whose × turns one off, so they show with More filters folded away.</summary>
-    NSStackView ActiveFilters()
+    WrapRow ActiveFilters()
     {
         var filters = library.Filters;
-        var chips = new NSStackView { Spacing = 6 };
+        var chips = new WrapRow(6);
         _bindings.Collection(filters.ActiveFilters, _ => Show());
         void Show()
         {
-            foreach (var view in chips.ArrangedSubviews) view.RemoveFromSuperview();
-            foreach (var view in filters.ActiveFilters.Select(chip =>
+            chips.RemoveAll();
+            chips.AddRange(filters.ActiveFilters.Select(chip =>
             {
                 var label = NSTextField.CreateLabel(chip.Label);
                 label.Font = NSFont.SystemFontOfSize(11)!;
@@ -839,8 +835,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
                 remove.ToolTip = chip.Name;
                 var row = NSStackView.FromViews([label, remove]);
                 row.Spacing = 4;
-                return new Tinted(row, Palette.Soft, 9, new NSEdgeInsets(2, 8, 2, 6));
-            })) chips.AddArrangedSubview(view);
+                return (NSView)new Tinted(row, Palette.Soft, 9, new NSEdgeInsets(2, 8, 2, 6));
+            }));
             chips.Hidden = filters.ActiveFilters.Count == 0;
         }
         Show();
