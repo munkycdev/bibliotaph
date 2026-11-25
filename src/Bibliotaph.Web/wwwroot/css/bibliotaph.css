@@ -31,7 +31,7 @@ small{display:block;color:var(--bt-muted);font-size:11px;font-weight:400}
 .bt-avatar{background:var(--bt-warm);border:1px solid var(--bt-line);border-radius:50%;width:31px;height:31px;display:grid;place-items:center;font-size:10px;flex-shrink:0}
 .bt-nav{display:flex;align-items:center;width:100%;padding:10px 10px;gap:10px;border-radius:6px;font-size:12px;text-align:left;margin:2px 0;color:var(--bt-muted);min-height:38px}
 .bt-nav:hover{background:var(--bt-soft);color:var(--bt-text)}
-.bt-nav.active{background:var(--bt-soft);color:var(--bt-text);font-weight:600}
+.bt-nav.active{background:var(--bt-soft);color:var(--bt-accent);font-weight:600}
 .bt-nav .bt-count{margin-left:auto;min-width:20px;text-align:center;color:var(--bt-muted);font-size:11px}
 .bt-sidegroup{margin-top:27px}
 .bt-eyebrow{font-size:10px;letter-spacing:1.5px;font-weight:600;color:var(--bt-muted)}
@@ -315,7 +315,8 @@ a{color:var(--bt-accent)}
 @media(max-width:620px){.bt-appfoot{padding:14px 18px 18px}.bt-appfoot nav{margin-left:0}}
 .bt-nav,.bt-button,.bt-icon,.bt-brand,.bt-tab{cursor:pointer;text-decoration:none;color:inherit}
 .bt-nav{color:var(--bt-muted)}
-.bt-nav.active,.bt-nav:hover{color:var(--bt-text)}
+.bt-nav:hover{color:var(--bt-text)}
+.bt-nav.active{color:var(--bt-accent)}
 .bt-button.primary{color:var(--bt-accent-text)}
 .bt-brand{color:var(--bt-text)}
 .bt-icon svg,.bt-nav svg,.bt-button svg{fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round}

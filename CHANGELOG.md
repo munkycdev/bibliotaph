@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Changed: the selected item in the navigation rail is in dark green.** Its label and icon take the accent green
+  on the light green highlight, so the screen you're on stands out from one the pointer is over. In the dark theme
+  they take the accent's light green. On Windows and the web.
 - **Fixed: the Mac window couldn't be made narrower.** The Library's filters, Organize's actions and a binder's
   buttons each stood in one long row that AppKit wouldn't shrink, so the window stayed as wide as the longest row,
   often the whole screen. Those rows now carry on in a line below when the window is narrow, as on Windows, long folder
