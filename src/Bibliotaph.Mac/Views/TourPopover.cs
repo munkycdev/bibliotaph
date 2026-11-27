@@ -32,6 +32,7 @@ sealed class TourPopover : IDisposable
     readonly Func<TourAnchor, NSView?> _find;
     readonly Bindings _bindings = new();
     NSPopover? _popover;
+    bool _closing;
 
     /// <summary>The window the popover showing is drawn in, for a test copy's screenshot.</summary>
     public static NSWindow? Showing { get; private set; }
@@ -96,7 +97,7 @@ sealed class TourPopover : IDisposable
         var controller = new NSViewController { View = content };
         // It stays while the window is used, as the tour points at the window's own controls; Skip Tour or Esc ends it.
         _popover = new NSPopover { ContentViewController = controller, Behavior = NSPopoverBehavior.ApplicationDefined, Animates = true };
-        _popover.Delegate = new Escape(_tour);
+        _popover.Delegate = new Escape(this);
         var edge = anchor.Window!.ContentView is { } root && root.ConvertRectFromView(anchor.Bounds, anchor).GetMidX() < root.Bounds.Width / 3
             ? NSRectEdge.MaxXEdge
             : NSRectEdge.MinYEdge;
@@ -110,9 +111,35 @@ sealed class TourPopover : IDisposable
         _popover = null;
         Showing = null;
         popover.Delegate = null!;
+        // AppKit is already closing it: closing it again from inside that releases it twice, and the app crashes later.
+        if (_closing) return;
         // Closed at once, and left to AppKit to let go of: freeing it while its closing animation runs crashes.
         popover.Animates = false;
         popover.Close();
+    }
+
+    /// <summary>
+    /// AppKit closes the popover itself on Esc, and when the control it points at leaves the window, as Home's covers
+    /// do when it fills in. Esc skips the tour; otherwise the step shows again beside the control that took its place.
+    /// </summary>
+    bool ClosedByAppKit()
+    {
+        _closing = true;
+        try
+        {
+            var escape = NSApplication.SharedApplication.CurrentEvent is { Type: NSEventType.KeyDown, KeyCode: 53 };
+            // Forgotten here, before the tour can hear of it, so nothing closes it a second time.
+            Close();
+            if (!_tour.IsOpen) return true;
+            if (escape) _tour.SkipCommand.Execute(null);
+            // The control the step pointed at was replaced; the tour goes on from the one in its place.
+            else ShowSoon();
+        }
+        finally
+        {
+            _closing = false;
+        }
+        return true;
     }
 
     public void Dispose()
@@ -123,12 +150,8 @@ sealed class TourPopover : IDisposable
     }
 
     /// <summary>Esc on the popover skips the tour, as it does on Windows.</summary>
-    sealed class Escape(TourViewModel tour) : NSPopoverDelegate
+    sealed class Escape(TourPopover owner) : NSPopoverDelegate
     {
-        public override bool ShouldClose(NSPopover popover)
-        {
-            if (tour.IsOpen) tour.SkipCommand.Execute(null);
-            return true;
-        }
+        public override bool ShouldClose(NSPopover popover) => owner.ClosedByAppKit();
     }
 }

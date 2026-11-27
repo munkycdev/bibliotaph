@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Fixed: the Mac app could crash a few seconds after its first start.** When Home filled in with the first books,
+  the tour's popover lost the cover it pointed at, and the tour both skipped itself and closed the popover a second
+  time, which crashed the app soon after or stopped it quitting. The tour now moves to the cover in its place and
+  goes on; only Esc or Skip Tour skips it. On the Mac.
 - **Changed: the selected item in the navigation rail is in dark green.** Its label and icon take the accent green
   on the light green highlight, so the screen you're on stands out from one the pointer is over. In the dark theme
   they take the accent's light green. On Windows and the web.
