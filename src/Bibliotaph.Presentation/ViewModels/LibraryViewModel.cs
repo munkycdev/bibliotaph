@@ -176,7 +176,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     /// <summary>A book whose details open once the page has loaded, as when a cover on Home is clicked.</summary>
     public EntryId? DetailsOnLoad { get; set; }
 
-    /// <summary>The details of <see cref="DetailsOnLoad"/> open for Cataloged wrong…, as from a Needs review card.</summary>
+    /// <summary>The details of <see cref="DetailsOnLoad"/> open for Catalogued wrong…, as from a Needs review card.</summary>
     public bool CorrectOnLoad { get; set; }
 
     /// <summary>Filters put on once the page has loaded, as when a figure on the Summary page is clicked; only its filters are used.</summary>
@@ -572,7 +572,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             Hits = [];
             CountText = documents.Count.ToString("N0", CultureInfo.CurrentCulture);
             CountLabel = $"{(documents.Count == 1 ? "document" : "documents")} {forQuery}";
-            SetEmpty(documents.Count > 0 ? null : NoResults(filtered));
+            // Words found only inside books: say so, and take the person there, rather than "nothing here".
+            SetEmpty(documents.Count > 0 ? null
+                : pages.MatchingPages > 0 ? (LibraryText.OnlyInsideTitle, LibraryText.OnlyInside(pages.MatchingPages, pages.MatchingEntries), LibraryText.ShowInside, ShowPagesCommand)
+                : NoResults(filtered));
             return;
         }
 
@@ -660,6 +663,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     void ShowDocuments() => Tab = ResultsTab.Documents;
 
     [RelayCommand]
+    void ShowPages() => Tab = ResultsTab.Pages;
+
+    [RelayCommand]
     async Task OpenDetails(LibraryItemViewModel item)
     {
         try
@@ -705,7 +711,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     }
 
     /// <summary>
-    /// What was typed in the details' Notes tab is saved when they close, whatever closed them, and Cataloged wrong…
+    /// What was typed in the details' Notes tab is saved when they close, whatever closed them, and Catalogued wrong…
     /// ends there too.
     /// </summary>
     partial void OnInspectorChanged(InspectorViewModel? oldValue, InspectorViewModel? newValue)
@@ -715,7 +721,7 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
     }
 
     /// <summary>
-    /// Cataloged wrong…, from a card's menu: the book's details, open to correct it, with the values Bibliotaph
+    /// Catalogued wrong…, from a card's menu: the book's details, open to correct it, with the values Bibliotaph
     /// guessed marked.
     /// </summary>
     [RelayCommand]

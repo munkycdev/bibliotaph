@@ -72,7 +72,7 @@ static class OrganizeSheets
         var cancel = NSButton.CreateButton("Cancel", () => { });
         cancel.KeyEquivalent = "\u001b";
         bindings.Command(cancel, dialog.CancelCommand);
-        var join = NSButton.CreateButton("Join as one book", () => { });
+        var join = NSButton.CreateButton("Join as One Book", () => { });
         bindings.Command(join, dialog.JoinCommand);
         sheet.Buttons(cancel, join);
         sheet.Show(host);
@@ -101,7 +101,7 @@ static class OrganizeSheets
         var cancel = NSButton.CreateButton("Cancel", () => { });
         cancel.KeyEquivalent = "\u001b";
         bindings.Command(cancel, dialog.CancelCommand);
-        var packButton = NSButton.CreateButton("Pack together", () => { });
+        var packButton = NSButton.CreateButton("Pack Together", () => { });
         bindings.Command(packButton, dialog.PackCommand);
         sheet.Buttons(cancel, packButton);
         sheet.Window.InitialFirstResponder = name;

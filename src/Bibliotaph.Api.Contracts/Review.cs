@@ -31,13 +31,13 @@ public sealed record ReviewOverlapKeepApart(string Stamp);
 
 /// <summary>
 /// A card that asks one question about a book, a folder or a collection, answered with one of its buttons: a new
-/// version, an image pack, a book owned elsewhere, places to check in a new version, a book cataloged wrong, a folder
+/// version, an image pack, a book owned elsewhere, places to check in a new version, a book catalogued wrong, a folder
 /// rule, a collection from a folder, or books for a collection. <see cref="Kind"/> is its key in the Show menu.
 /// <see cref="Stamp"/> is what the card said, so an answer isn't given to a card that changed since the page showed
 /// it. <see cref="Dismiss"/> is the choice the × gives, on the cards that have one. <see cref="Book"/> is the card's
 /// title link, to the book's details; <see cref="Links"/> any other books it names. <see cref="Tiles"/> are covers to
 /// show what a pack holds, <see cref="Places"/> a new version's places to check and <see cref="Found"/> those found
-/// by themselves. <see cref="Fix"/> is the book whose details Fix it opens for Cataloged wrong…. <see cref="Proposed"/>
+/// by themselves. <see cref="Fix"/> is the book whose details Fix it opens for Catalogued wrong…. <see cref="Proposed"/>
 /// are the adventures a file looks like it holds, to tick and edit; <see cref="Pages"/> where Set its pages starts for
 /// an adventure whose pages weren't found.
 /// </summary>
@@ -159,7 +159,7 @@ public static class ReviewWords
         _ => $"{N(remaining)} suggestions worth a second look. The rest is ready to use.",
     };
 
-    public static string SuggestionsTab(int remaining) => $"Metadata suggestions  {N(remaining)}";
+    public static string SuggestionsTab(int remaining) => $"Metadata suggestions · {N(remaining)}";
 
     public static string FilesTab(int files) => $"Files needing attention · {N(files)}";
 

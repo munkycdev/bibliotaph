@@ -109,7 +109,7 @@ public sealed class MacAppLifetime(AppPaths paths, IForgetsSecrets secrets, ILog
         {
             alert.AlertStyle = NSAlertStyle.Warning;
             alert.MessageText = "Restore";
-            alert.InformativeText = $"Bibliotaph couldn't restore the backup{(made is null ? "" : $" from {made}")}, so your catalog is as it was.\n\n{outcome.Problem}";
+            alert.InformativeText = $"Bibliotaph couldn't restore the backup{(made is null ? "" : $" from {made}")}, so your catalogue is as it was.\n\n{outcome.Problem}";
         }
         else
         {
@@ -121,7 +121,7 @@ public sealed class MacAppLifetime(AppPaths paths, IForgetsSecrets secrets, ILog
                     ? "One library folder wasn't found, so its books are marked offline. Settings › Library can point it to its new place."
                     : $"{offline.OfflineFolders} library folders weren't found, so their books are marked offline. Settings › Library can point each to its new place.");
             lines.Add("Passwords for protected PDFs and AI keys aren't in backups: Bibliotaph asks for them again when it needs them.");
-            if (outcome.PreviousCatalogBackup is { } kept) lines.Add($"The catalog you had before is kept in the backups folder as {Path.GetFileName(kept)}.");
+            if (outcome.PreviousCatalogBackup is { } kept) lines.Add($"The catalogue you had before is kept in the backups folder as {Path.GetFileName(kept)}.");
             alert.MessageText = "Restored";
             alert.InformativeText = string.Join("\n\n", lines);
         }
@@ -163,7 +163,10 @@ public sealed class MacGraphicsMemory : IGraphicsMemory
     public long? Bytes => Metal.MTLDevice.SystemDefault is { } gpu ? (long)gpu.RecommendedMaxWorkingSetSize : null;
 }
 
-/// <summary>A PDF's password, asked for in an alert with a secure field and the same choices as on Windows.</summary>
+/// <summary>
+/// A PDF's password, asked for with a secure field and the same choices as on Windows, in a sheet on the window the
+/// book is opening in. The reader waits for the answer, so the sheet runs modally until it's answered.
+/// </summary>
 public sealed class MacPasswordPrompt : IPasswordPrompt
 {
     public EnteredPassword? Ask(string title, bool retry)
@@ -186,7 +189,23 @@ public sealed class MacPasswordPrompt : IPasswordPrompt
         alert.AddButton("Open");
         alert.AddButton("Cancel");
         alert.Window.InitialFirstResponder = field;
-        if (alert.RunModal() != (nint)(long)NSAlertButtonReturn.First || field.StringValue.Length == 0) return null;
+        // A question about one book doesn't stop the app quitting.
+        alert.Window.PreventsApplicationTerminationWhenModal = false;
+        var app = NSApplication.SharedApplication;
+        nint answer;
+        if ((app.KeyWindow ?? app.MainWindow) is { AttachedSheet: null, IsVisible: true } window && window is not NSPanel)
+        {
+            nint chosen = 0;
+            alert.BeginSheet(window, response =>
+            {
+                chosen = (nint)(long)response;
+                app.StopModal();
+            });
+            app.RunModalForWindow(alert.Window);
+            answer = chosen;
+        }
+        else answer = alert.RunModal();
+        if (answer != (nint)(long)NSAlertButtonReturn.First || field.StringValue.Length == 0) return null;
         return new EnteredPassword(field.StringValue, remember.State == NSCellStateValue.On, searchable.State == NSCellStateValue.On);
     }
 }

@@ -215,6 +215,8 @@ public sealed class IndexDatabase
     {
         var connection = new SqliteConnection(ReadConnectionString);
         connection.Open();
+        // One publisher under its several names ("Inc", "Corporation", "The"), for its filter, counts and Summary.
+        connection.CreateFunction("publisher_key", (string? name) => Core.Metadata.PublisherNames.Key(name), isDeterministic: true);
         if (FilePath is null)
         {
             // Shared-cache in-memory databases cannot be opened read-only; enforce it per connection instead.

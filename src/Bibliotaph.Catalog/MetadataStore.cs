@@ -164,9 +164,13 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
                 db.Assertions.Remove(row);
                 changed = true;
             }
-            else if (row.EvidenceQuote != keep.Quote)
+            else
             {
+                // The same value, perhaps written differently now, as a title read by newer rules ("CC", not "Cc").
+                var value = JsonSerializer.Serialize(keep.Value);
+                if (row.EvidenceQuote == keep.Quote && row.ValueJson == value) continue;
                 row.EvidenceQuote = keep.Quote;
+                row.ValueJson = value;
                 changed = true;
             }
         }
@@ -259,6 +263,24 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
     }
 
     /// <summary>
+    /// A publisher the library already has under another form of its name ("Inc", "Corporation", "The") suggested as
+    /// the library's other books write it, so one publisher isn't listed twice. Only suggestions: what a person typed
+    /// stays as typed.
+    /// </summary>
+    static async Task<IReadOnlyList<MetadataProposal>> AsFiledAsync(CatalogDbContext db, long entryId, IReadOnlyList<MetadataProposal> proposals,
+        CancellationToken ct)
+    {
+        if (!proposals.Any(p => p.Field == MetadataFields.Publisher)) return proposals;
+        var field = MetadataFields.Publisher.Key;
+        var rows = await db.Assertions.Where(a => a.Field == field && a.EntryId != entryId && a.State != AssertionState.Rejected)
+            .Select(a => new { a.EntryId, a.ValueJson }).ToListAsync(ct);
+        var known = rows.GroupBy(r => r.ValueJson)
+            .Select(g => (Name: JsonSerializer.Deserialize<string>(g.Key) ?? "", Books: (long)g.Select(r => r.EntryId).Distinct().Count()))
+            .Where(n => n.Name.Length > 0).ToList();
+        return [.. proposals.Select(p => p.Field == MetadataFields.Publisher && PublisherNames.Existing(p.Value, known) is { } filed ? p with { Value = filed } : p)];
+    }
+
+    /// <summary>
     /// Stores a classifier run's suggestions, replacing the undecided ones earlier runs of the same origin left from
     /// the same copy (<paramref name="contentHash"/>): a value suggested again keeps its row and its age, with this
     /// run's evidence; one not suggested again goes. What the user decided stays as it is, a rejected value is never
@@ -278,6 +300,7 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
         var vocabularies = proposals.Where(p => p.Field.Kind == FieldKind.Term).Select(p => p.Field.Vocabulary!).Distinct().ToList();
         var terms = (await db.VocabularyTerms.Where(t => vocabularies.Contains(t.Vocabulary)).Select(t => new { t.Vocabulary, t.Key, t.State }).ToListAsync(ct))
             .ToDictionary(t => (t.Vocabulary, t.Key), t => t.State);
+        proposals = await AsFiledAsync(db, id, proposals, ct);
         var wanted = proposals.Where(p => p.Normalized.Length > 0).DistinctBy(p => (p.Field.Key, p.Normalized)).ToList();
         var now = _clock.GetUtcNow().UtcDateTime;
         var changed = false;

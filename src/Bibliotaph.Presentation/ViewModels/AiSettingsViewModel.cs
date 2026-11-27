@@ -95,8 +95,12 @@ public sealed partial class AiSettingsViewModel(
         if (ai.Setup.Endpoint is not null && !HasModels) ConnectAsync().FireAndForget();
     }
 
+    /// <summary>Home's "Fill in the catalogue with AI?" has had its answer: AI was set up, or switched on or off, here.</summary>
+    Task MarkAskedAsync() => settings.SetAsync(SettingKeys.AiAsked, bool.TrueString);
+
     void OnBuiltInSaved(object? sender, EventArgs e)
     {
+        MarkAskedAsync().FireAndForget();
         IsOn = ai.Setup.Enabled;
         SwitchProblem = null;
         RefreshProgressAsync().FireAndForget();
@@ -276,8 +280,9 @@ public sealed partial class AiSettingsViewModel(
         BuiltIn.Load();
         Dirty = false;
         SaveNote = null;
-        // Saying it is set up but the user hasn't been asked would show the first-run step again.
-        await settings.SetAsync(SettingKeys.AiAsked, bool.TrueString);
+        // Set up already, as by an earlier version that didn't record being asked, so Home doesn't offer it again.
+        // Only looking at this pane leaves Home's offer alone.
+        if (setup.Enabled || setup.Endpoint is not null || setup.BuiltInModel is not null) await MarkAskedAsync();
 
         Folders.Clear();
         foreach (var root in await roots.ListAsync())
@@ -433,6 +438,7 @@ public sealed partial class AiSettingsViewModel(
             OnPropertyChanged(nameof(NewKey));
             HasSavedKey = true;
         }
+        await MarkAskedAsync();
         var was = ai.Setup;
         // A first save switches AI on: that's what saving a model is for. Later saves keep it as it was.
         var enabled = was.Endpoint is null || was.Model is null || was.Enabled;
@@ -505,6 +511,7 @@ public sealed partial class AiSettingsViewModel(
         IsOn = on;
         SwitchProblem = null;
         await ai.SaveAsync(ai.Setup with { Enabled = on });
+        await MarkAskedAsync();
         SwitchNote = on ? AiText.SwitchedOn : AiText.SwitchedOff;
     }
 

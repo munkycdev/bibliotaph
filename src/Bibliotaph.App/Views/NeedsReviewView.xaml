@@ -501,7 +501,7 @@
       </Border>
     </DataTemplate>
 
-    <!-- Cataloged wrong… left without a change: Fix it opens the book's details to correct again. -->
+    <!-- Catalogued wrong… left without a change: Fix it opens the book's details to correct again. -->
     <DataTemplate DataType="{x:Type vm:CorrectionCardViewModel}">
       <Border Style="{StaticResource Card}">
         <Grid>
@@ -510,7 +510,7 @@
           <StackPanel Visibility="{Binding IsDone, Converter={StaticResource Bt.CollapsedWhenTrue}}">
             <DockPanel>
               <Border DockPanel.Dock="Right" Style="{StaticResource Bt.Chip}" Margin="10,0,0,0" VerticalAlignment="Top">
-                <TextBlock Text="Cataloged wrong" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
+                <TextBlock Text="Catalogued wrong" FontSize="10" Foreground="{DynamicResource Bt.Muted}" />
               </Border>
               <Button Style="{StaticResource WindowButton}" Command="{Binding OpenFileInWindowCommand}"
                       AutomationProperties.Name="{Binding Title, StringFormat='Open {0} in a window'}" />

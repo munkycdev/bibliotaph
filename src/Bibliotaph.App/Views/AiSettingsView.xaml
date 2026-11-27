@@ -81,7 +81,7 @@
       </DockPanel>
     </Border>
 
-    <!-- Reading whole books, chapter by chapter, after cataloging and only while nothing else wants the AI. -->
+    <!-- Reading whole books, chapter by chapter, after cataloguing and only while nothing else wants the AI. -->
     <Border BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,0,0,1" Padding="0,18">
       <StackPanel>
         <CheckBox x:Name="ScanWholeBooks" IsChecked="{Binding ScanWholeBooks}" VerticalContentAlignment="Top"
@@ -325,7 +325,7 @@
       <StackPanel DataContext="{Binding Pilot}" d:DataContext="{d:DesignInstance vm:PilotPanelViewModel}">
         <TextBlock Text="Model pilot" Style="{StaticResource Text.Row}" />
         <TextBlock Style="{StaticResource Note}" Margin="0,5,0,0"
-                   Text="Each model reads the same books, and what they find is kept apart from your catalog. Then you answer what each book really is, without seeing which model said what, and the report scores them." />
+                   Text="Each model reads the same books, and what they find is kept apart from your catalogue. Then you answer what each book really is, without seeing which model said what, and the report scores them." />
         <TextBlock Text="{Binding BooksText}" Style="{StaticResource Note}" />
         <WrapPanel Margin="0,10,0,0">
           <Button Content="Pick books" Command="{Binding PickBooksCommand}" Margin="0,0,8,0" />

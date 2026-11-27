@@ -1,5 +1,6 @@
 using System.Globalization;
 using Bibliotaph.Core;
+using Bibliotaph.Core.Metadata;
 using Bibliotaph.Core.Search;
 using Dapper;
 
@@ -68,6 +69,28 @@ public sealed class LibraryQueriesTests : IndexFixture
         Assert.DoesNotContain(TavernMap, (await _library.ListAsync(new LibraryFilter(Kind: KindFilter.Books), ct: Ct)).Select(e => e.DocumentId));
         Assert.Equal([Lairs, Gazetteer],
             (await _library.ListAsync(new LibraryFilter(Scope: [EntryOf(Gazetteer), EntryOf(Lairs), EntryOf(99)]), ct: Ct)).Select(e => e.DocumentId));
+    }
+
+    [Fact]
+    public async Task A_publisher_under_two_forms_of_its_name_is_one_choice_that_finds_both()
+    {
+        var store = new IndexStore(Writer, Clock);
+        EntryId[] books = [new(70), new(71), new(72)];
+        await store.SetEntriesAsync([.. books.Select(b => new EntryDocRow(b, null, EntryKind.Elsewhere, Copies: 0) { AddedUtc = Clock.GetUtcNow().UtcDateTime })], Ct);
+        await store.SetMetadataAsync(
+        [
+            new EntryMetaRow { EntryId = books[0], Title = "Lantern Atlas", Publisher = "Lantern Press" },
+            new EntryMetaRow { EntryId = books[1], Title = "Lantern Bestiary", Publisher = "Lantern Press" },
+            new EntryMetaRow { EntryId = books[2], Title = "Lantern Primer", Publisher = "Lantern Press Corporation" },
+        ], Ct);
+
+        var choices = await _library.GetValueCountsAsync(MetadataFields.Publisher.Key, new LibraryFilter(), ct: Ct);
+        var picked = PickedValues.Of([KeyValuePair.Create(MetadataFields.Publisher.Key, (IReadOnlyList<string>)["Lantern Press Corporation"])]);
+        var found = await _library.ListAsync(new LibraryFilter(Picked: picked), ct: Ct);
+
+        var lantern = Assert.Single(choices, c => c.Value.StartsWith("Lantern", StringComparison.Ordinal));
+        Assert.Equal(("Lantern Press", 3L), (lantern.Value, lantern.Count));
+        Assert.Equal(books, found.Select(e => e.EntryId).OrderBy(e => e.Value));
     }
 
     [Fact]

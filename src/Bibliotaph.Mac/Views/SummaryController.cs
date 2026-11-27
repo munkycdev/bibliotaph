@@ -83,7 +83,7 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
         if (page.HasGrowth)
         {
             Space(10);
-            Add(Label("Growth since your first book", 13, NSFontWeight.Semibold));
+            Add(Label("Growth Since Your First Book", 13, NSFontWeight.Semibold));
             var chart = new GrowthChart(page.Growth, page.GrowthLabels);
             chart.HeightAnchor.ConstraintEqualTo(140).Active = true;
             Add(chart, stretch: true);
@@ -148,7 +148,7 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
 
     static NSStackView ListHead(string heading, string? action, Action? act, string? note = null)
     {
-        var title = Label(heading, 13, NSFontWeight.Semibold);
+        var title = Label(MacText.TitleCase(heading), 13, NSFontWeight.Semibold);
         title.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
         var row = Row(title);
         row.Distribution = NSStackViewDistribution.Fill;
@@ -160,7 +160,7 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
     /// <summary>A row of columns, a level or a decade each, standing on one baseline with its tick under it.</summary>
     NSStackView Strip(string heading, IReadOnlyList<SummaryColumn> columns, string? text, string none, NSView? beside)
     {
-        var head = Row(Label(heading, 13, NSFontWeight.Semibold));
+        var head = Row(Label(MacText.TitleCase(heading), 13, NSFontWeight.Semibold));
         head.Distribution = NSStackViewDistribution.Fill;
         ((NSTextField)head.ArrangedSubviews[0]).SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
         if (beside is not null) head.AddArrangedSubview(beside);
@@ -200,11 +200,31 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
     static NSStackView Columns(params NSStackView?[] lists)
     {
         var row = new NSStackView { Distribution = NSStackViewDistribution.FillEqually, Spacing = 32, Alignment = NSLayoutAttribute.Top };
-        foreach (var list in lists) row.AddArrangedSubview((NSView?)list ?? new NSView());
+        foreach (var list in lists) row.AddArrangedSubview(list is null ? new NSView() : AtTop(list));
         foreach (var view in row.ArrangedSubviews) view.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
         // Equal however narrow a column's contents would let it be.
         foreach (var view in row.ArrangedSubviews.Skip(1)) view.WidthAnchor.ConstraintEqualTo(row.ArrangedSubviews[0].WidthAnchor).Active = true;
         return row;
+    }
+
+    /// <summary>
+    /// A list at the top of its place in a row of lists, as tall as its own lines: a shorter list the row stretched to
+    /// its neighbours' height spread its lines out, dropping its heading below theirs.
+    /// </summary>
+    static NSView AtTop(NSStackView list)
+    {
+        var place = new NSView();
+        list.TranslatesAutoresizingMaskIntoConstraints = false;
+        list.SetHuggingPriority(750, NSLayoutConstraintOrientation.Vertical);
+        place.AddSubview(list);
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            list.TopAnchor.ConstraintEqualTo(place.TopAnchor),
+            list.LeadingAnchor.ConstraintEqualTo(place.LeadingAnchor),
+            list.TrailingAnchor.ConstraintEqualTo(place.TrailingAnchor),
+            list.BottomAnchor.ConstraintLessThanOrEqualTo(place.BottomAnchor),
+        ]);
+        return place;
     }
 
     static NSStackView Legend()

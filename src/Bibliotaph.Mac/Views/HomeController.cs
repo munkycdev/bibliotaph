@@ -100,12 +100,12 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         // Each shelf's heading has the way to the whole of it at its end, as on Windows.
         var (pinsTitle, _) = SectionLine("Pinned", "All collections", home.BrowseCollectionsCommand);
         var pins = PageParts.Wrap();
-        var (openedTitle, _) = SectionLine("Recently opened", "Browse your library", home.BrowseLibraryCommand);
+        var (openedTitle, _) = SectionLine("Recently Opened", "Browse your library", home.BrowseLibraryCommand);
         var opened = PageParts.Wrap();
-        var (addedTitle, addedBrowse) = SectionLine("Recently added", "Browse your library", home.BrowseLibraryCommand);
+        var (addedTitle, addedBrowse) = SectionLine("Recently Added", "Browse your library", home.BrowseLibraryCommand);
         var added = PageParts.Wrap();
 
-        var ai = Offer("Fill in the catalog with AI?",
+        var ai = Offer("Fill in the catalogue with AI?",
             "An AI model running on this Mac can suggest each book's system, type, levels and more, quoting the page it found them on. Bibliotaph can download one and run it itself, or use one you already run, such as Ollama or LM Studio. You review the suggestions. It is off until you set it up, and you can do that later in Settings.",
             [Button("Set Up AI…", home.SetUpAiCommand, primary: true), Button("Not Now", home.AiLaterCommand)]);
         var coversText = PageParts.Secondary("");
@@ -152,7 +152,7 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
             foreach (var view in preparing.ArrangedSubviews) view.RemoveFromSuperview();
             preparing.Hidden = home.ContinuePreparing is null;
             if (home.ContinuePreparing is not { } card) return;
-            preparing.AddArrangedSubview(SectionLine("Continue preparing", "All binders", home.BrowseSessionsCommand).Line);
+            preparing.AddArrangedSubview(SectionLine("Continue Preparing", "All binders", home.BrowseSessionsCommand).Line);
             preparing.AddArrangedSubview(new ShelfCard(card.Title, $"{card.DateLabel} · {card.CountLabel}", card.Covers, covers,
                 () => home.OpenSessionCommand.Execute(card)));
         });

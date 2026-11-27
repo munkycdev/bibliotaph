@@ -101,14 +101,16 @@ public sealed class MainWindowController : NSWindowController
         _bindings.Add(_tour.Dispose);
         _navigation.Navigated += OnNavigated;
         _bindings.Add(() => _navigation.Navigated -= OnNavigated);
-        // The mouse's back button and a swipe to the right go back, as the mouse's back button does on Windows and a
-        // swipe does in Finder and Safari.
+        // The mouse's back and forward buttons and a swipe go back and forward, as the mouse's buttons do on Windows
+        // and a swipe does in Finder and Safari.
         var back = NSEvent.AddLocalMonitorForEventsMatchingMask(NSEventMask.OtherMouseDown | NSEventMask.EventSwipe, theEvent =>
         {
             if (theEvent.Window != Window) return theEvent;
             var goBack = theEvent.Type == NSEventType.OtherMouseDown ? theEvent.ButtonNumber == 3 : theEvent.DeltaX > 0;
-            if (!goBack || !_shell.CanGoBack) return theEvent;
-            GoBack();
+            var goForward = theEvent.Type == NSEventType.OtherMouseDown ? theEvent.ButtonNumber == 4 : theEvent.DeltaX < 0;
+            if (goBack && _shell.CanGoBack) GoBack();
+            else if (goForward && _navigation.CanGoForward) GoForward();
+            else return theEvent;
             return null!;
         });
         _bindings.Add(() => { if (back is not null) NSEvent.RemoveMonitor(back); });
@@ -185,6 +187,13 @@ public sealed class MainWindowController : NSWindowController
         if (_shell.GoBackCommand.CanExecute(null)) _shell.GoBackCommand.Execute(null);
     }
 
+    /// <summary>Forward to the page Back left, from the Go menu.</summary>
+    public void GoForward() => _navigation.GoForward();
+
+    public bool CanGoForward => _navigation.CanGoForward;
+
+    public bool CanGoBack => _shell.CanGoBack;
+
     /// <summary>A page the menus open, as Check a Download.</summary>
     public void Go(Presentation.Services.Route route) => _navigation.NavigateTo(route);
 
@@ -226,7 +235,8 @@ public sealed class MainWindowController : NSWindowController
         // Settings is a window on the Mac: a link to it from a page opens the window, and the page stays.
         if (page is SettingsViewModel && _navigation.CanGoBack)
         {
-            _navigation.GoBack();
+            // Settings is its own window here, so its page in the main window isn't one Forward returns to.
+            _navigation.GoBack(forward: false);
             // At the section the link asked for.
             var section = _links.TakeRequest();
             _settings.Open(section);
@@ -264,9 +274,13 @@ public sealed class MainWindowController : NSWindowController
             window.Subtitle = subtitle;
         }
         if (_pages.Current is IWindowTitle titled) titled.FollowTitle(_title, Show);
-        else if (page is not null) _title.Property(page, nameof(PageViewModel.Title), () => Show(page.Title, ""));
+        else if (page is not null) _title.Property(page, nameof(PageViewModel.Title), () => Show(NamesItself(page) ? MacText.TitleCase(page.Title) : page.Title, ""));
         else Show("Bibliotaph", "");
     }
+
+    /// <summary>A page titled with its own name, which takes title case, not with a book's or a binder's, which stays as written.</summary>
+    static bool NamesItself(PageViewModel page) =>
+        page.Route is not (Presentation.Services.Route.Viewer or Presentation.Services.Route.SessionPack or Presentation.Services.Route.SessionEdit or Presentation.Services.Route.OnlineReader);
 
     static async Task LoadAsync(PageViewModel page)
     {

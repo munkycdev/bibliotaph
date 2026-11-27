@@ -34,7 +34,7 @@ public sealed class AppRestart(AppPaths paths)
         if (!outcome.Restored)
         {
             MessageBox.Show(Application.Current.MainWindow,
-                $"Bibliotaph couldn't restore the backup{(made is null ? "" : $" from {made}")}, so your catalog is as it was.\n\n{outcome.Problem}",
+                $"Bibliotaph couldn't restore the backup{(made is null ? "" : $" from {made}")}, so your catalogue is as it was.\n\n{outcome.Problem}",
                 "Restore", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -46,7 +46,7 @@ public sealed class AppRestart(AppPaths paths)
                 ? "One library folder wasn't found, so its books are marked offline. Settings > Library can point it to its new place."
                 : $"{offline.OfflineFolders} library folders weren't found, so their books are marked offline. Settings > Library can point each to its new place.");
         lines.Add("Passwords for protected PDFs and AI keys aren't in backups: Bibliotaph asks for them again when it needs them.");
-        if (outcome.PreviousCatalogBackup is { } kept) lines.Add($"The catalog you had before is kept in the backups folder as {System.IO.Path.GetFileName(kept)}.");
+        if (outcome.PreviousCatalogBackup is { } kept) lines.Add($"The catalogue you had before is kept in the backups folder as {System.IO.Path.GetFileName(kept)}.");
         MessageBox.Show(Application.Current.MainWindow, string.Join("\n\n", lines), "Restored", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 }

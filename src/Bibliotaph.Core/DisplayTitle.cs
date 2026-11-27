@@ -164,6 +164,8 @@ public static partial class DisplayTitle
             var opens = i == 0 || i == words.Count - 1 || words[i - 1] is "-" or "\u2013" or "\u2014" || words[i - 1].EndsWith(':');
             result[i] = Spellings.TryGetValue(word, out var spelled) && (shouting || !word.Any(char.IsUpper)) ? spelled
                 : SmallWords.Contains(word) && !opens && (shouting || !word.Skip(1).Any(char.IsUpper)) ? word.ToLowerInvariant()
+                // Two capitals in a title set in capitals are more likely initials ("CC", "GM") than a word.
+                : shouting && word.Length == 2 && word.All(char.IsUpper) && !TwoLetterWords.Contains(word) ? word
                 : shouting && word.All(c => !char.IsLetter(c) || char.IsUpper(c)) && word.Any(char.IsLetter) && word.All(c => char.IsLetter(c) || c is '\'' or '-')
                     ? Capitalise(word.ToLowerInvariant())
                 : word.Any(char.IsUpper) ? word
@@ -172,7 +174,21 @@ public static partial class DisplayTitle
         return string.Join(' ', result);
     }
 
-    /// <summary>The first letter of each hyphenated part in capitals, the rest as written: "half-elf" is "Half-Elf".</summary>
-    static string Capitalise(string word) =>
-        string.Join('-', word.Split('-').Select(part => part.Length == 0 || !char.IsLetter(part[0]) ? part : char.ToUpperInvariant(part[0]) + part[1..]));
+    /// <summary>Words of two letters, which a title in capitals has as words, not initials.</summary>
+    static readonly HashSet<string> TwoLetterWords =
+    [
+        with(StringComparer.OrdinalIgnoreCase),
+        "am", "be", "do", "go", "he", "if", "is", "it", "me", "my", "no", "ox", "so", "up", "us", "we",
+    ];
+
+    /// <summary>
+    /// The first letter of each hyphenated part in capitals, the rest as written: "half-elf" is "Half-Elf", and
+    /// "(image" after a bracket or quotation mark is "(Image".
+    /// </summary>
+    static string Capitalise(string word) => string.Join('-', word.Split('-').Select(part =>
+    {
+        var at = 0;
+        while (at < part.Length && !char.IsLetterOrDigit(part[at])) at++;
+        return at == part.Length || !char.IsLetter(part[at]) ? part : part[..at] + char.ToUpperInvariant(part[at]) + part[(at + 1)..];
+    }));
 }

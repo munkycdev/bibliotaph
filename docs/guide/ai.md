@@ -21,12 +21,12 @@ year, setting, themes and environments.
   **Reclassify** them in **Settings > AI**.
 - **Your values always win.** Anything you've typed, accepted or rejected stays as it is. AI never fills in your tags.
 - **It learns from you.** The model is shown a few books you've already sorted out, from the same folder or system, as
-  examples of how you catalog.
+  examples of how you catalogue.
 - **It reads whole books, chapter by chapter**, once everything else is done. See
   [Scanning whole books](#scanning-whole-books).
 - **It finds adventures inside anthologies**, when the book says it is a collection of them, and reads each one on
   its own pages. See
-  [Cataloging](cataloging.md#adventures-inside-a-file).
+  [Cataloguing](cataloging.md#adventures-inside-a-file).
 - **It reads requests in plain English** in the search box's **Ask** mode. See
   [Searching](searching.md#ask-in-plain-english).
 - **It answers questions about a book** from the book's own pages, citing and checking each one. See
@@ -89,14 +89,14 @@ mean, not only by their words. Download one such as nomic-embed-text on the serv
 
 ## Scanning whole books
 
-Cataloging reads only a few pages of each book. With **Scan whole books** on (in **Settings > AI**, on unless you turn
+Cataloguing reads only a few pages of each book. With **Scan whole books** on (in **Settings > AI**, on unless you turn
 it off), the AI then goes back and reads every page, a few chapters at a time, and notes the setting, environments,
 themes and creatures in each chapter, with the pages they're on.
 
 - **Chapters come from the book.** Bibliotaph uses the book's bookmarks (an e-book's contents), else its printed
   contents page, else runs of about 25 pages. Long chapters are read in parts.
 - **It waits its turn.** It starts only after a book is catalogued, and stops the moment you use the AI for anything
-  else (cataloging, **Ask**, **Ask this book**), carrying on half a minute after you've finished. Closing Bibliotaph
+  else (cataloguing, **Ask**, **Ask this book**), carrying on half a minute after you've finished. Closing Bibliotaph
   doesn't lose its place.
 - **It never changes a book's own details.** What it finds is shown apart, under the chapters in **What's inside** in
   the book's details, and beside each chapter in the reader's **Contents**. **Scan again** there reads the book again.

@@ -68,12 +68,12 @@
         <TextBlock Text="WELCOME TO BIBLIOTAPH" Style="{StaticResource Text.Eyebrow}" Margin="0,0,0,10" />
         <TextBlock Text="Good stories begin with something you already own." Style="{StaticResource Text.H1}" />
         <TextBlock Style="{StaticResource Text.Copy}" Margin="0,18,0,0"
-                   Text="Bibliotaph builds a catalog of the RPG books, maps and handouts already on this PC, then helps you find the right book and the right page. Your files stay exactly where they are: nothing is moved, renamed or changed." />
+                   Text="Bibliotaph builds a catalogue of the RPG books, maps and handouts already on this PC, then helps you find the right book and the right page. Your files stay exactly where they are: nothing is moved, renamed or changed." />
         <Button Style="{StaticResource Bt.Button.Primary}" Margin="0,26,0,0" Content="Add a folder" c:Ui.TourAnchor="AddFolder"
                 c:Ui.Icon="{StaticResource Icon.FolderPlus}" Command="{Binding AddFolderCommand}" />
         <StackPanel Orientation="Horizontal" Margin="0,25,0,0">
           <c:LucideIcon Data="{StaticResource Icon.ShieldCheck}" Size="13" Foreground="{DynamicResource Bt.Muted}" Margin="0,0,8,0" />
-          <TextBlock Text="Your catalog, notes and collections stay on this device." Style="{StaticResource Text.Small}" FontSize="10" />
+          <TextBlock Text="Your catalogue, notes and collections stay on this device." Style="{StaticResource Text.Small}" FontSize="10" />
         </StackPanel>
       </StackPanel>
 
@@ -92,7 +92,7 @@
         <Border Visibility="{Binding ShowAiStep, Converter={StaticResource Bt.VisibleWhenTrue}}" Background="{DynamicResource Bt.Side}"
                 CornerRadius="6" Padding="18" Margin="0,22,0,0" MaxWidth="620" HorizontalAlignment="Left">
           <StackPanel>
-            <TextBlock Text="Fill in the catalog with AI?" Style="{StaticResource Text.Row}" />
+            <TextBlock Text="Fill in the catalogue with AI?" Style="{StaticResource Text.Row}" />
             <TextBlock Style="{StaticResource Text.Copy}" Margin="0,8,0,0" TextWrapping="Wrap"
                        Text="An AI model running on this PC can suggest each book's system, type, levels and more, quoting the page it found them on. Bibliotaph can download one and run it itself, or use one you already run, such as Ollama. You review the suggestions. It is off until you set it up, and you can do that later in Settings." />
             <WrapPanel Margin="0,14,0,0">

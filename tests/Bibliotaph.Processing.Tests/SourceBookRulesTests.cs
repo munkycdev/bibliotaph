@@ -41,6 +41,21 @@ public sealed class SourceBookRulesTests
     }
 
     [Fact]
+    public void A_boxed_set_s_cards_go_with_its_book_and_aren_t_offered_as_a_book_for_its_map()
+    {
+        var book = Book("Harbor of Shadows", "Boxed Set");
+        // Untyped, as before the AI has read them, and long enough to pass for a book by their pages alone.
+        var cards = new SourceCard(new EntryId(++_next), EntryKind.Whole, SourceFormats.Pdf, 14, "Harbor of Shadows Cards", [], _next,
+            [new FolderKey(Root, "Boxed Set")]);
+        var map = Map("Harbor of Shadows Map", "Boxed Set");
+
+        var found = Find([book, cards, map]);
+
+        Assert.All(found, f => Assert.Equal(book.EntryId, f.Book));
+        Assert.Equal([cards.EntryId, map.EntryId], found.Select(f => f.Companion).OrderBy(e => e.Value));
+    }
+
+    [Fact]
     public void A_map_loose_in_the_library_folder_beside_one_book_is_only_proposed()
     {
         var book = Book("Harbor of Shadows", "");

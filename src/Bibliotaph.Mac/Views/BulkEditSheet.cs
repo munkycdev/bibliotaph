@@ -71,7 +71,7 @@ static class BulkEditSheet
 
         var cancel = Button("Cancel", editor.CancelCommand, bindings);
         var back = Button("Back", editor.BackCommand, bindings);
-        var review = Button("Review changes", editor.ReviewCommand, bindings);
+        var review = Button("Review Changes", editor.ReviewCommand, bindings);
         var apply = Button(editor.ApplyLabel, editor.ApplyCommand, bindings);
         sheet.Buttons(cancel, back, review, apply);
         bindings.Property(editor, nameof(BulkEditViewModel.Step), () =>
@@ -102,8 +102,8 @@ static class BulkEditSheet
         var pending = Label("", 12);
         pending.TextColor = NSColor.ControlAccent;
         var undo = Button("Undo", goesWith.UndoCommand, bindings, inline: true);
-        var choose = Button("Choose a book…", goesWith.ChooseCommand, bindings, small: true);
-        var none = Button("No book", goesWith.NoBookCommand, bindings, small: true);
+        var choose = Button("Choose a Book…", goesWith.ChooseCommand, bindings, small: true);
+        var none = Button("No Book", goesWith.NoBookCommand, bindings, small: true);
         var state = Row(current, pending, undo, new NSView(), choose, none);
 
         var query = new NSSearchField { PlaceholderString = "Part of the book's title" };
@@ -156,7 +156,7 @@ static class BulkEditSheet
         pending.TextColor = NSColor.ControlAccent;
         var undo = Button("Undo", field.UndoCommand, bindings, inline: true);
         var edit = Button("Change…", field.EditCommand, bindings, small: true);
-        var reset = Button("Back to suggestions", field.ResetCommand, bindings, small: true);
+        var reset = Button("Back to Suggestions", field.ResetCommand, bindings, small: true);
         var state = Row(current, pending, undo, new NSView(), edit, reset);
 
         var text = new NSTextField { PlaceholderString = field.EditHint };
@@ -296,7 +296,7 @@ static class BulkEditSheet
 
     static NSButton Button(string title, System.Windows.Input.ICommand command, Bindings bindings, bool small = false, bool inline = false)
     {
-        var button = NSButton.CreateButton(title, () => { });
+        var button = NSButton.CreateButton(MacText.TitleCase(title), () => { });
         if (small || inline) button.ControlSize = NSControlSize.Small;
         if (inline) button.BezelStyle = NSBezelStyle.Inline;
         bindings.Command(button, command);

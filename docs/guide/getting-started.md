@@ -25,7 +25,7 @@ updates and opens again. If you don't, the update goes in the next time you star
 
 ### Uninstall
 
-Uninstall Bibliotaph from Windows' **Settings > Apps** like any other app. Your books aren't touched. Your catalog
+Uninstall Bibliotaph from Windows' **Settings > Apps** like any other app. Your books aren't touched. Your catalogue
 (corrections, notes, collections, binders) is kept in `%LOCALAPPDATA%\Bibliotaph`, so it's still there if you install
 again. Delete that folder if you want it gone too. It also holds the built-in AI's model, if you downloaded one, and
 the sign-ins of Bibliotaph's browser.
@@ -66,7 +66,7 @@ Own books on D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG? They can join
 Folder names like "D&D 5e", "Adventures" or "Maps" are read as suggestions for the books inside. You don't have to
 reorganize anything first, but a tidy folder or two helps. If a folder name means something else in your library,
 fix the books it misled as you come to them: after you correct one, Bibliotaph offers to fix the same guess on the
-folder's other books (see [Cataloging](cataloging.md#cataloged-wrong)).
+folder's other books (see [Cataloguing](cataloging.md#catalogued-wrong)).
 
 ## While it reads your books
 
@@ -91,7 +91,7 @@ and changed files are read.
 
 ### Set up AI, or not
 
-After your first folder, Home asks **Fill in the catalog with AI?** Click **Set up AI** to do it now, or **Not now**
+After your first folder, Home asks **Fill in the catalogue with AI?** Click **Set up AI** to do it now, or **Not now**
 to do it later from **Settings > AI**. Bibliotaph is fully usable without it. See [AI](ai.md).
 
 ## Finding your way around

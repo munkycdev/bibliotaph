@@ -613,7 +613,7 @@ public sealed partial class UnplacedPartCardViewModel(UnplacedPart part, IReadOn
 }
 
 /// <summary>
-/// "You said this book was cataloged wrong": Cataloged wrong… was closed without a change. Fix it opens the editor
+/// "You said this book was catalogued wrong": Catalogued wrong… was closed without a change. Fix it opens the editor
 /// again; the card goes once a correction is made there, or with It's fine now.
 /// </summary>
 public sealed partial class CorrectionCardViewModel(CorrectionItem item, IReviewActions actions) : DecidedCardViewModel(actions)

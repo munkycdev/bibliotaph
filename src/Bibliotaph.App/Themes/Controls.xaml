@@ -1150,7 +1150,7 @@
               Visibility="{Binding IsEnabled, RelativeSource={RelativeSource Self}, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />
     <MenuItem Header="{Binding FavoriteAction}" Command="{x:Static c:BookCommands.ToggleFavorite}" CommandParameter="{Binding}" />
     <MenuItem Header="Pin" Command="{x:Static c:BookCommands.TogglePin}" CommandParameter="{Binding}" ToolTip="Pinned books show in the sidebar and on Home" />
-    <MenuItem Header="Cataloged wrong…" Command="{x:Static c:BookCommands.CatalogedWrong}" CommandParameter="{Binding}"
+    <MenuItem Header="Catalogued wrong…" Command="{x:Static c:BookCommands.CatalogedWrong}" CommandParameter="{Binding}"
               ToolTip="Correct its details: the values Bibliotaph guessed are marked" />
     <MenuItem Header="Open in another app" Command="{x:Static c:BookCommands.OpenElsewhere}" CommandParameter="{Binding}"
               Visibility="{Binding CanOpenElsewhere, Converter={x:Static c:BoolToVisibility.WhenTrue}}" />

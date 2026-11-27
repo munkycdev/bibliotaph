@@ -400,7 +400,7 @@ public sealed partial class LibrarySyncStore
 
     /// <summary>
     /// A card's own fields: its metadata decisions, heart, note, collections (and those Needs review isn't to suggest),
-    /// pin, an open "Cataloged wrong…", an adventure's reading place and a chosen cover. A book owned elsewhere that
+    /// pin, an open "Catalogued wrong…", an adventure's reading place and a chosen cover. A book owned elsewhere that
     /// isn't here yet is made.
     /// </summary>
     async Task<bool?> UpsertCardAsync(string key, IReadOnlyDictionary<string, string> wanted, IReadOnlyDictionary<string, string>? current, Func<string, long?> card,

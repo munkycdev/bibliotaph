@@ -50,7 +50,7 @@ public sealed class SummaryQueries(IndexDatabase database)
         var counts = await One<CountsRow>(
             """
             SELECT
-                coalesce(sum(kind <> 'Part'), 0) AS Books,
+                coalesce(sum(kind <> 'Part' AND source_id IS NULL), 0) AS Books,
                 coalesce(sum(kind = 'Whole'), 0) AS Files,
                 coalesce(sum(kind = 'Pack'), 0) AS Packs,
                 coalesce(sum(kind = 'Part'), 0) AS Adventures,
@@ -99,14 +99,15 @@ public sealed class SummaryQueries(IndexDatabase database)
             FROM shown
             """);
 
-        // By name, as the Library's publisher filter matches them.
+        // By publisher, under the name the Library's publisher filter files it under.
         var publishers = (await Many<ValueRow>(
-            """
-            SELECT m.publisher AS Value, m.publisher AS Label, count(*) AS Count
+            $"""
+            SELECT p.name AS Value, p.name AS Label, count(*) AS Count
             FROM shown e JOIN entry_meta m ON m.entry_id = e.entry_id
+            JOIN ({PublisherSql.Chosen}) p ON p.k = publisher_key(m.publisher)
             WHERE e.kind <> 'Part' AND m.publisher IS NOT NULL AND m.publisher <> ''
-            GROUP BY m.publisher
-            ORDER BY count(*) DESC, m.publisher COLLATE NOCASE
+            GROUP BY p.k
+            ORDER BY count(*) DESC, p.name COLLATE NOCASE
             """)).Select(v => new SummaryValue(MetadataFields.Publisher.Key, v.Value, v.Label, v.Count, v.Count)).ToList();
 
         // Adventures inside files count here too: a level is what a game master looks for one by.
@@ -184,7 +185,7 @@ public sealed class SummaryQueries(IndexDatabase database)
     {
         if (scope.Count == 0) return 0;
         await using var connection = database.OpenRead();
-        return await connection.ExecuteScalarAsync<long>(new CommandDefinition(Shown + "SELECT count(*) FROM shown WHERE kind <> 'Part'",
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition(Shown + "SELECT count(*) FROM shown WHERE kind <> 'Part' AND source_id IS NULL",
             new { scope = JsonSerializer.Serialize(scope) }, cancellationToken: ct));
     }
 

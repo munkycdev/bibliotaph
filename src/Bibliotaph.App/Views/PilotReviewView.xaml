@@ -23,7 +23,7 @@
   <StackPanel MaxWidth="720" HorizontalAlignment="Left">
     <TextBlock Text="What is this book, really?" Style="{StaticResource Text.H1}" />
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,0" TextWrapping="Wrap"
-               Text="Your answers are the key the models are scored against. The values below come from the models and your catalog, in alphabetical order, so nothing says which model gave which. Use one, type your own, or say the book doesn't state it. Leave a field blank to skip it." />
+               Text="Your answers are the key the models are scored against. The values below come from the models and your catalogue, in alphabetical order, so nothing says which model gave which. Use one, type your own, or say the book doesn't state it. Leave a field blank to skip it." />
     <TextBlock Text="{Binding PositionText}" Style="{StaticResource Note}" Margin="0,12,0,0" />
 
     <StackPanel Visibility="{Binding Book, Converter={StaticResource Bt.VisibleWhenSet}}">
@@ -73,7 +73,7 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
 
-      <CheckBox IsChecked="{Binding Session.AlsoCatalog}" Content="Also save as my values in the catalog" Foreground="{DynamicResource Bt.Text}" Margin="0,16,0,0" />
+      <CheckBox IsChecked="{Binding Session.AlsoCatalog}" Content="Also save as my values in the catalogue" Foreground="{DynamicResource Bt.Text}" Margin="0,16,0,0" />
       <TextBlock Text="{Binding Problem}" Style="{StaticResource Problem}" Visibility="{Binding Problem, Converter={StaticResource Bt.VisibleWhenSet}}" />
       <WrapPanel Margin="0,14,0,0">
         <Button Content="Previous" c:Ui.Icon="{StaticResource Icon.ChevronLeft}" Command="{Binding PreviousCommand}" Margin="0,0,8,0" />

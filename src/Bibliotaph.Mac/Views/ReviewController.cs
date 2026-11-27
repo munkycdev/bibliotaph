@@ -18,7 +18,7 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
 {
     /// <summary>Needs review, with how many wait under it.</summary>
     public void FollowTitle(Bindings bindings, Action<string, string> show) =>
-        bindings.Property(review, nameof(NeedsReviewViewModel.Subtitle), () => show("Needs review", review.Subtitle));
+        bindings.Property(review, nameof(NeedsReviewViewModel.Subtitle), () => show("Needs Review", review.Subtitle));
 
     readonly Bindings _bindings = new();
     Bindings _cards = new();
@@ -70,8 +70,8 @@ public sealed partial class ReviewController(NeedsReviewViewModel review, MacCov
         _bindings.Properties(review, [nameof(NeedsReviewViewModel.Subtitle), nameof(NeedsReviewViewModel.Remaining), nameof(NeedsReviewViewModel.HasFiles),
             nameof(NeedsReviewViewModel.IsSuggestionsTab)], () =>
         {
-            tabs.SetLabel(review.SuggestionsTabLabel, 0);
-            tabs.SetLabel(review.FilesTabLabel, 1);
+            tabs.SetLabel(MacText.TitleCase(review.SuggestionsTabLabel), 0);
+            tabs.SetLabel(MacText.TitleCase(review.FilesTabLabel), 1);
             tabs.SelectedSegment = review.IsSuggestionsTab ? 0 : 1;
             tabs.Hidden = !review.HasFiles && review.IsSuggestionsTab;
             show.Hidden = !review.IsSuggestionsTab || !review.HasShowChoices;

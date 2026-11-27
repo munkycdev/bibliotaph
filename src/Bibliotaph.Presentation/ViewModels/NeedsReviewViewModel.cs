@@ -628,7 +628,7 @@ public sealed partial class NeedsReviewViewModel(
 
     public Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item) => review.DismissCorrectionAsync(item);
 
-    /// <summary>Fix it: the Library, with the book's details open for Cataloged wrong… again.</summary>
+    /// <summary>Fix it: the Library, with the book's details open for Catalogued wrong… again.</summary>
     public void FixCorrection(CorrectionItem item) => pages.ShowCorrection(item.EntryId);
 
     public Task<Func<Task>> AnswerRuleAsync(FolderRuleInfo rule, bool use) => review.AnswerRuleAsync(rule, use);

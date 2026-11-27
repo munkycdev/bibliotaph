@@ -101,6 +101,18 @@ public sealed class SummaryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_map_that_goes_with_a_book_counts_inside_it_not_beside_it()
+    {
+        await _store.SetEntriesAsync([new EntryDocRow(EntryOf(Map), Map, EntryKind.Whole) { SourceEntryId = EntryOf(Rulebook) }], Ct);
+
+        var summary = await SummaryAsync();
+
+        // As the Library shows it: inside the rulebook's card, and among the maps and handouts that go with their books.
+        Assert.Equal((5L, 1L), (summary.Books, summary.Companions));
+        Assert.Equal(1L, await _summary.CountBooksAsync([EntryOf(Rulebook), EntryOf(Map)], Ct));
+    }
+
+    [Fact]
     public async Task An_empty_scope_counts_nothing()
     {
         var summary = await _summary.GetAsync([], Today, Ct);
@@ -135,6 +147,16 @@ public sealed class SummaryQueriesTests : IndexFixture
         // The map and the book in print have no system.
         Assert.Equal(2L, summary.SystemUnknown);
         Assert.Equal((1L, 1L), (summary.StoreDownloaded, summary.StoreWaiting));
+    }
+
+    [Fact]
+    public async Task A_publisher_under_two_forms_of_its_name_counts_once_under_the_commoner()
+    {
+        await _store.SetMetadataAsync([new EntryMetaRow { EntryId = EntryOf(Novel), Year = 2021, Publisher = "Big Games, Inc." }], Ct);
+
+        var summary = await SummaryAsync();
+
+        Assert.Equal([("Big Games", 3L)], summary.Publishers.Select(v => (v.Value, v.Count)));
     }
 
     [Fact]

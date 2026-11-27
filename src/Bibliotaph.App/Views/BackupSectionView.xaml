@@ -10,7 +10,7 @@
   <StackPanel>
     <TextBlock Text="Backup" Style="{StaticResource Text.H2}" />
     <TextBlock Style="{StaticResource Text.Copy}" Margin="0,12,0,8"
-               Text="A backup holds your catalog: folders, corrections, collections, binders and notes. Your books aren't in it; they stay where they are." />
+               Text="A backup holds your catalogue: folders, corrections, collections, binders and notes. Your books aren't in it; they stay where they are." />
 
     <!-- Back up now: a ZIP saved where the user picks; the weekly ones go to the backups folder. -->
     <WrapPanel Margin="0,12,0,0">
@@ -36,7 +36,7 @@
       <StackPanel>
         <TextBlock Text="Restore" Style="{StaticResource Text.Row}" />
         <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,12" TextWrapping="Wrap"
-                   Text="Puts your catalog back as it was when a backup was made, on this computer or a new one. Your current catalog is backed up first." />
+                   Text="Puts your catalogue back as it was when a backup was made, on this computer or a new one. Your current catalogue is backed up first." />
         <Button x:Name="ChooseBackup" Content="Choose a backup…" c:Ui.Icon="{StaticResource Icon.RotateCcw}" HorizontalAlignment="Left"
                 Command="{Binding ChooseBackupCommand}" AutomationProperties.Name="Choose a backup to restore" />
         <TextBlock Text="{Binding RestoreSummary}" Style="{StaticResource Text.Small}" Margin="0,12,0,0" TextWrapping="Wrap"
@@ -91,7 +91,7 @@
       <StackPanel>
         <TextBlock Text="Export" Style="{StaticResource Text.Row}" />
         <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,12" TextWrapping="Wrap"
-                   Text="CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON has everything in the catalog, for other programs." />
+                   Text="CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON has everything in the catalogue, for other programs." />
         <WrapPanel>
           <Button Content="Export CSV…" c:Ui.Icon="{StaticResource Icon.SquareArrowOutUpRight}" Margin="0,0,8,0" Command="{Binding ExportCsvCommand}"
                   AutomationProperties.Name="Export the library as CSV" />

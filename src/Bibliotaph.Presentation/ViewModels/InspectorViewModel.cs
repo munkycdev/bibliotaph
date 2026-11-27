@@ -65,7 +65,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     readonly IDesktopShell _shell;
     /// <summary>The metadata as last shown, so a correction can be compared with what the field held before it.</summary>
     EffectiveMetadata _shown = EffectiveMetadata.Empty;
-    /// <summary>The user changed or kept a value since Cataloged wrong… opened the editor.</summary>
+    /// <summary>The user changed or kept a value since Catalogued wrong… opened the editor.</summary>
     bool _decided;
     bool _refreshing;
     bool _refreshAgain;
@@ -369,17 +369,17 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     // Easier corrections.
 
     /// <summary>
-    /// Cataloged wrong…: the editor, with every field showing and the guesses marked and their evidence open, until Done
+    /// Catalogued wrong…: the editor, with every field showing and the guesses marked and their evidence open, until Done
     /// or the details close. Left without a change or a kept value, the book gets a Needs review card that opens it again.
     /// </summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsInside))]
     public partial bool IsCorrecting { get; private set; }
 
-    /// <summary>The field sections Cataloged wrong… opened, folded again when it ends, as they were left.</summary>
+    /// <summary>The field sections Catalogued wrong… opened, folded again when it ends, as they were left.</summary>
     (bool Glance, bool Inside, bool Publication)? _foldedBeforeCorrecting;
 
-    /// <summary>Opens the editor for Cataloged wrong…, from the card's menu or the button in the details.</summary>
+    /// <summary>Opens the editor for Catalogued wrong…, from the card's menu or the button in the details.</summary>
     [RelayCommand]
     public void StartCorrecting()
     {
@@ -399,12 +399,12 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         }
     }
 
-    /// <summary>Done, on the Cataloged wrong… banner.</summary>
+    /// <summary>Done, on the Catalogued wrong… banner.</summary>
     [RelayCommand]
     Task FinishCorrecting() => EndCorrectingAsync();
 
     /// <summary>
-    /// Ends Cataloged wrong…, however the editor closed: with a correction made the book's card, if any, goes; with none,
+    /// Ends Catalogued wrong…, however the editor closed: with a correction made the book's card, if any, goes; with none,
     /// the book gets one. Raises <see cref="CorrectionEnded"/> with whether a card is left.
     /// </summary>
     public async Task EndCorrectingAsync()
@@ -426,7 +426,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         CorrectionEnded?.Invoke(this, unfinished);
     }
 
-    /// <summary>Raised when Cataloged wrong… ends: true when the book was left with a Needs review card.</summary>
+    /// <summary>Raised when Catalogued wrong… ends: true when the book was left with a Needs review card.</summary>
     public event EventHandler<bool>? CorrectionEnded;
 
     /// <summary>"Change 14 other books from “Fey Court” too?", after a correction that books from the same folder could use.</summary>

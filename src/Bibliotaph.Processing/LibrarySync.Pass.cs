@@ -135,7 +135,7 @@ public sealed partial class LibrarySync
             LastWrittenUtc = wrote ? now : s.LastWrittenUtc,
         });
         if (from is not null) _log.LogInformation("Library sync merged {Records} records from {Machines}{Changed}", mergedFrom.Sum(p => p.Records.Count), from,
-            changed ? ", changing this catalog" : "");
+            changed ? ", changing this catalogue" : "");
         return new SyncPass([.. mergedFrom.Select(p => p.Machine)], changed, wrote);
     }
 

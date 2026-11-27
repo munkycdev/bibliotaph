@@ -18,7 +18,8 @@ Bibliotaph found, the books you own with no file, and the maps and handouts that
 wait in Needs review.
 
 A book is counted as the Library shows it: a pack counts once, a book found twice counts once (its second copy counts as
-a duplicate), and a book owned in print or online counts as a book. Its pages count once, whatever its copies.
+a duplicate), a book owned in print or online counts as a book, and a map or handout that goes with a book counts in
+its tile, not as a book of its own. Its pages count once, whatever its copies. Home's count is the same.
 
 ## Where it came from
 
@@ -30,7 +31,9 @@ a duplicate), and a book owned in print or online counts as a book. Its pages co
   (**Get it from**), with how many bought from stores are on your drive and how many are still waiting to be
   downloaded. **Import more** opens Settings › Online libraries.
 - **Publishers**: who published your books, most first, by the publisher's name as the Library's publisher filter has
-  it. A book's publisher can come from you, from an online lookup or from the AI.
+  it. A book's publisher can come from you, from an online lookup or from the AI. Names that differ only by a word
+  like Inc, Corporation, LLC or Ltd, a leading "The", punctuation or capitals are one publisher, listed under the name
+  most of your books use (on a tie, the shorter).
 - **Found online**: how many books each online catalogue (RPGGeek, AdventureLookup, Open Library, Google Books) has a
   record of that Bibliotaph uses, and **Not found online** for the rest, including books not looked up yet. A book found
   by two catalogues counts under both. It shows once a catalogue has found a book, and opens the Library's **Found
@@ -46,7 +49,7 @@ confirmed, so you can see how much of your catalogue is settled. Suggestions are
 away, and only those that sources disagree about wait in **Needs review**, so an empty Needs review with a long light
 part is normal. Choose **All suggestions** for **What waits for review** in **Settings > Preferences** to look at every
 one.
-**Not cataloged yet** is the books with no system so far. A setting, theme or environment opens the Library with it
+**Not catalogued yet** is the books with no system so far. A setting, theme or environment opens the Library with it
 picked in its box under More filters; what's included opens a search such as `includes:pregens`.
 
 **By character level** counts every book and adventure that covers each level from 1 to 20, so a level 1–3 adventure

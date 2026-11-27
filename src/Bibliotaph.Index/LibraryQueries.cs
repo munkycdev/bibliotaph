@@ -136,11 +136,12 @@ public sealed class LibraryQueries(IndexDatabase database)
         where.Parameters.Add("countVocabulary", MetadataFields.Find(field)?.Vocabulary ?? field);
         var sql = field == MetadataFields.Publisher.Key
             ? $"""
-                SELECT m.publisher, m.publisher, count(*), ''
+                SELECT p.name, p.name, count(*), ''
                 FROM {Entries(filter.PackFiles)} JOIN entry_meta m ON m.entry_id = e.entry_id
+                JOIN ({PublisherSql.Chosen}) p ON p.k = publisher_key(m.publisher)
                 WHERE {where.Sql} AND m.publisher IS NOT NULL
-                GROUP BY m.publisher
-                ORDER BY count(*) DESC, m.publisher COLLATE NOCASE
+                GROUP BY p.k
+                ORDER BY count(*) DESC, p.name COLLATE NOCASE
                 """
             : $"""
                 SELECT f.value, min(f.label), count(*),

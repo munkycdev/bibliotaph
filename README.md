@@ -5,7 +5,7 @@
 **Find the right book, and the right page, in the RPG library you already have.**
 
 Bibliotaph is a free Windows app for game masters. Point it at the folders where your PDFs, maps and handouts live, and
-it builds a catalog of them, right where they are. Then you can search every page of every book, filter by game system,
+it builds a catalogue of them, right where they are. Then you can search every page of every book, filter by game system,
 type and level, and open a book at the page you need.
 
 It's for you if you have a few hundred (or a few thousand) bundle downloads, crowdfunding rewards and scanned
@@ -20,7 +20,7 @@ handouts spread over folders, and you keep thinking "I own something for this, b
 
 **Prefer a browser?** [bibliotaph.online](https://bibliotaph.online) is Bibliotaph on the web, for books kept in
 OneDrive, Google Drive, Dropbox or a WebDAV server such as Nextcloud. It looks and works like the Windows app, and
-keeps your catalog, never a copy of your books. It's invite-only for now. Connect the Windows app to it and your work
+keeps your catalogue, never a copy of your books. It's invite-only for now. Connect the Windows app to it and your work
 is the same on every PC and browser. See [Bibliotaph on the web](docs/guide/web.md).
 
 This is version 1.6. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
@@ -79,7 +79,7 @@ your PC, and the built-in AI runs there too. It connects to the internet only fo
 - **AI models.** Settings > AI downloads a model from Hugging Face only when you choose one.
 - **Book catalogues.** Bibliotaph sends the ISBNs a book prints to [Open Library](https://openlibrary.org), and the
   book's title to [AdventureLookup](https://adventurelookup.com), to suggest its title, authors, publisher and year; see
-  [Cataloging](docs/guide/cataloging.md#where-suggestions-come-from). With your own token or key (Settings > Online
+  [Cataloguing](docs/guide/cataloging.md#where-suggestions-come-from). With your own token or key (Settings > Online
   libraries), it asks [RPGGeek](https://rpggeek.com) and Google Books too, sending them the same. A PC connected to
   your web library asks through bibliotaph.online instead, which holds its own.
 - **Online libraries.** When you open D&D Beyond, Demiplane, Humble Bundle or DriveThruRPG in Bibliotaph's browser, it
@@ -114,7 +114,7 @@ page thumbnails and notes on pages. In an index or contents page, the printed pa
 books in their own windows as you like. With AI on, **Ask this book** answers a question from the book's own pages,
 with every claim citing the page it came from. [Reading](docs/guide/reading.md)
 
-**Fills in the catalog for you.** Each book gets a title, game system, type, levels, players, duration, setting,
+**Fills in the catalogue for you.** Each book gets a title, game system, type, levels, players, duration, setting,
 themes and more, suggested from folder names, the file itself, online book catalogues that know the ISBN it prints
 and, if you turn it on, AI. Every suggestion shows where it came from; your own corrections always win, and Needs
 review spots the terms in your lists that are one thing under two names. Your own tags can find their books by the words you give them,
@@ -122,7 +122,7 @@ and with AI on, whole books are read chapter by chapter, so `creature:owlbear` f
 of their chapters. Copies of the same book share one card, folders of maps become one image pack (a party's character
 sheets can be packed together too), maps and handouts go with the book they came with and take its details, and a
 search finds each adventure inside an anthology on its own.
-[Cataloging](docs/guide/cataloging.md)
+[Cataloguing](docs/guide/cataloging.md)
 
 **Knows the books you own online.** Bring in your D&D Beyond and Demiplane libraries, and the books waiting in your
 Humble Bundle and DriveThruRPG libraries, so a search shows what you own wherever it is. You sign in to each site
@@ -155,7 +155,7 @@ The guide is on the web too, a page per chapter, at [bibliotaph.online/guide](ht
 2. [Searching](docs/guide/searching.md): search words, fields, Ask in plain English, questions to your library,
    filters and saved searches.
 3. [Reading](docs/guide/reading.md): the reader, notes, Ask this book and pop-out windows.
-4. [Cataloging](docs/guide/cataloging.md): details, corrections, editing many books at once, Needs review, copies,
+4. [Cataloguing](docs/guide/cataloging.md): details, corrections, editing many books at once, Needs review, copies,
    packs, adventures, maps and handouts that go with a book, and your tags.
 5. [Collections, favorites and pins](docs/guide/organizing.md)
 6. [Binders](docs/guide/binders.md): gather books and pages and step through them.

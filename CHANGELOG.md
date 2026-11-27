@@ -2,6 +2,38 @@
 
 ## Unreleased
 
+- **Changed: British spelling of catalogue.** Bibliotaph says catalogue, catalogued and cataloguing everywhere, as
+  in "Catalogued wrong…" and "Not catalogued yet", on Windows, the Mac and the web, and in the guide.
+- **Fixed: one publisher listed twice.** Names that differ only by Inc, Corporation, LLC, Ltd and the like, a leading
+  "The", punctuation or capitals are one publisher in the publisher filter, the search guide and Summary, under the
+  name most of your books use. An online lookup or the AI suggests a publisher already in your library under that
+  name too. What you typed yourself is never changed.
+- **Changed: the Mac app follows Apple's guidelines more closely.** Buttons, menu items, tabs and headings are in
+  title case, as the sidebar's All Books and Needs Review are. The menu bar has Services, Forward (⌘], and the mouse's
+  forward button or a swipe), a Find submenu, Show Toolbar and Bibliotaph Help, and Close for ⌘W. A PDF's password is
+  asked for in a sheet on the window it's opening in. Add a Book I Own Elsewhere matches its menu item. On the Mac.
+- **Fixed: layout slips on the Mac.** Check a Download's results line up on the left, Keyboard Shortcuts no longer
+  cuts off a long shortcut, Summary's lists line up under their headings, and a picture or video in the reader has no
+  stray divider in its bar. On the Mac.
+- **Fixed: opening Settings > AI hid Home's offer to set up AI.** Only setting AI up, or switching it on or off,
+  answers Home's question now; looking at the page leaves it.
+- **Fixed: a search found only inside books said "Nothing here".** When no book's title or details have your words
+  but some pages do, the Documents tab says how many pages in how many books, with **Show pages inside documents**.
+  On Windows, the Mac and the web.
+- **Fixed: Home and Summary counted maps and handouts as books.** A map or handout that goes with a book is counted in
+  its tile and shows inside its book, as the Library shows it, so Home, Summary and the Library agree.
+- **Fixed: a boxed set's cards offered as the book its map goes with.** A PDF named like a boxed set's other parts
+  ("cards", "stickers", "maps", "standees") is taken for one, whatever its length, so it goes with the book beside it
+  instead of being offered as a book.
+- **Fixed: titles from file names.** A word after a bracket or quotation mark is capitalized ("Harbor Quests (Print
+  Only)"), and two capitals in a title set in capitals stay as initials ("Harbor Rules CC", not "Cc").
+- **Fixed: Needs review's wording.** A new term's chip asks ("New game system?"), the words it was found in are quoted
+  once, a suggestion for a collection reads as a sentence however it was made, and both tabs show their counts the
+  same way.
+- **Fixed: the Mac app could crash a few seconds after its first start.** When Home filled in with the first books,
+  the tour's popover lost the cover it pointed at, and the tour both skipped itself and closed the popover a second
+  time, which crashed the app soon after or stopped it quitting. The tour now moves to the cover in its place and
+  goes on; only Esc or Skip Tour skips it. On the Mac.
 - **Changed: the selected item in the navigation rail is in dark green.** Its label and icon take the accent green
   on the light green highlight, so the screen you're on stands out from one the pointer is over. In the dark theme
   they take the accent's light green. On Windows and the web.

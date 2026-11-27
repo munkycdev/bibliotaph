@@ -62,6 +62,17 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Rerunning_hints_takes_a_title_written_differently_by_newer_rules()
+    {
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Title, "Harbor Rules Cc", AssertionOrigin.Filename, "HARBOR_RULES_CC.pdf")], Ct);
+
+        Assert.True(await _metadata.ReplaceHintsAsync(_document, Hash,
+            [Hint(MetadataFields.Title, "Harbor Rules CC", AssertionOrigin.Filename, "HARBOR_RULES_CC.pdf")], Ct));
+
+        Assert.Equal("Harbor Rules CC", (await EffectiveAsync())[MetadataFields.Title].First!.Value);
+    }
+
+    [Fact]
     public async Task Rerunning_hints_keeps_unchanged_rows_and_replaces_only_provisional_ones()
     {
         await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Types, "adventure")], Ct);
@@ -266,6 +277,20 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     /// <summary>A clock that moves on a minute each time it is read, so every write is later than the last.</summary>
     static MetadataProposal Ai(MetadataField field, string value, string quote = "a quote from the page", int page = 3) =>
         new(field, value, AssertionOrigin.Ai, quote, [page]);
+
+    [Fact]
+    public async Task A_suggested_publisher_takes_the_library_s_form_of_its_name()
+    {
+        var other = await TestEntries.AddAsync(_database, 'b');
+        var third = await TestEntries.AddAsync(_database, 'c');
+        await _metadata.ApplyRunAsync(other, new string('b', 64), "run0", AssertionOrigin.Ai, [Ai(MetadataFields.Publisher, "Lantern Press")], Ct);
+        await _metadata.ApplyRunAsync(third, new string('c', 64), "run0", AssertionOrigin.Ai, [Ai(MetadataFields.Publisher, "Lantern Press")], Ct);
+
+        await _metadata.ApplyRunAsync(_document, Hash, "run1", AssertionOrigin.Lookup,
+            [new MetadataProposal(MetadataFields.Publisher, "Lantern Press, Inc.", AssertionOrigin.Lookup)], Ct);
+
+        Assert.Equal("Lantern Press", (await EffectiveAsync())[MetadataFields.Publisher].First!.Value);
+    }
 
     [Fact]
     public async Task A_run_replaces_its_origins_undecided_suggestions_and_leaves_decisions_alone()

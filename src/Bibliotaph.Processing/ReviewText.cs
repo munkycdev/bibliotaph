@@ -33,7 +33,7 @@ public static class ReviewText
         _ => $"{N(remaining)} suggestions worth a second look. The rest is ready to use.",
     };
 
-    public static string SuggestionsTab(int remaining) => $"Metadata suggestions  {N(remaining)}";
+    public static string SuggestionsTab(int remaining) => $"Metadata suggestions · {N(remaining)}";
 
     public static string FilesTab(int files) => $"Files needing attention · {N(files)}";
 
@@ -59,11 +59,12 @@ public static class ReviewText
 
     static string TermNoun(PendingTerm term) => term.Field.Label.ToLower(CultureInfo.CurrentCulture);
 
-    public static string TermChip(PendingTerm term) => $"New {TermNoun(term)}";
+    public static string TermChip(PendingTerm term) => $"New {TermNoun(term)}?";
 
     public static string TermDetail(PendingTerm term) => term.Documents == 1 ? "Suggested for one book." : $"Suggested for {N(term.Documents)} books.";
 
-    public static string? TermExample(PendingTerm term) => term.Example is { } quote ? $"“{quote}”" : null;
+    /// <summary>The words the term was found in, in quotation marks: once, though the AI may have quoted them already.</summary>
+    public static string? TermExample(PendingTerm term) => term.Example is { } quote ? $"“{quote.Trim().Trim('“', '”', '"')}”" : null;
 
     public static string TermAdd(PendingTerm term) => $"Add as a new {TermNoun(term)}";
 

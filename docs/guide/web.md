@@ -71,7 +71,7 @@ To sign in another way as well, such as Google beside Microsoft, choose **Link a
 sign-in that already belongs to another Bibliotaph account can't be linked.
 
 **Close account…** in **Settings** › **Account** closes your account once you confirm. Bibliotaph deletes the account,
-your library (its catalog, index and covers), everything you've done in it, your storage connections and the books
+your library (its catalogue, index and covers), everything you've done in it, your storage connections and the books
 kept in that browser straight away, and its backups within 30 days, then signs you out everywhere. Nothing in your
 storage is touched. It can't be undone: to come back you need a new invitation. Your sign-in with Google, Microsoft or
 another service is theirs, so it stays.
@@ -165,7 +165,7 @@ remembers the layout, the order and the pack view.
 
 Right-click a book (or press and hold it on a touch screen) for the Windows app's menu: **Open**, **Open in new
 window**, **Open on D&D Beyond** (or wherever else you own it online, with a link), **Details**, **Ask this book** while
-AI is set up, **Add to favorites**, **Pin**, **Cataloged wrong…**, **Download the file** for a file whose protection
+AI is set up, **Add to favorites**, **Pin**, **Catalogued wrong…**, **Download the file** for a file whose protection
 Bibliotaph can't open, **Forget its text** or **Read it again**, **Add to collection** and **Add to binder**, each with
 the list to choose from, and **Remove from library** for a book owned elsewhere. **Open in new window** opens the book
 in a reader window of its own, as Shift+Enter on a book or a middle-click does. A double-click on a book you own only
@@ -208,7 +208,7 @@ and How it was read start folded. Drag the pane's left edge to make it wider, wh
 
 **Home** greets you with the books you opened last and those added last, a cover each; a click opens the book's details
 in the Library, and a right-click has the same menu as in the Library. Until AI is set up, Home asks **Fill in the
-catalog with AI?** once your folders are in: **Set up AI** goes to Settings › AI, and **Not now** stops asking.
+catalogue with AI?** once your folders are in: **Set up AI** goes to Settings › AI, and **Not now** stops asking.
 
 Covers are kept with your account, so they don't need drawing again when the server restarts.
 
@@ -224,7 +224,7 @@ The details change a book as the Windows app's do:
   **Not right** on any value, and **Reset to suggestion** to forget what you set.
 - After a correction, Bibliotaph may offer to correct the other books from the same folder that showed the same thing:
   **Change them** does, with **Undo**; **No thanks** leaves them.
-- **The pencil under the cover** is **Cataloged wrong…**: every field shows, the guessed values are marked **Guessed**
+- **The pencil under the cover** is **Catalogued wrong…**: every field shows, the guessed values are marked **Guessed**
   with their evidence open, and **Done** ends it. If you leave without changing or keeping anything, Needs review keeps
   a reminder.
 - **Notes** is the book's own note, saved as you type and found by search, with the notes on its pages below.
@@ -470,7 +470,7 @@ The cards that ask one question come between the new terms and the field suggest
   that opens its pages, without changing the file. **Not split** (or **×**) says it's one book.
 - **Adventure in a file**: an adventure whose pages weren't found in its file as it is now, perhaps a new version.
   **Set its pages** types where it is now, as the file numbers its pages; **Remove adventure** takes its card away.
-- **Cataloged wrong**: a book whose details you closed without a change after **Cataloged wrong…**. **Fix it** opens
+- **Catalogued wrong**: a book whose details you closed without a change after **Catalogued wrong…**. **Fix it** opens
   its details in the Library with the guesses marked again; **It's fine now** takes the card away.
 - **Folder rule?**: the same value set on several books in one folder. **Use this rule** suggests it for every file
   there, or **No thanks**.
@@ -690,7 +690,7 @@ asks RPGGeek, AdventureLookup, Open Library and Google Books, so the PC's own bo
 library's are; it sends the ISBNs, and the book's title for RPGGeek and AdventureLookup, which also looks up the books
 that print no ISBN by their title. The books it looked up before it connected are asked again. Disconnected, it asks Open Library
 and AdventureLookup itself, and RPGGeek and Google Books with your own token or key, if you saved them in
-**Settings > Online libraries** (see [Cataloging](cataloging.md#your-own-rpggeek-token-and-google-books-key)). See [Cataloging](cataloging.md#where-suggestions-come-from).
+**Settings > Online libraries** (see [Cataloguing](cataloging.md#your-own-rpggeek-token-and-google-books-key)). See [Cataloguing](cataloging.md#where-suggestions-come-from).
 
 What the AI found is shared too, so a book is read by the AI only once, wherever that happens first: usually on the PC,
 with the built-in AI on its graphics card. The same file in your OneDrive and on the PC is the same book, matched by
@@ -736,7 +736,7 @@ publisher and year, each field from the first of them that has it, as the Window
 edition, type, themes, setting and series, and from AdventureLookup an adventure's levels, environments, monsters, items and what it includes.
 This is always on, and its count takes in every book, whether it prints an ISBN or not; a book is asked again once
 there's somewhere more to ask. RPGGeek's data is powered by
-[BGG](https://boardgamegeek.com), whose logo shows under a book's details when some of them came from RPGGeek. See [Cataloging](cataloging.md#where-suggestions-come-from).
+[BGG](https://boardgamegeek.com), whose logo shows under a book's details when some of them came from RPGGeek. See [Cataloguing](cataloging.md#where-suggestions-come-from).
 
 ## Vocabulary
 
@@ -760,7 +760,7 @@ words, and **Delete tag** takes its suggestions away; books where you kept it ke
 
 ## Backup and export
 
-**Settings** › **Backup** › **Download a backup** saves a backup of your catalog (folders, corrections, collections,
+**Settings** › **Backup** › **Download a backup** saves a backup of your catalogue (folders, corrections, collections,
 binders and notes, but not your books) as the Windows app's **Back up now…** does, named for the day, such as
 "Bibliotaph backup 2026-10-26.zip". The Windows app restores it from its own **Settings** › **Backup**, asking where
 each folder is on that PC. AI keys and PDF passwords are never in a backup.
@@ -772,8 +772,8 @@ was made: **Download** saves one, and **Restore…** reads it.
 **Choose a backup…** under **Restore** reads a backup from your computer instead, one downloaded here or made by the
 Windows app. Nothing changes yet: Bibliotaph shows when the backup was made, by which version, how many books,
 collections and notes it holds, and each of its library folders, saying whether it is in your storage. A Windows PC's
-folders aren't, so they stay offline here. **Restore…** asks once more, then keeps a backup of your catalog as it is
-now (listed as *Made before a restore*, so a restore can be undone by restoring that one) and puts the backup's catalog
+folders aren't, so they stay offline here. **Restore…** asks once more, then keeps a backup of your catalogue as it is
+now (listed as *Made before a restore*, so a restore can be undone by restoring that one) and puts the backup's catalogue
 in its place. Anything you did since the backup was made is replaced. Your books are then read again for search in the
 background. **Cancel** forgets the backup read.
 
@@ -781,7 +781,7 @@ To keep the Windows app's work and this library up to date with each other, conn
 **Devices** describes instead: that merges your work both ways, where a restore replaces it.
 
 **Export CSV** saves a row per book (title, system, type, levels, publisher, tags, collections and where its file is)
-for a spreadsheet, and **Export JSON** everything in your catalog, for other programs, as in the Windows app.
+for a spreadsheet, and **Export JSON** everything in your catalogue, for other programs, as in the Windows app.
 
 ## Your preferences
 
@@ -809,7 +809,7 @@ where, and how to have it deleted.
 ## The site
 
 [bibliotaph.online](https://bibliotaph.online) shows what Bibliotaph is, signed in or not: what it does, with the app's
-screenshot and small examples of search, the catalog, binders and online libraries; the Windows app and the web side by
+screenshot and small examples of search, the catalogue, binders and online libraries; the Windows app and the web side by
 side; and answers to common questions. At the top are [About](https://bibliotaph.online/about),
 [Features](https://bibliotaph.online/features), the [Guide](https://bibliotaph.online/guide), which is this user guide
 with a page for each chapter, the [Change log](https://bibliotaph.online/changelog) and **Sign in**, and **Get the

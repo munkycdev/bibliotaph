@@ -12,7 +12,7 @@ public sealed class CollectionsController(CollectionsViewModel collections, MacC
     public override void LoadView()
     {
         var (root, content) = PageParts.ScrollingPage();
-        var add = NSButton.CreateButton("New collection…", () => { });
+        var add = NSButton.CreateButton("New Collection…", () => { });
         _bindings.Command(add, collections.NewCollectionCommand);
         var top = NSStackView.FromViews([new NSView(), add]);
         var empty = PageParts.Secondary("No collections yet. A collection gathers books from anywhere in your library, such as everything for one campaign.");
@@ -48,7 +48,7 @@ public sealed class BindersController(SessionsViewModel binders, MacCovers cover
     public override void LoadView()
     {
         var (root, content) = PageParts.ScrollingPage();
-        var add = NSButton.CreateButton("New binder…", () => { });
+        var add = NSButton.CreateButton("New Binder…", () => { });
         _bindings.Command(add, binders.NewSessionCommand);
         var top = NSStackView.FromViews([new NSView(), add]);
         var empty = PageParts.Secondary("No binders yet. A binder holds the pages you'll want at the table for a session: rules, maps, handouts.");

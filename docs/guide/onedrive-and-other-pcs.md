@@ -22,7 +22,7 @@ The file's content, name, place and dates don't change. Files you already had on
 Other cloud apps' folders work too, as ordinary folders. To read OneDrive, Dropbox, Google Drive or WebDAV
 without their apps, see [Storage without its app](#storage-without-its-app).
 
-Bibliotaph's own catalog is kept in `%LOCALAPPDATA%\Bibliotaph` on your PC, never in OneDrive. Don't move it into a
+Bibliotaph's own catalogue is kept in `%LOCALAPPDATA%\Bibliotaph` on your PC, never in OneDrive. Don't move it into a
 synced folder: to use your library on two PCs, see [More than one PC](#more-than-one-pc) below.
 
 ## Storage without its app
@@ -101,18 +101,18 @@ drops, the folder goes offline like an unplugged drive.
   folder, where **Choose a backup…** looks too. Bibliotaph also makes one by itself at the first start of each week,
   in the same folder, and keeps the last four automatic ones; the ones you save are never deleted. **Open backups
   folder** shows them. A copy on another drive, or in OneDrive, survives a failed disk too.
-- A backup holds your catalog: folders, corrections, collections, binders and notes. Your books aren't in it; they stay
+- A backup holds your catalogue: folders, corrections, collections, binders and notes. Your books aren't in it; they stay
   where they are. Passwords for protected PDFs and AI keys aren't in it either; Bibliotaph asks again when it needs
   them. Nor are the sign-ins of Bibliotaph's browser: sign in to your online libraries again after a restore on a new
   PC.
 - **Include the search index** makes backups much larger, but a restored library is searchable straight away instead
   of after your books are read again.
 
-**Choose a backup…** then **Restore and restart…** puts your catalog back as it was. Your current catalog is backed up
+**Choose a backup…** then **Restore and restart…** puts your catalogue back as it was. Your current catalogue is backed up
 first.
 
 **Export CSV…** saves a row per book (title, system, type, levels, publisher, tags, collections and where its file is)
-for a spreadsheet. **Export JSON…** saves everything in the catalog, for other programs.
+for a spreadsheet. **Export JSON…** saves everything in the catalogue, for other programs.
 
 ## A new PC
 
@@ -141,7 +141,7 @@ own. So do the files you said are the same book (or a new version of one), a fil
 matched to a book you own elsewhere, and **Not the same book**, which parts them everywhere. Adventures you mark in a
 file travel with their pages, levels and everything else on them, and so does removing one; your answers to an
 adventure proposal and to "You own this elsewhere. Is this its file?" travel too. So does what you chose for each
-book: the page you used as its cover, **Forget its text** (and **Read it again**), a **Cataloged wrong…** you left
+book: the page you used as its cover, **Forget its text** (and **Read it again**), a **Catalogued wrong…** you left
 open, the collections you said Never to, the cover picture you chose for a book you own elsewhere or the one it was
 imported with from an online library, and its Ask this book conversation. A book opens where you last left it, on whichever device you read it last. A change reaches the
 web a few seconds after you make it, and your other PCs within a minute or so. Where two PCs change the same thing, the

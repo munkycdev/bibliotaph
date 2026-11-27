@@ -21,9 +21,9 @@ public static partial class SitePages
     static readonly Page[] Pages =
     [
         new("/", "home", "Bibliotaph: your RPG library, searchable",
-            "Bibliotaph catalogs the RPG books, maps and handouts in your own folders and cloud storage, and finds the right book and the right page."),
+            "Bibliotaph catalogues the RPG books, maps and handouts in your own folders and cloud storage, and finds the right book and the right page."),
         new("/about", "about", "About · Bibliotaph", "Why Bibliotaph exists, who makes it, and what it's built on."),
-        new("/features", "features", "Features · Bibliotaph", "Everything Bibliotaph does: search inside every book, a catalog that fills itself in, binders for the table, and more."),
+        new("/features", "features", "Features · Bibliotaph", "Everything Bibliotaph does: search inside every book, a catalogue that fills itself in, binders for the table, and more."),
         new("/guide", "guide", "Guide · Bibliotaph", "How to use Bibliotaph, on Windows and the web: from installing it and adding your folders to binders, AI and more than one PC."),
         new("/changelog", "changelog", "Change log · Bibliotaph", "What changed in each version of Bibliotaph."),
         new("/terms", "terms", "Terms of service · Bibliotaph", "The terms for using the Bibliotaph web service."),

@@ -83,4 +83,4 @@ export the whole library the same way; see [OneDrive, drives and other PCs](oned
 
 ---
 
-Previous: [Cataloging](cataloging.md) · Next: [Binders](binders.md)
+Previous: [Cataloguing](cataloging.md) · Next: [Binders](binders.md)

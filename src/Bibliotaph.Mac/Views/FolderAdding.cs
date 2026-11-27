@@ -52,7 +52,7 @@ public sealed class FolderAdding(IServiceProvider services)
             alert.RunModal();
             return false;
         }
-        alert.AddButton("Add folder");
+        alert.AddButton("Add Folder");
         alert.AddButton("Cancel");
         return alert.RunModal() == (nint)(long)NSAlertButtonReturn.First;
     }

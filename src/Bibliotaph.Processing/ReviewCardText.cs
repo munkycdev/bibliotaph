@@ -250,12 +250,12 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
     public string NotThisBook => $"Won't use {Record.Source}'s record of {Record.Title} for {Item.BookTitle}.";
 }
 
-/// <summary>"You said this book was cataloged wrong": Fix it opens its details again, It's fine now takes the card away.</summary>
+/// <summary>"You said this book was catalogued wrong": Fix it opens its details again, It's fine now takes the card away.</summary>
 public sealed record CorrectionCardText(CorrectionItem Item)
 {
-    public const string Chip = "Cataloged wrong";
+    public const string Chip = "Catalogued wrong";
 
-    public const string Heading = "You said this book was cataloged wrong.";
+    public const string Heading = "You said this book was catalogued wrong.";
 
     public const string Detail = "Its details were closed without a change. Fix it opens them again, with the values Bibliotaph guessed marked.";
 
@@ -422,6 +422,8 @@ public sealed record CollectionSuggestionCardText(CollectionSuggestion Suggestio
             if (Suggestion.Series is { } series) reasons.Add($"are in the series “{series}”");
             if (Suggestion.Setting is { } setting && Suggestion.System is { } system)
                 reasons.Add($"are set in {Vocabulary.Label(MetadataFields.Settings.Vocabulary!, setting)} for {Vocabulary.Label(MetadataFields.System.Vocabulary!, system)}");
+            // A suggestion made on something else the books share still says why, if less precisely.
+            if (reasons.Count == 0) return $"{(Count == 1 ? "This book is" : "These books are")} like most of the books in this collection.";
             return $"Most of the books in this collection {string.Join(", or ", reasons)}, and so {(Count == 1 ? "is this one" : "are these")}.";
         }
     }

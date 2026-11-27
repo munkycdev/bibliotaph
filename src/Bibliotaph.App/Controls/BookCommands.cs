@@ -42,10 +42,10 @@ public static class BookCommands
     /// <summary>Ask this book: opens a PDF with its Ask panel showing. Offered only while AI is on.</summary>
     public static RoutedUICommand Ask { get; } = new("Ask this book", nameof(Ask), typeof(BookCommands));
     /// <summary>
-    /// Cataloged wrong…: the book's editor, with its guesses marked. Left without a change, it leaves a Needs review card
+    /// Catalogued wrong…: the book's editor, with its guesses marked. Left without a change, it leaves a Needs review card
     /// that opens it again.
     /// </summary>
-    public static RoutedUICommand CatalogedWrong { get; } = new("Cataloged wrong…", nameof(CatalogedWrong), typeof(BookCommands));
+    public static RoutedUICommand CatalogedWrong { get; } = new("Catalogued wrong…", nameof(CatalogedWrong), typeof(BookCommands));
 
     /// <summary>Remove from library, for a book owned elsewhere: the Library page only, with Undo.</summary>
     public static RoutedUICommand RemoveFromLibrary { get; } = new("Remove from library", nameof(RemoveFromLibrary), typeof(BookCommands));

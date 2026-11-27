@@ -137,7 +137,7 @@ public sealed partial class MetadataFieldViewModel : ObservableObject
     [ObservableProperty]
     public partial bool ShowEvidence { get; set; }
 
-    /// <summary>Cataloged wrong… is open: a value nobody confirmed carries a "Guessed" mark, so the guesses stand out.</summary>
+    /// <summary>Catalogued wrong… is open: a value nobody confirmed carries a "Guessed" mark, so the guesses stand out.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowsGuessed))]
     public partial bool MarksGuesses { get; set; }

@@ -14,7 +14,7 @@ public sealed class SummaryPageTests
 
         var systems = page.Systems!;
         Assert.Equal("9 in all", systems.Note);
-        Assert.Equal(["System 1", "System 2", "System 3", "System 4", "System 5", "System 6", "3 others", "Not cataloged yet"],
+        Assert.Equal(["System 1", "System 2", "System 3", "System 4", "System 5", "System 6", "3 others", "Not catalogued yet"],
             systems.Bars.Select(b => b.Label));
         // Bars are fractions of the longest, which here is the three folded together.
         Assert.Equal((1.0, 36L), (systems.Bars[6].Total, long.Parse(systems.Bars[6].Count, global::System.Globalization.CultureInfo.InvariantCulture)));

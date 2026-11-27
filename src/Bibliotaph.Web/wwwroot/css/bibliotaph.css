@@ -521,7 +521,7 @@ a{color:var(--bt-accent)}
 .bt-hit h3 .bt-titlelink{font-size:15px;font-weight:550}
 .bt-shelf{justify-content:start}
 .bt-sectionline a.bt-link{text-decoration:none;display:inline-flex;align-items:center;gap:6px}
-/* Changing a book's details: the editor under a field, the evidence's actions, Cataloged wrong… and its offer, adventures' pages, notes. */
+/* Changing a book's details: the editor under a field, the evidence's actions, Catalogued wrong… and its offer, adventures' pages, notes. */
 button.bt-heart{color:var(--bt-accent)}
 .bt-detailactions{display:flex;justify-content:flex-end;margin:20px 0 -8px;min-height:32px}
 .bt-detailtabs{margin-top:24px}
@@ -1160,7 +1160,7 @@ a.bt-menuitem{text-decoration:none}
 .bt-dropbutton{padding-left:7px;padding-right:7px}
 .bt-confirmbox{margin-top:10px;padding:10px;border:1px solid var(--bt-line);border-radius:6px;background:var(--bt-panel)}
 .bt-confirmbox .bt-small{margin-top:4px}
-/* Home's Fill in the catalog with AI?, as the Windows app's first-run step. */
+/* Home's Fill in the catalogue with AI?, as the Windows app's first-run step. */
 .bt-aistep{background:var(--bt-side);border-radius:6px;padding:18px;margin-top:22px;max-width:620px}
 .bt-aistep .bt-copy{margin:8px 0 14px}
 /* The search box's field guide, under the box as the Windows app's popup is. */

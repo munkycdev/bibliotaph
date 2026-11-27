@@ -34,7 +34,7 @@ public sealed record ReviewList(IReadOnlyList<ReviewItem> Items, IReadOnlyList<P
 
 /// <summary>
 /// Where Needs review's cards come from beyond fields and terms: new versions, packs, books owned elsewhere, places in
-/// new versions, books cataloged wrong, folder rules, adventures inside files, collections from folders and books, and
+/// new versions, books catalogued wrong, folder rules, adventures inside files, collections from folders and books, and
 /// catalogue records that may be a book's.
 /// </summary>
 public sealed record ReviewCards(
@@ -81,7 +81,7 @@ public sealed class ReviewService(
     /// <summary>
     /// How many cards there are, for the sidebar: as last projected, plus the new terms, the "new version?" cards, the
     /// folders proposed as packs, the files that may be those of books owned elsewhere, the new versions with places
-    /// that need a look, the books said to be cataloged wrong, the folder rules proposed, the adventures whose pages
+    /// that need a look, the books said to be catalogued wrong, the folder rules proposed, the adventures whose pages
     /// weren't found, the files that look like they hold adventures, the folders that could be collections, the
     /// books that could join collections, the terms that may be the same thing, and the catalogue records that may be
     /// a book's.
@@ -168,7 +168,7 @@ public sealed class ReviewService(
     public async Task<Func<Task>?> AnswerSuggestionAsync(CollectionSuggestion suggestion, CollectionAnswer answer, CancellationToken ct = default) =>
         await cards.Suggestions.AnswerAsync(suggestion, answer, ct);
 
-    /// <summary>"It's fine now" on a "cataloged wrong" card. Returns what brings the card back.</summary>
+    /// <summary>"It's fine now" on a "catalogued wrong" card. Returns what brings the card back.</summary>
     public Task<Func<Task>> DismissCorrectionAsync(CorrectionItem item, CancellationToken ct = default) =>
         cards.Corrections.DismissAsync(item, ct);
 

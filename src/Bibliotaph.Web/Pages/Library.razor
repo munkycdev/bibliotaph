@@ -567,7 +567,7 @@ else
     long? _details;
     BookCard? _detailsCard;
 
-    /// <summary>The details first opened start Cataloged wrong…, for Needs review's Fix it.</summary>
+    /// <summary>The details first opened start Catalogued wrong…, for Needs review's Fix it.</summary>
     bool _correct;
     BookCard? _cardMenu;
 
@@ -939,10 +939,10 @@ else
     /// <summary>A card's right-click menu, in Organize mode too, where a click only ticks the card.</summary>
     void OpenCardMenu(BookCard book) => _cardMenu = book;
 
-    /// <summary>Cataloged wrong… from a card's menu: its details, with every guess marked.</summary>
+    /// <summary>Catalogued wrong… from a card's menu: its details, with every guess marked.</summary>
     async Task CorrectBook(BookCard book)
     {
-        // Details already open start Cataloged wrong… only as they open, so they open afresh.
+        // Details already open start Catalogued wrong… only as they open, so they open afresh.
         _details = null;
         _drawer = null;
         StateHasChanged();
@@ -1021,6 +1021,7 @@ else
         "clear-search" or "clear-all" => Filter(action == "clear-search" ? _query with { Q = null, Tab = null }
             : new LibraryQuery { Sort = _query.Sort, Collection = _query.Collection, AddedHere = _query.AddedHere, Favorites = _query.Favorites, Binder = _query.Binder }),
         "show-documents" => ShowTab(null),
+        "show-pages" => ShowTab("pages"),
         _ => Task.CompletedTask,
     };
 

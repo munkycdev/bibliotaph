@@ -173,7 +173,8 @@ internal sealed class LibraryWhere
             AddChoice(field, values, $"picked{i}");
             return;
         }
-        Add($"e.entry_id IN (SELECT entry_id FROM entry_meta WHERE publisher IN (SELECT value FROM json_each(@picked{i})))",
+        // By publisher, so a pick takes in every form of its name.
+        Add($"e.entry_id IN (SELECT entry_id FROM entry_meta WHERE publisher_key(publisher) IN (SELECT publisher_key(value) FROM json_each(@picked{i})))",
             $"picked{i}", JsonSerializer.Serialize(values));
     }
 

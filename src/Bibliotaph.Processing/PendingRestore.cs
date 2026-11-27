@@ -68,7 +68,7 @@ public static class PendingRestore
             request = JsonSerializer.Deserialize<RestoreRequest>(await File.ReadAllTextAsync(Marker(paths), ct), BackupManifest.Json)
                 ?? throw new InvalidDataException("The restore's note is empty.");
             var restored = new CatalogFile(Path.Combine(staging, "catalog.db"));
-            if (await restored.ReadMigrationsAsync(ct) is null) throw new InvalidDataException("The backup's catalog can't be read any more.");
+            if (await restored.ReadMigrationsAsync(ct) is null) throw new InvalidDataException("The backup's catalogue can't be read any more.");
 
             // index.db first: if it can't go, nothing has changed yet. It describes the catalog in use, not the restored one.
             DeleteDatabase(paths.IndexDatabase);

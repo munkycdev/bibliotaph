@@ -30,7 +30,7 @@ public sealed record PageNoteLine(string Pages, string Text, string? Reason, boo
 /// <summary>Pages of a file as an adventure: its title when new, and its first and last pages as the file numbers them.</summary>
 public sealed record PartEdit(string? Title, string From, string To);
 
-/// <summary>Cataloged wrong… closed: whether anything was changed or kept, which decides if Needs review keeps a card.</summary>
+/// <summary>Catalogued wrong… closed: whether anything was changed or kept, which decides if Needs review keeps a card.</summary>
 public sealed record CorrectionEnd(bool Decided);
 
 /// <summary>How typed text will be filed in a term field: "“Campaign” is another name for Adventure".</summary>

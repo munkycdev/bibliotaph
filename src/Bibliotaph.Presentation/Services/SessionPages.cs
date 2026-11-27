@@ -38,11 +38,11 @@ public sealed class SessionPages(INavigationService navigation, IReaderWindows w
     {
         if (windows.Shows(Shows(packId)))
         {
-            if (!navigation.GoBack()) navigation.NavigateTo(Route.Sessions);
+            if (!navigation.GoBack(forward: false)) navigation.NavigateTo(Route.Sessions);
             windows.BringForward(Shows(packId));
             return;
         }
-        if (navigation.Previous is SessionReaderViewModel reader && reader.PackId == packId) navigation.GoBack();
+        if (navigation.Previous is SessionReaderViewModel reader && reader.PackId == packId) navigation.GoBack(forward: false);
         else Open(packId);
     }
 
@@ -51,7 +51,7 @@ public sealed class SessionPages(INavigationService navigation, IReaderWindows w
     {
         await reader.SaveNotesAsync();
         var (itemId, at) = reader.Here();
-        if (ReferenceEquals(navigation.Current, reader) && !navigation.GoBack()) navigation.NavigateTo(Route.Sessions);
+        if (ReferenceEquals(navigation.Current, reader) && !navigation.GoBack(forward: false)) navigation.NavigateTo(Route.Sessions);
         if (windows.BringForward(Shows(reader.PackId))) return;
         var page = createReader();
         page.PackId = reader.PackId;

@@ -143,10 +143,10 @@
 
     IEnumerable<DetailField> Fields => Book.Fields.Where(f => f.Section == Group);
 
-    /// <summary>Cataloged wrong… is on: the guesses are marked.</summary>
+    /// <summary>Catalogued wrong… is on: the guesses are marked.</summary>
     [Parameter] public bool Correcting { get; set; }
 
-    /// <summary>A field was changed or a value kept, so leaving Cataloged wrong… leaves no reminder.</summary>
+    /// <summary>A field was changed or a value kept, so leaving Catalogued wrong… leaves no reminder.</summary>
     [Parameter] public EventCallback Decided { get; set; }
 
     /// <summary>The change could go to other books too, such as those from the same folder.</summary>

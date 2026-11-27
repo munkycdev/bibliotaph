@@ -137,4 +137,4 @@ Windows 10 the reader says so if it's missing. The thumbnail strip and **Use thi
 
 ---
 
-Previous: [Searching](searching.md) · Next: [Cataloging](cataloging.md)
+Previous: [Searching](searching.md) · Next: [Cataloguing](cataloging.md)
