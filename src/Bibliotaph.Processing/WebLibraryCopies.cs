@@ -18,14 +18,21 @@ public sealed record WebDownload(string ContentHash, long Received, long Total, 
     public int Percent => Total <= 0 ? 0 : (int)Math.Clamp(Received * 100 / Total, 0, 100);
 }
 
-/// <summary>How much of the web library is on this PC: the books downloaded, their size, and how many are kept offline.</summary>
-public sealed record WebCopiesSummary(int Books, long Bytes, int KeptOffline);
+/// <summary>A book wasn't downloaded because it would leave less free disk space than the reserve.</summary>
+public sealed class NoRoomForCopyException() : IOException("There isn't enough free disk space to download this book.");
+
+/// <summary>
+/// How much of the web library is on this PC: the books downloaded, their size, how many the user keeps offline, and how
+/// many are kept for being favorites or in binders (<see cref="OfflineKeeper"/>).
+/// </summary>
+public sealed record WebCopiesSummary(int Books, long Bytes, int KeptOffline, int KeptForPreparation = 0, long KeptForPreparationBytes = 0);
 
 /// <summary>
 /// A PC's copies of the books it reads from elsewhere: the web library's, downloaded through bibliotaph.online when one
 /// is opened or its scanned pages are read, and those in <paramref name="storage"/> connected on this PC, downloaded from
 /// the provider when one is opened to read or kept offline. They're kept in <see cref="AppPaths.WebCopies"/> under their
-/// content hash, checked against it. Those the user keeps offline stay; the rest go, least recently read first, once
+/// content hash, checked against it. Those the user keeps offline stay, and so do those <see cref="OfflineKeeper"/> holds
+/// for being favorites or in binders; the rest go, least recently read first, once
 /// they pass the room set for them (<see cref="DefaultRoomGb"/> to start), and all of them when this PC is disconnected
 /// from the web library. <see cref="Progress"/> says how a download is going, for the reader to show.
 /// <paramref name="gigabyte"/> is the size the room is counted in: a GB, or a few bytes in the tests.
@@ -37,6 +44,9 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
 
     public const string KeptKey = "web.kept-offline";
     public const string RoomKey = "web.copies-room-gb";
+
+    /// <summary>The books held for being favorites or in binders, by content hash: <see cref="OfflineKeeper"/>'s, apart from the user's own.</summary>
+    public const string PreparedKey = "web.kept-for-prep";
     public const int DefaultRoomGb = 5;
 
     /// <summary>The rooms offered in Settings > Devices, in GB.</summary>
@@ -49,6 +59,7 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
     readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>The books kept offline, by content hash; replaced, never changed, so it's read without a lock.</summary>
     IReadOnlySet<string>? _kept;
+    IReadOnlySet<string>? _prepared;
 
     public string Folder => paths.WebCopies;
 
@@ -88,6 +99,41 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
 
     public async Task<bool> IsKeptAsync(string contentHash, CancellationToken ct = default) => (await KeptAsync(ct)).Contains(contentHash);
 
+    /// <summary>Whether <see cref="OfflineKeeper"/> holds the book, as a favorite or a binder's.</summary>
+    public async Task<bool> IsPreparedAsync(string contentHash, CancellationToken ct = default) => (await PreparedAsync(ct)).Contains(contentHash);
+
+    /// <summary>
+    /// Downloads the book's copy if it isn't here, without keeping it: what holds it is <see cref="HoldForPreparationAsync"/>.
+    /// Throws as <see cref="OpenAsync"/> does.
+    /// </summary>
+    public async Task FetchAsync(DocumentSource source, CancellationToken ct = default)
+    {
+        var name = NameOf(source);
+        Hold(name);
+        try
+        {
+            await FetchAsync(source, name, ct, touch: false);
+        }
+        finally
+        {
+            Release(name);
+        }
+    }
+
+    /// <summary>
+    /// The books held for being favorites or in binders, replacing those held before. One no longer held joins the
+    /// other downloads, going when its room is needed, least recently read first, rather than at once, so a book
+    /// favorited again soon isn't downloaded again.
+    /// </summary>
+    public async Task HoldForPreparationAsync(IReadOnlyCollection<string> contentHashes, CancellationToken ct = default)
+    {
+        var held = new HashSet<string>(contentHashes, StringComparer.OrdinalIgnoreCase);
+        if (held.SetEquals(await PreparedAsync(ct))) return;
+        Volatile.Write(ref _prepared, held);
+        await settings.SetAsync(PreparedKey, JsonSerializer.Serialize(held.Select(h => h.ToLowerInvariant()).Order(StringComparer.Ordinal).ToArray()), ct);
+        await EvictAsync(ct);
+    }
+
     /// <summary>
     /// Keeps a book's copy for good, downloading it now if it isn't here, or lets it go with the others. A book that
     /// can't be downloaded isn't kept.
@@ -124,17 +170,20 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
     public async Task<WebCopiesSummary> SummarizeAsync(CancellationToken ct = default)
     {
         var kept = await KeptAsync(ct);
+        var prepared = await PreparedAsync(ct);
         var files = Copies();
-        return new WebCopiesSummary(files.Count, files.Sum(f => f.Length), files.Count(f => kept.Contains(HashOf(f.Name))));
+        var forPreparation = files.Where(f => prepared.Contains(HashOf(f.Name))).ToList();
+        return new WebCopiesSummary(files.Count, files.Sum(f => f.Length), files.Count(f => kept.Contains(HashOf(f.Name))),
+            forPreparation.Count, forPreparation.Sum(f => f.Length));
     }
 
     /// <summary>
-    /// Deletes the copies not in use: all of them, or those not kept offline. Returns how many went. Those kept offline
-    /// stay when this PC is disconnected, for when it connects again.
+    /// Deletes the copies not in use: all of them, or those not kept offline, by the user or for being favorites or in
+    /// binders. Returns how many went. Those kept offline stay when this PC is disconnected, for when it connects again.
     /// </summary>
     public async Task<int> ClearAsync(bool keepKept, CancellationToken ct = default)
     {
-        var kept = await KeptAsync(ct);
+        var kept = await AllKeptAsync(ct);
         var cleared = 0;
         foreach (var file in Copies())
         {
@@ -146,7 +195,7 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
         return cleared;
     }
 
-    async Task FetchAsync(DocumentSource source, string name, CancellationToken ct)
+    async Task FetchAsync(DocumentSource source, string name, CancellationToken ct, bool touch = true)
     {
         var target = Path.Combine(Folder, name);
         var gate = _gates.GetOrAdd(name, _ => new SemaphoreSlim(1, 1));
@@ -156,7 +205,7 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
             // The modified time says when it was last read, for eviction.
             if (File.Exists(target))
             {
-                File.SetLastWriteTimeUtc(target, DateTime.UtcNow);
+                if (touch) File.SetLastWriteTimeUtc(target, DateTime.UtcNow);
                 return;
             }
             if (IsInStorage(source)) await DownloadAsync(source.ContentHash, target, 0, c => storage!.OpenAsync(source.FullPath, c), "your storage", ct);
@@ -172,7 +221,7 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
     {
         Directory.CreateDirectory(Folder);
         if (disk.FreeBytes(Folder) is { } free && free - total < _reserveBytes)
-            throw new IOException("There isn't enough free disk space to download this book.");
+            throw new NoRoomForCopyException();
         var temp = $"{target}.{Guid.NewGuid():N}.tmp";
         try
         {
@@ -213,7 +262,7 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
     async Task EvictAsync(CancellationToken ct)
     {
         var room = await GetRoomGbAsync(ct) * gigabyte;
-        var kept = await KeptAsync(ct);
+        var kept = await AllKeptAsync(ct);
         var loose = Copies().Where(f => !kept.Contains(HashOf(f.Name))).OrderBy(f => f.LastWriteTimeUtc).ToList();
         var total = loose.Sum(f => f.Length);
         foreach (var file in loose)
@@ -245,6 +294,28 @@ public sealed class WebLibraryCopies(AppPaths paths, IWebBooks web, WebShelfCach
             _log.LogWarning(ex, "The list of web library books kept offline couldn't be read");
         }
         return Interlocked.CompareExchange(ref _kept, kept, null) ?? kept;
+    }
+
+    async Task<IReadOnlySet<string>> PreparedAsync(CancellationToken ct)
+    {
+        if (Volatile.Read(ref _prepared) is { } known) return known;
+        HashSet<string> prepared = new(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            if (await settings.GetAsync(PreparedKey, ct) is { Length: > 0 } json && JsonSerializer.Deserialize<string[]>(json) is { } hashes) prepared.UnionWith(hashes);
+        }
+        catch (JsonException ex)
+        {
+            _log.LogWarning(ex, "The list of favorites' and binders' books kept offline couldn't be read");
+        }
+        return Interlocked.CompareExchange(ref _prepared, prepared, null) ?? prepared;
+    }
+
+    async Task<IReadOnlySet<string>> AllKeptAsync(CancellationToken ct)
+    {
+        var kept = await KeptAsync(ct);
+        var prepared = await PreparedAsync(ct);
+        return prepared.Count == 0 ? kept : new HashSet<string>(kept.Concat(prepared), StringComparer.OrdinalIgnoreCase);
     }
 
     async Task SaveKeptAsync(HashSet<string> kept, CancellationToken ct)

@@ -210,7 +210,7 @@
          <StackPanel>
           <TextBlock Text="Books downloaded to this PC" Style="{StaticResource Text.Row}" />
           <TextBlock Style="{StaticResource Text.Small}" Margin="0,5,0,8" TextWrapping="Wrap"
-                     Text="A book only your web library or your storage has is downloaded when you open it. The ones you keep offline, from a book's details, stay on this PC; the rest go, least recently read first, once they take more than the room below." />
+                     Text="A book only your web library or your storage has is downloaded when you open it. The ones you keep offline, from a book's details or as favorites and binders, stay on this PC; the rest go, least recently read first, once they take more than the room below." />
           <TextBlock x:Name="WebCopiesSummary" Text="{Binding CopiesLine}" Style="{StaticResource Text.Row}" TextWrapping="Wrap" Margin="0,4,0,12" />
           <StackPanel Orientation="Horizontal">
             <TextBlock Text="Room for downloads" Style="{StaticResource Text.Row}" VerticalAlignment="Center" Margin="0,0,10,0" />
@@ -221,6 +221,13 @@
                     Command="{Binding FreeUpSpaceCommand}" AutomationProperties.Name="Delete the downloads not kept offline"
                     ToolTip="Delete the downloads not kept offline. They're downloaded again when you open them." />
           </StackPanel>
+          <CheckBox x:Name="KeepPreparedOffline" Content="Keep favorites and binders offline" IsChecked="{Binding KeepsPrepared}" Margin="0,18,0,0"
+                    AutomationProperties.Name="Keep favorites and binders offline"
+                    ToolTip="Their books that only your storage or web library has are downloaded once and stay on this PC; OneDrive files are kept on this device." />
+          <TextBlock x:Name="PreparedOfflineSummary" Text="{Binding PreparedLine}" Style="{StaticResource Text.Small}" TextWrapping="Wrap" Margin="24,5,0,0" />
+          <Button Style="{StaticResource Bt.Link}" Content="Download now" HorizontalAlignment="Left" Margin="24,6,0,0"
+                  Command="{Binding DownloadNowCommand}" AutomationProperties.Name="Download favorites and binders now"
+                  ToolTip="Look again at your favorites and binders, and try again the books that couldn't be downloaded." />
          </StackPanel>
         </Border>
       </StackPanel>

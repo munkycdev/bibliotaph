@@ -31,6 +31,10 @@ public static partial class DesktopComposition
         services.AddHostedService(sp => sp.GetRequiredService<SharedResults>());
         services.AddSingleton<WebShelfSync>();
         services.AddHostedService(sp => sp.GetRequiredService<WebShelfSync>());
+        // Favorites' and binders' books kept on this device, from the web library, connected storage and cloud folders.
+        services.AddSingleton<OfflineBooks>();
+        services.AddSingleton<OfflineKeeper>();
+        services.AddHostedService(sp => sp.GetRequiredService<OfflineKeeper>());
         // What this PC's AI is doing, for Settings › Processing on the web.
         services.AddSingleton<IPcActivityChannel>(sp => sp.GetRequiredService<WebLibrary>());
         services.AddSingleton<PcActivityReport>();

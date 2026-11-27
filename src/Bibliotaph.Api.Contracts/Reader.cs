@@ -108,6 +108,12 @@ public sealed record ReaderProblem(string Title, string Message);
 /// <summary>Where the browser reads the file from now: a short-lived link to it in the user's storage.</summary>
 public sealed record ReaderLink(string? Url, ReaderProblem? Problem = null);
 
+/// <summary>
+/// A file a favorite or binder needs, which the browser keeps whole when Settings says to: its content hash (the
+/// browser's key for it), size, the card's title, and why it's kept ("a favorite", "in the binder “Night one”").
+/// </summary>
+public sealed record OfflineBook(long EntryId, long DocumentId, string Title, string Key, long Size, string Why);
+
 /// <summary>Find in the book: every page with a match, in page order, and how many matches each holds.</summary>
 public sealed record ReaderFind(IReadOnlyList<ReaderFindPage> Pages);
 

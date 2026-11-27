@@ -34,9 +34,15 @@ public static class SettingKeys
     /// </summary>
     public const string StorageConnections = "storage.connections";
 
+    /// <summary>
+    /// The cloud files this device set to always keep on it for favorites and binders, as paths: only these are given
+    /// back, so the list stays with the device rather than letting another give back files its user chose to keep.
+    /// </summary>
+    public const string OfflinePinned = "offline.pinned";
+
     /// <summary>Settings left out of backups and the JSON export, as they're only any use where they were made.</summary>
     public static IReadOnlySet<string> Private { get; } =
-        new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys, ServerPausedLanes, ServerPdfPasswords, StorageConnections };
+        new HashSet<string>(StringComparer.Ordinal) { ServerAiKeys, ServerPausedLanes, ServerPdfPasswords, StorageConnections, OfflinePinned };
 
     /// <summary>
     /// Settings about the library and how it shows, the same on the web and every PC: library sync carries them. The

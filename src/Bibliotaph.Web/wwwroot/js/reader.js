@@ -273,7 +273,7 @@ class Reader {
   }
 
   #offline() {
-    if (!this.closed) this.page.invokeMethodAsync('Offline', this.cache.stored, this.cache.kept, this.cache.progress);
+    if (!this.closed) this.page.invokeMethodAsync('Offline', this.cache.stored, this.cache.kept, this.cache.progress, this.cache.prepared);
   }
 
   /** Keeps the whole book in this browser, or lets it go with the rest; the page hears how far it has got. */
@@ -870,7 +870,7 @@ class ImageReader {
   }
 
   #offline() {
-    if (!this.closed) this.page.invokeMethodAsync('Offline', this.cache.stored, this.cache.kept, this.cache.progress);
+    if (!this.closed) this.page.invokeMethodAsync('Offline', this.cache.stored, this.cache.kept, this.cache.progress, this.cache.prepared);
   }
 
   keepOffline(on) {
@@ -1187,7 +1187,7 @@ class EbookReader {
   }
 
   #offline() {
-    if (!this.closed) this.page.invokeMethodAsync('Offline', this.cache.stored, this.cache.kept, this.cache.progress);
+    if (!this.closed) this.page.invokeMethodAsync('Offline', this.cache.stored, this.cache.kept, this.cache.progress, this.cache.prepared);
   }
 
   keepOffline(on) {

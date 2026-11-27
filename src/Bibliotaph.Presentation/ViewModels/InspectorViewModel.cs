@@ -540,7 +540,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         IJobControl indexing, IStageCatalog stages, CopiesService copies, PackService packs, ElsewhereService elsewhere,
         PartsService parts, IFilePicker files, IUserPrompts prompts, IDesktopShell shell, Microsoft.Extensions.Logging.ILogger log,
         CorrectionService? corrections = null, ChosenCovers? chosen = null, WebShelfCache? shelf = null, WebLibraryCopies? webCopies = null,
-        LookupLinks? links = null, SourceBooksService? sourceBooks = null)
+        LookupLinks? links = null, SourceBooksService? sourceBooks = null, OfflineKeeper? keeper = null)
     {
         DocumentSource? webSource = null;
         var details = await Task.Run(() => queries.GetDetailsAsync(item.EntryId));
@@ -576,7 +576,7 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         var inspector = new InspectorViewModel(item, details, locations, copyList, images, metadata, queries, indexing, stages, copies, packs, elsewhere,
             files, prompts, shell, corrections, chosen, log, shelf, links);
         if (item.IsElsewhere && chosen is not null) inspector.HasChosenCover = await Task.Run(() => chosen.HasChosenAsync(item.EntryId));
-        if (webSource is not null) await inspector.LoadOfflineAsync(webCopies!, webSource);
+        if (webSource is not null) await inspector.LoadOfflineAsync(webCopies!, webSource, keeper);
         await inspector.ReloadMetadataAsync(changed: false);
         await inspector.LoadPartsAsync(parts);
         if (sourceBooks is not null) await inspector.LoadSourceBooksAsync(sourceBooks);
@@ -587,6 +587,8 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     WebLibraryCopies? _webCopies;
     DocumentSource? _webSource;
     bool _showingKept;
+    /// <summary>Why the book is kept for favorites or binders ("a favorite"), or null when it isn't.</summary>
+    string? _keptBecause;
 
     /// <summary>The book opens from the web library or connected storage, with no file of its own here: it can be kept on this PC to read without a connection.</summary>
     public bool CanKeepOffline => _webSource is not null;
@@ -604,12 +606,15 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
     [NotifyPropertyChangedFor(nameof(CanChangeKeptOffline))]
     public partial bool IsKeepingOffline { get; private set; }
 
-    public bool CanChangeKeptOffline => !IsKeepingOffline;
+    /// <summary>Kept for being a favorite or in a binder, the box stays ticked until neither is so.</summary>
+    public bool CanChangeKeptOffline => !IsKeepingOffline && _keptBecause is null;
 
-    async Task LoadOfflineAsync(WebLibraryCopies copies, DocumentSource source)
+    async Task LoadOfflineAsync(WebLibraryCopies copies, DocumentSource source, OfflineKeeper? keeper)
     {
         (_webCopies, _webSource) = (copies, source);
-        ShowKept(await copies.IsKeptAsync(source.ContentHash));
+        _keptBecause = keeper?.WhyKept(source.ContentHash) is { Length: > 0 } why && await copies.IsPreparedAsync(source.ContentHash) ? why : null;
+        OnPropertyChanged(nameof(CanChangeKeptOffline));
+        ShowKept(_keptBecause is not null || await copies.IsKeptAsync(source.ContentHash));
         OnPropertyChanged(nameof(CanKeepOffline));
     }
 
@@ -644,7 +649,10 @@ public sealed partial class InspectorViewModel : ObservableObject, IMetadataEdit
         _showingKept = true;
         IsKeptOffline = kept;
         _showingKept = false;
-        OfflineText = kept ? "Kept on this PC, so it opens without a connection."
+        OfflineText = _keptBecause is { } why
+            ? _webCopies!.Has(_webSource!.ContentHash) ? $"Kept on this PC because it's {why}, so it opens without a connection."
+                : $"Kept on this PC because it's {why}; it's downloading in the background."
+            : kept ? "Kept on this PC, so it opens without a connection."
             : _webCopies!.Has(_webSource!.ContentHash) ? "Downloaded to this PC for now. It's let go when the room for downloads is needed."
             : WebLibraryPaths.IsWebPath(_webSource.FullPath) ? "Downloaded from bibliotaph.online when you open it."
             : "Downloaded from your storage when you open it.";

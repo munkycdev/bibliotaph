@@ -11,6 +11,7 @@
 @inject Breadcrumb Breadcrumb
 @inject IJSRuntime JS
 @inject SearchGuideModel Guide
+@inject BrowserOffline Offline
 @using Bibliotaph.Core.Search
 
 @if (_loading && _opening is { Step: not null } opening)
@@ -348,6 +349,8 @@ else
         }
         if (_self is null && _me is not null)
         {
+            // Favorites' and binders' books kept in this browser, when chosen; a popped-out reader leaves it to the main window.
+            if (!PoppedOut) Offline.Start();
             _self = DotNetObjectReference.Create(this);
             try
             {

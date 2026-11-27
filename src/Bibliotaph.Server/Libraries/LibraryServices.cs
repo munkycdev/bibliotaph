@@ -182,6 +182,7 @@ public static class LibraryServices
         services.AddSingleton<MetadataService>();
         services.AddSingleton<CorrectionService>();
         services.AddSingleton<FavoritesService>();
+        services.AddSingleton<OfflineBooks>();
         services.AddSingleton<ReadingService>();
         services.AddSingleton<NotesService>();
         services.AddSingleton(new HeldActions(host.Clock));

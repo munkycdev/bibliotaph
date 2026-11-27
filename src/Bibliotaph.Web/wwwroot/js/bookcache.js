@@ -3,14 +3,15 @@
 // network again. Chunk files rather than one sparse file because a main-thread OPFS writable with keepExistingData
 // copies the whole file on every close. Without OPFS (a private window, say), chunks are kept for this page only.
 //
-// Each book's folder has a manifest: its size, title and card, when it was last read, and whether it is kept offline.
-// Books not kept offline are let go, least recently read first, once all of them take more than the limit Settings sets
-// for this browser.
+// Each book's folder has a manifest: its size, title and card, when it was last read, whether it is kept offline, and
+// whether it is kept for a favorite or binder (prep). Books kept neither way are let go, least recently read first, once
+// all of them take more than the limit Settings sets for this browser.
 export const ChunkSize = 1 << 20;
 // The most chunks one read asks for; the server refuses a read of more than 16 MB.
 const MostChunksARead = 8;
 
 const LimitKey = 'bibliotaph.reader.cacheLimit';
+const PreparedKey = 'bibliotaph.reader.keepPrepared';
 export const DefaultLimit = 2 * 1024 ** 3;
 
 export class BookCache {
@@ -20,9 +21,9 @@ export class BookCache {
    * @param {() => Promise<string|null>} link the file's link now: asked for at first and again whenever reading fails
    * @param {{title: string, entryId: number, documentId: number}} about what Settings lists it as
    */
-  static async open(key, size, link, about) {
+  static async open(key, size, link, about, read = true) {
     const cache = new BookCache(key, size, link);
-    await cache.#load(about);
+    await cache.#load(about, read);
     return cache;
   }
 
@@ -42,14 +43,16 @@ export class BookCache {
   get complete() { return this.size > 0 && this.have.size === this.chunkCount; }
   get stored() { return this.dir != null; }
   get kept() { return this.manifest?.keep === true; }
+  get prepared() { return this.manifest?.prep === true; }
 
-  async #load(about) {
+  // Only the reader's opens count as reads: keeping a favorite whole doesn't make it the most recently read.
+  async #load(about, read) {
     try {
       const books = await booksFolder(true);
       this.dir = await books.getDirectoryHandle(this.key, { create: true });
       for await (const name of this.dir.keys()) if (/^\d+$/.test(name)) this.have.add(Number(name));
       const before = await readManifest(this.dir);
-      this.manifest = { ...before, size: this.size, ...about, read: Date.now(), keep: before?.keep === true };
+      this.manifest = { ...before, size: this.size, ...about, read: read || !before?.read ? Date.now() : before.read, keep: before?.keep === true };
       await writeJson(this.dir, 'manifest.json', this.manifest);
     } catch {
       this.dir = null;
@@ -166,10 +169,10 @@ export class BookCache {
         this.have.add(i);
         return;
       } catch {
-        // Out of space: this sitting keeps it.
+        // Out of space: this sitting keeps it, unless nobody is reading it now.
       }
     }
-    this.memory.set(i, part);
+    if (!this.diskOnly) this.memory.set(i, part);
   }
 
   /** How much of the book is here, from 0 to 1. */
@@ -185,9 +188,22 @@ export class BookCache {
     this.manifest = { ...this.manifest, keep: on };
     await writeJson(this.dir, 'manifest.json', this.manifest);
     if (!on) {
-      this.close();
+      if (!this.prepared) this.close();
       return true;
     }
+    return this.#fill(progress);
+  }
+
+  /** Keeps the whole book for a favorite or binder, as keepOffline does for the user, or lets that go. */
+  async prepare(on, progress) {
+    if (!this.dir) return false;
+    this.manifest = { ...this.manifest, prep: on };
+    await writeJson(this.dir, 'manifest.json', this.manifest);
+    if (!on) return true;
+    return this.#fill(progress);
+  }
+
+  async #fill(progress) {
     // Asked once: a browser that grants it won't clear the books it keeps when space runs low.
     try { await navigator.storage.persist?.(); } catch { }
     const missing = [];
@@ -266,7 +282,7 @@ export async function books() {
     const bytes = last && size ? (chunks - 1) * ChunkSize + (size - (Math.ceil(size / ChunkSize) - 1) * ChunkSize) : chunks * ChunkSize;
     list.push({
       key, title: manifest.title ?? '', entryId: manifest.entryId ?? 0, documentId: manifest.documentId ?? 0, size, bytes,
-      complete: size > 0 && chunks === Math.ceil(size / ChunkSize), keep: manifest.keep === true, read: manifest.read ?? 0,
+      complete: size > 0 && chunks === Math.ceil(size / ChunkSize), keep: manifest.keep === true, prep: manifest.prep === true, read: manifest.read ?? 0,
     });
   }
   return list;
@@ -278,8 +294,8 @@ export async function books() {
  */
 export async function trim(openKey, most = limit()) {
   const all = await books();
-  let total = all.filter(b => !b.keep).reduce((n, b) => n + b.bytes, 0);
-  for (const book of all.filter(b => !b.keep && b.key !== openKey).sort((a, b) => a.read - b.read)) {
+  let total = all.filter(b => !b.keep && !b.prep).reduce((n, b) => n + b.bytes, 0);
+  for (const book of all.filter(b => !b.keep && !b.prep && b.key !== openKey).sort((a, b) => a.read - b.read)) {
     if (total <= most) break;
     if (await remove(book.key)) total -= book.bytes;
   }
@@ -295,9 +311,61 @@ export async function remove(key) {
   }
 }
 
-/** Every book not kept offline. */
+/** Every book not kept offline, by the user or for a favorite or binder. */
 export async function clear() {
-  for (const book of await books()) if (!book.keep) await remove(book.key);
+  for (const book of await books()) if (!book.keep && !book.prep) await remove(book.key);
+}
+
+/** Whether this browser keeps favorites' and binders' books whole. Off unless chosen: a browser may be a phone's. */
+export function preparedOn() {
+  try { return localStorage.getItem(PreparedKey) === 'on'; } catch { return false; }
+}
+
+export function setPreparedOn(on) {
+  try { localStorage.setItem(PreparedKey, on ? 'on' : 'off'); } catch { /* stays as it was */ }
+}
+
+/**
+ * Keeps whole in this browser the books favorites and binders need, one at a time, and lets go of those no longer
+ * needed: they join the other books read here, going once the limit needs their room. A book that would take the
+ * browser past nine tenths of what it lets Bibliotaph keep waits for room. <paramref name="page"/> gives each file's
+ * link (Link(documentId)) and hears how it's going (Prepared(ready, total, noRoom, failed, bytes, working)).
+ * @param {{key: string, size: number, documentId: number, entryId: number, title: string}[]} wanted
+ */
+export async function keepPrepared(wanted, page, on = preparedOn()) {
+  // One tab does it at a time; another open meanwhile leaves it to that one.
+  if (navigator.locks?.request) return navigator.locks.request('bibliotaph-prepared', { ifAvailable: true }, lock => lock ? prepare(wanted, page, on) : null);
+  return prepare(wanted, page, on);
+}
+
+async function prepare(wanted, page, on) {
+  const keys = new Set(on ? wanted.map(b => b.key) : []);
+  const all = await books();
+  for (const book of all.filter(b => b.prep && !keys.has(b.key))) {
+    try {
+      const folder = await (await booksFolder(false)).getDirectoryHandle(book.key);
+      const manifest = await readManifest(folder) ?? {};
+      await writeJson(folder, 'manifest.json', { ...manifest, prep: false });
+    } catch { /* gone already */ }
+  }
+  const list = on ? wanted : [];
+  let ready = 0, noRoom = 0, failed = 0, bytes = 0;
+  const tell = working => page.invokeMethodAsync('Prepared', ready, list.length, noRoom, failed, bytes, working).catch(() => { });
+  await tell(true);
+  for (const book of list) {
+    const cache = await BookCache.open(book.key, book.size, () => page.invokeMethodAsync('Link', book.documentId),
+      { title: book.title, entryId: book.entryId, documentId: book.documentId }, false);
+    if (!cache.stored) { failed++; continue; }
+    cache.diskOnly = true;
+    if (!cache.complete) {
+      const { usage, quota } = await space();
+      const missing = book.size - cache.have.size * ChunkSize;
+      if (quota > 0 && usage + missing > quota * 0.9) { noRoom++; await tell(true); continue; }
+    }
+    if (await cache.prepare(true, null).catch(() => false)) { ready++; bytes += book.size; } else failed++;
+    await tell(true);
+  }
+  await tell(false);
 }
 
 /** Every book this browser keeps, offline or not, and the limit: for an account being closed. */

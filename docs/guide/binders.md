@@ -46,6 +46,9 @@ the middle, and the binder's notes are on the right.
   saved as you type.
 - **Pop out** moves the binder into its own window, for a second screen. **Return to main window** brings it back at
   the same page.
+- Every book and page range in a binder that only your storage or web library has is downloaded ahead and kept on
+  your PC, so the session runs without a connection (see
+  [favorites and binders kept offline](onedrive-and-other-pcs.md)).
 
 ### Rules at hand
 

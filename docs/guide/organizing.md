@@ -10,6 +10,8 @@ takes it out of the group.
 Mark a book with a heart: hover over its cover and click the heart, choose **Add to favorites** on its right-click
 menu, or click the heart in its details or in the reader's toolbar. **Favorites**, pinned in the sidebar from the
 start, shows them all, and `favorite:yes` finds them in a search. For an image in a pack, the heart goes on the pack.
+A favorite that only your storage or web library has is kept on your PC, so it opens without a connection (see
+[favorites and binders kept offline](onedrive-and-other-pcs.md)).
 
 ## Collections
 

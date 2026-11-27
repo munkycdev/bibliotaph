@@ -49,6 +49,36 @@ public abstract partial class PipelineTests
                 _states[path] = CloudFileState.OnlineOnly;
             }
         }
+
+        /// <summary>The files a cloud folder holds, which can be kept on the device; none unless a test adds them.</summary>
+        public HashSet<string> CloudPaths { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public List<string> KeptOnDevice { get; } = [];
+
+        public List<string> LetGo { get; } = [];
+
+        public bool CanKeepOnDevice(string path)
+        {
+            lock (_lock) return CloudPaths.Contains(path) && _states.GetValueOrDefault(path, CloudFileState.Local) != CloudFileState.Pinned;
+        }
+
+        public void KeepOnDevice(string path)
+        {
+            lock (_lock)
+            {
+                KeptOnDevice.Add(path);
+                _states[path] = CloudFileState.Pinned;
+            }
+        }
+
+        public void LetGoOnDevice(string path)
+        {
+            lock (_lock)
+            {
+                LetGo.Add(path);
+                _states[path] = CloudFileState.Local;
+            }
+        }
     }
 
     /// <summary>The read-only reader, telling the stand-in cloud that each file it opens has been downloaded.</summary>
