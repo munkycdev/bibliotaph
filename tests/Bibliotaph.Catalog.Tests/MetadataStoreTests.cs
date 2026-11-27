@@ -62,6 +62,17 @@ public sealed class MetadataStoreTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Rerunning_hints_takes_a_title_written_differently_by_newer_rules()
+    {
+        await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Title, "Harbor Rules Cc", AssertionOrigin.Filename, "HARBOR_RULES_CC.pdf")], Ct);
+
+        Assert.True(await _metadata.ReplaceHintsAsync(_document, Hash,
+            [Hint(MetadataFields.Title, "Harbor Rules CC", AssertionOrigin.Filename, "HARBOR_RULES_CC.pdf")], Ct));
+
+        Assert.Equal("Harbor Rules CC", (await EffectiveAsync())[MetadataFields.Title].First!.Value);
+    }
+
+    [Fact]
     public async Task Rerunning_hints_keeps_unchanged_rows_and_replaces_only_provisional_ones()
     {
         await _metadata.ReplaceHintsAsync(_document, Hash, [Hint(MetadataFields.Edition, "dnd-5e"), Hint(MetadataFields.Types, "adventure")], Ct);

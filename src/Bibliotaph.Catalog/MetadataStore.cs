@@ -164,9 +164,13 @@ public sealed class MetadataStore(IDbContextFactory<CatalogDbContext> contexts, 
                 db.Assertions.Remove(row);
                 changed = true;
             }
-            else if (row.EvidenceQuote != keep.Quote)
+            else
             {
+                // The same value, perhaps written differently now, as a title read by newer rules ("CC", not "Cc").
+                var value = JsonSerializer.Serialize(keep.Value);
+                if (row.EvidenceQuote == keep.Quote && row.ValueJson == value) continue;
                 row.EvidenceQuote = keep.Quote;
+                row.ValueJson = value;
                 changed = true;
             }
         }
