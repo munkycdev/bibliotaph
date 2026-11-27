@@ -18,7 +18,8 @@ Bibliotaph found, the books you own with no file, and the maps and handouts that
 wait in Needs review.
 
 A book is counted as the Library shows it: a pack counts once, a book found twice counts once (its second copy counts as
-a duplicate), and a book owned in print or online counts as a book. Its pages count once, whatever its copies.
+a duplicate), a book owned in print or online counts as a book, and a map or handout that goes with a book counts in
+its tile, not as a book of its own. Its pages count once, whatever its copies. Home's count is the same.
 
 ## Where it came from
 

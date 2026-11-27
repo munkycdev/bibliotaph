@@ -17,6 +17,9 @@ Every search has two tabs:
   Click **Open page** and the book opens at that page, with your words highlighted. The **+** on a page adds it to
   your current binder.
 
+When no book's title or details have your words but some pages do, the Documents tab says how many pages in how many
+books, with **Show pages inside documents** to go to them.
+
 While Bibliotaph is still reading your library, the results say how much is covered, for example "Searching text in
 70 of 84 documents."
 

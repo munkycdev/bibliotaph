@@ -401,7 +401,8 @@ library already knows:
 The first three link the file at once, as a suggestion. A name, the AI, or a folder of two or three books only
 suggest it, and Needs review asks with a **Goes with a book?** card. A file counts when it isn't a book: an image, a
 pack, or a PDF typed as a map pack, handout or character sheet, or of a page or two, or named like one ("character
-sheet", "battle map"). **Character sheet** is a type of its own for that.
+sheet", "battle map"), or like a boxed set's other parts ("maps", "cards", "stickers", "standees"). **Character sheet**
+is a type of its own for that.
 
 In a map's details, **Goes with** names its book and why. **Keep** makes the suggestion yours, so later passes leave it
 alone; **Change…** picks another book (any book, an adventure inside a file, or a book you own elsewhere); **Not from

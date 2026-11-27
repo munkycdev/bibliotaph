@@ -43,6 +43,8 @@ public sealed class BookLookups(IBookCatalogue catalogue)
     [
         "character sheet", "character sheets", "char sheet", "pregens", "pregenerated characters", "handout", "handouts", "battle map", "battle maps",
         "battlemap", "battlemaps", "map pack", "poster map", "tokens", "pawns", "form fillable", "cheat sheet", "reference sheet",
+        // A boxed set's other parts, which sit beside its book and go with it.
+        "maps", "cards", "card deck", "stickers", "standees",
     ];
 
     /// <summary>The most pages of a file too short to be a book, where nothing says what it is.</summary>

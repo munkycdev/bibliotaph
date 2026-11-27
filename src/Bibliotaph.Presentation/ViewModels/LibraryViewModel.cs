@@ -572,7 +572,10 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
             Hits = [];
             CountText = documents.Count.ToString("N0", CultureInfo.CurrentCulture);
             CountLabel = $"{(documents.Count == 1 ? "document" : "documents")} {forQuery}";
-            SetEmpty(documents.Count > 0 ? null : NoResults(filtered));
+            // Words found only inside books: say so, and take the person there, rather than "nothing here".
+            SetEmpty(documents.Count > 0 ? null
+                : pages.MatchingPages > 0 ? (LibraryText.OnlyInsideTitle, LibraryText.OnlyInside(pages.MatchingPages, pages.MatchingEntries), LibraryText.ShowInside, ShowPagesCommand)
+                : NoResults(filtered));
             return;
         }
 
@@ -658,6 +661,9 @@ public sealed partial class LibraryViewModel : LibraryAwarePageViewModel, IColle
 
     [RelayCommand]
     void ShowDocuments() => Tab = ResultsTab.Documents;
+
+    [RelayCommand]
+    void ShowPages() => Tab = ResultsTab.Pages;
 
     [RelayCommand]
     async Task OpenDetails(LibraryItemViewModel item)

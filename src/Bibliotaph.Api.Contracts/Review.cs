@@ -159,7 +159,7 @@ public static class ReviewWords
         _ => $"{N(remaining)} suggestions worth a second look. The rest is ready to use.",
     };
 
-    public static string SuggestionsTab(int remaining) => $"Metadata suggestions  {N(remaining)}";
+    public static string SuggestionsTab(int remaining) => $"Metadata suggestions · {N(remaining)}";
 
     public static string FilesTab(int files) => $"Files needing attention · {N(files)}";
 

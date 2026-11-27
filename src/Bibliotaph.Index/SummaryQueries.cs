@@ -50,7 +50,7 @@ public sealed class SummaryQueries(IndexDatabase database)
         var counts = await One<CountsRow>(
             """
             SELECT
-                coalesce(sum(kind <> 'Part'), 0) AS Books,
+                coalesce(sum(kind <> 'Part' AND source_id IS NULL), 0) AS Books,
                 coalesce(sum(kind = 'Whole'), 0) AS Files,
                 coalesce(sum(kind = 'Pack'), 0) AS Packs,
                 coalesce(sum(kind = 'Part'), 0) AS Adventures,
@@ -184,7 +184,7 @@ public sealed class SummaryQueries(IndexDatabase database)
     {
         if (scope.Count == 0) return 0;
         await using var connection = database.OpenRead();
-        return await connection.ExecuteScalarAsync<long>(new CommandDefinition(Shown + "SELECT count(*) FROM shown WHERE kind <> 'Part'",
+        return await connection.ExecuteScalarAsync<long>(new CommandDefinition(Shown + "SELECT count(*) FROM shown WHERE kind <> 'Part' AND source_id IS NULL",
             new { scope = JsonSerializer.Serialize(scope) }, cancellationToken: ct));
     }
 

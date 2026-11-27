@@ -1021,6 +1021,7 @@ else
         "clear-search" or "clear-all" => Filter(action == "clear-search" ? _query with { Q = null, Tab = null }
             : new LibraryQuery { Sort = _query.Sort, Collection = _query.Collection, AddedHere = _query.AddedHere, Favorites = _query.Favorites, Binder = _query.Binder }),
         "show-documents" => ShowTab(null),
+        "show-pages" => ShowTab("pages"),
         _ => Task.CompletedTask,
     };
 

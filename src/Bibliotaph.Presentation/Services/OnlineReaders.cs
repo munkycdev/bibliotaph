@@ -125,7 +125,7 @@ public sealed class OnlineReaders(IInAppBrowser browser, IReaderWindows windows,
     /// <summary>Moves the main window's online reader to a window of its own, at the page in view; the main window goes Back.</summary>
     public async Task PopOutAsync(OnlineReaderViewModel reader)
     {
-        if (ReferenceEquals(navigation.Current, reader) && !navigation.GoBack()) navigation.NavigateTo(Route.Library);
+        if (ReferenceEquals(navigation.Current, reader) && !navigation.GoBack(forward: false)) navigation.NavigateTo(Route.Library);
         await windows.HostAsync(Create(reader.Here(), poppedOut: true));
     }
 

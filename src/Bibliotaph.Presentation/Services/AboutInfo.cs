@@ -11,6 +11,8 @@ public sealed record AboutInfo(string Version, string? Commit, string Runtime, s
 {
     public const string SourceUrl = "https://github.com/munkycdev/bibliotaph";
     public const string IssuesUrl = SourceUrl + "/issues";
+    /// <summary>The user guide, which starts at the README.</summary>
+    public const string GuideUrl = SourceUrl + "#readme";
     public const string Copyright = "Copyright © 2026 munkycdev";
 
     /// <summary>"1.0.0 (4578ab9)", or just the version for a build made outside git.</summary>

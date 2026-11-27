@@ -422,6 +422,8 @@ public sealed record CollectionSuggestionCardText(CollectionSuggestion Suggestio
             if (Suggestion.Series is { } series) reasons.Add($"are in the series “{series}”");
             if (Suggestion.Setting is { } setting && Suggestion.System is { } system)
                 reasons.Add($"are set in {Vocabulary.Label(MetadataFields.Settings.Vocabulary!, setting)} for {Vocabulary.Label(MetadataFields.System.Vocabulary!, system)}");
+            // A suggestion made on something else the books share still says why, if less precisely.
+            if (reasons.Count == 0) return $"{(Count == 1 ? "This book is" : "These books are")} like most of the books in this collection.";
             return $"Most of the books in this collection {string.Join(", or ", reasons)}, and so {(Count == 1 ? "is this one" : "are these")}.";
         }
     }

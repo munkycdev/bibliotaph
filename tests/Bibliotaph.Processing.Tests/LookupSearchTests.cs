@@ -46,6 +46,11 @@ public sealed class LookupSearchTests
     [InlineData("", "Owlbear Mill - Battle Map (Night)", 12, true)]
     [InlineData("", "Gull Rock Saga Character Sheet", 4, true)]
     [InlineData("", "Mapping the Gull Rock", 12, false)]
+    // A boxed set's cards, stickers and maps go with its book, as a map does, however many pages they run to.
+    [InlineData("", "Gull Rock Saga Cards", 14, true)]
+    [InlineData("", "Gull Rock Saga Stickers", 6, true)]
+    [InlineData("", "Gull Rock Saga Player Maps", 8, true)]
+    [InlineData("", "The Card Sharp of Gull Rock", 40, false)]
     public void A_map_or_a_sheet_isnt_looked_up_as_a_book(string types, string title, int? pages, bool notABook)
     {
         Assert.Equal(notABook, BookLookups.IsNotABook(types.Split(',', StringSplitOptions.RemoveEmptyEntries), [title, null], pages));

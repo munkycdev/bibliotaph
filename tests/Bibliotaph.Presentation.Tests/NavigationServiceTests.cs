@@ -41,6 +41,26 @@ public class NavigationServiceTests
     }
 
     [Fact]
+    public void Forward_returns_to_the_page_Back_left_until_somewhere_else_is_visited()
+    {
+        _navigation.NavigateTo(Route.Home);
+        _navigation.NavigateTo(Route.Library);
+        var library = _navigation.Current;
+        Assert.False(_navigation.CanGoForward);
+
+        _navigation.GoBack();
+        Assert.True(_navigation.CanGoForward);
+        Assert.True(_navigation.GoForward());
+        Assert.Same(library, _navigation.Current);
+        Assert.False(_navigation.CanGoForward);
+
+        _navigation.GoBack();
+        _navigation.NavigateTo(Route.Summary);
+        Assert.False(_navigation.CanGoForward);
+        Assert.False(_navigation.GoForward());
+    }
+
+    [Fact]
     public void Going_to_the_page_already_showing_makes_no_new_page()
     {
         _navigation.NavigateTo(Route.Library);

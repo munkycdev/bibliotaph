@@ -63,6 +63,10 @@ public class DisplayTitleTests
     [InlineData("Something to Sail For.pdf", "Something to Sail For")]
     [InlineData("half-elf-harbors.pdf", "Half Elf Harbors")]
     [InlineData("3f9a8b7c6d5e4f30a1b2.pdf", "3f9a8b7c6d5e4f30a1b2")]
+    [InlineData("Harbor Quests (print only).pdf", "Harbor Quests (Print Only)")]
+    [InlineData("harbor quests \"night edition\".pdf", "Harbor Quests \"Night Edition\"")]
+    [InlineData("HARBOR_RULES_CC_v5.2.1.pdf", "Harbor Rules CC")]
+    [InlineData("IF_IT_IS_THE_HARBOR.pdf", "If It Is the Harbor")]
     public void Keeps_what_belongs_to_the_title(string fileName, string expected) =>
         Assert.Equal(expected, DisplayTitle.FromFileName(fileName));
 }
