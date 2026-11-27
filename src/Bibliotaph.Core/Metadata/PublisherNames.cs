@@ -4,8 +4,8 @@ namespace Bibliotaph.Core.Metadata;
 
 /// <summary>
 /// One publisher under one name. Two names are the same publisher when they match with legal suffixes ("Inc",
-/// "Corporation", "LLC", "GmbH"), a leading "The", punctuation and case set aside: "Adams Media" and "Adams Media
-/// Corporation". The library files them under the form most of its books use, and on a tie the shorter.
+/// "Corporation", "LLC", "GmbH"), a leading "The", punctuation and case set aside: "Brass Lantern Press" and "Brass
+/// Lantern Press, Inc.". The library files them under the form most of its books use, and on a tie the shorter.
 /// </summary>
 public static class PublisherNames
 {
@@ -16,8 +16,8 @@ public static class PublisherNames
     };
 
     /// <summary>
-    /// What two names of one publisher share: "adams media" for "Adams Media Corporation" and "The Adams Media, Inc.".
-    /// Empty for a name that is nothing but punctuation.
+    /// What two names of one publisher share: "brass lantern press" for "Brass Lantern Press Corporation" and "The
+    /// Brass Lantern Press, Inc.". Empty for a name that is nothing but punctuation.
     /// </summary>
     public static string Key(string? name)
     {

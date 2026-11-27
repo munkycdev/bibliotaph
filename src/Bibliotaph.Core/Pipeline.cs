@@ -33,8 +33,9 @@ public static class Pipeline
         Stage.Text => 1,
         Stage.Covers => 1,
         // 2: adventures are proposed only when the book says it is a collection of them. 3: titles from file names split
-        // words run together and drop copy markers, tags and product codes.
-        Stage.RuleHints => 3,
+        // words run together and drop copy markers, tags and product codes. 4: a word after a bracket or quotation mark
+        // is capitalized, and two capitals in a title set in capitals stay initials.
+        Stage.RuleHints => 4,
         Stage.Ocr => 1,
         // Never bumped for a new prompt or model: those are recorded per run, and reclassifying is the user's call.
         Stage.Classify => 1,
