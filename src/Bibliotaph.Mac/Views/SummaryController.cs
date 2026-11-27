@@ -200,17 +200,31 @@ public sealed class SummaryController(SummaryViewModel summary) : NSViewControll
     static NSStackView Columns(params NSStackView?[] lists)
     {
         var row = new NSStackView { Distribution = NSStackViewDistribution.FillEqually, Spacing = 32, Alignment = NSLayoutAttribute.Top };
-        foreach (var list in lists) row.AddArrangedSubview((NSView?)list ?? new NSView());
-        foreach (var view in row.ArrangedSubviews)
-        {
-            view.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
-            // Each list as tall as its own lines: a shorter list stretched to the row's height spread its lines out,
-            // dropping its heading below its neighbours'.
-            if (view is NSStackView list) list.SetHuggingPriority(750, NSLayoutConstraintOrientation.Vertical);
-        }
+        foreach (var list in lists) row.AddArrangedSubview(list is null ? new NSView() : AtTop(list));
+        foreach (var view in row.ArrangedSubviews) view.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
         // Equal however narrow a column's contents would let it be.
         foreach (var view in row.ArrangedSubviews.Skip(1)) view.WidthAnchor.ConstraintEqualTo(row.ArrangedSubviews[0].WidthAnchor).Active = true;
         return row;
+    }
+
+    /// <summary>
+    /// A list at the top of its place in a row of lists, as tall as its own lines: a shorter list the row stretched to
+    /// its neighbours' height spread its lines out, dropping its heading below theirs.
+    /// </summary>
+    static NSView AtTop(NSStackView list)
+    {
+        var place = new NSView();
+        list.TranslatesAutoresizingMaskIntoConstraints = false;
+        list.SetHuggingPriority(750, NSLayoutConstraintOrientation.Vertical);
+        place.AddSubview(list);
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            list.TopAnchor.ConstraintEqualTo(place.TopAnchor),
+            list.LeadingAnchor.ConstraintEqualTo(place.LeadingAnchor),
+            list.TrailingAnchor.ConstraintEqualTo(place.TrailingAnchor),
+            list.BottomAnchor.ConstraintLessThanOrEqualTo(place.BottomAnchor),
+        ]);
+        return place;
     }
 
     static NSStackView Legend()
