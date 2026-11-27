@@ -52,6 +52,7 @@ public abstract partial class ApiTests
             using var held = await client.PostAsync("/api/library/held/nothing", null, ct);
             using var corrected = await client.PostAsJsonAsync($"{path}/correction", new CorrectionEnd(true), ct);
             var after = await client.GetFromJsonAsync<BookDetails>(path, ct);
+            var offline = await client.GetFromJsonAsync<List<OfflineBook>>("/api/library/offline-books", ct);
             var other = Client(await AddUserAsync(admin: false));
             other.DefaultRequestHeaders.Add(ApiHeaders.Client, "1");
             using var stranger = await other.PostAsJsonAsync($"{path}/fields/title", new FieldEdit("Mine"), ct);
@@ -67,6 +68,10 @@ public abstract partial class ApiTests
             Assert.Equal("That can't be done any more.", (await held.Content.ReadFromJsonAsync<ActionResult>(ct))!.Message);
             Assert.Equal(HttpStatusCode.NoContent, corrected.StatusCode);
             Assert.True(after!.Card.Favorite);
+            var offlineBook = Assert.Single(offline!);
+            Assert.Equal((book.EntryId, "Harbor of Lost Ships", "a favorite"), (offlineBook.EntryId, offlineBook.Title, offlineBook.Why));
+            Assert.True(offlineBook.Size > 0);
+            Assert.Equal(64, offlineBook.Key.Length);
             Assert.Equal("Notes (1)", after.NotesLabel);
             Assert.Contains(after.Fields, f => f.Key == "title" && !f.Suggested && f.CanReset);
             Assert.Equal(HttpStatusCode.NotFound, stranger.StatusCode);

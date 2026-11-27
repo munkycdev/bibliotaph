@@ -53,7 +53,7 @@ public abstract partial class PipelineTests
     /// The web library's books on a connected PC: listed from the server's list of files, put in the library and made
     /// searchable from what the server read, and downloaded only to be opened.
     /// </summary>
-    public sealed class WebLibraryTests(SyntheticPdfs synthetic) : PipelineTests(synthetic)
+    public sealed partial class WebLibraryTests(SyntheticPdfs synthetic) : PipelineTests(synthetic)
     {
         static readonly DateTime Modified = new(2026, 10, 1, 9, 0, 0, DateTimeKind.Utc);
 

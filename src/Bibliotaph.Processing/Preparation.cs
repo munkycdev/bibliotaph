@@ -9,11 +9,15 @@ namespace Bibliotaph.Processing;
 /// </summary>
 public sealed class FavoritesService(FavoriteStore favorites, EntryStore entries, MetadataProjector projector)
 {
+    /// <summary>Raised after a book was marked or unmarked, on the thread that changed it.</summary>
+    public event EventHandler? Changed;
+
     /// <summary>Marks or unmarks these books. Returns those that changed.</summary>
     public async Task<IReadOnlyList<EntryId>> SetAsync(IReadOnlyCollection<EntryId> entryIds, bool favorite, CancellationToken ct = default)
     {
         var changed = await favorites.SetAsync(entryIds, favorite, ct);
         await projector.ProjectMarksAsync(changed, ct);
+        if (changed.Count > 0) Changed?.Invoke(this, EventArgs.Empty);
         return changed;
     }
 

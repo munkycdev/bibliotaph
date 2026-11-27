@@ -354,6 +354,7 @@ a{color:var(--bt-accent)}
 .bt-actions.centered{justify-content:center}
 .bt-check{display:flex;flex:0 0 auto;align-items:center;gap:8px;font-size:13px}
 .bt-check input{width:auto}
+.bt-check.bt-prepared{margin-top:16px}
 .bt-end{align-self:flex-end}
 .bt-shown-once{padding:6px 0 0}
 .bt-nav-hint{padding:0 10px}

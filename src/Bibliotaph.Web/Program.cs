@@ -26,5 +26,6 @@ builder.Services.AddScoped<Breadcrumb>();
 builder.Services.AddScoped<AskScope>();
 builder.Services.AddScoped<UnlockedBooks>();
 builder.Services.AddScoped<DetailsPane>();
+builder.Services.AddScoped<BrowserOffline>();
 
 await builder.Build().RunAsync();

@@ -565,6 +565,11 @@ you've written about it.
 - **Keep offline**: the drive button in the reader's toolbar downloads the whole book to this browser, showing how far
   it has got, so it opens and turns pages at once. Click it again to let the book go with the others. If the download
   stops, it carries on next time you open the book.
+- **Keep favorites and binders offline**, in **Settings** › **Devices**, keeps whole in this browser every book you
+  heart and every book or page range in a binder, downloading each once while Bibliotaph is open (at the start and
+  every five minutes, or at once with **Download now**). It's off to start in each browser, since a browser may be a
+  phone's. A book that would take the browser past nine tenths of the room it allows waits. Their reader's drive
+  button shows them kept; one that's no longer a favorite or in a binder joins the other books read here.
 - **Books in this browser**, in **Settings** › **Devices**, lists the books kept here, how much room they take, and when you last read
   them. Set the room for books not kept offline (2 GB to start); past it, the books you read longest ago are let go
   first. A book kept offline is never let go for room. **×** lets one book go, and **Let go of books not kept
@@ -683,7 +688,9 @@ the **Room for downloads** in the app's **Settings > Devices** (5 GB to start); 
 recently go. To read a book without a connection, such as at the table, tick **Keep offline on this PC** in its
 details while you're online: it's downloaded then and stays until you untick it. Opened without a connection, any
 other web library book says it needs one. **Open in another app** opens the downloaded copy. **Free up space** in **Settings > Devices** deletes the downloads not kept
-offline, and disconnecting deletes them too; the ones kept offline stay for when you connect again.
+offline, and disconnecting deletes them too; the ones kept offline stay for when you connect again. The app keeps your
+favorites' and binders' books offline for you too, as **Keep favorites and binders offline** in its **Settings > Devices**
+says (see [Using OneDrive and more than one PC](onedrive-and-other-pcs.md)).
 
 A connected PC looks its books up through bibliotaph.online, which
 asks RPGGeek, AdventureLookup, Open Library and Google Books, so the PC's own books are found in all four, as the web

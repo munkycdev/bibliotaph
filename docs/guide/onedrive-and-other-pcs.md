@@ -14,10 +14,16 @@ downloaded for Bibliotaph to read them, so:
   **Free up space**. The book stays in your library and searchable, and opening it later downloads it as usual. That's
   how a cloud library bigger than your disk gets read, a batch at a time.
 
-That last step is the one time Bibliotaph asks Windows to do something to a file: it only drops the downloaded copy.
+That last step is one of two times Bibliotaph asks Windows to do something to a file: it only drops the downloaded copy.
 The file's content, name, place and dates don't change. Files you already had on your PC, files set to
 **Always keep on this device**, and a book you have open are left alone. To keep everything downloaded instead, untick
 **Return files to online-only after indexing** in **Settings > Processing**.
+
+The other time is for your favorites and binders. While **Keep favorites and binders offline** is ticked in
+**Settings > Devices** (it is to start), a favorite's or a binder's book in a OneDrive folder is set to
+**Always keep on this device** and downloaded, so it opens at the table without a connection. When it's no longer a
+favorite or in a binder, Bibliotaph gives it back to OneDrive's own choice; it doesn't free it up at once, and a file
+you set yourself is never changed.
 
 Other cloud apps' folders work too, as ordinary folders. To read OneDrive, Dropbox, Google Drive or WebDAV
 without their apps, see [Storage without its app](#storage-without-its-app).
@@ -57,6 +63,18 @@ web library's, up to the **Room for downloads** in **Settings > Devices**; past 
 go. To read a book without a connection, such as at the table, tick **Keep offline on this PC** in its details while
 you're online: it stays until you untick it, even if you disconnect the storage. **Open in another app** opens the
 downloaded copy, and **Free up space** in **Settings > Devices** deletes the downloads not kept offline.
+
+Your favorites and binders are kept offline for you. With **Keep favorites and binders offline** ticked in
+**Settings > Devices**, every book you heart, and every book or page range in a binder, that only your storage or web
+library has is downloaded once in the background and stays, whatever the room for downloads. Its details show
+**Keep offline on this PC** ticked, saying why ("because it's a favorite", "in the binder “Night one”"). Settings says
+how many are kept and how much room they take, and how many are waiting: a book that would leave less than 2 GB free
+waits for space, and one that couldn't be downloaded waits for **Download now**, which also looks again at once.
+Bibliotaph looks again whenever you change a favorite or binder, here or on another device, and every 15 minutes;
+it never downloads a book it already has, and a book that changes in your storage is downloaded again as its new
+version. Unheart a book or take it out of its binders and it joins the other downloads, going when their room is
+needed, so a book you heart again soon isn't downloaded again. Untick the setting and they all do. The Mac app does
+the same, apart from OneDrive files.
 
 If the PC is [connected to your web library](#more-than-one-pc) and a folder you add from storage holds one of the web
 library's folders (or is the same folder), the PC reads those books straight from your storage and the web library's

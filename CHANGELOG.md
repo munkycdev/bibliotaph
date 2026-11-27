@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **New: favorites and binders kept offline.** Every book you heart, and every book or page range in a binder, that
+  only your storage or web library has is downloaded once and kept on the PC, so it opens at the table without a
+  connection; a favorite in a OneDrive folder is set to Always keep on this device. **Keep favorites and binders
+  offline** in Settings > Devices turns it off, says how many are kept, and has **Download now**. A book's details say
+  why it's kept. Unhearted or out of its binders, a book joins the other downloads. On Windows and the Mac (not
+  OneDrive files there), and on the web for each browser that turns it on.
+
 ## 1.6 · 9 November 2026
 
 New in 1.6.1464 (27 November 2026):

@@ -22,6 +22,10 @@ public sealed class ReaderClient(ApiHttp http)
     public Task<ReaderLink> ReaderLinkAsync(long documentId, CancellationToken ct = default) =>
         http.SendAsync<ReaderLink>(HttpMethod.Get, $"{Document(documentId)}/link", null, ct);
 
+    /// <summary>The files favorites and binders need, for a browser that keeps them offline.</summary>
+    public Task<List<OfflineBook>> OfflineBooksAsync(CancellationToken ct = default) =>
+        http.SendAsync<List<OfflineBook>>(HttpMethod.Get, "api/library/offline-books", null, ct);
+
     /// <summary>The password remembered for a locked PDF, tried before the reader asks.</summary>
     public Task<ReaderPassword> RememberedPasswordAsync(long documentId, CancellationToken ct = default) =>
         http.SendAsync<ReaderPassword>(HttpMethod.Get, $"{Document(documentId)}/password", null, ct);

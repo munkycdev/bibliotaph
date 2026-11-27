@@ -173,12 +173,13 @@ else
                             @onclick="() => Pins.ToggleAsync(PinKinds.Book, book.EntryId)"><Icon Name="Pin" Size="15" /></button>
                     @if (_stored)
                     {
-                        var offlineAction = !_kept ? "Keep offline: the whole book downloads to this browser, so it opens without the network"
+                        var offlineAction = _prepared && !_kept ? "Kept offline in this browser for your favorites and binders, as Settings › Devices says"
+                            : !_kept ? "Keep offline: the whole book downloads to this browser, so it opens without the network"
                             : _offlineProgress < 1 ? "Downloading to keep offline. Click to stop and let it go with the other books in this browser"
                             : "Kept offline in this browser. Click to let it go with the other books read here";
-                        <button class="bt-icon bt-offline @(_kept ? "on" : "")" title="@offlineAction" aria-label="Keep offline" aria-pressed="@_kept"
-                                @onclick="ToggleOfflineAsync"><Icon Name="HardDrive" Size="15" /></button>
-                        @if (_kept && _offlineProgress < 1)
+                        <button class="bt-icon bt-offline @(_kept || _prepared ? "on" : "")" title="@offlineAction" aria-label="Keep offline" aria-pressed="@(_kept || _prepared)"
+                                disabled="@(_prepared && !_kept)" @onclick="ToggleOfflineAsync"><Icon Name="HardDrive" Size="15" /></button>
+                        @if ((_kept || _prepared) && _offlineProgress < 1)
                         {
                             <span class="bt-small bt-offlineprogress" role="status">@_offlineProgress.ToString("P0", System.Globalization.CultureInfo.CurrentCulture)</span>
                         }
@@ -381,7 +382,7 @@ else
     IJSObjectReference? _module, _reader;
     DotNetObjectReference<ReaderView>? _self;
     bool _opened, _canCopy = true, _favorite, _showOutline, _showStrip;
-    bool _stored, _kept;
+    bool _stored, _kept, _prepared;
     double _offlineProgress;
     int _page;
     string _pageEntry = "";
@@ -491,7 +492,7 @@ else
         _opened = false;
         _canCopy = true;
         _passwords.Reset();
-        _stored = _kept = false;
+        _stored = _kept = _prepared = false;
         _find.Clear();
         _notes = null;
         _noteDone = null;
@@ -1071,12 +1072,16 @@ else
         StateHasChanged();
     }
 
-    /// <summary>Whether this browser keeps the book's pages, whether it's kept offline, and how much of it is here.</summary>
+    /// <summary>
+    /// Whether this browser keeps the book's pages, whether it's kept offline by the user or for a favorite or binder,
+    /// and how much of it is here.
+    /// </summary>
     [JSInvokable]
-    public void Offline(bool stored, bool kept, double progress)
+    public void Offline(bool stored, bool kept, double progress, bool prepared)
     {
         _stored = stored;
         _kept = kept;
+        _prepared = prepared;
         _offlineProgress = progress;
         StateHasChanged();
     }

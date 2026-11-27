@@ -36,6 +36,13 @@ public static partial class ReaderApi
             return await OpenAsync(lease.Library, new EntryId(entryId), doc, page, q, keep == true, ct, item) is { } book ? Results.Ok(book) : Results.NotFound();
         });
 
+        // What a browser that keeps favorites and binders offline downloads; each file's link is asked for as the reader's is.
+        api.MapGet("/library/offline-books", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await OfflineBooksAsync(lease.Library, ct);
+        });
+
         var document = api.MapGroup("/library/documents/{documentId:long}");
 
         // Asked for when the book opens and again whenever the link has expired, which takes about an hour.
@@ -264,6 +271,29 @@ public static partial class ReaderApi
 
     static ReaderBook Unreadable(LibraryEntry entry, bool favorite, ReaderProblem problem) =>
         new(entry.EntryId.Value, 0, entry.Title, "", "", "", 0, [], 0, 0, null, [], favorite, problem);
+
+    internal static async Task<IReadOnlyList<OfflineBook>> OfflineBooksAsync(UserLibrary library, CancellationToken ct)
+    {
+        var wanted = await library.Get<OfflineBooks>().ListAsync(ct);
+        if (wanted.Count == 0) return [];
+        var documentIds = wanted.Select(b => b.DocumentId).ToList();
+        await using var db = library.Catalog.CreateContext();
+        var sizes = (await db.FileLocations.AsNoTracking().Where(l => l.DocumentId != null && documentIds.Contains(l.DocumentId.Value))
+                .Select(l => new { DocumentId = l.DocumentId!.Value, l.SizeBytes }).ToListAsync(ct))
+            .GroupBy(l => l.DocumentId).ToDictionary(g => g.Key, g => g.Max(l => l.SizeBytes));
+        var titles = await library.Get<IndexQueries>().GetEntryTitlesAsync([.. wanted.Select(b => b.EntryId).Distinct()], ct);
+        var store = library.Get<LibraryStore>();
+        List<OfflineBook> books = [];
+        foreach (var book in wanted)
+        {
+            // A file that has gone, or one in a ZIP, which the reader can't read by ranges, isn't kept.
+            var size = sizes.GetValueOrDefault(book.DocumentId);
+            if (size <= 0 || await store.GetSourceAsync(book.DocumentId, ct) is not { InArchive: false } source) continue;
+            // The reader's key for the same file, so a book read before is already here.
+            books.Add(new OfflineBook(book.EntryId.Value, book.DocumentId, titles.GetValueOrDefault(book.EntryId) ?? "", source.ContentHash, size, book.Why));
+        }
+        return books;
+    }
 
     internal static async Task<ReaderLink> LinkAsync(UserLibrary library, ReadLinks links, long documentId, CancellationToken ct)
     {

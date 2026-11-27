@@ -12,11 +12,14 @@ namespace Bibliotaph.Presentation.ViewModels;
 /// page in the browser and shows the code the page shows, then waits for the user's answer there; leaving the section
 /// stops waiting. Once connected, it says whose library and how library sync with it is going, and Disconnect
 /// forgets the PC's key here and on the web. It also says how much of the web library is downloaded here, and sets
-/// the room for the downloads not kept offline.
+/// the room for the downloads not kept offline, and whether favorites' and binders' books are kept here (<see cref="OfflineKeeper"/>).
 /// </summary>
 public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync sync, WebShelfSync shelf, WebLibraryCopies copies, IDesktopShell shell,
-    IUiThread ui, TimeProvider clock, Bibliotaph.Storage.Desktop.PcConnections storage, ILogger<DevicesSectionViewModel> log) : SettingsSectionViewModel
+    IUiThread ui, TimeProvider clock, Bibliotaph.Storage.Desktop.PcConnections storage, ILogger<DevicesSectionViewModel> log, OfflineKeeper keeper)
+    : SettingsSectionViewModel
 {
+    static string Device => OperatingSystem.IsMacOS() ? "Mac" : "PC";
+
     // Stops the wait; the wait itself owns its token source.
     Action? _stopWaiting;
     string? _approveUrl;
@@ -66,6 +69,54 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
 
     bool _showingRoom;
 
+    /// <summary>"Keep favorites and binders offline": their books only storage or the web library has are downloaded and kept here.</summary>
+    [ObservableProperty]
+    public partial bool KeepsPrepared { get; set; } = true;
+
+    /// <summary>How keeping favorites and binders offline is going.</summary>
+    [ObservableProperty]
+    public partial string? PreparedLine { get; private set; }
+
+    bool _showingPrepared;
+
+    partial void OnKeepsPreparedChanged(bool value)
+    {
+        if (!_showingPrepared) Task.Run(() => keeper.SetOnAsync(value)).FireAndForget();
+    }
+
+    void OnKeeperChanged(object? sender, EventArgs e) => ui.Post(() => ShowPrepared(keeper.Status));
+
+    void ShowPrepared(OfflineKeepStatus status)
+    {
+        _showingPrepared = true;
+        KeepsPrepared = status.On;
+        _showingPrepared = false;
+        PreparedLine = Describe(status, Device);
+        if (status.Books > 0) ShowsCopies = true;
+        DownloadNowCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>What Settings says of keeping favorites and binders offline on this <paramref name="device"/> ("PC", "Mac").</summary>
+    public static string Describe(OfflineKeepStatus status, string device)
+    {
+        if (!status.On) return "Off. Favorites and binders are downloaded when you open them, like any other book.";
+        if (status.Working && status.Books == 0) return "Looking for favorites and binders to keep…";
+        if (status.Books == 0) return $"Nothing to download: every favorite and binder book is on this {device} already.";
+        var line = status.Working && status.Ready < status.Books
+            ? $"Downloading favorites and binders: {status.Ready} of {status.Books} {LibraryActivity.Plural(status.Books, "book", "books")} on this {device}"
+            : $"{status.Ready} {LibraryActivity.Plural(status.Ready, "book", "books")} from favorites and binders kept on this {device}";
+        line += status.Bytes > 0 ? $", {LibraryActivity.Size(status.Bytes)}." : ".";
+        if (!status.Working && status.NoRoom > 0) line += $" {status.NoRoom} {LibraryActivity.Plural(status.NoRoom, "waits", "wait")} for free disk space.";
+        if (!status.Working && status.Failed > 0) line += $" {status.Failed} couldn't be downloaded; Download now tries again.";
+        return line;
+    }
+
+    bool CanDownloadNow => keeper.Status is { On: true, Working: false };
+
+    /// <summary>Download now: looks again at favorites and binders, and tries again the books that couldn't be downloaded.</summary>
+    [RelayCommand(CanExecute = nameof(CanDownloadNow))]
+    void DownloadNow() => keeper.Refresh();
+
     partial void OnIsConnectedChanged(bool value) => OnPropertyChanged(nameof(CanConnect));
 
     partial void OnIsWaitingChanged(bool value) => OnPropertyChanged(nameof(CanConnect));
@@ -74,6 +125,8 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
     {
         sync.StatusChanged -= OnSyncStatusChanged;
         sync.StatusChanged += OnSyncStatusChanged;
+        keeper.StatusChanged -= OnKeeperChanged;
+        keeper.StatusChanged += OnKeeperChanged;
         if (IsWaiting) return;
         await ShowAsync();
     }
@@ -81,6 +134,7 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
     public override void Unload()
     {
         sync.StatusChanged -= OnSyncStatusChanged;
+        keeper.StatusChanged -= OnKeeperChanged;
         _stopWaiting?.Invoke();
     }
 
@@ -102,13 +156,15 @@ public sealed partial class DevicesSectionViewModel(WebLibrary web, LibrarySync 
     async Task ShowCopiesAsync()
     {
         var summary = await Task.Run(() => copies.SummarizeAsync());
-        ShowsCopies = IsConnected || summary.Books > 0 || (await Task.Run(() => storage.ListAsync())).Count > 0;
+        var prepared = await Task.Run(() => keeper.StatusAsync());
+        ShowsCopies = IsConnected || summary.Books > 0 || prepared.Books > 0 || (await Task.Run(() => storage.ListAsync())).Count > 0;
         _showingRoom = true;
         RoomGb = await copies.GetRoomGbAsync();
         _showingRoom = false;
         CopiesLine = summary.Books == 0 ? "No books are downloaded to this PC to read."
             : $"{summary.Books} {LibraryActivity.Plural(summary.Books, "book", "books")} downloaded to this PC to read, {LibraryActivity.Size(summary.Bytes)}"
                 + (summary.KeptOffline == 0 ? "." : $", {summary.KeptOffline} kept offline.");
+        ShowPrepared(prepared);
     }
 
     /// <summary>Deletes the downloads not kept offline and not open; they're downloaded again when they're opened.</summary>

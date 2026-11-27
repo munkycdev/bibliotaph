@@ -7,7 +7,8 @@ namespace Bibliotaph.Mac.Views;
 
 /// <summary>
 /// Settings › Web Library, as Windows' Devices: connecting this Mac to the user's web library, which approves it in the
-/// browser with a code to check, then how its sync is going, and how much room copies of web books may take here.
+/// browser with a code to check, then how its sync is going, how much room copies of web books may take here, and
+/// whether favorites' and binders' books are kept here.
 /// </summary>
 public sealed partial class SettingsWindow
 {
@@ -32,7 +33,7 @@ public sealed partial class SettingsWindow
         var sync = connection.Row("Sync");
 
         var copies = form.Section("Copies of web books",
-            "Books that are only in your web library are copied here as you open them, up to this much room; the least used go first.");
+            "Books that are only in your web library are copied here as you open them, up to this much room; the least used go first. Those kept offline, and favorites' and binders' books, don't count.");
         var room = FormText.Choices(devices.RoomChoices.Select(gb => $"{gb} GB"), at =>
         {
             if (at >= 0 && at < devices.RoomChoices.Count) devices.RoomGb = devices.RoomChoices[at];
@@ -40,6 +41,9 @@ public sealed partial class SettingsWindow
         // Free Up Space deletes the copies not kept offline, as on Windows; they come back as they're opened.
         var free = Button("Free Up Space", devices.FreeUpSpaceCommand, bindings);
         var roomRow = copies.Row("Room on this Mac", room, free);
+        // Favorites' and binders' books only storage or the web library has stay here, downloaded once, as on Windows.
+        var prepared = FormText.Switch(on => devices.KeepsPrepared = on);
+        var preparedRow = copies.Row("Keep favorites and binders offline", prepared, Button("Download Now", devices.DownloadNowCommand, bindings));
 
         bindings.Properties(devices, [nameof(DevicesSectionViewModel.IsConnected), nameof(DevicesSectionViewModel.IsWaiting),
             nameof(DevicesSectionViewModel.Code), nameof(DevicesSectionViewModel.StatusLine), nameof(DevicesSectionViewModel.SyncLine),
@@ -54,6 +58,11 @@ public sealed partial class SettingsWindow
             sync.Hidden = devices.SyncLine is null;
             connection.Note(devices.Note ?? "Connected, this Mac keeps its folders, corrections, collections and binders in step with your other devices, and looks books up through the web library.");
             connection.Footer.TextColor = devices.Note is null ? NSColor.SecondaryLabel : NSColor.SystemOrange;
+        });
+        bindings.Properties(devices, [nameof(DevicesSectionViewModel.KeepsPrepared), nameof(DevicesSectionViewModel.PreparedLine)], () =>
+        {
+            FormText.Set(prepared, devices.KeepsPrepared);
+            preparedRow.ShowDetail(devices.PreparedLine);
         });
         bindings.Properties(devices, [nameof(DevicesSectionViewModel.ShowsCopies), nameof(DevicesSectionViewModel.CopiesLine), nameof(DevicesSectionViewModel.RoomGb)], () =>
         {
