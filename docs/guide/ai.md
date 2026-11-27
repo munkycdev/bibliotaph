@@ -67,7 +67,9 @@ Bibliotaph never switches to a cloud service by itself.
 threw away and why. **Delete model** frees the space.
 
 The built-in AI uses your graphics card when it can and falls back to the processor, which is much slower. It only
-runs while it has books to read.
+runs while it has work to do: the model loads when there is a book to read or a question to answer, and lets the
+memory go half a minute after the last book is read, or five minutes after your last question, so a follow-up
+doesn't wait for it to load again. Pausing AI, switching it off or closing Bibliotaph lets it go at once.
 
 Under **Ask this book**, **Download the embedding model** (nomic-embed-text, about 150 MB) lets **Ask this book** and
 [questions to your library](searching.md#ask-your-library-a-question) find pages by what they mean as well as by their
