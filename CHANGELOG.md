@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Fixed: one publisher listed twice.** Names that differ only by Inc, Corporation, LLC, Ltd and the like, a leading
+  "The", punctuation or capitals are one publisher in the publisher filter, the search guide and Summary, under the
+  name most of your books use. An online lookup or the AI suggests a publisher already in your library under that
+  name too. What you typed yourself is never changed.
 - **Changed: the Mac app follows Apple's guidelines more closely.** Buttons, menu items, tabs and headings are in
   title case, as the sidebar's All Books and Needs Review are. The menu bar has Services, Forward (⌘], and the mouse's
   forward button or a swipe), a Find submenu, Show Toolbar and Bibliotaph Help, and Close for ⌘W. A PDF's password is

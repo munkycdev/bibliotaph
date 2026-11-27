@@ -268,6 +268,20 @@ public sealed class MetadataStoreTests : IAsyncLifetime
         new(field, value, AssertionOrigin.Ai, quote, [page]);
 
     [Fact]
+    public async Task A_suggested_publisher_takes_the_library_s_form_of_its_name()
+    {
+        var other = await TestEntries.AddAsync(_database, 'b');
+        var third = await TestEntries.AddAsync(_database, 'c');
+        await _metadata.ApplyRunAsync(other, new string('b', 64), "run0", AssertionOrigin.Ai, [Ai(MetadataFields.Publisher, "Lantern Press")], Ct);
+        await _metadata.ApplyRunAsync(third, new string('c', 64), "run0", AssertionOrigin.Ai, [Ai(MetadataFields.Publisher, "Lantern Press")], Ct);
+
+        await _metadata.ApplyRunAsync(_document, Hash, "run1", AssertionOrigin.Lookup,
+            [new MetadataProposal(MetadataFields.Publisher, "Lantern Press, Inc.", AssertionOrigin.Lookup)], Ct);
+
+        Assert.Equal("Lantern Press", (await EffectiveAsync())[MetadataFields.Publisher].First!.Value);
+    }
+
+    [Fact]
     public async Task A_run_replaces_its_origins_undecided_suggestions_and_leaves_decisions_alone()
     {
         await _metadata.ApplyRunAsync(_document, Hash, "run1", AssertionOrigin.Ai,

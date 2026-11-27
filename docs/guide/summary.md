@@ -31,7 +31,9 @@ its tile, not as a book of its own. Its pages count once, whatever its copies. H
   (**Get it from**), with how many bought from stores are on your drive and how many are still waiting to be
   downloaded. **Import more** opens Settings › Online libraries.
 - **Publishers**: who published your books, most first, by the publisher's name as the Library's publisher filter has
-  it. A book's publisher can come from you, from an online lookup or from the AI.
+  it. A book's publisher can come from you, from an online lookup or from the AI. Names that differ only by a word
+  like Inc, Corporation, LLC or Ltd, a leading "The", punctuation or capitals are one publisher, listed under the name
+  most of your books use (on a tie, the shorter).
 - **Found online**: how many books each online catalogue (RPGGeek, AdventureLookup, Open Library, Google Books) has a
   record of that Bibliotaph uses, and **Not found online** for the rest, including books not looked up yet. A book found
   by two catalogues counts under both. It shows once a catalogue has found a book, and opens the Library's **Found

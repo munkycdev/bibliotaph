@@ -150,6 +150,16 @@ public sealed class SummaryQueriesTests : IndexFixture
     }
 
     [Fact]
+    public async Task A_publisher_under_two_forms_of_its_name_counts_once_under_the_commoner()
+    {
+        await _store.SetMetadataAsync([new EntryMetaRow { EntryId = EntryOf(Novel), Year = 2021, Publisher = "Big Games, Inc." }], Ct);
+
+        var summary = await SummaryAsync();
+
+        Assert.Equal([("Big Games", 3L)], summary.Publishers.Select(v => (v.Value, v.Count)));
+    }
+
+    [Fact]
     public async Task Lookup_fields_are_counted_as_the_library_filters_them()
     {
         var summary = await SummaryAsync();
