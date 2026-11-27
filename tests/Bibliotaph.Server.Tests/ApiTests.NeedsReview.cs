@@ -127,7 +127,7 @@ public abstract partial class ApiTests
             Assert.Contains("Pathfinder", list.Choices["system"]);
             Assert.False(list.Choices.ContainsKey("title"));
             Assert.Equal(("Type a title", "Keep as is", false), (title.EditLabel, title.RejectLabel, title.CanAccept));
-            Assert.Equal(("Heist Kit", "New type", "Suggested for 2 books.", "“a heist kit”"), (term.Label, term.Chip, term.Detail, term.Example));
+            Assert.Equal(("Heist Kit", "New type?", "Suggested for 2 books.", "“a heist kit”"), (term.Label, term.Chip, term.Detail, term.Example));
             Assert.Contains(term.Targets, t => t.Key == "map-pack");
             Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
             Assert.Equal("Game system is now Dungeons & Dragons.", accepted.Message);
