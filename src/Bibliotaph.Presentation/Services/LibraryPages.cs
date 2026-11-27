@@ -57,8 +57,8 @@ public sealed class LibraryPages(INavigationService navigation, SearchState sear
     }
 
     /// <summary>
-    /// The whole Library with a book's editor open for Cataloged wrong…, as from a cover's menu on Home or a "You said
-    /// this book was cataloged wrong" card.
+    /// The whole Library with a book's editor open for Catalogued wrong…, as from a cover's menu on Home or a "You said
+    /// this book was catalogued wrong" card.
     /// </summary>
     public void ShowCorrection(EntryId entryId)
     {

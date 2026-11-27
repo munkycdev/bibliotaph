@@ -1136,7 +1136,7 @@
 
               <!--
                 The book's actions, in one row under the cover: what it opens with on the left, labelled (they wrap when there
-                are many); pin, binder and Cataloged wrong… on the right, as icons.
+                are many); pin, binder and Catalogued wrong… on the right, as icons.
               -->
               <DockPanel Margin="0,20,0,-8">
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,0,0,8">
@@ -1150,9 +1150,9 @@
                       <ContextMenu Style="{StaticResource Bt.Menu}" c:SessionMenu.Command="{x:Static c:BookCommands.AddToSession}" />
                     </Button.ContextMenu>
                   </Button>
-                  <!-- Cataloged wrong…: the details below, open to correct, with the guesses marked. -->
+                  <!-- Catalogued wrong…: the details below, open to correct, with the guesses marked. -->
                   <Button x:Name="CatalogedWrong" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Pencil}" Margin="2,0,0,0"
-                          ToolTip="Cataloged wrong? Correct its details: the values Bibliotaph guessed are marked" AutomationProperties.Name="Cataloged wrong…"
+                          ToolTip="Catalogued wrong? Correct its details: the values Bibliotaph guessed are marked" AutomationProperties.Name="Catalogued wrong…"
                           Command="{Binding StartCorrectingCommand}" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
                 </StackPanel>
                 <WrapPanel>
@@ -1395,9 +1395,9 @@
               </StackPanel.Resources>
               <!--
                 What a game master asks first: what it's for and who, what's in it and what goes with it; then where it came
-                from, then its file and how it was read, folded until opened. Cataloged wrong… opens every section of fields.
+                from, then its file and how it was read, folded until opened. Catalogued wrong… opens every section of fields.
               -->
-              <!-- Cataloged wrong…: what to do, and Done. Closing the details without a change leaves a Needs review card. -->
+              <!-- Catalogued wrong…: what to do, and Done. Closing the details without a change leaves a Needs review card. -->
               <Border x:Name="CorrectingBanner" Background="{DynamicResource Bt.Soft}" CornerRadius="6" Padding="14,10" Margin="0,24,0,0"
                       AutomationProperties.Name="Correcting this book" Visibility="{Binding IsCorrecting, Converter={StaticResource Bt.VisibleWhenTrue}}">
                 <DockPanel>

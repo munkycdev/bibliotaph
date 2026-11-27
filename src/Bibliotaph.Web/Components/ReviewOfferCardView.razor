@@ -1,5 +1,5 @@
 @* .bt-reviewitem: a card that asks one question: the new version, image pack, owned elsewhere, places
-   to check, cataloged wrong, folder rule and collection cards: what it is about, the evidence, and its answers.
+   to check, catalogued wrong, folder rule and collection cards: what it is about, the evidence, and its answers.
    Answered, it folds to one line with Undo. A new version's places are checked one by one, and the card is done once
    none needs a look. *@
 @inject LibraryClient LibraryApi
@@ -166,7 +166,7 @@
 
     Task AnswerAsync(string choice)
     {
-        // Fix it opens the book's details for Cataloged wrong… again; the card goes once a correction is made there.
+        // Fix it opens the book's details for Catalogued wrong… again; the card goes once a correction is made there.
         if (choice == "fix" && Card.Fix is { } entryId)
         {
             Navigation.NavigateTo($"library?book={entryId}&correct=true");

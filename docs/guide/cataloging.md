@@ -1,6 +1,6 @@
-# Cataloging
+# Cataloguing
 
-[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Cataloging
+[Bibliotaph](../../README.md) › [Guide](../../README.md#the-guide) › Cataloguing
 
 Bibliotaph fills in each book's details by itself, so you don't have to type them. You only step in when something's
 wrong, and your corrections always win: reading a book again, or a new AI suggestion, never undoes them.
@@ -98,7 +98,7 @@ Under the cover is a row of buttons for what you can do with the book:
 - **Ask this book**, with AI set up. See [Reading](reading.md#ask-this-book).
 - **Open in another app**, for a protected book Bibliotaph can't read.
 - **Remove from library**, for a book you own elsewhere. It's on the book's right-click menu in the Library too.
-- On the right, icon buttons to pin the book, add it to a binder, and correct it (**Cataloged wrong…**).
+- On the right, icon buttons to pin the book, add it to a binder, and correct it (**Catalogued wrong…**).
 
 The **Details** tab puts what you need to run a game first: what the book is for and who, what goes with it and
 what's in it. Where it came from, its file and how it was read come last. Click a section's heading to fold it
@@ -131,7 +131,7 @@ away, or to open it again; every book's details keep the sections as you left th
 
 In the three sections that hold fields, empty fields are hidden until you click **More fields**, except the main ones,
 and **Players** on an adventure, so you can say who it's for straight away. **Suggested** marks values nobody has
-confirmed yet. Open one to see where it came from, with the page and quote. **Cataloged wrong…** opens all three.
+confirmed yet. Open one to see where it came from, with the page and quote. **Catalogued wrong…** opens all three.
 
 The **Notes** tab has a note for the whole book, saved as you type, and the notes on its pages.
 
@@ -201,12 +201,12 @@ To try the lookup again without touching the books already found, click the butt
 online** in **Settings > Processing** and choose **Only the N not found**. On Windows the question's **Yes** is only
 those and **No** is every book.
 
-### Cataloged wrong
+### Catalogued wrong
 
-When a book is plainly wrong, right-click it (in the Library or on Home) and choose **Cataloged wrong…**, or click the
+When a book is plainly wrong, right-click it (in the Library or on Home) and choose **Catalogued wrong…**, or click the
 pencil button under the cover in its details. Every field shows, and each guess carries a **Guessed** mark with its
 evidence open, so you can see what to fix. If you leave without changing anything, Needs review keeps a "You said this
-book was cataloged wrong" card with **Fix it**, and **It's fine now** if you change your mind.
+book was catalogued wrong" card with **Fix it**, and **It's fine now** if you change your mind.
 
 After you fix a field, Bibliotaph offers to fix the same guess on other books in that folder, for example
 "Change 1 other book from “Horror” too?", with **Undo** afterwards. And when you set the same value on three books

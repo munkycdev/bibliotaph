@@ -889,7 +889,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         Add(item.FavoriteAction, library.ToggleFavoriteCommand);
         // Named as the menu opens, since the book may have been pinned or unpinned from the sidebar since.
         Add(MenuChoiceSource.PinLabel(library, item), library.TogglePinBookCommand, tip: "Pinned books show in the sidebar and on Home");
-        Add("Cataloged Wrong…", library.CatalogedWrongCommand, tip: "Correct its details: the values Bibliotaph guessed are marked");
+        Add("Catalogued Wrong…", library.CatalogedWrongCommand, tip: "Correct its details: the values Bibliotaph guessed are marked");
         menu.AddItem(NSMenuItem.SeparatorItem);
         if (item.ShowOpenOnline) Add(item.OnlineAction, library.OpenOnlineCommand);
         if (item.CanOpenElsewhere) Add("Open in Another App", library.OpenElsewhereCommand);

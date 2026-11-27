@@ -75,7 +75,7 @@
             <AddToBinder What="@addCard.Title" Add="() => new BinderAdd([adding], addCard.Title)" Done="AddedToBinderAsync" ButtonClass="bt-icon" IconSize="15" />
             @if (!_correcting)
             {
-                <button class="bt-icon" title="Cataloged wrong? Correct its details: the values Bibliotaph guessed are marked" aria-label="Cataloged wrong…"
+                <button class="bt-icon" title="Catalogued wrong? Correct its details: the values Bibliotaph guessed are marked" aria-label="Catalogued wrong…"
                         @onclick="StartCorrecting"><Icon Name="Pencil" Size="15" /></button>
             }
         </div>
@@ -161,7 +161,7 @@
         else
         {
             @* What a game master asks first: what it's for and who, what's in it and what goes with it, then where it came
-               from, then its file and how it was read, folded until opened. Cataloged wrong… opens every group of fields.
+               from, then its file and how it was read, folded until opened. Catalogued wrong… opens every group of fields.
                Blazor needs sibling keys to differ whatever the component, so each section pairs its own name with the
                book: another book starts every section afresh. *@
             @if (_correcting)
@@ -280,7 +280,7 @@
 
     bool _correcting;
 
-    /// <summary>Whether <see cref="Correct"/> was acted on, so it starts Cataloged wrong… for the first book only.</summary>
+    /// <summary>Whether <see cref="Correct"/> was acted on, so it starts Catalogued wrong… for the first book only.</summary>
     bool _tookCorrect;
     bool _decided;
     CorrectionOffer? _offer;
@@ -291,7 +291,7 @@
     /// <summary>The book whose details these are: a card's <see cref="BookCard.EntryId"/>.</summary>
     [Parameter, EditorRequired] public long EntryId { get; set; }
 
-    /// <summary>Starts Cataloged wrong… once the first book's details are read, for Needs review's Fix it.</summary>
+    /// <summary>Starts Catalogued wrong… once the first book's details are read, for Needs review's Fix it.</summary>
     [Parameter] public bool Correct { get; set; }
 
     /// <summary>The card these details were opened from, when it is a file in a pack shown on its own.</summary>
@@ -401,7 +401,7 @@
 
     Task KeyDown(KeyboardEventArgs e) => e.Key == "Escape" ? Close() : Task.CompletedTask;
 
-    /// <summary>Leaving a book's details: its note is saved, and Cataloged wrong… ends.</summary>
+    /// <summary>Leaving a book's details: its note is saved, and Catalogued wrong… ends.</summary>
     async Task LeaveAsync(long entryId)
     {
         if (entryId == 0) return;
@@ -524,7 +524,7 @@
         }
     }
 
-    // Cataloged wrong…
+    // Catalogued wrong…
 
     /// <summary>Every field showing, the guesses marked and their evidence open, until Done or the details close.</summary>
     void StartCorrecting()

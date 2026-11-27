@@ -250,12 +250,12 @@ public sealed record LookupMatchCardText(LookupMatchItem Item)
     public string NotThisBook => $"Won't use {Record.Source}'s record of {Record.Title} for {Item.BookTitle}.";
 }
 
-/// <summary>"You said this book was cataloged wrong": Fix it opens its details again, It's fine now takes the card away.</summary>
+/// <summary>"You said this book was catalogued wrong": Fix it opens its details again, It's fine now takes the card away.</summary>
 public sealed record CorrectionCardText(CorrectionItem Item)
 {
-    public const string Chip = "Cataloged wrong";
+    public const string Chip = "Catalogued wrong";
 
-    public const string Heading = "You said this book was cataloged wrong.";
+    public const string Heading = "You said this book was catalogued wrong.";
 
     public const string Detail = "Its details were closed without a change. Fix it opens them again, with the values Bibliotaph guessed marked.";
 

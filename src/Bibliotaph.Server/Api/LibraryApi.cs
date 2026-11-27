@@ -56,7 +56,7 @@ public static class LibraryApi
             return Results.NoContent();
         });
 
-        // Home's Fill in the catalog with AI? answered Not now.
+        // Home's Fill in the catalogue with AI? answered Not now.
         api.MapPost("/home/ai-later", async (ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);

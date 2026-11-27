@@ -251,7 +251,7 @@ public static class SyncFields
     /// <summary>The address of the cover a book owned elsewhere was imported with, on its online library's image server.</summary>
     public const string CoverUrl = "cover-url";
 
-    /// <summary>"Cataloged wrong…" left unanswered, so Needs review offers the editor again: always true.</summary>
+    /// <summary>"Catalogued wrong…" left unanswered, so Needs review offers the editor again: always true.</summary>
     public const string Wrong = "wrong";
 
     /// <summary>Never adding a card to a collection Needs review suggested, by the collection's sync id: "never.3f2…".</summary>

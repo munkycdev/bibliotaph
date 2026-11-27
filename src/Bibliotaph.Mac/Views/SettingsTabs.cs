@@ -131,7 +131,7 @@ public sealed partial class SettingsWindow
 
         var form = new Form();
         var backUp = form.Section("Back up",
-            "A backup holds your catalog: folders, corrections, collections, binders and notes. Your books aren't in it; they stay where they are.");
+            "A backup holds your catalogue: folders, corrections, collections, binders and notes. Your books aren't in it; they stay where they are.");
         var now = backUp.Row("Back up now", Button("Back Up…", backup.BackUpNowCommand, bindings));
         var include = FormText.Switch(on => backup.IncludeIndex = on);
         backUp.Row("Include the search index", "Larger backups, but a restored library is searchable straight away", include);
@@ -141,7 +141,7 @@ public sealed partial class SettingsWindow
             () => now.ShowDetail(backup.BackupNote ?? backup.LastBackup));
 
         var restore = form.Section("Restore",
-            "Puts your catalog back as it was when a backup was made, on this Mac or a new one. Your current catalog is backed up first. Passwords for protected PDFs and AI keys aren't in backups; Bibliotaph asks for them again when it needs them.");
+            "Puts your catalogue back as it was when a backup was made, on this Mac or a new one. Your current catalogue is backed up first. Passwords for protected PDFs and AI keys aren't in backups; Bibliotaph asks for them again when it needs them.");
         var choose = restore.Row("Restore from a backup", Button("Choose…", backup.ChooseBackupCommand, bindings));
         var folders = form.Section("Folders in this backup");
         var restoreButtons = form.Buttons(Button("Cancel", backup.CancelRestoreCommand, bindings), Button("Restore and Restart…", backup.RestoreCommand, bindings));
@@ -165,11 +165,11 @@ public sealed partial class SettingsWindow
         });
 
         var export = form.Section("Export",
-            "CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON has everything in the catalog, for other programs.");
+            "CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON has everything in the catalogue, for other programs.");
         export.Row("For a spreadsheet (CSV)", Button("Export…", backup.ExportCsvCommand, bindings));
         export.Row("Everything (JSON)", Button("Export…", backup.ExportJsonCommand, bindings));
         bindings.Property(backup, nameof(BackupSectionViewModel.ExportNote), () => export.Note(backup.ExportNote ??
-            "CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON has everything in the catalog, for other programs."));
+            "CSV has a row per book: title, system, type, levels, publisher, tags, collections and where its file is. JSON has everything in the catalogue, for other programs."));
 
         // A development aid, as on Windows: only with --dev, and last, so it isn't chosen by accident.
         if (_services.GetRequiredService<DevMode>().IsOn)

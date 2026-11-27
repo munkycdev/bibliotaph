@@ -298,7 +298,7 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
             if (command.CanExecute(parameter)) menu.AddItem(new NSMenuItem(title, (_, _) => command.Execute(parameter)));
         }
         if (_library is { } library) Item(inspector.PinLabel, library.TogglePinBookCommand, inspector.Item);
-        if (!inspector.IsCorrecting) Item("Cataloged Wrong…", inspector.StartCorrectingCommand);
+        if (!inspector.IsCorrecting) Item("Catalogued Wrong…", inspector.StartCorrectingCommand);
         Item(inspector.ReprocessLabel, inspector.ReprocessCommand);
         if (inspector.CanOcrEveryPage) Item("Reprocess with OCR on Every Page", inspector.ReprocessWithOcrCommand);
         if (inspector.Locations.FirstOrDefault(l => l.CanShowInExplorer && !l.IsMissing) is { } location)

@@ -31,7 +31,7 @@ public sealed partial class PilotSession(PilotService pilot, ILogger<PilotSessio
     [ObservableProperty]
     public partial string? Problem { get; private set; }
 
-    /// <summary>The review page's "Also save as my values in the catalog", on by default.</summary>
+    /// <summary>The review page's "Also save as my values in the catalogue", on by default.</summary>
     [ObservableProperty]
     public partial bool AlsoCatalog { get; set; } = true;
 

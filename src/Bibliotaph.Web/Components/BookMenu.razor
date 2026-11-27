@@ -1,5 +1,5 @@
 @* A book's right-click menu: open it, open its page where it's owned online, its details, Ask
-   this book, favorite, pin, Cataloged wrong…, download a file Bibliotaph can't read, Forget its text or Read it again,
+   this book, favorite, pin, Catalogued wrong…, download a file Bibliotaph can't read, Forget its text or Read it again,
    add it to a collection or a binder, and take a book owned elsewhere out of the library. Add to collection and Add to
    binder open their lists in the same menu, read as they open. *@
 @inject BindersClient BindersApi
@@ -49,7 +49,7 @@
         }
         <button class="bt-menuitem" role="menuitem" @onclick="FavoriteAsync">@(Book.Favorite ? "Remove from favorites" : "Add to favorites")</button>
         <button class="bt-menuitem" role="menuitem" title="Pinned books show in the sidebar and on Home" @onclick="PinAsync">@(Pins.IsPinned(PinKinds.Book, Book.EntryId) ? "Unpin" : "Pin")</button>
-        <button class="bt-menuitem" role="menuitem" title="Correct its details: the values Bibliotaph guessed are marked" @onclick="() => Run(Correct)">Cataloged wrong…</button>
+        <button class="bt-menuitem" role="menuitem" title="Correct its details: the values Bibliotaph guessed are marked" @onclick="() => Run(Correct)">Catalogued wrong…</button>
         @if (Book.Protected)
         {
             <button class="bt-menuitem" role="menuitem" title="Its protection is one Bibliotaph can't open: the file opens from your storage, for an app that can read it"
@@ -83,7 +83,7 @@
 
     [Parameter] public EventCallback Details { get; set; }
 
-    /// <summary>Cataloged wrong…: the details, with every guess marked.</summary>
+    /// <summary>Catalogued wrong…: the details, with every guess marked.</summary>
     [Parameter] public EventCallback Correct { get; set; }
 
     /// <summary>The library changed (a favorite, a book taken out), so the page lists it again.</summary>

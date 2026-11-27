@@ -466,7 +466,7 @@ public sealed class ClassificationRun
 }
 
 /// <summary>
-/// "You said this book was cataloged wrong": the user opened the editor with Cataloged wrong… and closed it without
+/// "You said this book was catalogued wrong": the user opened the editor with Catalogued wrong… and closed it without
 /// changing or confirming anything, so Needs review keeps a card that opens it again.
 /// </summary>
 public sealed class CorrectionRequest

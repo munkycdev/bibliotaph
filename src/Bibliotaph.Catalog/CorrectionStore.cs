@@ -11,7 +11,7 @@ public sealed record FolderRuleInfo(long Id, FolderKey Folder, string RootPath, 
 public sealed record FolderRuleWas(long Id, FolderRuleState State, DateTime? DecidedUtc);
 
 /// <summary>
-/// Easier corrections in catalog.db: the books the user said were cataloged wrong and left unfinished, which wait in
+/// Easier corrections in catalog.db: the books the user said were catalogued wrong and left unfinished, which wait in
 /// Needs review, and the folder rules proposed from the user's repeated corrections.
 /// </summary>
 public sealed class CorrectionStore(IDbContextFactory<CatalogDbContext> contexts, TimeProvider? clock = null)

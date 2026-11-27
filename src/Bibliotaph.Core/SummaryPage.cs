@@ -131,7 +131,7 @@ public sealed record SummaryPage
                     ? new SummaryValue("", "", Search.FoundOnline.NotFound, summary.NotFoundOnline, 0) : null,
                 new SummaryLink(Filter: new SummaryFilter(Search.FoundOnline.Field, SearchQuery.Unknown))),
             Systems = List("Game systems", summary.Systems,
-                summary.SystemUnknown > 0 ? new SummaryValue("", "", "Not cataloged yet", summary.SystemUnknown, 0) : null,
+                summary.SystemUnknown > 0 ? new SummaryValue("", "", "Not catalogued yet", summary.SystemUnknown, 0) : null,
                 new SummaryLink($"{SearchFields.System.Name}:{SearchQuery.Unknown}")),
             Types = List("Types", summary.Types),
             Settings = List("Settings", summary.Settings, link: Picked),

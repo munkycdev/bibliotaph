@@ -134,7 +134,7 @@ static partial class SmokeTest
             await Check("a book pinned from its menu, unpinned in its details, pinned again and unpinned from the sidebar", () => UsePinsAsync(services, window, books));
             await Check("a book owned elsewhere added, found by where it is owned, given a D&D Beyond link it opens with its site's icon on its badge, given a cover of its own, removed and brought back with it, the cover removed, and one offered a file already in the library",
                 () => AddElsewhereAsync(services, window, books));
-            await Check("right-click > Cataloged wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
+            await Check("right-click > Catalogued wrong… opened the details with the guesses marked, Done without a change left a Needs review card whose Fix it opened them again, and the correction was offered to a look-alike, made with Change them and undone",
                 () => CorrectBooksAsync(services, window, books));
             await Check("a folder of three books proposed as a collection in Needs review, made with Accept and undone",
                 () => MakeFolderCollectionAsync(services, window, books));
@@ -2980,7 +2980,7 @@ static partial class SmokeTest
             var innEntry = await services.GetRequiredService<EntryStore>().GetEntryAsync(inn) ?? throw new InvalidOperationException("The inn has no entry.");
             var (effective, _) = await services.GetRequiredService<MetadataService>().GetAsync(innEntry.EntryId);
             if (effective[MetadataFields.Title].First is not { Value: "The Haunted Inn", Confirmed: true })
-                throw new InvalidOperationException("The answer didn't become the book's title in the catalog.");
+                throw new InvalidOperationException("The answer didn't become the book's title in the catalogue.");
 
             var scores = await pilot.ScoreAsync();
             if (scores is not [{ Answered: 1, Fields: var fields }] || fields.Single(f => f.Field == "title") is not { Proposed: 1, Correct: 1 })

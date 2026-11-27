@@ -138,7 +138,7 @@ in **Settings > Online libraries** forgets every sign-in, cookie and page it kep
 
 At the bottom of **Settings > Online libraries**, **Book catalogues** is where you save your own RPGGeek token and
 Google Books API key, so a PC that isn't connected to bibliotaph.online looks books up there too. See
-[Cataloging](cataloging.md#your-own-rpggeek-token-and-google-books-key).
+[Cataloguing](cataloging.md#your-own-rpggeek-token-and-google-books-key).
 
 ---
 

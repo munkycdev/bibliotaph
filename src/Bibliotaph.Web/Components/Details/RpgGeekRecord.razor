@@ -43,7 +43,7 @@
     [Parameter, EditorRequired] public BookDetails Book { get; set; } = default!;
     [Parameter, EditorRequired] public IDetailsHost Host { get; set; } = default!;
 
-    /// <summary>A record was given or taken away, so leaving Cataloged wrong… leaves no reminder.</summary>
+    /// <summary>A record was given or taken away, so leaving Catalogued wrong… leaves no reminder.</summary>
     [Parameter] public EventCallback Decided { get; set; }
 
     bool _linking;

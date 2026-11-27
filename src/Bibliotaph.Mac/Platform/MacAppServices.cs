@@ -109,7 +109,7 @@ public sealed class MacAppLifetime(AppPaths paths, IForgetsSecrets secrets, ILog
         {
             alert.AlertStyle = NSAlertStyle.Warning;
             alert.MessageText = "Restore";
-            alert.InformativeText = $"Bibliotaph couldn't restore the backup{(made is null ? "" : $" from {made}")}, so your catalog is as it was.\n\n{outcome.Problem}";
+            alert.InformativeText = $"Bibliotaph couldn't restore the backup{(made is null ? "" : $" from {made}")}, so your catalogue is as it was.\n\n{outcome.Problem}";
         }
         else
         {
@@ -121,7 +121,7 @@ public sealed class MacAppLifetime(AppPaths paths, IForgetsSecrets secrets, ILog
                     ? "One library folder wasn't found, so its books are marked offline. Settings › Library can point it to its new place."
                     : $"{offline.OfflineFolders} library folders weren't found, so their books are marked offline. Settings › Library can point each to its new place.");
             lines.Add("Passwords for protected PDFs and AI keys aren't in backups: Bibliotaph asks for them again when it needs them.");
-            if (outcome.PreviousCatalogBackup is { } kept) lines.Add($"The catalog you had before is kept in the backups folder as {Path.GetFileName(kept)}.");
+            if (outcome.PreviousCatalogBackup is { } kept) lines.Add($"The catalogue you had before is kept in the backups folder as {Path.GetFileName(kept)}.");
             alert.MessageText = "Restored";
             alert.InformativeText = string.Join("\n\n", lines);
         }

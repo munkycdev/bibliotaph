@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Changed: British spelling of catalogue.** Bibliotaph says catalogue, catalogued and cataloguing everywhere, as
+  in "Catalogued wrong…" and "Not catalogued yet", on Windows, the Mac and the web, and in the guide.
 - **Fixed: one publisher listed twice.** Names that differ only by Inc, Corporation, LLC, Ltd and the like, a leading
   "The", punctuation or capitals are one publisher in the publisher filter, the search guide and Summary, under the
   name most of your books use. An online lookup or the AI suggests a publisher already in your library under that

@@ -13,7 +13,7 @@ namespace Bibliotaph.Server.Api;
 
 /// <summary>
 /// The changes the details drawer makes: a field's value typed, kept, used,
-/// rejected or reset, Cataloged wrong… and its look-alikes, the heart, the book's note, Reprocess, adventures marked
+/// rejected or reset, Catalogued wrong… and its look-alikes, the heart, the book's note, Reprocess, adventures marked
 /// in a file, a pack's cover and split, and a book's copies. Each answers with the details as they are now, or what
 /// it did with the token that undoes it.
 /// </summary>
@@ -55,7 +55,7 @@ public static class EditApi
                 return null;
             }, false, ct));
 
-        // Cataloged wrong… closed: left without a change or a kept value, the book gets a Needs review card that opens it again.
+        // Catalogued wrong… closed: left without a change or a kept value, the book gets a Needs review card that opens it again.
         book.MapPost("/correction", async (long entryId, CorrectionEnd end, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
         {
             await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);

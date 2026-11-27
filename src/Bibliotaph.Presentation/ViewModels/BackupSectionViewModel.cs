@@ -250,7 +250,7 @@ public sealed partial class BackupSectionViewModel(BackupService backups, Export
     {
         if (Preview is not { } preview) return;
         var offline = RestoreFolders.Count(f => !f.Found && !f.IsPointed);
-        var message = "Bibliotaph will keep a copy of your current catalog in the backups folder, then restart with this backup's. "
+        var message = "Bibliotaph will keep a copy of your current catalogue in the backups folder, then restart with this backup's. "
             + "Anything you did since the backup was made is replaced." + (offline == 0 ? ""
                 : $"\n\n{(offline == 1 ? "One library folder stays" : $"{offline} library folders stay")} offline until you point {(offline == 1 ? "it" : "them")} to {(offline == 1 ? "its" : "their")} new place.");
         if (!prompts.Confirm(message, "Restore this backup?", PromptKind.Warning, okByDefault: false)) return;

@@ -31,7 +31,7 @@ public abstract partial class PipelineTests
 
     /// <summary>
     /// Easier corrections through the real pipeline: a correction offered to look-alikes, folder rules proposed and used,
-    /// the Cataloged wrong card in Needs review, and worked examples for the classifier.
+    /// the Catalogued wrong card in Needs review, and worked examples for the classifier.
     /// </summary>
     public sealed class CorrectionsTests(SyntheticPdfs synthetic) : PipelineTests(synthetic)
     {

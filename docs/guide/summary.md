@@ -49,7 +49,7 @@ confirmed, so you can see how much of your catalogue is settled. Suggestions are
 away, and only those that sources disagree about wait in **Needs review**, so an empty Needs review with a long light
 part is normal. Choose **All suggestions** for **What waits for review** in **Settings > Preferences** to look at every
 one.
-**Not cataloged yet** is the books with no system so far. A setting, theme or environment opens the Library with it
+**Not catalogued yet** is the books with no system so far. A setting, theme or environment opens the Library with it
 picked in its box under More filters; what's included opens a search such as `includes:pregens`.
 
 **By character level** counts every book and adventure that covers each level from 1 to 20, so a level 1–3 adventure

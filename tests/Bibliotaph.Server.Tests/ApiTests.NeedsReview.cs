@@ -170,7 +170,7 @@ public abstract partial class ApiTests
             var books = await WaitAsync(async () => (await client.GetFromJsonAsync<LibraryResults>("/api/library", ct))!.Books is { Count: 2 } two ? two : null, ct);
             var book = books.OrderBy(b => b.Title, StringComparer.Ordinal).First();
 
-            // Cataloged wrong… left without a change, and the same system set on the books of one folder.
+            // Catalogued wrong… left without a change, and the same system set on the books of one folder.
             await using (var lease = await _factory.Services.GetRequiredService<UserLibraries>().OpenAsync(user.Id, ct))
             {
                 var library = lease.Library;
@@ -191,7 +191,7 @@ public abstract partial class ApiTests
             var status = (await client.GetFromJsonAsync<LibraryStatus>("/api/library/status", ct))!;
 
             Assert.Equal(["corrections", "rules"], list.Show.Select(s => s.Key).Where(k => !k.StartsWith("field:", StringComparison.Ordinal)));
-            Assert.Equal((book.Title, "Cataloged wrong", "You said this book was cataloged wrong.", book.EntryId),
+            Assert.Equal((book.Title, "Catalogued wrong", "You said this book was catalogued wrong.", book.EntryId),
                 (correction.Title, correction.Chip, correction.Heading, correction.Fix));
             Assert.Equal(["Fix it", "It's fine now"], correction.Choices.Select(c => c.Label));
             Assert.Equal(book.EntryId, correction.Book?.EntryId);

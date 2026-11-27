@@ -307,11 +307,11 @@ public sealed class BackupService(AppPaths paths, CatalogDatabase catalog, Index
         {
             return RestorePreview.Refused(backup, $"The backup can't be read: {ex.Message}");
         }
-        if (manifest is null) return RestorePreview.Refused(backup, "This file isn't a Bibliotaph backup: it has no catalog and manifest.");
+        if (manifest is null) return RestorePreview.Refused(backup, "This file isn't a Bibliotaph backup: it has no catalogue and manifest.");
 
         var restored = new CatalogFile(Path.Combine(staging, CatalogEntry));
         if (await restored.ReadMigrationsAsync(ct) is not { } migrations)
-            return RestorePreview.Refused(backup, "The catalog in this backup can't be read. It may be damaged.");
+            return RestorePreview.Refused(backup, "The catalogue in this backup can't be read. It may be damaged.");
         if (migrations.Except(CatalogFile.KnownMigrations, StringComparer.Ordinal).Any())
             return RestorePreview.Refused(backup, "This backup was made by a newer Bibliotaph. Update Bibliotaph first, then restore it.");
         await restored.MigrateAsync(ct);

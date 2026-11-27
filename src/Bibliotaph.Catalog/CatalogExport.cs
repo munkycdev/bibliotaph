@@ -34,7 +34,7 @@ public sealed class CatalogExport(IDbContextFactory<CatalogDbContext> contexts)
     /// </summary>
     static readonly (string Name, string Text)[] Conventions =
     [
-        ("tables", "Each key under \"tables\" is a table of catalog.db with its rows; each row is its columns by name. Every table of the catalog is here."),
+        ("tables", "Each key under \"tables\" is a table of catalog.db with its rows; each row is its columns by name. Every table of the catalogue is here."),
         ("ids", "Ids are stable: other rows refer to a row by its id (entry_id, document_id, page_ref_id, ...), and a backup restored keeps them."),
         ("books", "An entry is a library card. Its documents are in entry_source, one of them current; a pack's files (images, and PDFs packed by hand) are entries whose parent_entry_id is the pack; a book owned elsewhere has no document."),
         ("files", "A document is one file's content, identified by content_hash: the SHA-256 of the file's bytes as 64 lowercase hex characters. file_location.relative_path is under its source_root.path; a file inside a ZIP has the ZIP's path and its own name there, entry_path, and container_id points at the ZIP's own row."),

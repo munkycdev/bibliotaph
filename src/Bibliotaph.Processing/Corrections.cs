@@ -18,7 +18,7 @@ public sealed record LookAlikeOffer(EntryId EntryId, MetadataField Field, Folder
     public string FolderName => Folder.Name is { Length: > 0 } name ? name : "this library folder";
 }
 
-/// <summary>A "You said this book was cataloged wrong" card for Needs review: the book, with its title, and when it was left.</summary>
+/// <summary>A "You said this book was catalogued wrong" card for Needs review: the book, with its title, and when it was left.</summary>
 public sealed record CorrectionItem(EntryId EntryId, long? DocumentId, string Title, DateTime CreatedUtc);
 
 /// <summary>
@@ -67,13 +67,13 @@ public static class LookAlikes
 }
 
 /// <summary>
-/// Easier corrections: "Cataloged wrong…" left unfinished becomes a Needs review card that opens the editor again,
+/// Easier corrections: "Catalogued wrong…" left unfinished becomes a Needs review card that opens the editor again,
 /// and a correction is offered to the books from the same folder that look like the corrected one, through the bulk
 /// edit, whose Undo takes it all back.
 /// </summary>
 public sealed class CorrectionService(CorrectionStore store, MetadataStore metadata, MetadataService edits, LibraryStore library, LibraryQueries cards)
 {
-    /// <summary>The user closed the editor opened by Cataloged wrong… without changing or keeping anything: Needs review keeps a card.</summary>
+    /// <summary>The user closed the editor opened by Catalogued wrong… without changing or keeping anything: Needs review keeps a card.</summary>
     public Task<bool> LeaveUnfinishedAsync(EntryId entryId, CancellationToken ct = default) => store.RequestAsync(entryId, ct);
 
     /// <summary>The book's correction is done: its card, if it had one, goes.</summary>

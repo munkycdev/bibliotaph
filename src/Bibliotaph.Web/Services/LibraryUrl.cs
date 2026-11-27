@@ -57,7 +57,7 @@ public static class LibraryUrl
     public static long? Book(string uri) =>
         long.TryParse(Values(uri).GetValueOrDefault("book"), NumberStyles.None, CultureInfo.InvariantCulture, out var id) ? id : null;
 
-    /// <summary>Needs review's Fix it: the book's details open with Cataloged wrong… started, library?book=12&amp;correct=true.</summary>
+    /// <summary>Needs review's Fix it: the book's details open with Catalogued wrong… started, library?book=12&amp;correct=true.</summary>
     public static bool Correct(string uri) => Values(uri).GetValueOrDefault("correct") == "true";
 
     /// <summary>The saved search shown: library?view=3.</summary>

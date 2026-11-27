@@ -12,12 +12,12 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Bibliotaph.App.Services;
 
-/// <summary>Easier corrections: Cataloged wrong… and a correction offered to look-alikes.</summary>
+/// <summary>Easier corrections: Catalogued wrong… and a correction offered to look-alikes.</summary>
 static partial class SmokeTest
 {
     /// <summary>
     /// Two made-up books in one folder of a library folder of their own, both guessed as Dungeons &amp; Dragons by a
-    /// model. Right-click > Cataloged wrong… on one opens its details with the guess marked; Done without a change
+    /// model. Right-click > Catalogued wrong… on one opens its details with the guess marked; Done without a change
     /// leaves a Needs review card, whose Fix it opens them again. System set to Pathfinder offers the change to the
     /// other book, Change them makes it as a bulk edit, and Undo takes it back. The library folder is removed at the end.
     /// </summary>
@@ -39,25 +39,25 @@ static partial class SmokeTest
             var card = page.Items.Single(i => i.EntryId == first);
             var guessed = card.SystemLabel;
 
-            // The card menu's command, as right-click > Cataloged wrong… runs it.
+            // The card menu's command, as right-click > Catalogued wrong… runs it.
             BookCommands.CatalogedWrong.Execute(card, FindChild<Views.LibraryView>(window));
             await WaitUntilAsync(window, () => page.Inspector is { IsCorrecting: true } inspector && inspector.Item.EntryId == first
                     && inspector.VisibleFields.Any(f => f.Field == MetadataFields.System && f.ShowsGuessed && f.ShowEvidence),
-                () => "Cataloged wrong… didn't open the details with the guessed system marked and its evidence open.");
+                () => "Catalogued wrong… didn't open the details with the guessed system marked and its evidence open.");
             await WaitUntilAsync(window, () => Descendants<Border>(window).Any(b => b.Name == "GuessedMark" && b.IsVisible),
                 () => "The guessed system has no Guessed mark showing.");
-            await AuditAsync(window, "the details open for Cataloged wrong…");
-            await WaitUntilAsync(window, () => Shown(window, "CorrectionDone"), () => "The Cataloged wrong… banner has no Done.");
+            await AuditAsync(window, "the details open for Catalogued wrong…");
+            await WaitUntilAsync(window, () => Shown(window, "CorrectionDone"), () => "The Catalogued wrong… banner has no Done.");
             // The card is saved after the banner goes, so the check waits for the end to be reported.
             bool? left = null;
             void OnEnded(object? sender, bool unfinished) => left = unfinished;
             var correcting = page.Inspector!;
             correcting.CorrectionEnded += OnEnded;
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CorrectionDone"), "Done correcting");
-            await WaitUntilAsync(window, () => left is not null, () => "Done didn't end Cataloged wrong….");
+            await WaitUntilAsync(window, () => left is not null, () => "Done didn't end Catalogued wrong….");
             correcting.CorrectionEnded -= OnEnded;
             if (left != true || !(await corrections.GetWaitingAsync()).Any(c => c.EntryId == first))
-                throw new InvalidOperationException("Leaving Cataloged wrong… without a change left no Needs review card.");
+                throw new InvalidOperationException("Leaving Catalogued wrong… without a change left no Needs review card.");
 
             // Needs review's card opens the details to correct again.
             page.CloseDetailsCommand.Execute(null);
@@ -68,11 +68,11 @@ static partial class SmokeTest
             await review.ReloadCommand.ExecuteAsync(null);
             review.IsSuggestionsTab = true;
             await WaitUntilAsync(window, () => !review.IsLoading && review.Cards.OfType<CorrectionCardViewModel>().Any(c => c.Item.EntryId == first),
-                () => "The book left cataloged wrong isn't a card in Needs review.");
+                () => "The book left catalogued wrong isn't a card in Needs review.");
             var waiting = review.Cards.OfType<CorrectionCardViewModel>().Single(c => c.Item.EntryId == first);
             await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Name == "FixIt" && b.DataContext == waiting && b.IsVisible),
-                () => "The Cataloged wrong card has no Fix it showing.");
-            await AuditAsync(window, "Needs review with a Cataloged wrong card");
+                () => "The Catalogued wrong card has no Fix it showing.");
+            await AuditAsync(window, "Needs review with a Catalogued wrong card");
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "FixIt" && b.DataContext == waiting), "Fix it");
             await WaitUntilAsync(window, () => shell.CurrentPage is LibraryViewModel { Inspector: { IsCorrecting: true } inspector } && inspector.Item.EntryId == first,
                 () => "Fix it didn't open the book's details to correct.");
@@ -104,14 +104,14 @@ static partial class SmokeTest
                 () => $"Change them left the other card reading “{page.Items.Single(i => i.EntryId == second).SystemLabel}” ({page.Selection.Undo.Message}).");
             if (details.HasLookAlikeOffer) throw new InvalidOperationException("The offer stayed after Change them.");
 
-            await WaitUntilAsync(window, () => Shown(window, "CorrectionDone"), () => "The Cataloged wrong… banner has no Done after Change them.");
+            await WaitUntilAsync(window, () => Shown(window, "CorrectionDone"), () => "The Catalogued wrong… banner has no Done after Change them.");
             left = null;
             details.CorrectionEnded += OnEnded;
             Click(Descendants<Button>(window).FirstOrDefault(b => b.Name == "CorrectionDone"), "Done correcting");
-            await WaitUntilAsync(window, () => left is not null, () => "Done didn't end Cataloged wrong….");
+            await WaitUntilAsync(window, () => left is not null, () => "Done didn't end Catalogued wrong….");
             details.CorrectionEnded -= OnEnded;
             if (left != false || (await corrections.GetWaitingAsync()).Any(c => c.EntryId == first))
-                throw new InvalidOperationException("The corrected book still has a Cataloged wrong card.");
+                throw new InvalidOperationException("The corrected book still has a Catalogued wrong card.");
 
             await WaitUntilAsync(window, () => Descendants<Button>(window).Any(b => b.Command == page.Selection.Undo.UndoCommand && b.IsVisible && b.IsEnabled),
                 () => "The bulk banner has no Undo showing.");

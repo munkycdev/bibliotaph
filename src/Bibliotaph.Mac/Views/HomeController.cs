@@ -105,7 +105,7 @@ public sealed class HomeController(HomeViewModel home, MacCovers covers) : NSVie
         var (addedTitle, addedBrowse) = SectionLine("Recently Added", "Browse your library", home.BrowseLibraryCommand);
         var added = PageParts.Wrap();
 
-        var ai = Offer("Fill in the catalog with AI?",
+        var ai = Offer("Fill in the catalogue with AI?",
             "An AI model running on this Mac can suggest each book's system, type, levels and more, quoting the page it found them on. Bibliotaph can download one and run it itself, or use one you already run, such as Ollama or LM Studio. You review the suggestions. It is off until you set it up, and you can do that later in Settings.",
             [Button("Set Up AI…", home.SetUpAiCommand, primary: true), Button("Not Now", home.AiLaterCommand)]);
         var coversText = PageParts.Secondary("");
