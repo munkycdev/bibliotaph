@@ -71,7 +71,7 @@ public sealed class BuiltInEngineTests : IDisposable
     }
 
     static Task<string> Answer(BuiltInEngine engine, string model, int context) =>
-        engine.UseAsync(model, context, (address, key) => Task.FromResult($"{address} {key}"), Ct);
+        engine.UseAsync(model, context, (address, key) => Task.FromResult($"{address} {key}"), ct: Ct);
 
     [Fact]
     public async Task Starts_on_first_use_on_this_computer_only_and_keeps_running_for_the_next()
@@ -130,6 +130,39 @@ public sealed class BuiltInEngineTests : IDisposable
     }
 
     [Fact]
+    public async Task Stops_soon_after_background_work_but_not_before_a_persons_wait_is_over()
+    {
+        var (engine, starts) = Engine(new BuiltInEngineOptions { IdleStop = TimeSpan.FromSeconds(30), BackgroundIdleStop = TimeSpan.FromMilliseconds(200) });
+        await using var _ = engine;
+        await Background(engine);
+        await WaitUntilStopped(engine);
+        Assert.True(starts[0].Disposed);
+
+        // A person's question keeps it loaded for their wait, even when background work follows.
+        await Answer(engine, _model, 8_192);
+        await Background(engine);
+        await Task.Delay(TimeSpan.FromSeconds(1), Ct);
+        Assert.True(engine.IsRunning);
+        Assert.Equal(2, starts.Count);
+
+        // Once stopped, the next run starts with only the background wait again.
+        await engine.StopAsync();
+        await Background(engine);
+        await WaitUntilStopped(engine);
+        Assert.Equal(3, starts.Count);
+    }
+
+    Task<string> Background(BuiltInEngine engine) =>
+        engine.UseAsync(_model, 8_192, (address, _) => Task.FromResult(address.ToString()), background: true, Ct);
+
+    static async Task WaitUntilStopped(BuiltInEngine engine)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (engine.IsRunning && DateTime.UtcNow < deadline) await Task.Delay(50, Ct);
+        Assert.False(engine.IsRunning);
+    }
+
+    [Fact]
     public async Task Says_when_the_engine_or_the_model_is_missing()
     {
         var (engine, starts) = Engine();
@@ -167,7 +200,7 @@ public sealed class BuiltInEngineTests : IDisposable
         {
             starts[^1].Stopped = true;
             throw new ModelEndpointException("Nothing is answering.");
-        }, Ct));
+        }, ct: Ct));
 
         Assert.Equal("The built-in AI engine stopped while answering. It said: ggml_vulkan: out of memory", ex.Message);
         await Answer(engine, _model, 8_192);

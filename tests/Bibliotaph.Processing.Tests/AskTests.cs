@@ -376,6 +376,25 @@ public sealed class AskTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Background_work_gets_built_in_clients_after_which_the_engine_stops_sooner()
+    {
+        var models = Path.Combine(_dir, "models");
+        Directory.CreateDirectory(models);
+        await File.WriteAllTextAsync(Path.Combine(models, BuiltInModels.Embedding.File), "", Ct);
+        var options = new BuiltInEngineOptions { ServerPath = Path.Combine(_dir, "llama-server.exe"), ModelsFolder = models };
+#pragma warning disable CA2000 // The engines' clients own the handlers.
+        await using var chat = new BuiltInEngine(options, new HttpClient(new Healthy()), _ => new StandInEngine());
+        await using var vectors = new BuiltInEngine(options with { Embedding = true }, new HttpClient(new Healthy()), _ => new StandInEngine());
+#pragma warning restore CA2000
+        var ai = new AiSettings(new SettingsStore(new Factory(_catalog)), new NoApiKeys(), builtIn: chat, builtInEmbedding: vectors);
+        await ai.SaveAsync(AiSetup.Off with { Enabled = true, BuiltIn = true, BuiltInModel = "qwen3-4b", BuiltInEmbeddingModel = BuiltInModels.Embedding.Id }, Ct);
+
+        Assert.True(Assert.IsType<BuiltInModelClient>(ai.Background).IsBackground);
+        Assert.True(Assert.IsType<BuiltInEmbeddingClient>(ai.BackgroundEmbedder).IsBackground);
+        Assert.NotSame(ai.Embedder, ai.BackgroundEmbedder);
+    }
+
+    [Fact]
     public async Task The_built_in_embedding_engine_keeps_running_while_ask_can_use_it_and_stops_when_it_cant()
     {
         var server = Path.Combine(_dir, "llama-server.exe");
@@ -391,7 +410,7 @@ public sealed class AskTests : IAsyncLifetime
         await using (engine)
         {
             engine.StopWhenNotNeededForAsk(_ai);
-            await engine.UseAsync(model, 2_048, (_, _) => Task.FromResult(0), Ct);
+            await engine.UseAsync(model, 2_048, (_, _) => Task.FromResult(0), ct: Ct);
             Assert.True(engine.IsRunning);
 
             // Another chat model, or anything else about AI that leaves the embedding model, keeps it.

@@ -29,8 +29,18 @@ public sealed record BuiltInEngineOptions
     /// <summary>Where downloaded models are kept: %LOCALAPPDATA%\Bibliotaph\models (<see cref="AppPaths.Models"/>).</summary>
     public string ModelsFolder { get; init; } = AppPaths.ForCurrentUser().Models;
 
-    /// <summary>How long the engine stays loaded with nothing to do, before it stops and gives the graphics memory back.</summary>
+    /// <summary>
+    /// How long the engine stays loaded after something a person asked (Ask, a search in plain English), so a follow-up
+    /// question doesn't wait for the model to load again.
+    /// </summary>
     public TimeSpan IdleStop { get; init; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// How long the engine stays loaded after background work (reading books, whole-book scans, vectors) with nothing
+    /// more to do: long enough to go from one book to the next without loading again, short enough that the memory goes
+    /// back soon after the queue empties.
+    /// </summary>
+    public TimeSpan BackgroundIdleStop { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Loading a 5 GB model from a hard disk takes a while; one that hasn't loaded by then isn't going to.</summary>
     public TimeSpan LoadTimeout { get; init; } = TimeSpan.FromMinutes(5);
@@ -150,7 +160,8 @@ public sealed class EngineProcess : IEngineProcess
 
 /// <summary>
 /// The built-in AI's engine: llama.cpp's server, started on the model when there is something to read, and stopped
-/// after a few idle minutes, when AI is paused or switched off, and with the app. It listens on this computer only,
+/// half a minute after background work runs out, a few minutes after a person last asked it something, when AI is
+/// paused or switched off, and with the app. It listens on this computer only,
 /// on a free port, with a key made for each start, so no other program can use it.
 /// </summary>
 public sealed class BuiltInEngine : IAsyncDisposable
@@ -180,6 +191,8 @@ public sealed class BuiltInEngine : IAsyncDisposable
     EngineStart? _running;
     ITimer? _idle;
     int _uses;
+    /// <summary>When a person last asked this run of the engine something; null when only background work has.</summary>
+    long? _askedAt;
 
     /// <param name="options">Where the engine is, and how long it waits.</param>
     /// <param name="http">For the health check; requests go through the caller's own client.</param>
@@ -229,11 +242,13 @@ public sealed class BuiltInEngine : IAsyncDisposable
     /// <summary>
     /// Runs <paramref name="use"/> against the engine loaded with <paramref name="modelPath"/> and room for
     /// <paramref name="contextTokens"/>, starting it, or starting it again with more room, first. One use at a time:
-    /// the engine answers one request at a time anyway.
+    /// the engine answers one request at a time anyway. A <paramref name="background"/> use is work nobody is waiting
+    /// on, after which the engine stops sooner.
     /// </summary>
     /// <exception cref="ModelEndpointException">The engine or the model is missing, or the engine couldn't load it.</exception>
     /// <exception cref="ModelRequestException">The engine stopped while answering.</exception>
-    public async Task<T> UseAsync<T>(string modelPath, int contextTokens, Func<Uri, string, Task<T>> use, CancellationToken ct = default)
+    public async Task<T> UseAsync<T>(string modelPath, int contextTokens, Func<Uri, string, Task<T>> use, bool background = false,
+        CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct);
         try
@@ -260,7 +275,9 @@ public sealed class BuiltInEngine : IAsyncDisposable
             if (_process is not null)
             {
                 var uses = _uses;
-                _idle = _clock.CreateTimer(_ => _ = StopIfIdleAsync(uses), null, Options.IdleStop, Timeout.InfiniteTimeSpan);
+                if (!background) _askedAt = _clock.GetTimestamp();
+                var wait = Linger(background);
+                _idle = _clock.CreateTimer(_ => _ = StopIfIdleAsync(uses, wait), null, wait, Timeout.InfiniteTimeSpan);
             }
             _gate.Release();
         }
@@ -280,12 +297,22 @@ public sealed class BuiltInEngine : IAsyncDisposable
         }
     }
 
-    async Task StopIfIdleAsync(int uses)
+    /// <summary>
+    /// How long to stay loaded from now: what is left of the wait after a person's last question, or after background
+    /// work the background wait if that is longer, so background work never cuts a person's wait short.
+    /// </summary>
+    TimeSpan Linger(bool background)
+    {
+        var left = _askedAt is { } asked ? Options.IdleStop - _clock.GetElapsedTime(asked) : TimeSpan.Zero;
+        return background && left < Options.BackgroundIdleStop ? Options.BackgroundIdleStop : left;
+    }
+
+    async Task StopIfIdleAsync(int uses, TimeSpan waited)
     {
         await _gate.WaitAsync();
         try
         {
-            if (_uses == uses) Stop($"nothing to read for {Options.IdleStop.TotalMinutes:0} minutes");
+            if (_uses == uses) Stop($"nothing more to do after {Describe(waited)}");
         }
         finally
         {
@@ -367,10 +394,14 @@ public sealed class BuiltInEngine : IAsyncDisposable
         var wasRunning = !_process.HasExited;
         _process.Dispose();
         _process = null;
+        _askedAt = null;
         if (!wasRunning) return;
         _log.LogInformation("Built-in AI engine stopped: {Why}", why);
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    static string Describe(TimeSpan wait) =>
+        wait >= TimeSpan.FromMinutes(1) ? $"{wait.TotalMinutes:0.#} minutes" : $"{wait.TotalSeconds:0.#} seconds";
 
     static Uri Address(EngineStart start) => new($"http://127.0.0.1:{start.Port.ToString(CultureInfo.InvariantCulture)}/");
 
@@ -411,9 +442,10 @@ public sealed class BuiltInEngine : IAsyncDisposable
 /// <summary>
 /// The classifier's model client for the built-in AI: the engine's OpenAI-compatible API, with the answer's length
 /// capped and Qwen3's thinking switched off. Temperature stays 0, as for any server, so a book gets the same answer
-/// each time it is read.
+/// each time it is read. A <paramref name="background"/> client is for work nobody waits on, after which the engine
+/// stops sooner.
 /// </summary>
-public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, string modelPath) : IModelClient
+public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, string modelPath, bool background = false) : IModelClient
 {
     /// <summary>
     /// llama.cpp's own request fields. No repetition penalty: the evidence check needs the book's words quoted exactly,
@@ -428,6 +460,9 @@ public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, st
 
     public string ModelPath => modelPath;
 
+    /// <summary>Its requests are work nobody waits on, so the engine stops sooner after them.</summary>
+    public bool IsBackground => background;
+
     public Task<EndpointInfo> ConnectAsync(CancellationToken ct = default)
     {
         if (!engine.IsInstalled) throw new ModelEndpointException(BuiltInEngine.NotInstalled);
@@ -440,21 +475,25 @@ public sealed class BuiltInModelClient(BuiltInEngine engine, HttpClient http, st
         var max = engine.Options.MaxAnswerTokens;
         var capped = request with { MaxTokens = Math.Min(request.MaxTokens ?? max, max) };
         return engine.UseAsync(modelPath, request.ContextTokens,
-            (address, key) => new LocalModelClient(http, address.ToString(), () => key, EndpointKind.OpenAiCompatible, Extras).CompleteAsync(capped, ct), ct);
+            (address, key) => new LocalModelClient(http, address.ToString(), () => key, EndpointKind.OpenAiCompatible, Extras).CompleteAsync(capped, ct), background, ct);
     }
 }
 
 /// <summary>
 /// Ask this book's vectors from the built-in AI: the embedding engine's OpenAI-compatible embeddings call. The server
-/// has one model loaded, so the model's name in the request doesn't matter.
+/// has one model loaded, so the model's name in the request doesn't matter. A <paramref name="background"/> client is
+/// for vectors nobody waits on, after which the engine stops sooner.
 /// </summary>
-public sealed class BuiltInEmbeddingClient(BuiltInEngine engine, HttpClient http, string modelPath) : IEmbeddingClient
+public sealed class BuiltInEmbeddingClient(BuiltInEngine engine, HttpClient http, string modelPath, bool background = false) : IEmbeddingClient
 {
     public string ModelPath => modelPath;
 
+    /// <summary>Its requests are vectors nobody waits on, so the engine stops sooner after them.</summary>
+    public bool IsBackground => background;
+
     public Task<IReadOnlyList<float[]>> EmbedAsync(string model, IReadOnlyList<string> texts, CancellationToken ct = default) =>
         engine.UseAsync(modelPath, engine.Options.MinContextTokens,
-            (address, key) => new LocalModelClient(http, address.ToString(), () => key, EndpointKind.OpenAiCompatible).EmbedAsync(model, texts, ct), ct);
+            (address, key) => new LocalModelClient(http, address.ToString(), () => key, EndpointKind.OpenAiCompatible).EmbedAsync(model, texts, ct), background, ct);
 }
 
 /// <summary>
@@ -588,7 +627,7 @@ public static class BuiltInEngineWatch
 {
     /// <summary>
     /// Stops the engine as soon as the Classify lane is paused, or AI is switched off or moved to a model server, so the
-    /// graphics memory goes back at once rather than after the idle minutes.
+    /// graphics memory goes back at once rather than after the idle wait.
     /// </summary>
     public static void StopWhenNotNeeded(this BuiltInEngine engine, AiSettings ai, IIndexingStatus indexing)
     {
