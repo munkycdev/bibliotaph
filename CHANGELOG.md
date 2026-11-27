@@ -10,6 +10,9 @@
   or sends anything to the AI. **Look every book up again** and **Only the N not found** in Settings > Processing
   still ask the online libraries afresh, and share what they find. What your devices already did before this update
   is shared too, the first time each one connects after it. On Windows, the Mac and the web.
+- **Changed: the built-in AI lets its memory go sooner.** The model now unloads half a minute after the last book is
+  read, instead of five minutes, so the graphics memory (or a Mac's memory) comes back soon after the AI runs out of
+  work. After a question in Ask, it still stays loaded for five minutes so a follow-up answers straight away.
 
 ## 1.6 · 9 November 2026
 

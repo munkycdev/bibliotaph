@@ -176,10 +176,10 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
     /// <summary>The client for the built-in AI on <paramref name="model"/>: a model's id from <see cref="BuiltInModels"/>, or a file's path.</summary>
     public IModelClient BuiltInClientFor(string model) => Activity.Track(UntrackedBuiltInClientFor(model));
 
-    BuiltInModelClient UntrackedBuiltInClientFor(string model)
+    BuiltInModelClient UntrackedBuiltInClientFor(string model, bool background = false)
     {
         var engine = builtIn ?? throw new InvalidOperationException("This app has no built-in AI engine.");
-        return new BuiltInModelClient(engine, Http.Value, BuiltInModels.PathFor(model, engine.Options.ModelsFolder));
+        return new BuiltInModelClient(engine, Http.Value, BuiltInModels.PathFor(model, engine.Options.ModelsFolder), background);
     }
 
     /// <summary>Switches reading whole books on or off, and keeps the choice.</summary>
@@ -238,22 +238,31 @@ public sealed class AiSettings(SettingsStore settings, IApiKeyStore keys, Func<s
             EmbeddingModel = Blank(setup.EmbeddingModel),
             BuiltInEmbeddingModel = Blank(setup.BuiltInEmbeddingModel),
         };
+        // The built-in engine stops sooner after work nobody waits on (reading books, whole-book scans, background
+        // vectors) than after a person's question, so those get clients of their own; a server's client is the same.
+        var useBuiltIn = setup.IsReady && setup.BuiltIn && builtIn is not null;
         var untracked = !setup.IsReady ? null
             : setup.BuiltIn ? builtIn is null ? null : UntrackedBuiltInClientFor(setup.BuiltInModel!)
             : _clients(setup.Endpoint!);
+        var background = useBuiltIn ? UntrackedBuiltInClientFor(setup.BuiltInModel!, background: true) : untracked;
         var client = untracked is null ? null : Activity.Track(untracked);
+        var reader = background is null ? null : ReferenceEquals(background, untracked) ? client : Activity.Track(background);
         // The same endpoint as the chat model, never another: pages go only where Settings says.
         // A built-in one is used once its file is here; the finished download refreshes this.
+        var builtInVectors = !setup.IsReady || !setup.BuiltIn || builtInEmbedding is null || setup.BuiltInEmbeddingModel is null
+            || BuiltInModels.PathFor(setup.BuiltInEmbeddingModel, builtInEmbedding.Options.ModelsFolder) is not { } path || !File.Exists(path) ? null
+            : path;
         var embedder = !setup.IsReady ? null
             : setup.BuiltIn
-                ? builtInEmbedding is null || setup.BuiltInEmbeddingModel is null
-                    || BuiltInModels.PathFor(setup.BuiltInEmbeddingModel, builtInEmbedding.Options.ModelsFolder) is not { } path || !File.Exists(path) ? null
-                    : new BuiltInEmbeddingClient(builtInEmbedding, Http.Value, path)
+                ? builtInVectors is null ? null : new BuiltInEmbeddingClient(builtInEmbedding!, Http.Value, builtInVectors)
             : setup.EmbeddingModel is null ? null : _clients(setup.Endpoint!) as IEmbeddingClient;
+        var backgroundEmbedder = builtInVectors is not null && embedder is not null
+            ? new BuiltInEmbeddingClient(builtInEmbedding!, Http.Value, builtInVectors, background: true)
+            : embedder;
         _state = new AiState(setup,
-            client is null ? null : new ModelClassifier(client, setup.RunProvider, setup.ModelName!),
+            reader is null ? null : new ModelClassifier(reader, setup.RunProvider, setup.ModelName!),
             client is null ? null : new ModelPlainSearchInterpreter(client, setup.ModelName!),
-            client, untracked, embedder is null ? null : Activity.Track(embedder), embedder);
+            client, background, embedder is null ? null : Activity.Track(embedder), backgroundEmbedder);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
