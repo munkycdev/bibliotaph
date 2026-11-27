@@ -148,11 +148,12 @@ public sealed class SyncFiles(string path)
         // The device's own are skipped but counted, so it isn't asked about them again, and so are those asked for one
         // file at a time, without reading their content.
         command.CommandText = """
-            SELECT content_hash, kind, prompt_version, id, finished_utc, CASE WHEN kind = $onRequest THEN '' ELSE content END, device, seq
+            SELECT content_hash, kind, prompt_version, id, finished_utc, CASE WHEN kind IN ($onRequest, $vectors) THEN '' ELSE content END, device, seq
             FROM results WHERE seq > $after ORDER BY seq LIMIT $take
             """;
         command.Parameters.AddWithValue("$after", after);
         command.Parameters.AddWithValue("$onRequest", SharedResultKinds.PageText);
+        command.Parameters.AddWithValue("$vectors", SharedResultKinds.Vectors);
         command.Parameters.AddWithValue("$take", ResultPage + 1);
         await using var reader = await command.ExecuteReaderAsync(ct);
         var results = new List<SharedResult>();

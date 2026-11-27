@@ -199,7 +199,9 @@ or the catalogues change. Give it a book's type and it's looked up the next time
 
 To try the lookup again without touching the books already found, click the button at the end of **Looking up
 online** in **Settings > Processing** and choose **Only the N not found**. On Windows the question's **Yes** is only
-those and **No** is every book.
+those and **No** is every book. Either way the books are asked of the online libraries afresh: with your PC connected
+to your web library, a book another of your devices already looked up is otherwise given what that lookup found
+rather than being asked again (see [Connecting a Windows PC](web.md#connecting-a-windows-pc)).
 
 ### Catalogued wrong
 

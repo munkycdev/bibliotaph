@@ -14,10 +14,12 @@ namespace Bibliotaph.Processing;
 /// (<see cref="LookupRecordStore.KeyOf"/>), so they fill its fields, show in Found online and take the user's answers
 /// the same way. With no pages to check a record against, the title its service gave stands in for them: a record is
 /// used when its publisher is the book's too, and asked about in Needs review when only the name agrees. A book is
-/// asked once for the catalogues there are and the title it has, and again when either changes.
+/// asked once for the catalogues there are and the title it has, and again when either changes. What another of the
+/// user's devices got for the same title from the same catalogues is used rather than asking again
+/// (<see cref="SharedLookups"/>), unless the user asks for every book to be looked up again.
 /// </summary>
 public sealed class ElsewhereLookups(BookLookups lookups, LookupRecordStore records, MetadataStore metadata, MetadataProjector projector, SettingsStore settings,
-    ILogger<ElsewhereLookups>? log = null) : IDisposable
+    ILogger<ElsewhereLookups>? log = null, SharedLookups? shared = null, SharedResults? results = null) : IDisposable
 {
     /// <summary>What each book was last asked with, by its key: the catalogues and its title, as JSON.</summary>
     public const string AskedKey = "lookup.elsewhere-asked";
@@ -80,6 +82,8 @@ public sealed class ElsewhereLookups(BookLookups lookups, LookupRecordStore reco
         await _running.WaitAsync(ct);
         try
         {
+            // What the other devices found comes at the first pass with the web library.
+            if (results is not null) await results.CatchUpAsync(ct);
             var books = await records.GetFilelessAsync(ct);
             if (books.Count == 0) return 0;
             var asked = Read(await settings.GetAsync(AskedKey, ct));
@@ -96,6 +100,15 @@ public sealed class ElsewhereLookups(BookLookups lookups, LookupRecordStore reco
                 var stamp = $"{lookups.Catalogue.Name}|{BookRecords.Simplify(title)}";
                 if (asked.GetValueOrDefault(key) == stamp && (!again || found.Contains(entryId))) continue;
                 var publisher = effective[MetadataFields.Publisher].Values.FirstOrDefault(v => v.Origin != AssertionOrigin.Lookup)?.Value;
+                if (!again && shared is not null && await shared.FindAsync(key, ct) is { Title: { } sharedTitle } other
+                    && BookRecords.Simplify(sharedTitle) == BookRecords.Simplify(title) && other.AskedEvery(lookups.Catalogue.Name))
+                {
+                    await records.SaveAsync(key, [.. other.Records.Select(r => r.Record)], other.Printed, ct);
+                    await ApplyAsync(entryId, key, ct);
+                    asked[key] = stamp;
+                    await settings.SetAsync(AskedKey, JsonSerializer.Serialize(asked), ct);
+                    continue;
+                }
                 try
                 {
                     await AskAsync(entryId, key, title, publisher, ct);
@@ -133,8 +146,15 @@ public sealed class ElsewhereLookups(BookLookups lookups, LookupRecordStore reco
         List<BookRecord> found = [.. answer.Records.Where(BookRecords.ByTitle).Concat(picked)
             .Where(r => !kept.Any(k => k.Source == r.Source && k.Key != r.Key && k.Read))];
         var named = BookRecords.Simplify(publisher ?? "");
-        await records.SaveAsync(key, found,
-            r => !picked.Contains(r) && named.Length > 0 && BookRecords.IsNamedWholeIn(r, [title]) && r.Publishers.Any(p => BookRecords.Simplify(p) == named), ct);
+        bool Printed(BookRecord r) => !picked.Contains(r) && named.Length > 0 && BookRecords.IsNamedWholeIn(r, [title]) && r.Publishers.Any(p => BookRecords.Simplify(p) == named);
+        await records.SaveAsync(key, found, Printed, ct);
+        if (shared is not null)
+            await shared.RecordAsync(key, new SharedLookup(answer.AskedOf, [.. found.Select(r => new SharedLookupRecord(r, Printed(r)))], Title: title), ct);
+        await ApplyAsync(entryId, key, ct);
+    }
+
+    async Task ApplyAsync(EntryId entryId, string key, CancellationToken ct)
+    {
         var (_, grew) = await records.ApplyAsync(entryId, key, ct);
         if (grew) await projector.ProjectVocabularyAsync(ct);
         await projector.ProjectAsync([entryId], ct);

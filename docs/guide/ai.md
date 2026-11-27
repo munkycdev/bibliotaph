@@ -150,6 +150,10 @@ Before the pages, it reads each book's title, details, tags, notes and what the 
 minutes rather than hours, so `about:` can rank books straight away. That part runs whenever an embedding model is set,
 and a book whose details change is read again.
 
+With your PC connected to your [web library](web.md#connecting-a-windows-pc), a book another of your devices has read
+for meaning with the same embedding model isn't read again: its pages are taken from there, and only a page whose text
+is different on this device is sent to the model.
+
 **Settings > AI > Read the whole library for meaning** shows how many pages are read so far. Untick **Read the library
 for meaning in the background** to stop it; questions to your library and `about:` then find the remaining pages by
 their words.

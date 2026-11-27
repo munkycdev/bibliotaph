@@ -116,6 +116,18 @@ public sealed class AskQueries(IndexDatabase database)
         return [.. rows.Select(r => new PageVector(r.PageId, (int)r.PdfPage, VectorBlob.FromBytes(r.Vector)))];
     }
 
+    /// <summary>The books every page with text of which has a vector from this model and version.</summary>
+    public async Task<IReadOnlyList<long>> GetDocumentsWithVectorsAsync(string model, int version, CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<long>(new CommandDefinition(
+            """
+            SELECT p.document_id FROM page p WHERE p.text <> ''
+            GROUP BY p.document_id
+            HAVING sum(EXISTS (SELECT 1 FROM page_vec v WHERE v.page_id = p.id AND v.model = @model AND v.version = @version)) = count(*)
+            """, new { model, version }, cancellationToken: ct))];
+    }
+
     /// <summary>Up to <paramref name="limit"/> of the book's pages with text and no vector from this model and version, in page order.</summary>
     public async Task<IReadOnlyList<AskPageRow>> GetPagesWithoutVectorsAsync(long documentId, string model, int version, int limit, CancellationToken ct = default)
     {

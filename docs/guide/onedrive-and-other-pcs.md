@@ -160,7 +160,10 @@ your folders on each PC. Books are matched by their content, so the same file in
 the same book.
 
 What the AI found in a book is shared with your web library and your other connected PCs as well, so the same book is
-read by the AI once, wherever that happens first, and so is the text read from scanned pages. See
+read by the AI once, wherever that happens first, and so are the text read from scanned pages, the adventures inside a
+book, what each book was found as online, and the reading of your pages for meaning. A new PC you connect takes all of
+that rather than doing it again: it doesn't look up books your other devices already looked up, and only **Look every
+book up again** in **Settings > Processing** asks the online libraries afresh. See
 [Connecting a Windows PC](web.md#connecting-a-windows-pc).
 
 Bibliotaph used to sync two PCs through a folder you picked, such as one in OneDrive. That's gone: the web library

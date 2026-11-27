@@ -354,6 +354,7 @@ CREATE TABLE job (
     lease_expires_utc  TEXT,
     last_error         TEXT,
     created_utc        TEXT    NOT NULL,
+    afresh             INTEGER NOT NULL DEFAULT 0,  -- 1 when the user asked for it again: what another device made isn't taken in its place
     UNIQUE (content_hash, stage, stage_version)
 );
 
@@ -378,4 +379,4 @@ CREATE TABLE shared_state (
     value           TEXT    NOT NULL
 );
 
-PRAGMA user_version = 26;
+PRAGMA user_version = 27;

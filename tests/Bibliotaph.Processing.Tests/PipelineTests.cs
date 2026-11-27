@@ -156,7 +156,7 @@ public abstract partial class PipelineTests(SyntheticPdfs synthetic) : IAsyncLif
         var sharedCache = new SharedResultCache(_index, _writer);
         var pageText = new SharedPageText(_queries, index, sharedCache, _hub);
         _shared = new SharedResults(_runs, _chapterScans, _metadataStore, vocabulary, entries, library, projector, _chapterProjection, new ChapterQueries(_index),
-            sharedCache, _ai, _hub, pageText: pageText);
+            sharedCache, _ai, _hub, pageText: pageText, parts: _parts);
         var classify = new ClassifyStage(_ai, library, _queries, Inputs(), _runs,
             new ClassificationResults(_runs, entries, _metadataStore, vocabulary, projector, _settings), _aiReading, _parts, _proposals, shared: _shared);
         _returns = new OnlineOnlyReturns(library, queue, _settings, _cloud, _sources);

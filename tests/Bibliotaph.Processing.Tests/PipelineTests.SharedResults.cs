@@ -240,5 +240,40 @@ public abstract partial class PipelineTests
             Assert.All(pages, p => Assert.Equal(p.Words.Count * 4, p.Boxes.Count));
             Assert.Equal(1, _hub.Asked);
         }
-    }
+    
+        [Fact]
+        public async Task An_adventure_another_device_read_on_its_own_pages_takes_its_reading_and_one_read_here_is_shared()
+        {
+            _model.Answer = request => ReadsOnly(request, 4, 5) ? """{"levels": [{"value": "4-5", "page": 4, "quote": "Recommended party: levels 4 and 5"}]}""" : "{}";
+            await SwitchAiOnAsync();
+            Copy(_pdfs.QuietCompilation, "Compilations/Fog Tales.pdf");
+            await _roots.AddAsync(_library, Ct);
+            await _service.StartAsync(Ct);
+            await SettleClassifyAsync();
+            var hash = await OnlyHashAsync();
+            var documentId = Assert.Single(await _libraryStore.GetDocumentHashesAsync(Ct)).DocumentId;
+            // The other device read the first adventure's pages.
+            var finished = new DateTime(2026, 10, 20, 9, 0, 0, DateTimeKind.Utc);
+            _hub.Add(new SharedResult(SharedResultKinds.AdventureKey(hash, 1, 2), SharedResultKinds.Adventure, ClassifierPrompt.Version, "adventure-on-the-pc", finished,
+                JsonSerializer.Serialize(new SharedClassification("other-model-14b", ClassifierPrompt.SchemaVersion, [1, 2], finished.AddMinutes(-1),
+                    [new SharedClaim("levels", "2", null, "Recommended party: level 2", [2], false)]), Web)));
+            await _shared.SyncNowAsync(Ct);
+
+            var tower = await _parts.AddAsync(documentId, new PartPages(1, 2), "The Bell Tower", Ct);
+            var market = await _parts.AddAsync(documentId, new PartPages(3, 4), "Fog Market", Ct);
+            await WaitForAsync(() => _model.Requests.Any(r => ReadsOnly(r, 4, 5)));
+            await SettleClassifyAsync();
+            await _shared.SyncNowAsync(Ct);
+            await _shared.SyncNowAsync(Ct);
+            var towerLevels = (await _metadataStore.GetAsync(tower.EntryId!.Value, Ct)).Compute()[MetadataFields.Levels].First!;
+
+            // The first adventure has the other device's reading and was never sent to the model here; the second, read here, goes to the hub once.
+            Assert.Equal(("2", AssertionOrigin.Ai), (towerLevels.Value, towerLevels.Origin));
+            Assert.True(await _runs.HasSharedRunOnAsync(tower.EntryId!.Value, ClassifierPrompt.Version, Ct));
+            Assert.DoesNotContain(_model.Requests, r => ReadsOnly(r, 2, 3));
+            var sent = Assert.Single(_hub.Sent, r => r.Kind == SharedResultKinds.Adventure);
+            Assert.Equal(SharedResultKinds.AdventureKey(hash, 3, 4), sent.ContentHash);
+            Assert.NotNull(market.EntryId);
+        }
+}
 }
