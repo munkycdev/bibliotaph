@@ -2,11 +2,13 @@
 
 ## Unreleased
 
+## 1.6 · 9 November 2026
+
+New in 1.6.1467 (27 November 2026):
+
 - **Changed: the built-in AI lets its memory go sooner.** The model now unloads half a minute after the last book is
   read, instead of five minutes, so the graphics memory (or a Mac's memory) comes back soon after the AI runs out of
   work. After a question in Ask, it still stays loaded for five minutes so a follow-up answers straight away.
-
-## 1.6 · 9 November 2026
 
 New in 1.6.1464 (27 November 2026):
 
