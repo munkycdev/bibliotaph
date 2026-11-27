@@ -731,29 +731,13 @@ public sealed class InspectorController(MacCovers covers) : NSViewController
         triangle.State = isOpen ? NSCellStateValue.On : NSCellStateValue.Off;
         triangle.Activated += (_, _) => open(triangle.State == NSCellStateValue.On);
         triangle.ToolTip = title;
-        var label = Bold(TitleCase(title));
+        var label = Bold(MacText.FromCapitals(title));
         label.AddGestureRecognizer(new NSClickGestureRecognizer(() => open(!isOpen)));
         var head = Row(triangle, label);
         head.Spacing = 2;
         Add(head);
         _stack.SetCustomSpacing(isOpen ? 8 : 6, head);
         if (isOpen) content();
-    }
-
-    static readonly HashSet<string> SmallWords = ["a", "an", "and", "at", "by", "for", "in", "of", "on", "or", "the", "to", "with"];
-
-    /// <summary>
-    /// "ADVENTURES IN THIS FILE (3)" as the Mac titles a section, "Adventures in This File (3)": the Windows panel's
-    /// headings are set in capitals, which the Mac's sections aren't.
-    /// </summary>
-    static string TitleCase(string heading)
-    {
-        if (heading.Any(char.IsLower)) return heading;
-        var words = heading.ToLower(System.Globalization.CultureInfo.CurrentCulture).Split(' ');
-        for (var i = 0; i < words.Length; i++)
-            if (words[i].Length > 0 && (i == 0 || !SmallWords.Contains(words[i])))
-                words[i] = char.ToUpper(words[i][0], System.Globalization.CultureInfo.CurrentCulture) + words[i][1..];
-        return string.Join(' ', words);
     }
 
     void Fields(IEnumerable<MetadataFieldViewModel> fields, bool correcting)

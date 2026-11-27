@@ -34,7 +34,7 @@ public sealed class BinderController(SessionReaderViewModel binder) : NSViewCont
         var next = NSButton.CreateButton(NSImage.GetSystemSymbol("chevron.down", "Next item")!, () => { });
         _bindings.Command(previous, binder.PreviousItemCommand);
         _bindings.Command(next, binder.NextItemCommand);
-        var edit = NSButton.CreateButton("Edit binder", () => { });
+        var edit = NSButton.CreateButton("Edit Binder", () => { });
         edit.ControlSize = NSControlSize.Small;
         _bindings.Command(edit, binder.EditCommand);
         var more = NSButton.CreateButton(NSImage.GetSystemSymbol("ellipsis.circle", "More")!, () => { });
@@ -48,7 +48,7 @@ public sealed class BinderController(SessionReaderViewModel binder) : NSViewCont
         atHand.Activated += (_, _) => ShowAtHandAsync(atHand).FireAndForget();
         var steps = NSStackView.FromViews([counter, new NSView(), edit, atHand, more, previous, next]);
         // Back to the item, once the pages have moved off it, as Windows has it.
-        var backToItem = NSButton.CreateButton("Back to the item", () => { });
+        var backToItem = NSButton.CreateButton("Back to the Item", () => { });
         backToItem.ControlSize = NSControlSize.Small;
         backToItem.Image = NSImage.GetSystemSymbol("arrow.uturn.backward", null)!;
         backToItem.ImagePosition = NSCellImagePosition.ImageLeading;

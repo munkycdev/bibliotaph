@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Changed: the Mac app follows Apple's guidelines more closely.** Buttons, menu items, tabs and headings are in
+  title case, as the sidebar's All Books and Needs Review are. The menu bar has Services, Forward (⌘], and the mouse's
+  forward button or a swipe), a Find submenu, Show Toolbar and Bibliotaph Help, and Close for ⌘W. A PDF's password is
+  asked for in a sheet on the window it's opening in. Add a Book I Own Elsewhere matches its menu item. On the Mac.
+- **Fixed: layout slips on the Mac.** Check a Download's results line up on the left, Keyboard Shortcuts no longer
+  cuts off a long shortcut, Summary's lists line up under their headings, and a picture or video in the reader has no
+  stray divider in its bar. On the Mac.
 - **Fixed: opening Settings > AI hid Home's offer to set up AI.** Only setting AI up, or switching it on or off,
   answers Home's question now; looking at the page leaves it.
 - **Fixed: a search found only inside books said "Nothing here".** When no book's title or details have your words

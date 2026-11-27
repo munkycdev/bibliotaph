@@ -10,6 +10,9 @@ static class Menus
     public static NSMenu Build(MainWindowController main)
     {
         var bar = new NSMenu();
+        // The Services menu every Mac app has, which macOS fills in.
+        var services = new NSMenuItem("Services") { Submenu = new NSMenu("Services") };
+        NSApplication.SharedApplication.ServicesMenu = services.Submenu;
 
         bar.AddItem(Top("Bibliotaph",
             new NSMenuItem("About Bibliotaph", (_, _) => AboutPanel.Show()),
@@ -17,6 +20,8 @@ static class Menus
             NSMenuItem.SeparatorItem,
             new NSMenuItem("Settings…", ",", (_, _) => main.ShowSettings()),
             new NSMenuItem("Your Web Library…", (_, _) => main.ShowDevices()),
+            NSMenuItem.SeparatorItem,
+            services,
             NSMenuItem.SeparatorItem,
             Item("Hide Bibliotaph", "hide:", "h"),
             Item("Hide Others", "hideOtherApplications:", "h", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask),
@@ -31,7 +36,7 @@ static class Menus
             new NSMenuItem("Import from an Online Library…", (_, _) => main.ShowSettings(Presentation.Services.SettingsSection.OnlineLibraries)),
             new NSMenuItem("Check a Download…", (_, _) => main.Go(Presentation.Services.Route.DownloadCheck)),
             NSMenuItem.SeparatorItem,
-            Item("Close Window", "performClose:", "w")));
+            Item("Close", "performClose:", "w")));
 
         bar.AddItem(Top("Edit",
             Item("Undo", "undo:", "z"),
@@ -42,17 +47,21 @@ static class Menus
             Item("Paste", "paste:", "v"),
             Item("Select All", "selectAll:", "a"),
             NSMenuItem.SeparatorItem,
-            // In a book, Find looks in it, as Ctrl+F does on Windows; elsewhere it searches the library.
-            Item("Find", "readerFind:", "f"),
-            Item("Find Next", "readerFindNext:", "g"),
-            Item("Find Previous", "readerFindPrevious:", "G"),
+            // In a book, Find looks in it, as Ctrl+F does on Windows; elsewhere it searches the library. A submenu, as
+            // in every Mac app's Edit menu.
+            Submenu("Find",
+                Item("Find…", "readerFind:", "f"),
+                Item("Find Next", "readerFindNext:", "g"),
+                Item("Find Previous", "readerFindPrevious:", "G")),
             new NSMenuItem("Search Your Library", "k", (_, _) => main.FocusSearch()),
             Shortcut(new NSMenuItem("Ask Your Library", "f", (_, _) => main.ToggleAsk()), NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask)));
 
         bar.AddItem(Top("Go",
-            new NSMenuItem("Back", "[", (_, _) => main.GoBack()),
+            Valid(new NSMenuItem("Back", "[", (_, _) => main.GoBack()), () => main.CanGoBack),
+            Valid(new NSMenuItem("Forward", "]", (_, _) => main.GoForward()), () => main.CanGoForward),
+            NSMenuItem.SeparatorItem,
             new NSMenuItem("Home", "H", (_, _) => main.Go(Route.Home)),
-            new NSMenuItem("Library", "L", (_, _) => main.Go(Route.Library)),
+            new NSMenuItem("All Books", "L", (_, _) => main.Go(Route.Library)),
             new NSMenuItem("Collections", "", (_, _) => main.Go(Route.Collections)),
             new NSMenuItem("Binders", "", (_, _) => main.Go(Route.Sessions)),
             new NSMenuItem("Needs Review", "", (_, _) => main.Go(Route.NeedsReview)),
@@ -81,7 +90,8 @@ static class Menus
             NSMenuItem.SeparatorItem,
             Item("Show Sidebar", "toggleSidebar:", "s", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask),
             Item("Show Inspector", "toggleInspector:", "i", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask),
-            NSMenuItem.SeparatorItem,
+            // AppKit retitles it Hide Toolbar while the toolbar shows.
+            Item("Show Toolbar", "toggleToolbarShown:", "t", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.AlternateKeyMask),
             NSMenuItem.SeparatorItem,
             Appearance(main),
             Item("Enter Full Screen", "toggleFullScreen:", "f", NSEventModifierMask.CommandKeyMask | NSEventModifierMask.ControlKeyMask));
@@ -99,6 +109,8 @@ static class Menus
 
         // Last, as on every Mac.
         var help = Top("Help",
+            new NSMenuItem("Bibliotaph Help", (_, _) => NSWorkspace.SharedWorkspace.OpenUrl(new Foundation.NSUrl(Presentation.Services.AboutInfo.GuideUrl))),
+            NSMenuItem.SeparatorItem,
             Shortcut(new NSMenuItem("Keyboard Shortcuts", "/", (_, _) => ShortcutsWindow.Show()), NSEventModifierMask.CommandKeyMask),
             NSMenuItem.SeparatorItem,
             new NSMenuItem("Copy Details for a Bug Report", (_, _) => AboutPanel.CopyDetails()));
@@ -106,6 +118,20 @@ static class Menus
         NSApplication.SharedApplication.HelpMenu = help.Submenu;
 
         return bar;
+    }
+
+    static NSMenuItem Submenu(string title, params NSMenuItem[] items)
+    {
+        var menu = new NSMenu(title);
+        foreach (var item in items) menu.AddItem(item);
+        return new NSMenuItem(title) { Submenu = menu };
+    }
+
+    /// <summary>An item dimmed while <paramref name="can"/> says it can't run, as Back is on the first page.</summary>
+    static NSMenuItem Valid(NSMenuItem item, Func<bool> can)
+    {
+        item.ValidateMenuItem = _ => can();
+        return item;
     }
 
     static NSMenuItem Shortcut(NSMenuItem item, NSEventModifierMask modifiers)

@@ -30,6 +30,9 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
   a line below as Windows' WrapPanel does, or, for a bar that must stay one line, a stack view with low clipping
   resistance whose less used controls have a lower visibility priority. Pop-ups whose choices can be long cap their
   width and shorten the title.
+- **Stack views.** Which view in a stack takes its spare room is the stack view's own hugging
+  (`SetHuggingPriority`), not NSView's content hugging (`SetContentHuggingPriorityForOrientation`), which a stack view
+  ignores. Set the wrong one and the spare room lands somewhere else: Check a Download's rows floated to the right.
 - **Keyboard.** Every window sets `AutorecalculatesKeyViewLoop`, so Tab moves through the controls a page shows now.
 - **Settings.**
   - The window has no minimize or zoom. It takes each pane's height, up to a limit, and the pane scrolls beyond it.
@@ -95,15 +98,20 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
 - The Edit menu has Find and Ask.
 - The File menu has what Windows puts behind the Library's Add button: Add Folder, Add a Book I Own Elsewhere and
   Check a Download.
-- The Go menu has Back (⌘[) and each page, as Finder's does. Back is also in the toolbar beside the page's name, and
-  the mouse's back button and a swipe go back too. The Go menu also has First and Last Page (⌘Home, ⌘End) and the
+- The Go menu has Back (⌘[), Forward (⌘]) and each page, as Finder's does, named as the sidebar names it (All
+  Books). Back is also in the toolbar beside the page's name, and the mouse's back and forward buttons and a swipe go
+  back and forward too. Forward returns to the page Back left until somewhere else is visited; closing a reader or a
+  binder, or a link into Settings, goes back without leaving a page to go forward to. The Go menu also has First and Last Page (⌘Home, ⌘End) and the
   binder's next and previous item (⌥⌘→, ⌥⌘←).
 - Reader commands are menu items that reach the reader through the responder chain, so they're dimmed with no reader
   in reach: Find (⌘F; with no book, it searches the library), Find Next and Previous (⌘G, ⇧⌘G), Zoom In and Out,
   Fit Width (⌘0) and Fit Page (⌥⌘0). Search Your Library is ⌘K from anywhere, as Ctrl+K is on Windows.
 - The File menu has Add a Folder from Storage and Import from an Online Library, as Windows' Add menu does.
-- The Help menu, last as on every Mac, has Keyboard Shortcuts (⌘/) and Copy Details for a Bug Report: Windows' Copy
-  details, which the standard About panel has no place for.
+- The Help menu, last as on every Mac, has Bibliotaph Help (the user guide), Keyboard Shortcuts (⌘/) and Copy Details
+  for a Bug Report: Windows' Copy details, which the standard About panel has no place for.
+- The app menu has the Services submenu, which macOS fills in. The File menu's ⌘W is Close. The Edit menu's Find is a
+  submenu (Find…, Find Next, Find Previous), as in every Mac app. The View menu has Show Toolbar (⌥⌘T), which AppKit
+  retitles Hide Toolbar, since people can hide the toolbar.
 - A book's right-click menu has everything Windows' has, in the same order: Pin or Unpin, Cataloged Wrong, and Forget
   Its Text or Read It Again for the books they apply to. A bookmark's right-click in the reader indexes it as an
   adventure of its own.
@@ -129,6 +137,11 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
 
 - Buttons and menu items take title-style capitalization ("Open in Another App", "Try Again"), as the HIG asks.
   Sentences, notes and tips stay in sentence case.
+- Words the Mac shares with Windows and the web, which are in sentence case there (a card's answers, a tab's label,
+  a sort, a Settings section, a Summary list, a page's title), go through `MacText.TitleCase` (`Views/MacText.cs`)
+  where they're shown as a button, menu item, tab or heading. It changes only plain lower-case words, so a name with
+  a capital, a digit or a dot ("AI", "v2.pdf") stays as written, and a book's, binder's or file's own name is never
+  put through it.
 - Headings are title case, not all caps: Windows' and the web's eyebrows ("SAVED SEARCHES") become title-case headings
   ("Saved Searches"), and a sheet's bold title needs no eyebrow above it.
 - A form's fields have their names beside them, right-aligned; a placeholder only shows an example or "Required".
@@ -136,8 +149,12 @@ Don't add custom backgrounds, materials or visual-effect views behind bars and s
 ## Dialogs and tips
 
 - A dialog that belongs to a window is a sheet on it: Test with a Book, the pages of an adventure, Send to Nornis,
-  Add a Book I Own Elsewhere.
+  Add a Book I Own Elsewhere, and a PDF's password, which the reader waits for, so its sheet runs modally.
 - The first-run tour is a popover beside the control each step is about, and Esc skips it.
+- AppKit closes a popover itself when the control it points at leaves the window, as Home's covers do while the first
+  books come in, and asks its delegate first. Never close the popover again from there: it was released twice and
+  crashed the app. The tour forgets that popover and shows the step again beside the control in its place; only Esc
+  or Skip Tour skip it.
 
 ## Secrets
 

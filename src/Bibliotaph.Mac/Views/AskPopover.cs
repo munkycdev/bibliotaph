@@ -61,7 +61,7 @@ sealed class AskPopover : NSViewController
     {
         foreach (var view in _content.ArrangedSubviews) view.RemoveFromSuperview();
         Text(_ask.Message, secondary: true);
-        if (_ask.NeedsAi) Button("Set up AI…", () => _ask.OpenAiSettingsCommand.Execute(null));
+        if (_ask.NeedsAi) Button("Set Up AI…", () => _ask.OpenAiSettingsCommand.Execute(null));
         if (_ask.HasParts)
         {
             Heading("Searching for");
@@ -76,7 +76,7 @@ sealed class AskPopover : NSViewController
             Button("Search", () => _ask.SearchCommand.Execute(null));
         }
         if (_ask.IsInterpreted || _ask.State == PlainSearchState.Problem)
-            Button("Answer from my books instead", () => _ask.AnswerCommand.Execute(_question()));
+            Button("Answer from My Books Instead", () => _ask.AnswerCommand.Execute(_question()));
 
         var library = _ask.Library;
         Text(library.Step, secondary: true);

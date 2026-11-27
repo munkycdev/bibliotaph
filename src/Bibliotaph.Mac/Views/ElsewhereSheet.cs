@@ -33,10 +33,10 @@ static class ElsewhereSheet
     {
         var sheet = new Sheet(480);
         var bindings = new Bindings();
-        sheet.Text("Add a Book You Own Elsewhere", size: 17).Font = NSFont.SystemFontOfSize(17, NSFontWeight.Semibold)!;
+        sheet.Text("Add a Book I Own Elsewhere", size: 17).Font = NSFont.SystemFontOfSize(17, NSFontWeight.Semibold)!;
         sheet.Text("In print or on a virtual tabletop. It gets a card with no file, so search finds it with the rest.", secondary: true);
 
-        var title = new NSTextField { PlaceholderString = "Title", StringValue = dialog.Title };
+        var title = new NSTextField { PlaceholderString = "Required", StringValue = dialog.Title };
         title.Changed += (_, _) => dialog.Title = title.StringValue;
         Field(sheet, "Title", title);
         var system = FormText.Choices(dialog.Systems.Select(c => c.Label), at =>
@@ -53,7 +53,7 @@ static class ElsewhereSheet
         choices.Distribution = NSStackViewDistribution.FillEqually;
         choices.Spacing = 12;
         sheet.AddWide(choices);
-        var publisher = new NSTextField { PlaceholderString = "Publisher", StringValue = dialog.Publisher };
+        var publisher = new NSTextField { StringValue = dialog.Publisher };
         publisher.Changed += (_, _) => dialog.Publisher = publisher.StringValue;
         Field(sheet, "Publisher", publisher);
 

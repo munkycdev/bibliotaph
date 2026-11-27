@@ -217,7 +217,7 @@ sealed class NotesPane : NSView
         _notes = notes;
         var heading = NSTextField.CreateLabel("Notes");
         heading.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Semibold)!;
-        var add = NSButton.CreateButton("Add note…", () => { });
+        var add = NSButton.CreateButton("Add Note…", () => { });
         add.ControlSize = NSControlSize.Small;
         _bindings.Command(add, notes.AddCommand);
         // Under the heading, what was just done to a note, with Undo for a deleted one, as on Windows.
@@ -363,7 +363,7 @@ sealed class AskPane : NSView
         _ask = ask;
         var heading = NSTextField.CreateLabel("Ask this book");
         heading.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Semibold)!;
-        var restart = NSButton.CreateButton("New conversation", () => { });
+        var restart = NSButton.CreateButton("New Conversation", () => { });
         restart.ControlSize = NSControlSize.Small;
         _bindings.Command(restart, ask.NewConversationCommand);
         var top = NSStackView.FromViews([heading, new NSView(), restart]);

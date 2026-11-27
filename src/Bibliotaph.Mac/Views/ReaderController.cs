@@ -99,7 +99,9 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
         // adventure, use a page as the cover, add pages to a binder, open it elsewhere, and its own window.
         var more = Button("ellipsis.circle", "More", null);
         more.Activated += (_, _) => MoreMenu().PopUpMenu(null, new CoreGraphics.CGPoint(0, more.Bounds.Height + 4), more);
-        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), more, nornis, addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, Separator(), zoomOut, zoom, zoomIn, Separator(),
+        var beforeZoom = Separator();
+        var beforeFind = Separator();
+        var bar = NSStackView.FromViews([back, outlineToggle, title, new NSView(), more, nornis, addToBinder, askToggle, notesToggle, stripToggle, previous, next, pageBox, pageCount, beforeZoom, zoomOut, zoom, zoomIn, beforeFind,
             findStatus, find, wholeFile, findPrevious, findNext]);
         bar.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         bar.Spacing = 6;
@@ -220,6 +222,8 @@ public sealed class ReaderController(ViewerViewModel reader, INavigationService?
                 control.Hidden = !reader.HasPages;
             wholeFile.Hidden = !reader.HasPages || !reader.IsPart;
             pageCount.Hidden = !reader.HasPages;
+            // The lines between the page, zoom and find controls go with them: a picture or a video has none.
+            beforeZoom.Hidden = beforeFind.Hidden = !reader.HasPages;
         });
         _bindings.Property(reader, nameof(ViewerViewModel.Pdf), ShowPdf);
         DialogSheet.Follow(_bindings, reader.Sessions, () => View.Window);

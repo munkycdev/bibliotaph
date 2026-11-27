@@ -20,7 +20,7 @@ static class DevReviewSamples
         var one = new EntryId(1);
         var two = new EntryId(2);
 
-        yield return new TermCardViewModel(new PendingTerm(1, new Term("system", "new-system", "New System"), MetadataFields.System, 3, "“…for New System, second edition…”"), vocabulary, actions);
+        yield return new TermCardViewModel(new PendingTerm(1, new Term("system", "new-system", "New System"), MetadataFields.System, 3, "…for New System, second edition…"), vocabulary, actions);
         yield return new OverlapCardViewModel(new OverlapProposal("o", "setting",
             [new OverlapMember(1, "sample-world", "Sample World", 12), new OverlapMember(2, "the-sample-world", "The Sample World", 2)], "Names differ only by “The”", false, 1), actions);
         yield return new VersionCardViewModel(new VersionItem(new PendingVersion(1, 1, one, 2, two, VersionEvidence.SharedPages, 180, 200, 210, 200, now),

@@ -128,7 +128,9 @@ public sealed class DownloadCheckController(DownloadCheckViewModel check) : NSVi
         text.Spacing = 2;
         if (item.HasDetail) text.AddArrangedSubview(PageParts.Secondary(item.Detail));
         foreach (var view in text.ArrangedSubviews) view.SetContentCompressionResistancePriority(250, NSLayoutConstraintOrientation.Horizontal);
-        text.SetContentHuggingPriorityForOrientation(1, NSLayoutConstraintOrientation.Horizontal);
+        // A stack view's own hugging, not NSView's content hugging, decides who takes the row's spare width; without it
+        // the spare width lands before the text and each row's text floats to wherever its links begin.
+        text.SetHuggingPriority(1, NSLayoutConstraintOrientation.Horizontal);
 
         var links = new NSStackView { Spacing = 14, Alignment = NSLayoutAttribute.Top };
         if (item.CanOpen) links.AddArrangedSubview(Link("Open the Book", () => item.OpenBookCommand.Execute(null)));

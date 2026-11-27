@@ -155,10 +155,10 @@ public sealed class SidebarController(LibraryActivity activity, INavigationServi
         _rows =
         [
             new Row(false, "Home", "house", Route.Home),
-            new Row(false, "All books", "books.vertical"),
+            new Row(false, "All Books", "books.vertical"),
             new Row(false, "Collections", "square.stack", Route.Collections),
             new Row(false, "Binders", "book.closed", Route.Sessions),
-            new Row(false, "Needs review", "tray", Route.NeedsReview),
+            new Row(false, "Needs Review", "tray", Route.NeedsReview),
             new Row(false, "Summary", "chart.bar.xaxis", Route.Summary),
             .. shell.Pinned.Count == 0 ? (IEnumerable<Row>)[] :
                 [new Row(true, "Pinned", ""), .. shell.Pinned.Select(p => new Row(false, p.Label, Symbol(p.Icon), Pin: p))],

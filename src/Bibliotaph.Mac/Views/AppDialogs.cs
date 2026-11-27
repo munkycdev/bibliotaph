@@ -174,7 +174,7 @@ static class ShortcutsWindow
             ("⌘W", "Close the window"),
             ("⌘/", "These shortcuts"),
         ]),
-        ("Search field",
+        ("Search Field",
         [
             ("Return", "Search now"),
             ("⌥Esc, or ↓", "Show the search guide"),
@@ -194,7 +194,7 @@ static class ShortcutsWindow
             ("⌘Z", "In Organize, take back the last change"),
             ("Esc", "Leave Organize"),
         ]),
-        ("Reading a book",
+        ("Reading a Book",
         [
             ("⌘F", "Find in this book"),
             ("⌘G, ⇧⌘G", "The next or previous match"),
@@ -208,7 +208,7 @@ static class ShortcutsWindow
             ("Esc", "Let the selection go"),
             ("Arrows, Page Up/Down", "Scroll the pages"),
         ]),
-        ("A binder",
+        ("A Binder",
         [
             ("⌥⌘→, ⌥⌘←", "The next or previous item in the binder"),
             ("Return, ⇧Return", "Editing it, open the item in focus, or open it in a window of its own"),
@@ -244,7 +244,8 @@ static class ShortcutsWindow
             if (content.ArrangedSubviews.Length > 1) content.SetCustomSpacing(16, content.ArrangedSubviews[^2]);
             foreach (var (keys, action) in shortcuts)
             {
-                var key = NSTextField.CreateLabel(keys);
+                // Wraps, so a long run of keys and gestures stays whole in its column.
+                var key = NSTextField.CreateWrappingLabel(keys);
                 key.Font = NSFont.SystemFontOfSize(12, NSFontWeight.Medium)!;
                 key.Alignment = NSTextAlignment.Right;
                 key.WidthAnchor.ConstraintEqualTo(180).Active = true;

@@ -163,7 +163,10 @@ public sealed class MacGraphicsMemory : IGraphicsMemory
     public long? Bytes => Metal.MTLDevice.SystemDefault is { } gpu ? (long)gpu.RecommendedMaxWorkingSetSize : null;
 }
 
-/// <summary>A PDF's password, asked for in an alert with a secure field and the same choices as on Windows.</summary>
+/// <summary>
+/// A PDF's password, asked for with a secure field and the same choices as on Windows, in a sheet on the window the
+/// book is opening in. The reader waits for the answer, so the sheet runs modally until it's answered.
+/// </summary>
 public sealed class MacPasswordPrompt : IPasswordPrompt
 {
     public EnteredPassword? Ask(string title, bool retry)
@@ -186,7 +189,23 @@ public sealed class MacPasswordPrompt : IPasswordPrompt
         alert.AddButton("Open");
         alert.AddButton("Cancel");
         alert.Window.InitialFirstResponder = field;
-        if (alert.RunModal() != (nint)(long)NSAlertButtonReturn.First || field.StringValue.Length == 0) return null;
+        // A question about one book doesn't stop the app quitting.
+        alert.Window.PreventsApplicationTerminationWhenModal = false;
+        var app = NSApplication.SharedApplication;
+        nint answer;
+        if ((app.KeyWindow ?? app.MainWindow) is { AttachedSheet: null, IsVisible: true } window && window is not NSPanel)
+        {
+            nint chosen = 0;
+            alert.BeginSheet(window, response =>
+            {
+                chosen = (nint)(long)response;
+                app.StopModal();
+            });
+            app.RunModalForWindow(alert.Window);
+            answer = chosen;
+        }
+        else answer = alert.RunModal();
+        if (answer != (nint)(long)NSAlertButtonReturn.First || field.StringValue.Length == 0) return null;
         return new EnteredPassword(field.StringValue, remember.State == NSCellStateValue.On, searchable.State == NSCellStateValue.On);
     }
 }

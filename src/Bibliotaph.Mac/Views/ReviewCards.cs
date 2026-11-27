@@ -88,8 +88,8 @@ public sealed partial class ReviewController
         book.ContentTintColor = NSColor.Link;
         body.AddArrangedSubview(book);
         body.AddArrangedSubview(Answers(
-            Answer(card.MakeCurrentLabel, card.MakeCurrentCommand, card.MakeCurrentHint),
-            Answer(card.KeepAsCopyLabel, card.KeepAsCopyCommand, card.KeepAsCopyHint),
+            Answer(FileIsCurrent(card.MakeCurrentLabel), card.MakeCurrentCommand, card.MakeCurrentHint, asWritten: true),
+            Answer(FileIsCurrent(card.KeepAsCopyLabel), card.KeepAsCopyCommand, card.KeepAsCopyHint, asWritten: true),
             Answer("Separate Book", card.SeparateBookCommand, VersionCardText.SeparateHint)));
         return Decided(card, body);
     }
@@ -181,7 +181,7 @@ public sealed partial class ReviewController
         books.Spacing = 4;
         foreach (var book in card.Books)
         {
-            var goes = Answer($"Goes With {book.Title}", card.GoesWithCommand, "It takes the book's system, publisher, setting and tags, and shows inside it.",
+            var goes = Answer($"Goes with {book.Title}", card.GoesWithCommand, "It takes the book's system, publisher, setting and tags, and shows inside it.", asWritten: true,
                 parameter: () => book);
             goes.Image = NSImage.GetSystemSymbol("checkmark", null)!;
             goes.ImagePosition = NSCellImagePosition.ImageLeading;
@@ -467,14 +467,18 @@ public sealed partial class ReviewController
     }
 
     /// <summary>An answer: the likeliest one in the accent, as the primary button is on Windows.</summary>
-    NSButton Answer(string title, ICommand command, string tip, bool primary = false, Func<object?>? parameter = null)
+    NSButton Answer(string title, ICommand command, string tip, bool primary = false, Func<object?>? parameter = null, bool asWritten = false)
     {
-        var button = Button(title, command, parameter);
+        var button = Button(asWritten ? title : MacText.TitleCase(title), command, parameter);
         button.ControlSize = NSControlSize.Regular;
         if (tip.Length > 0) button.ToolTip = tip;
         if (primary) button.TintProminence = NSTintProminence.Primary;
         return button;
     }
+
+    /// <summary>"Notes.pdf is current" as "Notes.pdf Is Current": the file's own name is left as it is written.</summary>
+    static string FileIsCurrent(string label) =>
+        label.EndsWith(" is current", StringComparison.Ordinal) ? label[..^" is current".Length] + " Is Current" : label;
 
     static NSStackView Answers(params NSView[] views)
     {

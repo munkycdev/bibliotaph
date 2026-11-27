@@ -61,7 +61,7 @@ sealed class FormSection
     public FormSection(string? title, string? footer)
     {
         var box = new FormBox();
-        Title = NSTextField.CreateLabel(title ?? "");
+        Title = NSTextField.CreateLabel(MacText.TitleCase(title ?? ""));
         Title.Font = NSFont.SystemFontOfSize(13, NSFontWeight.Semibold)!;
         Title.Hidden = title is null;
         Footer = FormText.Note(footer ?? "", 11);

@@ -20,7 +20,8 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     /// <summary>"Your library", a collection's or a saved search's name, with how many it holds under it.</summary>
     public void FollowTitle(Bindings bindings, Action<string, string> show) =>
         bindings.Properties(library, [nameof(LibraryViewModel.Heading), nameof(LibraryViewModel.CountText), nameof(LibraryViewModel.CountLabel)],
-            () => show(library.Heading, library.CountText.Length == 0 ? "" : $"{library.CountText} {library.CountLabel}"));
+            () => show(library.Heading is "Your library" or "Search results" ? MacText.TitleCase(library.Heading) : library.Heading,
+                library.CountText.Length == 0 ? "" : $"{library.CountText} {library.CountLabel}"));
 
     /// <summary>The covers, or the list, as the Library shows its books.</summary>
     public NSView? Anchor(Core.TourAnchor anchor) =>
@@ -532,7 +533,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
     {
         yield return NSMenuItem.CreateSectionHeader("Sort By");
         foreach (var choice in library.SortChoices)
-            yield return new NSMenuItem(choice.Label, (_, _) => library.SortChoice = choice)
+            yield return new NSMenuItem(MacText.TitleCase(choice.Label), (_, _) => library.SortChoice = choice)
             {
                 State = ReferenceEquals(choice, library.SortChoice) ? NSCellStateValue.On : NSCellStateValue.Off,
             };
@@ -571,7 +572,7 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
         sort.Activated += (_, _) => Pop(sort, SortItems());
         _bindings.Properties(library, [nameof(LibraryViewModel.SortChoice), nameof(LibraryViewModel.SortChoices)], () =>
         {
-            sort.Title = $"Sort: {library.SortChoice.Label}";
+            sort.Title = $"Sort: {MacText.TitleCase(library.SortChoice.Label)}";
             _list?.ShowSort(library.SortChoice.Value);
         });
         var kind = ChoicePopup.Create(_bindings, filters, nameof(LibraryFilterState.KindChoice), () => filters.KindChoices, () => filters.KindChoice, c => filters.KindChoice = c);
@@ -632,14 +633,14 @@ public sealed class LibraryController(LibraryViewModel library, MacCovers covers
             nameof(LibraryViewModel.PagesTabLabel), nameof(LibraryViewModel.ShowLayoutChoice)], () =>
         {
             results.Hidden = !library.IsSearching;
-            results.SetLabel(library.DocumentsTabLabel, 0);
-            results.SetLabel(library.PagesTabLabel, 1);
+            results.SetLabel(MacText.TitleCase(library.DocumentsTabLabel), 0);
+            results.SetLabel(MacText.TitleCase(library.PagesTabLabel), 1);
             results.SelectedSegment = library.IsPagesTab ? 1 : 0;
             layout.Hidden = !library.ShowLayoutChoice;
         });
         var more = Small("", filters.ToggleMoreFiltersCommand);
         more.BezelStyle = NSBezelStyle.Inline;
-        _bindings.Property(filters, nameof(LibraryFilterState.MoreFiltersLabel), () => more.Title = filters.MoreFiltersLabel);
+        _bindings.Property(filters, nameof(LibraryFilterState.MoreFiltersLabel), () => more.Title = MacText.TitleCase(filters.MoreFiltersLabel));
         // Packs as one card each, or every file in them on a card of its own.
         var packs = NSSegmentedControl.FromImages(
             [NSImage.GetSystemSymbol("square.stack.3d.up", "Packs")!, NSImage.GetSystemSymbol("doc.on.doc", "Each file")!], NSSegmentSwitchTracking.SelectOne, () => { });

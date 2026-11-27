@@ -65,7 +65,7 @@ sealed class TourPopover : IDisposable
             return;
         }
 
-        var title = NSTextField.CreateLabel(step.Title);
+        var title = NSTextField.CreateLabel(MacText.TitleCase(step.Title));
         title.Font = NSFont.SystemFontOfSize(14, NSFontWeight.Semibold)!;
         var text = NSTextField.CreateWrappingLabel(step.Text);
         text.Font = NSFont.SystemFontOfSize(12)!;
