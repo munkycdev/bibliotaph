@@ -6,7 +6,11 @@ using Microsoft.Data.Sqlite;
 
 namespace Bibliotaph.Index;
 
-public sealed record JobRecord(long Id, long DocumentId, string ContentHash, Stage Stage, int StageVersion, int Attempts);
+/// <summary>
+/// A job leased to run. <see cref="Afresh"/> says the user asked for it again (<see cref="JobBoard.RerunAfreshAsync"/>): the
+/// stage does its own work rather than take what another device made.
+/// </summary>
+public sealed record JobRecord(long Id, long DocumentId, string ContentHash, Stage Stage, int StageVersion, int Attempts, bool Afresh = false);
 
 /// <summary>
 /// The durable job queue in index.db. One job per document, stage and stage version; leases mark a job as running, and
@@ -108,7 +112,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             var now = Now();
             var row = c.QueryFirstOrDefault<JobRow>(
                 $"""
-                SELECT id, document_id AS DocumentId, content_hash AS ContentHash, stage, stage_version AS StageVersion, attempts
+                SELECT id, document_id AS DocumentId, content_hash AS ContentHash, stage, stage_version AS StageVersion, attempts, afresh
                 FROM job
                 WHERE status = 'pending' AND stage IN @names AND (not_before_utc IS NULL OR not_before_utc <= @now)
                 ORDER BY priority DESC, {(bookAtATime ? "document_id, " : "")}id
@@ -132,7 +136,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
         writer.WriteAsync((c, t) =>
         {
             var now = Now();
-            c.Execute("UPDATE job SET status = 'done', lease_owner = NULL, lease_expires_utc = NULL, last_error = @reason WHERE id = @Id",
+            c.Execute("UPDATE job SET status = 'done', lease_owner = NULL, lease_expires_utc = NULL, last_error = @reason, afresh = 0 WHERE id = @Id",
                 new { job.Id, reason }, t);
             SetStatus(c, t, job.DocumentId, job.Stage, outcome, reason, now);
             foreach (var stage in next ?? []) Enqueue(c, t, job.DocumentId, job.ContentHash, stage, PriorityOf(c, t, job.Id), now);
@@ -225,7 +229,7 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
         {
             var now = Now();
             var leased = c.Query<JobRow>(
-                "SELECT id, document_id AS DocumentId, content_hash AS ContentHash, stage, stage_version AS StageVersion, attempts FROM job WHERE status = 'leased'",
+                "SELECT id, document_id AS DocumentId, content_hash AS ContentHash, stage, stage_version AS StageVersion, attempts, afresh FROM job WHERE status = 'leased'",
                 transaction: t).ToList();
             // The attempt counts: if the job crashed the app, it should not loop forever.
             c.Execute("UPDATE job SET status = 'pending', lease_owner = NULL, lease_expires_utc = NULL WHERE status = 'leased'", transaction: t);
@@ -298,6 +302,27 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             foreach (var (id, documentId, _) in finished)
             {
                 c.Execute("UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL WHERE id = @id", new { id }, t);
+                SetStatus(c, t, documentId, stage, StageStatus.Pending, null, now);
+            }
+            return finished.Count;
+        }, ct);
+
+    /// <summary>
+    /// Runs <paramref name="stage"/> again, as the user asked, for every document that finished it at the current
+    /// version, or only those that finished for a reason <paramref name="because"/> accepts: each is marked to be done
+    /// afresh (<see cref="JobRecord.Afresh"/>) until it finishes. Returns the number queued.
+    /// </summary>
+    public Task<int> RerunAfreshAsync(Stage stage, Func<string?, bool>? because = null, CancellationToken ct = default) =>
+        writer.WriteAsync((c, t) =>
+        {
+            var now = Now();
+            var finished = c.Query<(long Id, long DocumentId, string? Reason)>(
+                // As the other reruns: every one that ended, or only those that finished for one of the reasons asked about.
+                $"SELECT id, document_id, last_error FROM job WHERE stage = @stage AND stage_version = @version AND status IN ({(because is null ? "'done', 'failed'" : "'done'")})",
+                new { stage = stage.ToString(), version = Pipeline.Version(stage) }, t).Where(j => because?.Invoke(j.Reason) ?? true).ToList();
+            foreach (var (id, documentId, _) in finished)
+            {
+                c.Execute("UPDATE job SET status = 'pending', attempts = 0, not_before_utc = NULL, last_error = NULL, afresh = 1 WHERE id = @id", new { id }, t);
                 SetStatus(c, t, documentId, stage, StageStatus.Pending, null, now);
             }
             return finished.Count;
@@ -513,8 +538,8 @@ public sealed class JobBoard(IndexWriter writer, IndexDatabase database, TimePro
             """,
             new { documentId, stage = stage.ToString(), status = status.ToString(), version = Pipeline.Version(stage), reason, now }, t);
 
-    sealed record JobRow(long Id, long DocumentId, string ContentHash, string Stage, long StageVersion, long Attempts)
+    sealed record JobRow(long Id, long DocumentId, string ContentHash, string Stage, long StageVersion, long Attempts, long Afresh)
     {
-        public JobRecord ToRecord() => new(Id, DocumentId, ContentHash, Enum.Parse<Core.Stage>(Stage), (int)StageVersion, (int)Attempts);
+        public JobRecord ToRecord() => new(Id, DocumentId, ContentHash, Enum.Parse<Core.Stage>(Stage), (int)StageVersion, (int)Attempts, Afresh != 0);
     }
 }

@@ -66,11 +66,11 @@ public sealed class RunAgainService(IJobControl jobs, AiService ai, ChapterScanS
                 jobs.RequestScan();
                 return "Looking through your folders now.";
             case LookingUp:
-                var looking = await jobs.RerunAsync(Stage.LookUp, ct);
+                var looking = await jobs.RerunAfreshAsync(Stage.LookUp, ct: ct);
                 elsewhere?.Start(again: true);
                 return looking == 0 ? "There are no books to look up." : "The books go back to be looked up one at a time, in the background.";
             case LookingUpMissed:
-                var missed = await jobs.RerunAsync(Stage.LookUp, BookLookups.NotFound, ct);
+                var missed = await jobs.RerunAfreshAsync(Stage.LookUp, BookLookups.NotFound, ct);
                 elsewhere?.Start(again: true, missedOnly: true);
                 return missed == 0 ? "Every book looked up was found." : $"{N(missed)} {Books(missed)} not found online {(missed == 1 ? "goes" : "go")} back to be looked up, in the background.";
             case Cataloguing:

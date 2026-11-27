@@ -150,6 +150,12 @@ public interface IJobControl
     Task<int> RerunAsync(Stage stage, Func<string?, bool> because, CancellationToken ct = default);
 
     /// <summary>
+    /// Runs a stage again as the user asked, for every document that has been through it or only those that finished
+    /// for a reason <paramref name="because"/> accepts: each does its own work rather than take another device's.
+    /// </summary>
+    Task<int> RerunAfreshAsync(Stage stage, Func<string?, bool>? because = null, CancellationToken ct = default);
+
+    /// <summary>
     /// Runs a stage again for one document that has been through it, as "Scan again" does for a whole-book scan.
     /// A job still waiting runs anyway. Returns whether it was queued again.
     /// </summary>
@@ -344,6 +350,15 @@ public sealed class IndexingService : BackgroundService, IJobControl, IIndexingS
     public async Task<int> RerunAsync(Stage stage, Func<string?, bool> because, CancellationToken ct = default)
     {
         var queued = await _queue.RerunAsync(stage, because, ct);
+        _lanes.Wake(stage);
+        RaiseChanged();
+        return queued;
+    }
+
+    /// <summary>Runs a stage again as the user asked, each document's job marked to be done afresh.</summary>
+    public async Task<int> RerunAfreshAsync(Stage stage, Func<string?, bool>? because = null, CancellationToken ct = default)
+    {
+        var queued = await _queue.RerunAfreshAsync(stage, because, ct);
         _lanes.Wake(stage);
         RaiseChanged();
         return queued;

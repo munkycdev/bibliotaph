@@ -170,6 +170,8 @@ public static class LibraryServices
         services.AddSingleton<SharedResultCache>();
         services.AddSingleton<IResultChannel, ServerResultChannel>();
         services.AddSingleton<SharedPageText>();
+        services.AddSingleton<SharedLookups>();
+        services.AddSingleton<SharedPageVectors>();
         services.AddSingleton<SharedResults>();
         // What a connected PC shows of the web library: its files, and what was read from each.
         services.AddSingleton<WebShelfPublisher>();

@@ -688,7 +688,7 @@ offline, and disconnecting deletes them too; the ones kept offline stay for when
 A connected PC looks its books up through bibliotaph.online, which
 asks RPGGeek, AdventureLookup, Open Library and Google Books, so the PC's own books are found in all four, as the web
 library's are; it sends the ISBNs, and the book's title for RPGGeek and AdventureLookup, which also looks up the books
-that print no ISBN by their title. The books it looked up before it connected are asked again. Disconnected, it asks Open Library
+that print no ISBN by their title. The books it looked up before it connected are asked again, unless another of your devices has already asked every catalogue about them. Disconnected, it asks Open Library
 and AdventureLookup itself, and RPGGeek and Google Books with your own token or key, if you saved them in
 **Settings > Online libraries** (see [Cataloguing](cataloging.md#your-own-rpggeek-token-and-google-books-key)). See [Cataloguing](cataloging.md#where-suggestions-come-from).
 
@@ -704,6 +704,23 @@ Scanned pages are shared the same way. Reading a scanned book's pages (OCR) is s
 asks whether another of your devices already has, and takes that text, with each word's place on the page so selecting
 text still works. A book the PC read is ready to search in the web library without being read again there, and the
 other way round. **Reprocess with OCR on every page** still reads the pages again on the device where you ask for it.
+
+Online lookups are shared too. Looking a whole library up takes hours at RPGGeek's pace, so a book one of your devices
+has looked up isn't looked up again on another: the other device takes what was found, the record or that nothing was,
+as long as it was asked of every online library this device would ask, for the same ISBNs, product codes and titles.
+A book whose title has changed since is looked up again by its new title. Only **Look every book up again**, or
+**Only the N not found**, in **Settings > Processing** asks the online libraries afresh on the device where you click
+it, and what it finds then goes to your other devices.
+
+The adventures inside a book are shared the same way: one the AI read on its own pages on one device isn't sent to the
+AI again on another. So is the reading of your library for meaning: before a device sends a book's pages to its
+embedding model, it takes the pages another device read with the same model, and sends only those whose text differs.
+
+What a device looked up, read or embedded before this was shared goes to your other devices the first time it
+connects after updating.
+
+A PC you've just connected waits a few seconds, up to half a minute, for what your other devices worked out before it
+looks anything up or sends anything to the AI, so the order it does things in doesn't matter.
 
 The request lasts 10 minutes; after that, click **Connect…** again. **Settings › Devices** on the web lists each
 connected PC with when it was connected and last used, and **×** disconnects one: its key stops working straight

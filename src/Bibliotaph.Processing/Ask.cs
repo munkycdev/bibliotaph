@@ -77,7 +77,7 @@ public sealed record AskFill(int Done, int Total, bool Running, string? Problem)
 /// </summary>
 public sealed class AskService(
     AiSettings ai, LibraryStore library, AskQueries ask, IndexQueries queries, IndexStore index, EntryStore entries, AskHistoryStore history,
-    AiUse use, ILogger<AskService>? log = null, AskRetrievalOptions? options = null) : IDisposable
+    AiUse use, ILogger<AskService>? log = null, AskRetrievalOptions? options = null, SharedPageVectors? sharedVectors = null) : IDisposable
 {
     /// <summary>A turn's checked pieces as kept: kinds by name, so catalog.db reads sensibly in any SQLite tool.</summary>
     static readonly JsonSerializerOptions PartsJson = new() { Converters = { new JsonStringEnumConverter() } };
@@ -363,6 +363,13 @@ public sealed class AskService(
         var started = Stopwatch.GetTimestamp();
         string? problem = null;
         string? model = null;
+        IReadOnlyDictionary<int, HeadingPath>? headings = null;
+        async Task<Func<AskPageRow, string>> EmbeddedAsync(string forModel)
+        {
+            headings ??= await HeadingsAsync(documentId, ct);
+            var known = headings;
+            return p => EmbeddingText.Document(forModel, known.GetValueOrDefault(p.PdfPage)?.Title, p.Text);
+        }
         try
         {
             await _fillGate.WaitAsync(ct);
@@ -375,7 +382,6 @@ public sealed class AskService(
         if (waiting) Interlocked.Decrement(ref _waitingFills);
         try
         {
-            IReadOnlyDictionary<int, HeadingPath>? headings = null;
             while (true)
             {
                 var state = ai.Current;
@@ -386,19 +392,16 @@ public sealed class AskService(
                 {
                     model = name;
                     await index.DeleteStaleVectorsAsync(documentId, model, EmbeddingText.Version, ct);
+                    // Another of the user's devices may have made them already, by the same model from the same text.
+                    if (sharedVectors is not null) await sharedVectors.TakeAsync(documentId, model, await EmbeddedAsync(model), ct);
                 }
                 var coverage = await ask.GetCoverageAsync(documentId, model, EmbeddingText.Version, ct);
                 Report(documentId, new AskFill(coverage.WithVectors, coverage.WithText, true, null));
                 if (giveWay?.Invoke() == true) break;
                 var batch = await ask.GetPagesWithoutVectorsAsync(documentId, model, EmbeddingText.Version, FillBatch, ct);
                 if (batch.Count == 0) break;
-                if (headings is null)
-                {
-                    var outline = await queries.GetOutlineAsync(documentId, ct);
-                    headings = AskRetrieval.Headings([.. outline.Select(o => new BookHeading(o.Title, o.PdfPage, o.Depth))],
-                        Enumerable.Range(0, (await ask.GetLabelsAsync(documentId, ct)).Count));
-                }
-                var texts = batch.Select(p => EmbeddingText.Document(model, headings.GetValueOrDefault(p.PdfPage)?.Title, p.Text)).ToList();
+                var embedded = await EmbeddedAsync(model);
+                var texts = batch.Select(embedded).ToList();
                 var vectors = await embedder.EmbedAsync(model, texts, ct);
                 await index.SaveVectorsAsync(model, EmbeddingText.Version, [.. batch.Zip(vectors, (p, v) => (p.PageId, v))], ct);
                 made += batch.Count;
@@ -428,9 +431,54 @@ public sealed class AskService(
             _log.LogInformation("Made {Pages} page vectors for document {DocumentId} with {Model} in {Seconds:0.0} s",
                 made, documentId, model, Stopwatch.GetElapsedTime(started).TotalSeconds);
         var final = model is null ? null : await ask.GetCoverageAsync(documentId, model, EmbeddingText.Version, CancellationToken.None);
+        // A book finished with vectors made here goes to the user's other devices, so none of them makes them again.
+        if (made > 0 && problem is null && sharedVectors is not null && model is not null && final is { } whole && whole.WithVectors >= whole.WithText)
+            await ShareAsync(documentId, model, await EmbeddedAsync(model));
         var done = new AskFill(final?.WithVectors ?? 0, final?.WithText ?? 0, false, problem);
         Report(documentId, done);
         return done;
+    }
+
+    /// <summary>The heading each page is under, as its text is sent to the embedding model with it.</summary>
+    async Task<IReadOnlyDictionary<int, HeadingPath>> HeadingsAsync(long documentId, CancellationToken ct)
+    {
+        var outline = await queries.GetOutlineAsync(documentId, ct);
+        return AskRetrieval.Headings([.. outline.Select(o => new BookHeading(o.Title, o.PdfPage, o.Depth))],
+            Enumerable.Range(0, (await ask.GetLabelsAsync(documentId, ct)).Count));
+    }
+
+    /// <summary>
+    /// Once for each embedding model, keeps the books whose vectors by <paramref name="model"/> were all made before page
+    /// vectors were shared, to send to the user's other devices. Returns how many.
+    /// </summary>
+    public async Task<int> ShareEarlierAsync(string model, CancellationToken ct = default)
+    {
+        if (sharedVectors is null || await sharedVectors.HasBackfilledAsync(model, ct)) return 0;
+        var documents = await ask.GetDocumentsWithVectorsAsync(model, EmbeddingText.Version, ct);
+        foreach (var documentId in documents)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (await WhyNotAsync(documentId, ct) is not null) continue;
+            var headings = await HeadingsAsync(documentId, ct);
+            await ShareAsync(documentId, model, p => EmbeddingText.Document(model, headings.GetValueOrDefault(p.PdfPage)?.Title, p.Text));
+        }
+        await sharedVectors.SetBackfilledAsync(model, ct);
+        return documents.Count;
+    }
+
+    async Task ShareAsync(long documentId, string model, Func<AskPageRow, string> embedded)
+    {
+        try
+        {
+            var vectors = await ask.GetVectorsAsync(documentId, model, EmbeddingText.Version, CancellationToken.None);
+            var pages = await ask.GetPagesAsync(documentId, [.. vectors.Select(v => v.PageId)], CancellationToken.None);
+            await sharedVectors!.RecordAsync(documentId, model, pages.ToDictionary(p => p.PdfPage, p => SharedPageVectors.TextHash(embedded(p))), CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Only sharing is lost: the vectors are kept here.
+            _log.LogWarning(ex, "Keeping document {DocumentId}'s page vectors to share failed", documentId);
+        }
     }
 
     void Report(long documentId, AskFill fill)

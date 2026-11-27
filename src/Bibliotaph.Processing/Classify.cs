@@ -410,7 +410,8 @@ public sealed class ClassificationResults(ClassificationStore runs, EntryStore e
 /// <remarks>
 /// After a book's own values, the model is asked which of its bookmarks are self-contained adventures, when the rules
 /// proposed nothing; what passes the evidence check is a proposal for Needs review. Each adventure marked in the file
-/// is then classified on its own pages, onto its own card, once per model and prompt.
+/// is then classified on its own pages, onto its own card, once per model and prompt, unless another of the user's
+/// devices read the same pages of the same file with this prompt.
 /// </remarks>
 public sealed class ClassifyStage(
     AiSettings ai, LibraryStore library, IndexQueries queries, ClassifierInputs inputs, ClassificationStore runs, ClassificationResults results,
@@ -447,11 +448,13 @@ public sealed class ClassifyStage(
         var kept = state.Setup.SkippedRoots;
         if (kept.Count > 0 && (await library.GetRootIdsAsync(job.DocumentId, ct)).Any(kept.Contains))
             return new StageOutcome.Done(StageStatus.Skipped, [], "Its library folder isn't sent to AI.");
+        // A new PC takes its other devices' readings, which come at the first pass with the web library, rather than reading them again.
+        if (shared is not null) await shared.CatchUpAsync(ct);
         // Read here by this model, or on another of the user's devices with this prompt: the AI reads a book once.
         var read = await runs.HasRunAsync(job.ContentHash, classifier.Model, ClassifierPrompt.Version, ct)
             || await runs.HasSharedRunAsync(job.ContentHash, ClassifierPrompt.Version, ct)
             || (shared is not null && await shared.TryApplyAsync(job.DocumentId, job.ContentHash, ct));
-        var unread = await UnreadPartsAsync(job.DocumentId, classifier.Model, ct);
+        var unread = await UnreadPartsAsync(job.DocumentId, job.ContentHash, classifier.Model, ct);
         if (read && unread.Count == 0) return StageOutcome.Complete();
         if (await queries.GetStageStatusAsync(job.DocumentId, Stage.Ocr, ct) is StageStatus.Pending or StageStatus.Running)
             return new StageOutcome.Later(StageWaits.ForOcr, "Waiting for its scanned pages to be read.");
@@ -535,12 +538,18 @@ public sealed class ClassifyStage(
         return null;
     }
 
-    /// <summary>The adventures with pages in this document that this model and prompt haven't read on their own pages, from any copy.</summary>
-    async Task<IReadOnlyList<(EntryId EntryId, string Title, PartPages Pages)>> UnreadPartsAsync(long documentId, string model, CancellationToken ct)
+    /// <summary>
+    /// The adventures with pages in this document that this model and prompt haven't read on their own pages, from any
+    /// copy, nor another of the user's devices with this prompt: one another device read is given its reading now.
+    /// </summary>
+    async Task<IReadOnlyList<(EntryId EntryId, string Title, PartPages Pages)>> UnreadPartsAsync(long documentId, string contentHash, string model,
+        CancellationToken ct)
     {
         var unread = new List<(EntryId, string, PartPages)>();
         foreach (var part in await parts.GetInDocumentAsync(documentId, ct))
-            if (part.Pages is { } pages && !await runs.HasRunOnAsync(part.EntryId, model, ClassifierPrompt.Version, ct))
+            if (part.Pages is { } pages && !await runs.HasRunOnAsync(part.EntryId, model, ClassifierPrompt.Version, ct)
+                && !await runs.HasSharedRunOnAsync(part.EntryId, ClassifierPrompt.Version, ct)
+                && !(shared is not null && await shared.TryApplyAdventureAsync(part.EntryId, contentHash, pages, ct)))
                 unread.Add((part.EntryId, part.Title, pages));
         return unread;
     }

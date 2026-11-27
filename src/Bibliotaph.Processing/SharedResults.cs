@@ -28,8 +28,30 @@ public static class SharedResultKinds
     /// </summary>
     public const string PageText = "ocr";
 
+    /// <summary>
+    /// What a lookup asked the online catalogues and got for a file, or for a book with no file
+    /// (<see cref="SharedLookups"/>).
+    /// </summary>
+    public const string Lookup = "lookup";
+
+    /// <summary>
+    /// The AI's reading of an adventure inside a file, on its own pages: kept for the file and the adventure's pages
+    /// together (<see cref="AdventureKey"/>), since a file holds several.
+    /// </summary>
+    public const string Adventure = "adventure";
+
+    /// <summary>
+    /// A file's page vectors for search by meaning, by one embedding model (<see cref="SharedPageVectors"/>). Too big
+    /// to list, so asked for by file, as OCR is.
+    /// </summary>
+    public const string Vectors = "vectors";
+
     /// <summary>Whether results of <paramref name="kind"/> are asked for one file at a time rather than listed.</summary>
-    public static bool OnRequest(string kind) => kind == PageText;
+    public static bool OnRequest(string kind) => kind is PageText or Vectors;
+
+    /// <summary>What an adventure's reading is kept by: its file's content hash and its first and last PDF pages there.</summary>
+    public static string AdventureKey(string contentHash, int firstPage, int lastPage) =>
+        string.Create(CultureInfo.InvariantCulture, $"{contentHash}@{firstPage}-{lastPage}");
 }
 
 /// <summary>
@@ -91,6 +113,13 @@ public sealed class SharedResults : IHostedService, IDisposable
     const string PulledKey = "pulled";
     const string PushedRunsKey = "pushed.classification";
     const string PushedScansKey = "pushed.chapters";
+    const string PushedAdventuresKey = "pushed.adventure";
+
+    /// <summary>How long a stage waits for the first pass after the web library is connected before it goes on without it.</summary>
+    public static readonly TimeSpan CatchUpFor = TimeSpan.FromSeconds(30);
+
+    /// <summary>How long after a pass that couldn't reach the web library a stage tries one again before it goes on.</summary>
+    static readonly TimeSpan CatchUpAgain = TimeSpan.FromMinutes(1);
 
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter() } };
 
@@ -108,10 +137,19 @@ public sealed class SharedResults : IHostedService, IDisposable
     readonly AiSettings _ai;
     readonly IResultChannel? _channel;
     readonly SharedPageText? _pageText;
+    readonly SharedLookups? _lookups;
+    readonly PartsService? _parts;
+    readonly SharedPageVectors? _vectors;
     readonly TimeProvider _clock;
     readonly ILogger _log;
     readonly SemaphoreSlim _gate = new(1, 1);
     readonly Lock _lock = new();
+
+    /// <summary>Whether a pass has read every result the web library had for this device since the start.</summary>
+    volatile bool _caughtUp;
+
+    /// <summary>When a stage last tried to catch up and couldn't, so the next tries after a while rather than at once.</summary>
+    DateTimeOffset _triedCatchingUp = DateTimeOffset.MinValue;
 
     /// <summary>The documents looked at since the start: only new ones, and those whose results changed, are looked at again.</summary>
     readonly HashSet<long> _seen = [];
@@ -122,8 +160,11 @@ public sealed class SharedResults : IHostedService, IDisposable
     public SharedResults(ClassificationStore runs, ChapterScanStore scans, MetadataStore metadata, VocabularyStore vocabularies, EntryStore entries,
         LibraryStore library, MetadataProjector projector, ChapterProjection chapters, ChapterQueries chapterQueries, SharedResultCache cache, AiSettings ai,
         IResultChannel? channel = null, TimeProvider? clock = null, ILogger<SharedResults>? log = null, SharedPageText? pageText = null,
-        SettingsStore? settings = null)
+        SettingsStore? settings = null, SharedLookups? lookups = null, PartsService? parts = null, SharedPageVectors? vectors = null)
     {
+        _vectors = vectors;
+        _lookups = lookups;
+        _parts = parts;
         _pageText = pageText;
         _settings = settings;
         _runs = runs;
@@ -205,7 +246,10 @@ public sealed class SharedResults : IHostedService, IDisposable
             {
                 await PushRunsAsync(channel, ct);
                 await PushScansAsync(channel, ct);
+                await PushAdventuresAsync(channel, ct);
                 if (_pageText is not null) await _pageText.PushAsync(ct);
+                if (_lookups is not null) await _lookups.PushAsync(ct);
+                if (_vectors is not null) await _vectors.PushAsync(ct);
                 await PullAsync(channel, taken, ct);
             }
             await ApplyAsync(taken, ct);
@@ -214,6 +258,37 @@ public sealed class SharedResults : IHostedService, IDisposable
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// For the stages that take what other devices made (Look up, Classify), before their first book: while the web
+    /// library is connected and no pass has read what it holds since the start, runs one now, for up to
+    /// <see cref="CatchUpFor"/>, so a new PC takes its other devices' work rather than redoing it while the first pass
+    /// is still to come. One that can't reach the web library lets the stages go on, and the next is tried a minute on.
+    /// </summary>
+    public async Task CatchUpAsync(CancellationToken ct = default)
+    {
+        if (_caughtUp || _channel is not { IsOn: true }) return;
+        lock (_lock)
+        {
+            if (_clock.GetUtcNow() - _triedCatchingUp < CatchUpAgain) return;
+        }
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(CatchUpFor);
+        try
+        {
+            await SyncNowAsync(limit.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            _log.LogInformation("Went on without the web library's results: they took longer than {Seconds} s", CatchUpFor.TotalSeconds);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log.LogWarning(ex, "Taking the web library's results failed");
+        }
+        if (!_caughtUp)
+            lock (_lock) _triedCatchingUp = _clock.GetUtcNow();
     }
 
     /// <summary>
@@ -266,6 +341,51 @@ public sealed class SharedResults : IHostedService, IDisposable
         _log.LogInformation("Shared {Count} whole-book scans with the web library", scans.Count);
     }
 
+    async Task PushAdventuresAsync(IResultChannel channel, CancellationToken ct)
+    {
+        var runs = await _runs.GetOwnPartRunsAsync(await TimeAsync(PushedAdventuresKey, ct) ?? DateTime.MinValue, ct);
+        if (runs.Count == 0) return;
+        var labels = await _vocabularies.GetLabelsAsync(ct);
+        foreach (var batch in runs.Chunk(Batch))
+        {
+            var claims = (await _metadata.GetRunClaimsAsync([.. batch.Select(r => r.Run.Id)], ct)).ToLookup(c => c.RunId, StringComparer.Ordinal);
+            List<SharedResult> results = [.. batch.Select(r => new SharedResult(SharedResultKinds.AdventureKey(r.Run.ContentHash, r.FirstPage, r.LastPage),
+                SharedResultKinds.Adventure, r.Run.PromptVersion, r.Run.Id, r.Run.FinishedUtc, JsonSerializer.Serialize(new SharedClassification(r.Run.Model,
+                    r.Run.SchemaVersion, r.Run.Pages, r.Run.StartedUtc,
+                    [.. claims[r.Run.Id].Select(c => new SharedClaim(c.Field, c.Value, TermLabel(c, labels), c.Quote, c.Pages, c.FromSampling))]), Json)))];
+            if (!await channel.WriteResultsAsync(results, ct)) return;
+            await _cache.SetStateAsync(PushedAdventuresKey, Stamp(batch[^1].Run.FinishedUtc), ct);
+        }
+        _log.LogInformation("Shared {Count} AI readings of adventures with the web library", runs.Count);
+    }
+
+    /// <summary>
+    /// For the Classify stage, before it sends an adventure to the model: gives it the reading another device made of
+    /// the same pages of the same file with this prompt, when there is one. Returns whether the adventure has it now.
+    /// </summary>
+    public async Task<bool> TryApplyAdventureAsync(EntryId partId, string contentHash, PartPages pages, CancellationToken ct = default)
+    {
+        var key = SharedResultKinds.AdventureKey(contentHash, pages.First, pages.Last);
+        if ((await _cache.GetAsync(SharedResultKinds.Adventure, [key], ct)).GetValueOrDefault(key) is not { } cached
+            || cached.PromptVersion < ClassifierPrompt.Version) return false;
+        var latest = await _runs.GetLatestOnAsync(partId, ct);
+        if (latest is { } run && !IsNewer(cached, new FinishedRun(run.Id, partId, contentHash, "", "", run.PromptVersion, 0, [], run.FinishedUtc, run.FinishedUtc)))
+            return run.Id == cached.ResultId;
+        return await ApplyAdventureAsync(partId, contentHash, cached, ct);
+    }
+
+    async Task<bool> ApplyAdventureAsync(EntryId partId, string contentHash, CachedResult reading, CancellationToken ct)
+    {
+        if (Read<SharedClassification>(reading.Content) is not { } content) return false;
+        var proposals = await ProposalsAsync(content.Claims, ct);
+        var run = new RunRecord(partId, contentHash, ClassificationStore.Shared, content.Model, reading.PromptVersion, content.SchemaVersion, content.Pages,
+            content.StartedUtc, ClassificationStore.Complete);
+        if (!await _runs.RecordSharedAsync(run, reading.ResultId, reading.FinishedUtc, ct)) return false;
+        await _metadata.ApplyRunAsync(partId, contentHash, reading.ResultId, AssertionOrigin.Ai, proposals, ct);
+        await _projector.ProjectAsync([partId], ct);
+        return true;
+    }
+
     /// <summary>Takes the other devices' results since the last pass: scans straight into the catalog, readings into index.db to wait for their files.</summary>
     async Task PullAsync(IResultChannel channel, HashSet<string> taken, CancellationToken ct)
     {
@@ -276,7 +396,7 @@ public sealed class SharedResults : IHostedService, IDisposable
             var readings = new List<CachedResult>();
             foreach (var result in page.Results)
             {
-                if (result.Kind == SharedResultKinds.Classification)
+                if (result.Kind is SharedResultKinds.Classification or SharedResultKinds.Lookup or SharedResultKinds.Adventure)
                     readings.Add(new CachedResult(result.ContentHash, result.Kind, result.PromptVersion, result.Id, result.FinishedUtc, result.Content));
                 else if (result.Kind == SharedResultKinds.Chapters && Read<SharedChapters>(result.Content) is { } scan
                     && await _scans.SaveSharedAsync(new ChapterScanRecord(result.ContentHash, ClassificationStore.Shared, scan.Model, result.PromptVersion,
@@ -284,11 +404,16 @@ public sealed class SharedResults : IHostedService, IDisposable
                     taken.Add(result.ContentHash);
             }
             await _cache.PutAsync(readings, ct);
-            taken.UnionWith(readings.Select(r => r.ContentHash));
+            taken.UnionWith(readings.Where(r => r.Kind == SharedResultKinds.Classification).Select(r => r.ContentHash));
+            taken.UnionWith(readings.Where(r => r.Kind == SharedResultKinds.Adventure).Select(r => r.ContentHash.Split('@')[0]));
             count += page.Results.Count;
             after = page.Last;
             await _cache.SetStateAsync(PulledKey, after.ToString(CultureInfo.InvariantCulture), ct);
-            if (!page.More) break;
+            if (!page.More)
+            {
+                _caughtUp = true;
+                break;
+            }
         }
         if (count > 0) _log.LogInformation("Took {Count} results from the web library", count);
     }
@@ -323,9 +448,23 @@ public sealed class SharedResults : IHostedService, IDisposable
                 projected++;
             }
 
+        // The adventures marked in them, by their pages, as Classify would ask for each.
+        var adventures = 0;
+        if (_parts is not null && (await _cache.GetHashesAsync(SharedResultKinds.Adventure, ct)) is { Count: > 0 } held)
+        {
+            var files = held.Select(k => k.Split('@')[0]).ToHashSet(StringComparer.Ordinal);
+            foreach (var (documentId, hash) in documents.Where(d => files.Contains(d.ContentHash)))
+                foreach (var part in await _parts.GetInDocumentAsync(documentId, ct))
+                    if (part.Pages is { } pages && held.Contains(SharedResultKinds.AdventureKey(hash, pages.First, pages.Last))
+                        && !(_ai.Setup.SkippedRoots is { Count: > 0 } kept && (await _library.GetRootIdsAsync(documentId, ct)).Any(kept.Contains))
+                        && await TryApplyAdventureAsync(part.EntryId, hash, pages, ct))
+                        adventures++;
+        }
+
         lock (_lock) _seen.UnionWith(documents.Select(d => d.DocumentId));
-        if (applied + projected > 0)
-            _log.LogInformation("Gave {Readings} books another device's AI reading and {Scans} their chapters", applied, projected);
+        if (applied + projected + adventures > 0)
+            _log.LogInformation("Gave {Readings} books another device's AI reading, {Scans} their chapters and {Adventures} adventures theirs",
+                applied, projected, adventures);
     }
 
     /// <summary>

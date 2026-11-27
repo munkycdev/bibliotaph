@@ -112,6 +112,45 @@ public sealed class ClassificationStore(IDbContextFactory<CatalogDbContext> cont
             && r.Outcome == Complete && !r.Stale, ct);
     }
 
+    /// <summary>Whether a run taken from another device has classified the adventure <paramref name="partId"/> on its own pages with this prompt version.</summary>
+    public async Task<bool> HasSharedRunOnAsync(EntryId partId, int promptVersion, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        return await db.ClassificationRuns.AnyAsync(r => r.EntryId == partId.Value && r.Provider == Shared && r.PromptVersion == promptVersion
+            && r.Outcome == Complete && !r.Stale, ct);
+    }
+
+    /// <summary>
+    /// This device's own finished runs over adventures on their own pages that finished after <paramref name="ownSince"/>,
+    /// the newest for each adventure, oldest first, with the adventure's first and last PDF pages in the copy the run
+    /// read: what another device finds the same adventure by.
+    /// </summary>
+    public async Task<IReadOnlyList<(FinishedRun Run, int FirstPage, int LastPage)>> GetOwnPartRunsAsync(DateTime ownSince, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var runs = await db.ClassificationRuns.AsNoTracking()
+            .Where(r => r.Outcome == Complete && !r.Stale && r.FinishedUtc != null && r.FinishedUtc > ownSince && r.Provider != Shared && r.Entry.Kind == EntryKind.Part)
+            .ToListAsync(ct);
+        if (runs.Count == 0) return [];
+        var partIds = runs.Select(r => r.EntryId).Distinct().ToList();
+        var spans = (await db.EntrySources.AsNoTracking().Where(s => partIds.Contains(s.EntryId) && s.FirstPdfPage != null && s.LastPdfPage != null)
+                .Select(s => new { s.EntryId, s.Document.ContentHash, First = s.FirstPdfPage!.Value, Last = s.LastPdfPage!.Value }).ToListAsync(ct))
+            .GroupBy(s => (s.EntryId, s.ContentHash)).ToDictionary(g => g.Key, g => (g.First().First, g.First().Last));
+        return [.. runs.GroupBy(r => (r.EntryId, r.ContentHash)).Select(g => g.MaxBy(r => r.FinishedUtc)!)
+            .Where(r => spans.ContainsKey((r.EntryId, r.ContentHash))).OrderBy(r => r.FinishedUtc)
+            .Select(r => (new FinishedRun(r.Id, new EntryId(r.EntryId), r.ContentHash, r.Provider, r.Model, r.PromptVersion, r.SchemaVersion, Pages(r.PagesJson),
+                r.StartedUtc, r.FinishedUtc!.Value), spans[(r.EntryId, r.ContentHash)].First, spans[(r.EntryId, r.ContentHash)].Last))];
+    }
+
+    /// <summary>The newest finished run over the adventure <paramref name="partId"/>, from any device, or null.</summary>
+    public async Task<(string Id, int PromptVersion, DateTime FinishedUtc)?> GetLatestOnAsync(EntryId partId, CancellationToken ct = default)
+    {
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        var run = await db.ClassificationRuns.AsNoTracking().Where(r => r.EntryId == partId.Value && r.Outcome == Complete && !r.Stale && r.FinishedUtc != null)
+            .OrderByDescending(r => r.FinishedUtc).Select(r => new { r.Id, r.PromptVersion, r.FinishedUtc }).FirstOrDefaultAsync(ct);
+        return run is null ? null : (run.Id, run.PromptVersion, run.FinishedUtc!.Value);
+    }
+
     /// <summary>Records a run and returns its id, which the assertions it produced point at.</summary>
     public Task<string> RecordAsync(RunRecord run, CancellationToken ct = default) =>
         RecordAsync(run, Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture), _clock.GetUtcNow().UtcDateTime, ct);

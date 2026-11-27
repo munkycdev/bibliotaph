@@ -563,6 +563,20 @@ public sealed class IndexQueries(IndexDatabase database)
             "SELECT searched FROM lookup_search WHERE document_id = @documentId", new { documentId }, cancellationToken: ct));
     }
 
+    /// <summary>
+    /// Every file's last lookup at the current version of Look up that searched online, with its content hash and what
+    /// it searched for, as the JSON it kept: what a device looked up before lookups were shared.
+    /// </summary>
+    public async Task<IReadOnlyList<(string ContentHash, string Searched)>> GetLookupSearchesAsync(CancellationToken ct = default)
+    {
+        await using var connection = database.OpenRead();
+        return [.. await connection.QueryAsync<(string, string)>(new CommandDefinition(
+            """
+            SELECT DISTINCT j.content_hash, s.searched FROM lookup_search s
+            JOIN job j ON j.document_id = s.document_id AND j.stage = @stage AND j.stage_version = @version AND j.status = 'done'
+            """, new { stage = Stage.LookUp.ToString(), version = Pipeline.Version(Stage.LookUp) }, cancellationToken: ct))];
+    }
+
     /// <summary>The content hashes of the other documents in the same folders as this one, the first <paramref name="most"/> read.</summary>
     public async Task<IReadOnlyList<string>> GetHashesBesideAsync(long documentId, int most, CancellationToken ct = default)
     {

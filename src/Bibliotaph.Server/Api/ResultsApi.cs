@@ -26,7 +26,7 @@ public static class ResultsApi
         results.MapGet("/", async (long? after, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
             await (await libraries.SyncFilesAsync(principal.UserId()!, ct)).ReadResultsAsync(Math.Max(0, after ?? 0), principal.DeviceId()!, ct));
 
-        // OCR, asked for by file when a PC is about to read one.
+        // OCR and page vectors, asked for by file when a PC is about to make them.
         results.MapGet("/{kind}/{hash}", async (string kind, string hash, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
             SharedResultKinds.OnRequest(kind) && await (await libraries.SyncFilesAsync(principal.UserId()!, ct)).ReadResultAsync(kind, hash, ct) is { } found
                 ? Results.Ok(found)

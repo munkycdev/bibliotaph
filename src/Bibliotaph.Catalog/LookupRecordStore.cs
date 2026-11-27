@@ -273,6 +273,26 @@ public sealed class LookupRecordStore(IDbContextFactory<CatalogDbContext> contex
     }
 
     /// <summary>
+    /// Every record the last lookup of each of <paramref name="keys"/> got, in the order it got them, with whether it
+    /// counts as printed in the book: what a lookup made before lookups were shared is shared as.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<string, IReadOnlyList<(BookRecord Record, bool Printed)>>> GetSavedAsync(IReadOnlyCollection<string> keys,
+        CancellationToken ct = default)
+    {
+        var found = new Dictionary<string, IReadOnlyList<(BookRecord, bool)>>(StringComparer.Ordinal);
+        if (keys.Count == 0) return found;
+        await using var db = await contexts.CreateDbContextAsync(ct);
+        foreach (var chunk in keys.Distinct().Chunk(500))
+        {
+            var rows = await db.LookupRecords.AsNoTracking().Where(r => chunk.Contains(r.ContentHash) && r.RecordJson != null)
+                .OrderBy(r => r.Position).ThenBy(r => r.Id).Select(r => new { r.ContentHash, r.RecordJson, r.Printed }).ToListAsync(ct);
+            foreach (var group in rows.GroupBy(r => r.ContentHash, StringComparer.Ordinal))
+                found[group.Key] = [.. group.Select(r => (Read(r.RecordJson), r.Printed)).Where(r => r.Item1 is not null).Select(r => (r.Item1!, r.Printed))];
+        }
+        return found;
+    }
+
+    /// <summary>
     /// The records the files with these content hashes use, printed in them or answered Same book: what a catalogue
     /// calls the books beside one, whose line it may name ("Line: Book 2"), and the games it files them under.
     /// </summary>

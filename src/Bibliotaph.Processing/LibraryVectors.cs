@@ -224,6 +224,8 @@ public sealed class LibraryVectors(
             ?? (_after > 0 ? await queries.NextWithoutVectorsAsync(model, EmbeddingText.Version, 0, kept, ct) : null);
         if (next is not { } documentId)
         {
+            // Once every book is read, those read before page vectors were shared go to the user's other devices.
+            await ask.ShareEarlierAsync(model, ct);
             _after = 0;
             await RefreshStatusAsync(ct, LibraryVectorsState.Done);
             return LibraryVectorsStep.Done;

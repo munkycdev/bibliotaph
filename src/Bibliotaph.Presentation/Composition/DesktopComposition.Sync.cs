@@ -27,6 +27,8 @@ public static partial class DesktopComposition
         services.AddSingleton<SharedResultCache>();
         services.AddSingleton<IResultChannel>(sp => sp.GetRequiredService<WebLibrary>());
         services.AddSingleton<SharedPageText>();
+        services.AddSingleton<SharedLookups>();
+        services.AddSingleton<SharedPageVectors>();
         services.AddSingleton<SharedResults>();
         services.AddHostedService(sp => sp.GetRequiredService<SharedResults>());
         services.AddSingleton<WebShelfSync>();
