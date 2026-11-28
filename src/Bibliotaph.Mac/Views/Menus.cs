@@ -99,6 +99,8 @@ static class Menus
         view.Submenu!.Delegate = new Layouts(main, covers, list, sortBy);
         bar.AddItem(view);
 
+        bar.AddItem(Controls(main.Player));
+
         var window = Top("Window",
             Item("Minimize", "performMiniaturize:", "m"),
             Item("Zoom", "performZoom:"),
@@ -118,6 +120,56 @@ static class Menus
         NSApplication.SharedApplication.HelpMenu = help.Submenu;
 
         return bar;
+    }
+
+    /// <summary>
+    /// Controls, as Music has it: the music's Play, Next and Previous, Shuffle and Repeat ticked for what's on, and the
+    /// ambience layer's own items. The media keys and Control Centre do the same from anywhere.
+    /// </summary>
+    static NSMenuItem Controls(Presentation.ViewModels.PlayerViewModel player)
+    {
+        var playPause = Valid(new NSMenuItem("Play", (_, _) => player.PlayPauseCommand.Execute(null)), () => player.HasMusic);
+        playPause.ValidateMenuItem = entry =>
+        {
+            entry.Title = player.IsPlaying ? "Pause" : "Play";
+            return player.HasMusic;
+        };
+        var shuffle = new NSMenuItem("Shuffle", (_, _) => player.ToggleShuffleCommand.Execute(null));
+        shuffle.ValidateMenuItem = entry =>
+        {
+            entry.State = player.Shuffle ? NSCellStateValue.On : NSCellStateValue.Off;
+            return player.HasMusic;
+        };
+        var repeat = new NSMenu("Repeat");
+        foreach (var (title, mode) in new[] { ("Off", Core.RepeatMode.Off), ("All", Core.RepeatMode.All), ("One", Core.RepeatMode.One) })
+        {
+            var item = new NSMenuItem(title, (_, _) => player.Repeat = mode);
+            item.ValidateMenuItem = entry =>
+            {
+                entry.State = player.Repeat == mode ? NSCellStateValue.On : NSCellStateValue.Off;
+                return player.HasMusic;
+            };
+            repeat.AddItem(item);
+        }
+        var ambience = Valid(new NSMenuItem("Pause Ambience", (_, _) => player.ToggleAmbienceCommand.Execute(null)), () => player.HasAmbience);
+        ambience.ValidateMenuItem = entry =>
+        {
+            entry.Title = player.IsAmbiencePlaying ? "Pause Ambience" : "Play Ambience";
+            return player.HasAmbience;
+        };
+        return Top("Controls",
+            playPause,
+            Valid(new NSMenuItem("Next", (_, _) => player.NextCommand.Execute(null)), () => player.CanGoNext),
+            Valid(new NSMenuItem("Previous", (_, _) => player.PreviousCommand.Execute(null)), () => player.HasMusic),
+            NSMenuItem.SeparatorItem,
+            shuffle,
+            new NSMenuItem("Repeat") { Submenu = repeat },
+            NSMenuItem.SeparatorItem,
+            Valid(new NSMenuItem("Loop as Ambience", (_, _) => player.LoopCurrentAsAmbienceCommand.Execute(null)), () => player.HasMusic),
+            ambience,
+            Valid(new NSMenuItem("Stop Ambience", (_, _) => player.StopAmbienceCommand.Execute(null)), () => player.HasAmbience),
+            NSMenuItem.SeparatorItem,
+            Valid(new NSMenuItem("Stop and Close Player", (_, _) => player.CloseCommand.Execute(null)), () => player.IsShowing));
     }
 
     static NSMenuItem Submenu(string title, params NSMenuItem[] items)

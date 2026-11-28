@@ -24,26 +24,36 @@ public sealed class WindowsAudioOutput(ISourceFileReader files, ILogger<WindowsA
         readonly ISourceFileReader _files;
         readonly ILogger _log;
         readonly bool _controls;
-        readonly MediaPlayer _player;
+        MediaPlayer? _player;
         Stream? _stream;
         TaskCompletionSource<string?>? _opening;
         string _format = "";
+        double _volume = 1;
+        bool _loops;
 
         public Channel(ISourceFileReader files, ILogger log, bool controls)
         {
             _files = files;
             _log = log;
             _controls = controls;
-            _player = new MediaPlayer { AutoPlay = false, AudioCategory = MediaPlayerAudioCategory.Media };
+        }
+
+        // Made with the first file, not with the window: a Windows without its media features (an N edition, a server)
+        // still starts, and only playing says it can't.
+        MediaPlayer Player()
+        {
+            if (_player is not null) return _player;
+            var player = new MediaPlayer { AutoPlay = false, AudioCategory = MediaPlayerAudioCategory.Media, Volume = _volume, IsLoopingEnabled = _loops };
             // Off, so a press of a media key comes here as a command rather than playing or pausing behind the
             // player's back; the music channel then shows its track in the controls itself.
-            _player.CommandManager.IsEnabled = false;
-            var smtc = _player.SystemMediaTransportControls;
+            player.CommandManager.IsEnabled = false;
+            var smtc = player.SystemMediaTransportControls;
             smtc.IsEnabled = false;
-            if (controls) smtc.ButtonPressed += OnButtonPressed;
-            _player.MediaOpened += (_, _) => _opening?.TrySetResult(null);
-            _player.MediaFailed += OnFailed;
-            _player.MediaEnded += (_, _) => Ended?.Invoke(this, EventArgs.Empty);
+            if (_controls) smtc.ButtonPressed += OnButtonPressed;
+            player.MediaOpened += (_, _) => _opening?.TrySetResult(null);
+            player.MediaFailed += OnFailed;
+            player.MediaEnded += (_, _) => Ended?.Invoke(this, EventArgs.Empty);
+            return _player = player;
         }
 
         public async Task<string?> OpenAsync(string path, string mediaType, CancellationToken ct = default)
@@ -52,12 +62,22 @@ public sealed class WindowsAudioOutput(ISourceFileReader files, ILogger<WindowsA
             _format = Path.GetExtension(path).TrimStart('.').ToUpperInvariant();
             var opening = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
             _opening = opening;
+            MediaPlayer player;
+            try
+            {
+                player = Player();
+            }
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or TypeLoadException or NotSupportedException)
+            {
+                _log.LogWarning(ex, "Windows' media player couldn't be made");
+                return "Windows can't play audio on this PC: its media features aren't installed.";
+            }
             try
             {
                 // The file is read through a stream of its own, shared so another app can still open it: Windows'
                 // player reads it as it plays, and the player lets it go on Close.
                 _stream = _files.OpenRead(path);
-                _player.Source = MediaSource.CreateFromStream(_stream.AsRandomAccessStream(), mediaType);
+                player.Source = MediaSource.CreateFromStream(_stream.AsRandomAccessStream(), mediaType);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Runtime.InteropServices.COMException)
             {
@@ -90,46 +110,54 @@ public sealed class WindowsAudioOutput(ISourceFileReader files, ILogger<WindowsA
             else Failed?.Invoke(this, message);
         }
 
-        public void Play() => _player.Play();
+        public void Play() => _player?.Play();
 
-        public void Pause() => _player.Pause();
+        public void Pause() => _player?.Pause();
 
         public void Close()
         {
             _opening?.TrySetResult("Closed.");
             _opening = null;
-            _player.Pause();
-            if (_player.Source is IDisposable source)
+            if (_player is { } player)
             {
-                _player.Source = null;
-                source.Dispose();
+                player.Pause();
+                var source = player.Source as IDisposable;
+                player.Source = null;
+                source?.Dispose();
             }
-            else _player.Source = null;
             _stream?.Dispose();
             _stream = null;
         }
 
         public TimeSpan Position
         {
-            get => _player.PlaybackSession.Position;
+            get => _player?.PlaybackSession.Position ?? TimeSpan.Zero;
             set
             {
-                if (_player.PlaybackSession.CanSeek) _player.PlaybackSession.Position = value;
+                if (_player is { PlaybackSession.CanSeek: true } player) player.PlaybackSession.Position = value;
             }
         }
 
-        public TimeSpan? Duration => _player.PlaybackSession.NaturalDuration is { } duration && duration > TimeSpan.Zero ? duration : null;
+        public TimeSpan? Duration => _player?.PlaybackSession.NaturalDuration is { } duration && duration > TimeSpan.Zero ? duration : null;
 
         public double Volume
         {
-            get => _player.Volume;
-            set => _player.Volume = Math.Clamp(value, 0, 1);
+            get => _volume;
+            set
+            {
+                _volume = Math.Clamp(value, 0, 1);
+                _player?.Volume = _volume;
+            }
         }
 
         public bool Loops
         {
-            get => _player.IsLoopingEnabled;
-            set => _player.IsLoopingEnabled = value;
+            get => _loops;
+            set
+            {
+                _loops = value;
+                _player?.IsLoopingEnabled = value;
+            }
         }
 
         public event EventHandler? Ended;
@@ -154,7 +182,7 @@ public sealed class WindowsAudioOutput(ISourceFileReader files, ILogger<WindowsA
 
         public void ShowNowPlaying(NowPlaying? now, bool playing)
         {
-            if (!_controls) return;
+            if (!_controls || _player is null) return;
             var smtc = _player.SystemMediaTransportControls;
             var display = smtc.DisplayUpdater;
             if (now is null)
@@ -202,6 +230,7 @@ public sealed class WindowsAudioOutput(ISourceFileReader files, ILogger<WindowsA
         public void Dispose()
         {
             Close();
+            if (_player is null) return;
             if (_controls) _player.SystemMediaTransportControls.ButtonPressed -= OnButtonPressed;
             _player.Dispose();
         }
