@@ -124,10 +124,10 @@ public static class CardText
     /// tracks are among images.
     /// </summary>
     public static string Members(LibraryEntry pack) =>
-        pack.IsAlbum ? Tracks(pack.Members) : pack.PdfMembers > 0 || pack.AudioMembers > 0 ? Files(pack.Members) : Images(pack.Members);
+        pack.IsAlbum ? Tracks(pack.AudioMembers) : pack.PdfMembers > 0 || pack.AudioMembers > 0 ? Files(pack.Members) : Images(pack.Members);
 
     public static string Describe(LibraryEntry entry) =>
-        entry.IsPack ? entry.IsAlbum ? $"Album · {Tracks(entry.Members)}"
+        entry.IsPack ? entry.IsAlbum ? $"Album · {Tracks(entry.AudioMembers)}"
             : entry.PdfMembers > 0 || entry.AudioMembers > 0 ? $"Pack · {Files(entry.Members)}" : $"Image pack · {Images(entry.Members)}"
         : entry.IsElsewhere ? entry.AlsoOwn is { } owned ? $"Owned elsewhere · {owned}" : "Owned elsewhere"
         : SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"

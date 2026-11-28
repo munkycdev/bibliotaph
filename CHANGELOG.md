@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 1.7 · 28 November 2026
+
+- **New: music and sound in your library, with a player.** Bibliotaph now reads MP3, M4A, FLAC, WAV, Ogg and Opus
+  files, by their tags: title, artist, album, genre and how long they play ("MP3 · 4:32"). A folder of two or more
+  tracks is one album card, "Album · 12 tracks", with its artwork as the cover, so a soundtrack bundle doesn't flood
+  the Library. Find them under the new **Audio** kind or with `format:audio`. Types **Music**, **Ambience** and
+  **Sound effect** come from the tags and folder names. Bibliotaph never changes a file's tags.
+- **New: the player.** Opening a track or an album plays it in a player along the foot of the window, which keeps
+  playing as you read: play and pause, previous and next, shuffle, repeat the album or one track, the position, the
+  volume and what's up next. On the Mac it's **Now Playing** in the toolbar and the new **Controls** menu. The media
+  keys and the system's media controls (Windows' media overlay, the Mac's Control Centre, a phone's lock screen on
+  the web) show the track and work it. A track in a binder plays without leaving the page you're on. On Windows, Ogg
+  and Opus need Microsoft's free Web Media Extensions; the Mac can't play them.
+- **New: ambience under the music.** **Loop this track as ambience** moves the track playing to a seamless loop of its
+  own, such as rain or a busy tavern under a battle theme, with its own volume, pause and stop.
+- **New: soundtracks go with their books.** An album or track beside a book, or in a folder of extras under it such
+  as Music, Soundtrack, OST or SFX, goes with that book as maps and handouts do, and takes its game system, setting
+  and the rest; one named after the book ("… OST") is suggested in Needs review.
 - **New: a new PC takes what your other devices already worked out.** A book one of your devices looked up online
   isn't looked up again on another, as long as it was asked of every online library and searched by the same ISBNs,
   codes and titles; its record, or that nothing was found, is used as it is. Adventures the AI read on their own

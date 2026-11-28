@@ -52,7 +52,9 @@ No. Bibliotaph is a Windows app, for Windows 10 (version 1809 or later) and Wind
 No. It's free and open source, under the GNU General Public License.
 
 **Which files does it read?**
-PDF, EPUB, Kindle books (MOBI, AZW and AZW3), JPG, PNG and WebP images, and WebM videos such as animated maps, including those inside ZIP files. E-books are
+PDF, EPUB, Kindle books (MOBI, AZW and AZW3), JPG, PNG and WebP images, WebM videos such as animated maps, and music
+and sound (MP3, M4A, FLAC, WAV, Ogg and Opus), including those inside ZIP files. Music plays in Bibliotaph's own
+player; see [Music and ambience](reading.md#music-and-ambience). E-books are
 searchable and catalogued like PDFs, and open in Bibliotaph's own reader. A book with DRM, or one in Amazon's newer
 KFX format, gets a card you can fill in, but its text isn't read.
 

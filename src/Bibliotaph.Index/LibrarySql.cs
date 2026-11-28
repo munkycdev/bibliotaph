@@ -17,7 +17,7 @@ internal static class LibrarySql
     public const string Title = "coalesce(CASE WHEN e.pack_file IS NOT NULL THEN d.display_title END, m.title, e.name, d.display_title, '')";
 
     /// <summary>The audio formats as an SQL list. An album's tracks share their artwork, so its card shows one cover, not a mosaic.</summary>
-    const string AudioFormats = "'mp3', 'm4a', 'flac', 'wav', 'ogg', 'opus'";
+    internal const string AudioFormats = "'mp3', 'm4a', 'flac', 'wav', 'ogg', 'opus'";
 
     public const string EntryColumns = $"""
         e.entry_id AS EntryId, coalesce(e.document_id, 0) AS DocumentId, {Title} AS Title, coalesce(d.format, '') AS Format,

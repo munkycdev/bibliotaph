@@ -96,6 +96,34 @@ the pack's cover in place of its mosaic, click the picture button at the top, **
 WebP images need Microsoft's free WebP Image Extensions from the Microsoft Store. Without them, a WebP file shows in
 **Needs review** saying so.
 
+## Music and ambience
+
+Opening a track or an album plays it in the player along the foot of the window, on Windows and on the web. It stays
+there as you move between pages and books, so the music goes on while you read. On the Mac the player is **Now
+Playing** in the toolbar: click the title for the controls, the queue and the ambience, or use the **Controls** menu.
+
+- **Play** and **Pause**, **Previous** and **Next**. **Previous** goes back a track, or to the start of this one once
+  it has played a few seconds.
+- **Shuffle** plays the rest of the album in any order, after the track playing. **Repeat** goes from off to the whole
+  album to this track, and back.
+- Drag the position to move through the track, and the volume to set how loud the music is.
+- **Up next** lists the album's tracks; click one to play it.
+- **Loop this track as ambience** moves the track playing to a loop of its own under the music, such as rain or a
+  tavern's noise under a battle theme. The ambience has its own pause, volume and stop. One track loops at a time.
+- **Stop and close the player** (the cross at the end) stops everything.
+
+The keyboard's media keys, Windows' media controls, the Mac's Now Playing in Control Centre, and a phone's lock screen
+on the web all reach the music, and show its title, artist and cover. The ambience stays out of them.
+
+In a binder, a track plays in the player without taking the reader off the page you're on, so a session's music can be
+an item next to its handouts.
+
+Bibliotaph plays MP3, M4A (AAC), FLAC and WAV everywhere. Ogg Vorbis and Opus files play in the web app in most
+browsers; on Windows they need Microsoft's free Web Media Extensions from the Microsoft Store, and the Mac can't play
+them. A file that can't play says why in the player. On the web, the whole file is read from your PC or storage before
+it plays, so a long track can take a moment to start, and a track inside a ZIP doesn't play there yet (the Windows
+and Mac apps play it).
+
 ## E-books
 
 EPUB books are read into pages of their own, so search, the AI, notes and binders can point at a page as they do in

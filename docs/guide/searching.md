@@ -72,7 +72,7 @@ guide at any time, and **Esc** closes it (press **Esc** again to clear the searc
 | `collection:` | Books in a collection (in quotes if it has spaces) | `collection:"Winter campaign"` |
 | `folder:` | Part of a folder's name | `folder:maps` |
 | `isbn:` | An ISBN printed in the book, with or without hyphens, ISBN-10 or ISBN-13 | `isbn:978-1-23-456789-7` |
-| `format:` | `pdf`, `epub`, `mobi`, `azw`, `azw3`, `kfx`, `jpg`, `png`, `webp`, `webm`, `image` for any picture (videos too), `video` for any video, `ebook` for any e-book, or `kindle` for any Kindle book | `format:epub` |
+| `format:` | `pdf`, `epub`, `mobi`, `azw`, `azw3`, `kfx`, `jpg`, `png`, `webp`, `webm`, `mp3`, `m4a`, `flac`, `wav`, `ogg`, `opus`, `image` for any picture (videos too), `video` for any video, `audio` (or `music`) for any audio, `ebook` for any e-book, or `kindle` for any Kindle book | `format:epub` |
 
 Any field also takes `unknown`, for books where nobody knows yet: `system:unknown` finds books still to be sorted out.
 `-isbn:unknown` finds the books that print an ISBN.
@@ -160,7 +160,7 @@ four groups:
   added and, under it, every folder inside it that has books, by its path, such as `Fantasy\Bundle`. Picking one
   shows the books in it and in the folders inside it. A book with files in two folders shows under both, a file in a
   ZIP counts as being in the ZIP's folder, and books owned elsewhere have no folder.
-- **Housekeeping**: **Kind** (books, images, packs, on this PC, or owned elsewhere), **AI** (whether a model has
+- **Housekeeping**: **Kind** (books, images, audio, packs, on this PC, or owned elsewhere), **AI** (whether a model has
   read it), **Copies** (books in more than one file), **Source** (**No source given** for the books with nothing in
   **Get it from**, so you can fill in where they came from), **Adventures inside files** (**Inside their book**,
   **Show as cards** or **Hide**; see [Adventures inside a file](cataloging.md#adventures-inside-a-file)),

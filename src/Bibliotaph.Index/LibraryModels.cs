@@ -42,8 +42,11 @@ public sealed record LibraryEntry(
     /// <summary>How many of a pack's files are audio: a pack of nothing else is an album ("12 tracks").</summary>
     public int AudioMembers { get; init; }
 
-    /// <summary>An album: a pack whose files are all audio.</summary>
-    public bool IsAlbum => IsPack && Members > 0 && AudioMembers == Members;
+    /// <summary>
+    /// An album: a pack of tracks with no PDF, any pictures in it (its artwork, a booklet's pages) no more than the
+    /// tracks. A map pack with a track or two of ambience stays a pack.
+    /// </summary>
+    public bool IsAlbum => IsPack && AudioMembers > 0 && PdfMembers == 0 && AudioMembers * 2 >= Members;
 
     /// <summary>How long a track plays, from its file, when it is audio.</summary>
     public TimeSpan? Duration { get; init; }

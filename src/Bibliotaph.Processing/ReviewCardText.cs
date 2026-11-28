@@ -117,7 +117,7 @@ public sealed record PackCardText(PackProposal Proposal)
     ];
 
     public string Heading => Proposal.IsAlbum
-        ? $"Make these {CardText.Tracks(Proposal.Images.Count)} one album?"
+        ? $"Make these {CardText.Tracks(Proposal.Tracks)} one album?"
         : Proposal.Tracks > 0 ? $"Make these {CardText.Files(Proposal.Images.Count)} one card?"
         : $"Make these {CardText.Images(Proposal.Images.Count)} one card?";
 

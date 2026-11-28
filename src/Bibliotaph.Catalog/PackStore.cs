@@ -17,8 +17,11 @@ public sealed record PackPlace(string RootPath, string FolderPath, bool IsArchiv
 /// </summary>
 public sealed record PackProposal(EntryId PackId, PackPlace Place, string Name, IReadOnlyList<long> Images, bool BesidePdfs, int Tracks = 0)
 {
-    /// <summary>Every file in it is audio: it would be an album.</summary>
-    public bool IsAlbum => Tracks > 0 && Tracks == Images.Count;
+    /// <summary>
+    /// It would be an album: its files are tracks, or mostly tracks with their artwork or booklet pages beside them. A
+    /// map pack with a track or two of ambience stays a pack.
+    /// </summary>
+    public bool IsAlbum => Tracks > 0 && Tracks * 2 >= Images.Count;
 }
 
 /// <summary>What answering about a folder changed: the cards to project, and the answer it had before, which undoes it.</summary>
@@ -53,8 +56,8 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
     public const int AutomaticMinimum = 20;
 
     /// <summary>
-    /// A folder or ZIP with at least this many tracks and no PDF is an album by itself, with any pictures beside them
-    /// (its cover). Tracks come by the album, so two are enough; a single track keeps its own card.
+    /// A folder or ZIP with at least this many tracks, no PDF and no more pictures than tracks is an album by itself, the
+    /// pictures (its artwork) in it. Tracks come by the album, so two are enough; a single track keeps its own card.
     /// </summary>
     public const int AlbumMinimum = 2;
 
@@ -89,7 +92,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         var changed = new List<EntryId>();
         foreach (var group in groups.Values)
         {
-            var automatic = !group.HasPdf && (group.Images.Count >= AutomaticMinimum || group.Tracks >= AlbumMinimum);
+            var automatic = !group.HasPdf && (group.Images.Count >= AutomaticMinimum || group.IsAlbum);
             if (!decisions.TryGetValue(Key(group.RootId, group.Folder), out var decision) && packed.TryGetValue(Key(group.RootId, group.Folder), out var already))
             {
                 // Its images are one pack's card already: the pack's folder or ZIP moved here, so its decision follows,
@@ -658,6 +661,9 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
     {
         /// <summary>Enough to ask about when it isn't packed by itself: a few images, or a book's soundtrack beside it.</summary>
         public bool Proposable => Images.Count - Tracks >= ProposalMinimum || Tracks >= AlbumMinimum;
+
+        /// <summary>An album: enough tracks, and no more pictures than tracks (its artwork), so maps with a loop or two stay a question.</summary>
+        public bool IsAlbum => Tracks >= AlbumMinimum && Tracks * 2 >= Images.Count;
     }
 
     /// <summary>Where a pack's images are, for the inspector; null for an entry that isn't a pack.</summary>
