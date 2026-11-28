@@ -364,6 +364,9 @@ else
     /// <summary>Use this page pointed the binder's item somewhere else, so its list says so.</summary>
     [Parameter] public EventCallback ItemMoved { get; set; }
 
+    /// <summary>Plays audio for the reader, as a binder does to queue its songs together; else the player plays the card.</summary>
+    [Parameter] public EventCallback PlayInstead { get; set; }
+
     /// <summary>
     /// A player reading the book <see cref="Doc"/> that a game master shared through Nornis: view-only, with nothing kept
     /// in the game master's library, and sent back to Nornis to renew a minute before the hour is up.
@@ -488,7 +491,8 @@ else
             var track = _book;
             _book = null;
             _loadProblem = new ReaderProblem("Playing in the player.", "Audio plays in the bar at the foot of the page, and goes on while you read.");
-            await Player.PlayAsync(track.EntryId, track.DocumentId);
+            if (PlayInstead.HasDelegate) await PlayInstead.InvokeAsync();
+            else await Player.PlayAsync(track.EntryId, track.DocumentId);
             return;
         }
         if (!InBinder && !Guest) Breadcrumb.Show(_book.Title);

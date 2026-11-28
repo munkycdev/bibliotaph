@@ -140,7 +140,7 @@ else
                 else
                 {
                     <ReaderView @ref="_reader" EntryId="shown!.EntryId" Item="shown.Id" Page="shown.Id == Item ? Page : null" InBinder="true" PlaceChanged="PlaceChanged"
-                                NotesChanged="NotesChanged" ItemMoved="LoadAsync" />
+                                NotesChanged="NotesChanged" ItemMoved="LoadAsync" PlayInstead="() => PlayMusicAsync(shown)" />
                 }
             </div>
 
@@ -286,13 +286,28 @@ else
         if (item.Cover is { Plays: true } track && Shown is { Cover.Plays: false, CanOpen: true } inHand)
         {
             _underMusic = inHand;
-            _ = Player.PlayAsync(track);
+            _ = PlayMusicAsync(item);
         }
         else if (item.Cover is not { Plays: true }) _underMusic = null;
         _place = null;
         _bookNotes = null;
         Navigation.NavigateTo(Url(item.Id), replace: true);
     }
+
+    /// <summary>
+    /// The binder's music as one queue, so Next and Previous in the player step through its songs: each track, and each
+    /// album's tracks, in the binder's order, playing from <paramref name="from"/>.
+    /// </summary>
+    Task PlayMusicAsync(BinderItem from)
+    {
+        var songs = Items.Where(i => i.Id == from.Id || i is { CanOpen: true, OnlineLink: null, Cover.Plays: true }).ToList();
+        var items = songs.Select(i => (i.Cover?.EntryId ?? i.EntryId, PlayedFrom(i))).ToList();
+        return Player.PlayAsync(items, _page?.Title, songs.FindIndex(i => i.Id == from.Id));
+    }
+
+    // A file in an album on a card of its own plays from that file, as the card does.
+    static long? PlayedFrom(BinderItem item) =>
+        item.Cover is { } card && card.Id != card.EntryId.ToString(System.Globalization.CultureInfo.InvariantCulture) && card.DocumentId > 0 ? card.DocumentId : null;
 
     /// <summary>The binder at an item, and the page in view there, in this window or a window of its own.</summary>
     string Url(long? item, int? page = null, bool? popout = null)

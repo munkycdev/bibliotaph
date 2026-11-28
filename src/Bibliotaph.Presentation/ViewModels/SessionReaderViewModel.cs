@@ -483,10 +483,36 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             if (Current != row) return;
             if (request is null) Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", "Its file can't be reached.");
             // A binder's music plays under the page in hand rather than taking its place, so the map stays up while it plays.
-            else if (request.IsAudio && _player is { } player && !Viewer.ShowEmptyState) await player.PlayAsync(request);
+            else if (request.IsAudio && _player is { } player)
+            {
+                if (Viewer.ShowEmptyState) Viewer.ShowPlaying();
+                await PlayMusicAsync(player, row, request);
+            }
             else await Viewer.ShowAsync(request);
         }
         if (Current == row) ReadAheadAsync().FireAndForget();
+    }
+
+    /// <summary>
+    /// The binder's music as one queue, so Next and Previous in the player step through its songs: each track, and each
+    /// album's tracks, in the binder's order, playing from <paramref name="from"/>.
+    /// </summary>
+    async Task PlayMusicAsync(PlayerViewModel player, SessionItemRow from, ViewerRequest request)
+    {
+        var tracks = new List<long>();
+        long? start = null;
+        foreach (var row in Items.Where(r => r == from || r.CanOpen && !r.OpensOnline && r.Cover?.Entry is { } entry && (entry.IsAlbum || SourceFormats.IsAudio(entry.Format))))
+        {
+            var its = row == from ? request : await SessionPackRows.RequestAsync(row, Pack?.Title ?? "", _queries);
+            if (its is null || !its.IsAudio) continue;
+            IEnumerable<long> songs = its.Pack is { } pack ? pack.Where(p => p.IsAudio).Select(p => p.DocumentId) : [its.DocumentId];
+            if (row == from) start = its.Pack is null || its.Pack.Any(p => p.IsAudio && p.DocumentId == its.DocumentId) ? its.DocumentId : songs.FirstOrDefault();
+            // A song in the binder twice plays once, where it first comes.
+            tracks.AddRange(songs.Where(id => !tracks.Contains(id)));
+        }
+        if (Current != from) return;
+        if (tracks.Count < 2 || start is not { } first) await player.PlayAsync(request);
+        else await player.PlayAsync(tracks, Pack?.Title, Math.Max(0, tracks.IndexOf(first)));
     }
 
     /// <summary>The online reader at <paramref name="request"/>'s page, in the reader's place.</summary>

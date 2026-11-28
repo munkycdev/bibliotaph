@@ -110,13 +110,14 @@ Playing** in the toolbar: click the title for the controls, the queue and the am
 - **Up next** lists the album's tracks; click one to play it.
 - **Loop this track as ambience** moves the track playing to a loop of its own under the music, such as rain or a
   tavern's noise under a battle theme. The ambience has its own pause, volume and stop. One track loops at a time.
-- **Stop and close the player** (the cross at the end) stops everything.
+- **Stop and close the player** (the cross at the end, also on the Mac's Now Playing) stops everything.
 
 The keyboard's media keys, Windows' media controls, the Mac's Now Playing in Control Centre, and a phone's lock screen
 on the web all reach the music, and show its title, artist and cover. The ambience stays out of them.
 
 In a binder, a track plays in the player without taking the reader off the page you're on, so a session's music can be
-an item next to its handouts.
+an item next to its handouts. The binder's songs are one queue: **Next** and **Previous** in the player step through
+them in the binder's order, an album's tracks included.
 
 Bibliotaph plays MP3, M4A (AAC), FLAC and WAV everywhere. Ogg Vorbis and Opus files play in the web app in most
 browsers; on Windows they need Microsoft's free Web Media Extensions from the Microsoft Store, and the Mac can't play

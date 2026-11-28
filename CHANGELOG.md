@@ -13,8 +13,9 @@
   playing as you read: play and pause, previous and next, shuffle, repeat the album or one track, the position, the
   volume and what's up next. On the Mac it's **Now Playing** in the toolbar and the new **Controls** menu. The media
   keys and the system's media controls (Windows' media overlay, the Mac's Control Centre, a phone's lock screen on
-  the web) show the track and work it. A track in a binder plays without leaving the page you're on. On Windows, Ogg
-  and Opus need Microsoft's free Web Media Extensions; the Mac can't play them.
+  the web) show the track and work it. A track in a binder plays without leaving the page you're on, and Next and
+  Previous go through the binder's songs. On Windows, Ogg and Opus need Microsoft's free Web Media Extensions; the Mac
+  can't play them.
 - **New: ambience under the music.** **Loop this track as ambience** moves the track playing to a seamless loop of its
   own, such as rain or a busy tavern under a battle theme, with its own volume, pause and stop.
 - **New: soundtracks go with their books.** An album or track beside a book, or in a folder of extras under it such

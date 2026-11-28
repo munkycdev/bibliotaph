@@ -41,11 +41,15 @@ sealed class NowPlayingItem : IDisposable
         ambience.ContentTintColor = NSColor.ControlAccent;
         var playPause = Symbol("play.fill", "Play");
         var next = Symbol("forward.fill", "Next");
+        var close = Symbol("xmark", "Stop and Close Player");
         _bindings.Command(playPause, player.PlayPauseCommand);
         _bindings.Command(next, player.NextCommand);
-        var row = NSStackView.FromViews([cover, title, ambience, playPause, next]);
+        _bindings.Command(close, player.CloseCommand);
+        var row = NSStackView.FromViews([cover, title, ambience, playPause, next, close]);
         row.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         row.Spacing = 6;
+        // The toolbar draws the item's capsule right at the view's edges; the cover and the last button need air inside it.
+        row.EdgeInsets = new NSEdgeInsets(3, 8, 3, 10);
         Item.View = row;
 
         _bindings.Properties(player, [nameof(PlayerViewModel.Current), nameof(PlayerViewModel.IsShowing), nameof(PlayerViewModel.IsPlaying),

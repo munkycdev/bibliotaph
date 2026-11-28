@@ -1412,8 +1412,15 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             Problem("This is an audio file.", "It can't be played here; your own music app can play it.", "Open in another app", OpenElsewhereCommand);
             return;
         }
-        Problem("Playing in the player.", "Audio plays in the bar at the bottom of the main window, and goes on while you read.", null, null);
+        ShowPlaying();
         await player.PlayAsync(request);
+    }
+
+    /// <summary>Says the audio asked for plays in the player, in the reader's place, for a caller that hands it over itself.</summary>
+    public void ShowPlaying()
+    {
+        CloseBook();
+        Problem("Playing in the player.", "Audio plays in the player, and goes on while you read.", null, null);
     }
 
     /// <summary>The view couldn't play the video: why, with the user's own video app instead.</summary>

@@ -20,7 +20,8 @@ public sealed class Player(ReaderClient api, IJSRuntime js, NavigationManager na
     List<PlayerTrack> _queue = [];
     IJSObjectReference? _module;
     DotNetObjectReference<Player>? _self;
-    long _entryId;
+    /// <summary>The card each track in the queue is read through: one album's, or a binder's several.</summary>
+    List<long> _entries = [];
     int _load;
     int _ambienceLoad;
 
@@ -87,10 +88,48 @@ public sealed class Player(ReaderClient api, IJSRuntime js, NavigationManager na
             Changed?.Invoke();
             return;
         }
-        _entryId = entryId;
         _queue = [.. tracks.Tracks];
+        _entries = [.. tracks.Tracks.Select(_ => entryId)];
         QueueTitle = tracks.Title;
         _order.Start(_queue.Count, tracks.Start);
+        await LoadAsync(play: true);
+    }
+
+    /// <summary>
+    /// A binder's music as one queue, so Next and Previous step through its songs: each item's track, or its album's
+    /// tracks, in the binder's order, playing from the item at <paramref name="startAt"/>.
+    /// </summary>
+    public async Task PlayAsync(IReadOnlyList<(long EntryId, long? DocumentId)> items, string? title, int startAt)
+    {
+        PlayerTracks[] found;
+        try
+        {
+            found = await Task.WhenAll(items.Select(i => api.TracksAsync(i.EntryId, i.DocumentId)));
+        }
+        catch (Exception e) when (e is ApiProblemException or HttpRequestException)
+        {
+            Problem = "That couldn't be played: your library didn't answer.";
+            Changed?.Invoke();
+            return;
+        }
+        var queue = new List<PlayerTrack>();
+        var entries = new List<long>();
+        long? first = null;
+        for (var i = 0; i < found.Length; i++)
+        {
+            if (i == startAt && found[i].Tracks is { Count: > 0 } starting) first = starting[Math.Clamp(found[i].Start, 0, starting.Count - 1)].DocumentId;
+            // A song in the binder twice plays once, where it first comes.
+            foreach (var track in found[i].Tracks.Where(t => queue.TrueForAll(q => q.DocumentId != t.DocumentId)))
+            {
+                queue.Add(track);
+                entries.Add(found[i].EntryId);
+            }
+        }
+        if (queue.Count == 0) return;
+        _queue = queue;
+        _entries = entries;
+        QueueTitle = title;
+        _order.Start(_queue.Count, Math.Max(0, queue.FindIndex(t => t.DocumentId == first)));
         await LoadAsync(play: true);
     }
 
@@ -196,7 +235,7 @@ public sealed class Player(ReaderClient api, IJSRuntime js, NavigationManager na
     public async Task LoopCurrentAsAmbienceAsync()
     {
         if (Current is not { } track) return;
-        var entry = _entryId;
+        var entry = EntryOf(_order.Current);
         if (_queue.Count > 1) await StepAsync(ended: false);
         else await StopMusicAsync();
         await LoopAsAmbienceAsync(entry, track);
@@ -260,7 +299,7 @@ public sealed class Player(ReaderClient api, IJSRuntime js, NavigationManager na
             await ShowNowPlayingAsync();
             return;
         }
-        var problem = track.Problem ?? await AskAsync<string?>("open", "music", Options(_entryId, track));
+        var problem = track.Problem ?? await AskAsync<string?>("open", "music", Options(EntryOf(_order.Current), track));
         if (load != _load || problem == "moved on") return;
         if (problem is not null)
         {
@@ -286,6 +325,7 @@ public sealed class Player(ReaderClient api, IJSRuntime js, NavigationManager na
         ++_load;
         await CallAsync("close", "music");
         _queue = [];
+        _entries = [];
         _order.Clear();
         QueueTitle = null;
         IsPlaying = false;
@@ -293,6 +333,8 @@ public sealed class Player(ReaderClient api, IJSRuntime js, NavigationManager na
         Length = 0;
         await ShowNowPlayingAsync();
     }
+
+    long EntryOf(int? at) => at is { } i && i < _entries.Count ? _entries[i] : 0;
 
     static object Options(long entryId, PlayerTrack track) => new
     {
