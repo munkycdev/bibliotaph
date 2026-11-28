@@ -494,6 +494,22 @@ public sealed class LibraryQueries(IndexDatabase database)
             DateTime.Parse(r.AddedUtc, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal), Searchable: true));
     }
 
+    /// <summary>
+    /// What the player shows for these audio files: the title and artist in their tags, else the file's own title, how
+    /// long each plays and its cover. Files not in the index are left out.
+    /// </summary>
+    public async Task<IReadOnlyDictionary<long, AudioTrack>> GetTracksAsync(IReadOnlyCollection<long> documentIds, CancellationToken ct = default)
+    {
+        if (documentIds.Count == 0) return new Dictionary<long, AudioTrack>();
+        await using var connection = database.OpenRead();
+        var rows = await connection.QueryAsync<(long DocumentId, string Title, string? MetaTitle, string? MetaAuthor, string Format, long? DurationMs, string? Cover)>(
+            new CommandDefinition(
+                "SELECT document_id, display_title, meta_title, meta_author, format, duration_ms, cover FROM doc WHERE document_id IN @ids",
+                new { ids = documentIds.Distinct().ToArray() }, cancellationToken: ct));
+        return rows.ToDictionary(r => r.DocumentId, r => new AudioTrack(r.DocumentId, string.IsNullOrWhiteSpace(r.MetaTitle) ? r.Title : r.MetaTitle.Trim(),
+            string.IsNullOrWhiteSpace(r.MetaAuthor) ? null : r.MetaAuthor.Trim(), r.Format, r.DurationMs is > 0 and { } ms ? TimeSpan.FromMilliseconds(ms) : null, r.Cover));
+    }
+
     /// <summary>A pack's files in file name order, for its inspector grid and for stepping through it in the viewer.</summary>
     public async Task<IReadOnlyList<PackImage>> GetPackImagesAsync(EntryId packId, CancellationToken ct = default)
     {

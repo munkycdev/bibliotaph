@@ -99,7 +99,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry) : ObservableObject
     /// </summary>
     public ViewerRequest BookRequest() => Entry is { IsPart: true, Pages: { } pages }
         ? PartOpen.Open(DocumentId, Title, EntryId, Entry.ParentTitle, pages)
-        : new ViewerRequest(DocumentId, Title) { Resume = true };
+        : new ViewerRequest(DocumentId, Title) { Resume = true, Format = Entry.Format };
 
     /// <summary>Why the file's text isn't read by itself, if it isn't: it's locked, protected (DRM), or forgotten.</summary>
     public TextAccess TextAccess => IsElsewhere ? TextAccess.Readable : Entry.TextAccess;

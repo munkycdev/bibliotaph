@@ -188,6 +188,7 @@ public static class SessionPackRows
             return ViewerRequest.ForPack(pack.EntryId, await Task.Run(() => queries.GetPackImagesAsync(pack.EntryId)), pack.Title);
         return new ViewerRequest(documentId, row.Heading, row.Target.FirstPage)
         {
+            Format = row.Cover?.Entry.Format,
             SessionItem = new SessionItemOpen(row.Id, packTitle, row.Target.State, row.Reason, row.Target.FirstPage, row.Target.LastPage)
             {
                 WholeBook = row.Item.Range is null,

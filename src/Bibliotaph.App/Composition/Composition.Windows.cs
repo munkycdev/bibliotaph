@@ -50,6 +50,7 @@ static partial class Composition
         services.AddSingleton<IUserPrompts, WpfUserPrompts>();
         services.AddSingleton<IClipboard, WpfClipboard>();
         services.AddSingleton<IDesktopShell, WindowsDesktopShell>();
+        services.AddSingleton<IAudioOutput, WindowsAudioOutput>();
         if (smokeTest)
         {
             services.AddSingleton<IPasswordPrompt, SmokePasswordPrompt>();

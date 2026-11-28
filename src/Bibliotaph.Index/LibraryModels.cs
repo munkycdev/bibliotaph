@@ -142,6 +142,9 @@ public sealed record LibraryEntry(
 /// </summary>
 public sealed record PackImage(long DocumentId, EntryId MemberEntryId, string Name, string Format, string? Cover);
 
+/// <summary>An audio file as the player lists it: its title and artist, from its tags when it has them, and how long it plays.</summary>
+public sealed record AudioTrack(long DocumentId, string Title, string? Artist, string Format, TimeSpan? Duration, string? Cover);
+
 public enum LibrarySort
 {
     /// <summary>Best match first; for a library with no search, the same as <see cref="RecentlyAdded"/>.</summary>

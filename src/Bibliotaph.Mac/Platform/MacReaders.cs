@@ -27,11 +27,20 @@ public sealed class MacReaderWindows(ViewerServices viewer, INavigationService n
 
     public void OpenInMainWindow(ViewerRequest request)
     {
+        if (Played(request)) return;
         navigation.Show(Create(request));
         BringMainForward();
     }
 
-    public Task OpenInNewWindowAsync(ViewerRequest request) => HostAsync(Create(request, poppedOut: true));
+    public Task OpenInNewWindowAsync(ViewerRequest request) => Played(request) ? Task.CompletedTask : HostAsync(Create(request, poppedOut: true));
+
+    /// <summary>Audio plays in the player, which goes on while books are read, rather than opening a reader of its own.</summary>
+    bool Played(ViewerRequest request)
+    {
+        if (!request.IsAudio || viewer.Player is not { } player) return false;
+        player.PlayAsync(request).FireAndForget();
+        return true;
+    }
 
     public async Task<ViewerViewModel> ShowInWindowAsync(ViewerViewModel? reader, ViewerRequest request)
     {

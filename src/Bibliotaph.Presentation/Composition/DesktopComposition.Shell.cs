@@ -33,6 +33,8 @@ public static partial class DesktopComposition
         else services.AddSingleton<IShellLauncher, ShellLauncher>();
         services.AddSingleton<OtherApps>();
         services.AddSingleton<BookTextActions>();
+        // One player for the app, so music goes on from page to page and window to window.
+        services.AddSingleton<Bibliotaph.Presentation.ViewModels.PlayerViewModel>();
         return services;
     }
 }

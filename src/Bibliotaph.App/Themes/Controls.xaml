@@ -436,6 +436,71 @@
     </Setter>
   </Style>
 
+  <!-- The player's position and volume: a thin line filled in the accent up to a round thumb, clicked or dragged anywhere along it. -->
+  <Style x:Key="Bt.SliderPart" TargetType="RepeatButton">
+    <Setter Property="OverridesDefaultStyle" Value="True" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="IsTabStop" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="RepeatButton">
+          <Grid Background="Transparent">
+            <Border Height="4" CornerRadius="2" VerticalAlignment="Center" Background="{TemplateBinding Background}" />
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="Bt.SliderThumb" TargetType="Thumb">
+    <Setter Property="OverridesDefaultStyle" Value="True" />
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Thumb">
+          <Ellipse x:Name="Dot" Width="12" Height="12" Fill="{DynamicResource Bt.Accent}" Stroke="{DynamicResource Bt.Panel}" StrokeThickness="1" />
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Dot" Property="Width" Value="14" />
+              <Setter TargetName="Dot" Property="Height" Value="14" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="Bt.Slider" TargetType="Slider">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource Bt.FocusVisual}" />
+    <Setter Property="IsMoveToPointEnabled" Value="True" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Slider">
+          <Grid Background="Transparent" MinHeight="18">
+            <Track x:Name="PART_Track" VerticalAlignment="Stretch">
+              <Track.DecreaseRepeatButton>
+                <RepeatButton Style="{StaticResource Bt.SliderPart}" Background="{DynamicResource Bt.Accent}" Command="Slider.DecreaseLarge" />
+              </Track.DecreaseRepeatButton>
+              <Track.IncreaseRepeatButton>
+                <RepeatButton Style="{StaticResource Bt.SliderPart}" Background="{DynamicResource Bt.Line}" Command="Slider.IncreaseLarge" />
+              </Track.IncreaseRepeatButton>
+              <Track.Thumb>
+                <Thumb Style="{StaticResource Bt.SliderThumb}" />
+              </Track.Thumb>
+            </Track>
+          </Grid>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <Style x:Key="Bt.ProgressBar" TargetType="ProgressBar">
     <Setter Property="Height" Value="6" />
     <Setter Property="Minimum" Value="0" />

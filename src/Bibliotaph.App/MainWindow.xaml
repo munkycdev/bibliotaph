@@ -297,6 +297,7 @@
         <RowDefinition Height="Auto" />
         <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
 
       <!-- .bt-topbar -->
@@ -520,6 +521,9 @@
           </ContentControl.Style>
         </ContentControl>
       </ScrollViewer>
+
+      <!-- The player, under every page while something plays; its DataContext is the PlayerViewModel, set in code. -->
+      <v:PlayerBar x:Name="Player" Grid.Row="3" />
 
       <!--
         The search box's field guide: the fields you can search, and after a field's colon its values in your library.

@@ -30,7 +30,7 @@ public partial class MainWindow : Window
     Point? _pinDragStart;
 
     public MainWindow(ShellViewModel shell, SearchGuideViewModel guide, TourViewModel tour, AboutBox about, ShortcutsBox shortcuts, IJobControl indexing,
-        ILogger<MainWindow> log)
+        PlayerViewModel player, ILogger<MainWindow> log)
     {
         InitializeComponent();
         _indexing = indexing;
@@ -40,6 +40,7 @@ public partial class MainWindow : Window
         _guide = guide;
         SearchGuide.DataContext = guide;
         Tour.DataContext = tour;
+        Player.DataContext = player;
         DataContext = shell;
         shell.FocusPinRequested += (_, target) => FocusPin(target);
         shell.PlainSearch.PropertyChanged += OnPlainSearchChanged;

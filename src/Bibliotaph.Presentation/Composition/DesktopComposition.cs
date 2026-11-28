@@ -30,7 +30,7 @@ public static partial class DesktopComposition
         typeof(IPasswordVault), typeof(IConnectionSecrets), typeof(IApiKeyStore), typeof(IWebLibraryKey),
         typeof(IInAppBrowser), typeof(IEbookBrowser), typeof(IThemeService), typeof(IFilePicker), typeof(IUserPrompts),
         typeof(IClipboard), typeof(IDesktopShell), typeof(IPasswordPrompt), typeof(IUpdateService), typeof(IAppDialogs),
-        typeof(IAppLifetime), typeof(OnlineLibrariesSection),
+        typeof(IAppLifetime), typeof(OnlineLibrariesSection), typeof(IAudioOutput),
     ];
 
     /// <summary>
