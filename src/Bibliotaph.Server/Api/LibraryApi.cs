@@ -364,7 +364,7 @@ public static class LibraryApi
         !e.IsElsewhere && e.TextAccess == TextAccess.Protected,
         [.. CardText.Badges(e).Select(b => new BookBadge(b.Kind, b.Icon, b.Count, b.Tip, b.Wide, b.Suggested))],
         e.Organize is var o ? new OrganizeFacts(o.Title, o.Format, o.StandsForPack, o.Elsewhere, o.Part, o.Parts, o.Loose, o.GoesWithBook, o.Companions) : null,
-        e.FolderHint ?? "");
+        e.FolderHint ?? "", Plays: !e.IsElsewhere && (e.IsAlbum || (!e.IsPack && SourceFormats.IsAudio(e.Format))));
 
     static T? Parse<T>(string? value) where T : struct, Enum => Enum.TryParse<T>(value, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed) ? parsed : null;
 

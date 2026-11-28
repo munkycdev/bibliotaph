@@ -13,6 +13,7 @@ builder.Services.AddScoped(_ => new HttpClient(new ClientHeaderHandler { InnerHa
 });
 builder.Services.AddBibliotaphApi();
 builder.Services.AddScoped<Session>();
+builder.Services.AddScoped<Player>();
 builder.Services.AddScoped<Theme>();
 builder.Services.AddScoped<LibraryActivity>();
 builder.Services.AddScoped<CollectionDialogs>();

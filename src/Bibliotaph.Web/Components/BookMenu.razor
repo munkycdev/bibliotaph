@@ -2,6 +2,7 @@
    this book, favorite, pin, Catalogued wrong…, download a file Bibliotaph can't read, Forget its text or Read it again,
    add it to a collection or a binder, and take a book owned elsewhere out of the library. Add to collection and Add to
    binder open their lists in the same menu, read as they open. *@
+@inject Player Player
 @inject BindersClient BindersApi
 @inject BooksClient BooksApi
 @inject CollectionsClient CollectionsApi
@@ -98,7 +99,16 @@
         await action.InvokeAsync();
     }
 
-    void Open() => Navigation.NavigateTo(ReaderUrl.For(Book));
+    // A track or an album plays in the player, which goes on while books are read.
+    async Task Open()
+    {
+        if (Book.Plays)
+        {
+            await Closed.InvokeAsync();
+            await Player.PlayAsync(Book);
+        }
+        else Navigation.NavigateTo(ReaderUrl.For(Book));
+    }
 
     async Task OpenInNewWindowAsync()
     {

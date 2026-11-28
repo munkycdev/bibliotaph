@@ -4,7 +4,7 @@
     @foreach (var book in Books)
     {
         <div class="bt-book" @key="book.Id" title="@book.Title" @oncontextmenu="() => _menu = book" @oncontextmenu:preventDefault="true">
-            <button class="bt-bookbutton" aria-label="Details for @book.Title" data-popout="@(book.Elsewhere ? null : ReaderUrl.For(book, popout: true))"
+            <button class="bt-bookbutton" aria-label="Details for @book.Title" data-popout="@(book.Elsewhere || book.Plays ? null : ReaderUrl.For(book, popout: true))"
                     @onclick="() => Open.InvokeAsync(book)">
                 <div class="bt-coverarea">
                     <BookCover Book="book" />

@@ -115,9 +115,7 @@ public static class CardText
     public static string Tracks(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "track" : "tracks")}";
 
     /// <summary>How long a track plays: "4:32", or "1:02:15" past an hour.</summary>
-    public static string Length(TimeSpan duration) => duration.TotalHours >= 1
-        ? duration.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
-        : $"{(int)duration.TotalMinutes}:{duration.Seconds:00}";
+    public static string Length(TimeSpan duration) => PlayOrder.Length(duration);
 
     public static string Files(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "file" : "files")}";
 

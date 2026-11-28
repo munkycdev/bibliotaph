@@ -11,9 +11,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Bibliotaph.Presentation.ViewModels;
 
-/// <summary>Whether the queue starts again when it ends, or the track does.</summary>
-public enum RepeatMode { Off, All, One }
-
 /// <summary>A track in the player's queue, or the one on the ambience layer.</summary>
 public sealed partial class PlayerTrackViewModel(AudioTrack track, string? album, string? albumCover) : ObservableObject
 {
@@ -63,11 +60,7 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
     readonly IUiThread _ui;
     readonly ILogger<PlayerViewModel> _log;
     readonly UiTimer _clock;
-    readonly Random _random = new();
-
-    // The queue's play order, as indexes into Queue: in order, or shuffled with the track playing first.
-    List<int> _order = [];
-    int _at = -1;
+    readonly PlayOrder _order = new();
     LocalFile? _musicFile;
     LocalFile? _ambienceFile;
     // Moved on by every load, so a file still opening when another was asked for is let go rather than played.
@@ -172,7 +165,7 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
 
     public bool CanGoBack => Current is not null;
 
-    public bool CanGoNext => Current is not null && (_at < _order.Count - 1 || Repeat == RepeatMode.All);
+    public bool CanGoNext => _order.HasNext;
 
     public string PlayPauseLabel => IsPlaying ? "Pause" : "Play";
 
@@ -219,8 +212,7 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
         Queue.Clear();
         foreach (var track in tracks) Queue.Add(new PlayerTrackViewModel(track, title, albumCover));
         QueueTitle = title;
-        _order = OrderFrom(start);
-        _at = 0;
+        _order.Start(tracks.Count, start);
         await LoadAsync(play: true);
         RecordAsync(tracks[start].DocumentId).FireAndForget();
     }
@@ -272,18 +264,18 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    Task Next() => StepAsync(forward: true, ended: false);
+    Task Next() => StepAsync(ended: false);
 
     [RelayCommand]
-    Task Previous()
+    async Task Previous()
     {
-        if (Current is null) return Task.CompletedTask;
-        if (_music.Position > RestartAfter || (_at == 0 && Repeat != RepeatMode.All))
+        if (Current is null) return;
+        if (_music.Position > RestartAfter || _order.Previous() is null)
         {
             Seek(TimeSpan.Zero);
-            return Task.CompletedTask;
+            return;
         }
-        return StepAsync(forward: false, ended: false);
+        await LoadAsync(play: true);
     }
 
     /// <summary>Plays a track from the queue's list.</summary>
@@ -293,7 +285,7 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
         var index = Queue.IndexOf(track);
         if (index < 0) return;
         IsQueueOpen = false;
-        _at = _order.IndexOf(index);
+        _order.Jump(index);
         await LoadAsync(play: true);
     }
 
@@ -321,8 +313,7 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
     {
         if (Current is not { } track) return;
         var album = Current.Album;
-        var next = _at < _order.Count - 1;
-        if (next) await StepAsync(forward: true, ended: false);
+        if (Queue.Count > 1) await StepAsync(ended: false);
         else StopMusic();
         await LoopAsAmbienceAsync(track.DocumentId, album);
     }
@@ -363,27 +354,20 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
 
     partial void OnAmbienceVolumeChanged(double value) => _ambience.Volume = Math.Clamp(value, 0, 100) / 100;
 
-    partial void OnRepeatChanged(RepeatMode value) => ShowNowPlaying();
+    partial void OnRepeatChanged(RepeatMode value)
+    {
+        _order.Repeat = value;
+        OnPropertyChanged(nameof(CanGoNext));
+        ShowNowPlaying();
+    }
 
     partial void OnShuffleChanged(bool value)
     {
-        if (Queue.Count == 0) return;
-        var playing = _at >= 0 && _at < _order.Count ? _order[_at] : 0;
-        _order = OrderFrom(playing);
-        _at = 0;
+        _order.SetShuffle(value);
         OnPropertyChanged(nameof(CanGoNext));
     }
 
-    /// <summary>The play order starting at <paramref name="start"/>: the queue from there on, or with shuffle on the rest in any order after it.</summary>
-    List<int> OrderFrom(int start)
-    {
-        if (!Shuffle) return [.. Enumerable.Range(0, Queue.Count).Skip(start).Concat(Enumerable.Range(0, start))];
-        var rest = Enumerable.Range(0, Queue.Count).Where(i => i != start).ToArray();
-        _random.Shuffle(rest);
-        return [start, .. rest];
-    }
-
-    async Task StepAsync(bool forward, bool ended)
+    async Task StepAsync(bool ended)
     {
         if (Current is null) return;
         if (ended && Repeat == RepeatMode.One)
@@ -392,29 +376,17 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
             _music.Play();
             return;
         }
-        var at = _at + (forward ? 1 : -1);
-        if (at >= _order.Count || at < 0)
-        {
-            if (Repeat != RepeatMode.All)
-            {
-                // The end of the queue: it waits at its first track, as the album was before it started.
-                _at = 0;
-                await LoadAsync(play: false);
-                return;
-            }
-            if (Shuffle && forward) _order = OrderFrom(_order[0]);
-            at = forward ? 0 : _order.Count - 1;
-        }
-        _at = at;
-        await LoadAsync(play: true);
+        // The end of the queue: it waits at its first track, as the album was before it started.
+        if (_order.Next(ended) is null) await LoadAsync(play: false);
+        else await LoadAsync(play: true);
     }
 
-    /// <summary>Opens the track at <see cref="_at"/> in the play order, and plays it unless <paramref name="play"/> is false.</summary>
+    /// <summary>Opens the track the play order is at, and plays it unless <paramref name="play"/> is false.</summary>
     async Task LoadAsync(bool play, int skipped = 0)
     {
-        if (_at < 0 || _at >= _order.Count) return;
+        if (_order.Current is not { } index) return;
         var load = ++_musicLoad;
-        var track = Queue[_order[_at]];
+        var track = Queue[index];
         foreach (var queued in Queue) queued.IsCurrent = ReferenceEquals(queued, track);
         Current = track;
         Release(ref _musicFile, _music);
@@ -438,11 +410,8 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
         {
             Problem = opened.Problem;
             // One track that won't play shouldn't stop an album; a queue where none will stops.
-            if (skipped + 1 < _order.Count && _at < _order.Count - 1)
-            {
-                _at++;
+            if (skipped + 1 < _order.Count && _order.Next(ended: false) is not null)
                 await LoadAsync(play: true, skipped + 1);
-            }
             else
             {
                 IsPlaying = false;
@@ -492,8 +461,7 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
         Release(ref _musicFile, _music);
         foreach (var queued in Queue) queued.IsCurrent = false;
         Queue.Clear();
-        _order = [];
-        _at = -1;
+        _order.Clear();
         Current = null;
         QueueTitle = null;
         IsPlaying = false;
@@ -535,13 +503,13 @@ public sealed partial class PlayerViewModel : ObservableObject, IDisposable
         if (Length <= 0 && _music.Duration is { } duration && duration > TimeSpan.Zero) Length = duration.TotalSeconds;
     }
 
-    Task OnEndedAsync(int load) => load == _musicLoad ? StepAsync(forward: true, ended: true) : Task.CompletedTask;
+    Task OnEndedAsync(int load) => load == _musicLoad ? StepAsync(ended: true) : Task.CompletedTask;
 
     async Task OnFailedAsync(int load, string message)
     {
         if (load != _musicLoad) return;
         Problem = message;
-        if (_at < _order.Count - 1) await StepAsync(forward: true, ended: false);
+        if (_order.HasNext) await StepAsync(ended: false);
         else
         {
             _clock.Stop();
