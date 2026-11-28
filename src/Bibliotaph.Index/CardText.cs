@@ -112,16 +112,27 @@ public static class CardText
 
     public static string Images(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "image" : "images")}";
 
+    public static string Tracks(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "track" : "tracks")}";
+
+    /// <summary>How long a track plays: "4:32", or "1:02:15" past an hour.</summary>
+    public static string Length(TimeSpan duration) => PlayOrder.Length(duration);
+
     public static string Files(int count) => $"{count.ToString("N0", CultureInfo.CurrentCulture)} {(count == 1 ? "file" : "files")}";
 
-    /// <summary>A pack's size: "120 images" while every file in it is an image, "6 files" once PDFs are among them.</summary>
-    public static string Members(LibraryEntry pack) => pack.PdfMembers > 0 ? Files(pack.Members) : Images(pack.Members);
+    /// <summary>
+    /// A pack's size: "120 images" while every file in it is an image, "12 tracks" for an album, "6 files" once PDFs or
+    /// tracks are among images.
+    /// </summary>
+    public static string Members(LibraryEntry pack) =>
+        pack.IsAlbum ? Tracks(pack.AudioMembers) : pack.PdfMembers > 0 || pack.AudioMembers > 0 ? Files(pack.Members) : Images(pack.Members);
 
     public static string Describe(LibraryEntry entry) =>
-        entry.IsPack ? entry.PdfMembers > 0 ? $"Pack · {Files(entry.Members)}" : $"Image pack · {Images(entry.Members)}"
+        entry.IsPack ? entry.IsAlbum ? $"Album · {Tracks(entry.AudioMembers)}"
+            : entry.PdfMembers > 0 || entry.AudioMembers > 0 ? $"Pack · {Files(entry.Members)}" : $"Image pack · {Images(entry.Members)}"
         : entry.IsElsewhere ? entry.AlsoOwn is { } owned ? $"Owned elsewhere · {owned}" : "Owned elsewhere"
         : SourceFormats.IsImage(entry.Format) ? $"{entry.Format.ToUpperInvariant()} image"
         : SourceFormats.IsVideo(entry.Format) ? $"{entry.Format.ToUpperInvariant()} video"
+        : SourceFormats.IsAudio(entry.Format) ? entry.Duration is { } length ? $"{FormatName(entry.Format)} · {Length(length)}" : $"{FormatName(entry.Format)} audio"
         : entry.PageCount is { } pages ? $"{FormatName(entry.Format)} · {pages.ToString("N0", CultureInfo.CurrentCulture)} {(pages == 1 ? "page" : "pages")}"
         : FormatName(entry.Format);
 

@@ -1,5 +1,6 @@
 @page "/binders/{Id:long}"
 @implements IAsyncDisposable
+@inject Player Player
 @inject BindersClient BindersApi
 @inject NavigationManager Navigation
 @inject Pins Pins
@@ -114,6 +115,10 @@ else
             </nav>
 
             <div class="bt-binderreaderview">
+                @{
+                    // A binder's music plays under the page in hand rather than taking its place, so the map stays up while it plays.
+                    var shown = Shown ?? current;
+                }
                 @if (current is null)
                 {
                     <EmptyState Title="This binder has nothing in it yet." Message="Add books and pages to it from your library, or use Add to binder in the reader."
@@ -134,7 +139,7 @@ else
                 }
                 else
                 {
-                    <ReaderView @ref="_reader" EntryId="current.EntryId" Item="current.Id" Page="current.Id == Item ? Page : null" InBinder="true" PlaceChanged="PlaceChanged"
+                    <ReaderView @ref="_reader" EntryId="shown!.EntryId" Item="shown.Id" Page="shown.Id == Item ? Page : null" InBinder="true" PlaceChanged="PlaceChanged"
                                 NotesChanged="NotesChanged" ItemMoved="LoadAsync" />
                 }
             </div>
@@ -270,9 +275,20 @@ else
 
     Task RetryAsync() => LoadAsync();
 
+    /// <summary>What the reader shows while a track in the binder plays under it: the page that was in hand.</summary>
+    BinderItem? _underMusic;
+
+    BinderItem? Shown => Current is { Cover.Plays: true } && _underMusic is { } kept && Items.Any(i => i.Id == kept.Id) ? kept : Current;
+
     void Open(BinderItem item)
     {
         if (item.Id == Current?.Id) return;
+        if (item.Cover is { Plays: true } track && Shown is { Cover.Plays: false, CanOpen: true } inHand)
+        {
+            _underMusic = inHand;
+            _ = Player.PlayAsync(track);
+        }
+        else if (item.Cover is not { Plays: true }) _underMusic = null;
         _place = null;
         _bookNotes = null;
         Navigation.NavigateTo(Url(item.Id), replace: true);

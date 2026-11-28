@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Audio files read from a stream: tags, how long they play, embedded artwork. No file I/O of its own, and never a write. -->
+  <PropertyGroup>
+    <TargetFramework>$(BibTfm)</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Bibliotaph.Core\Bibliotaph.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="z440.atl.core" />
+  </ItemGroup>
+</Project>

@@ -60,12 +60,21 @@ public sealed class ReaderWindows(ViewerServices viewer, INavigationService navi
     /// <summary>Opens a book in the main window's reader, and brings the main window forward.</summary>
     public void OpenInMainWindow(ViewerRequest request)
     {
+        if (Played(request)) return;
         navigation.Show(Create(request));
         BringMainForward();
     }
 
     /// <summary>Opens a book in a pop-out window of its own. The book loads once the window is showing.</summary>
-    public Task OpenInNewWindowAsync(ViewerRequest request) => HostAsync(Create(request, poppedOut: true));
+    public Task OpenInNewWindowAsync(ViewerRequest request) => Played(request) ? Task.CompletedTask : HostAsync(Create(request, poppedOut: true));
+
+    /// <summary>Audio plays in the player, which goes on while books are read, rather than opening a reader of its own.</summary>
+    bool Played(ViewerRequest request)
+    {
+        if (!request.IsAudio || viewer.Player is not { } player) return false;
+        player.PlayAsync(request).FireAndForget();
+        return true;
+    }
 
     /// <summary>
     /// Shows a book in <paramref name="reader"/>'s pop-out, brought forward, while that window is open; otherwise in a

@@ -51,6 +51,10 @@ internal sealed class LibraryWhere
             case KindFilter.Images:
                 Add("e.kind <> 'Pack' AND d.format IN (SELECT value FROM json_each(@imageFormats))", "imageFormats", JsonSerializer.Serialize(SourceFormats.Pictures));
                 break;
+            case KindFilter.Audio:
+                // Tracks and albums: an album's card shows its first track.
+                Add("d.format IN (SELECT value FROM json_each(@audioFormats))", "audioFormats", JsonSerializer.Serialize(SourceFormats.Audio));
+                break;
             case KindFilter.Packs:
                 // While each file has a card of its own, Packs keeps the files in packs.
                 _sql.Append(filter.PackFiles ? " AND e.pack_file IS NOT NULL" : " AND e.kind = 'Pack'");
@@ -80,7 +84,7 @@ internal sealed class LibraryWhere
                     e.source_id IS NULL AND e.companions = 0 AND e.kind NOT IN ('Elsewhere', 'Part') AND (e.kind = 'Pack' OR e.pack_file IS NOT NULL
                         OR d.format IN (SELECT value FROM json_each(@looseFormats))
                         OR e.entry_id IN (SELECT entry_id FROM entry_facet WHERE field = 'type' AND value IN (SELECT value FROM json_each(@looseTypes))))
-                    """, "looseFormats", JsonSerializer.Serialize(SourceFormats.Pictures));
+                    """, "looseFormats", JsonSerializer.Serialize<IReadOnlyList<string>>([.. SourceFormats.Pictures, .. SourceFormats.Audio]));
                 Parameters.Add("looseTypes", JsonSerializer.Serialize(OrganizeCard.LooseTypes));
                 break;
             case LinkFilter.Suggested:

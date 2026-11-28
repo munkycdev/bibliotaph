@@ -116,8 +116,8 @@ public sealed class PackTogetherPlan
         var packs = cards.Where(SelectionRules.StandsForPack).OrderBy(c => c.EntryId.Value).ToList();
         _packCount = packs.Count;
         _files = cards.Count - _packCount;
-        _pdfsTicked = cards.Any(c => !SelectionRules.StandsForPack(c) && c.Format == SourceFormats.Pdf);
-        var withPdfs = _pdfsTicked || packs.Any(p => p.IsPack && p.PdfMembers > 0);
+        _pdfsTicked = cards.Any(c => !SelectionRules.StandsForPack(c) && (c.Format == SourceFormats.Pdf || SourceFormats.IsAudio(c.Format)));
+        var withPdfs = _pdfsTicked || packs.Any(p => p.IsPack && (p.PdfMembers > 0 || p.AudioMembers > 0));
         Eyebrow = withPdfs ? "PACK" : "IMAGE PACK";
         Name = name;
         var files = Count(_files);

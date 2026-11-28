@@ -5,8 +5,8 @@ namespace Bibliotaph.Core;
 /// <summary>
 /// What Organize mode needs to know about a card to say what dropping cards on it does, the same in the Windows app
 /// and on the web. <see cref="StandsForPack"/> is a pack's card or one of its files' own, which drags and drops as the
-/// pack; <see cref="Loose"/> is something that goes with a book rather than being one: a picture, a video, a pack, or
-/// a file typed as a map pack, handout or character sheet.
+/// pack; <see cref="Loose"/> is something that goes with a book rather than being one: a picture, a video, a track, a
+/// pack, or a file typed as a map pack, handout or character sheet.
 /// </summary>
 public sealed record OrganizeCard(
     long EntryId, string Title, string Format, bool StandsForPack = false, bool Elsewhere = false, bool Part = false, int Parts = 0,
@@ -14,8 +14,13 @@ public sealed record OrganizeCard(
 {
     public bool IsPicture => !StandsForPack && SourceFormats.IsPicture(Format);
 
-    /// <summary>A single file that Pack together takes: an image, a video or a PDF.</summary>
-    public bool Packable => StandsForPack || (!Elsewhere && !Part && Parts == 0 && (SourceFormats.IsPicture(Format) || Format == SourceFormats.Pdf));
+    public bool IsAudio => !StandsForPack && SourceFormats.IsAudio(Format);
+
+    /// <summary>A single file with no pages, which packs with others like it and is never a book: a picture or a track.</summary>
+    public bool IsMedia => IsPicture || IsAudio;
+
+    /// <summary>A single file that Pack together takes: an image, a video, a track or a PDF.</summary>
+    public bool Packable => StandsForPack || (!Elsewhere && !Part && Parts == 0 && (SourceFormats.IsPackable(Format) || Format == SourceFormats.Pdf));
 
     /// <summary>The types that say a file goes with a book rather than being one.</summary>
     public static IReadOnlyList<string> LooseTypes { get; } = ["map-pack", "handout", "character-sheet"];
@@ -88,6 +93,7 @@ public static class OrganizeRules
     public static string? WhyNotABook(OrganizeCard card) =>
         card.StandsForPack ? "A pack can't be the book. Drop them on the book itself."
         : card.IsPicture ? "A picture can't be the book. Drop them on the book itself."
+        : card.IsAudio ? "A track can't be the book. Drop them on the book itself."
         : card.GoesWithBook ? $"“{card.Title}” goes with a book itself."
         : null;
 
@@ -98,9 +104,9 @@ public static class OrganizeRules
         var together = (IReadOnlyCollection<OrganizeCard>)[.. dragged, target];
         if (target.StandsForPack)
             return CanPack(together) ? new DropPlan(DropAction.JoinPack, $"Join “{target.Title}”")
-                : DropPlan.Nothing("Only images, videos, PDFs and packs can join a pack.");
-        if (target.IsPicture)
-            return dragged.All(d => d.IsPicture || d.StandsForPack) && CanPack(together)
+                : DropPlan.Nothing("Only images, videos, audio, PDFs and packs can join a pack.");
+        if (target.IsMedia)
+            return dragged.All(d => d.IsMedia || d.StandsForPack) && CanPack(together)
                 ? new DropPlan(DropAction.PackTogether, $"Pack together with “{target.Title}”")
                 : DropPlan.Nothing(WhyNotABook(target)!);
         if (WhyNotABook(target) is { } notABook) return DropPlan.Nothing(notABook);

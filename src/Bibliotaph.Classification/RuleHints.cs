@@ -6,7 +6,7 @@ namespace Bibliotaph.Classification;
 
 /// <summary>
 /// What the Hints from names stage reads for one document: where its file is under its source folder, the PDF's own
-/// document information (null for images, and for PDFs that don't fill it in), and its watermark lines once its text
+/// document information or an audio file's tags (null for images, and for PDFs that don't fill it in), and its watermark lines once its text
 /// has been read (<see cref="Watermarks.Find"/>). Watermark lines name the buyer, so only the store they name is kept.
 /// <see cref="Rules"/> are the folder rules switched on in its library folder.
 /// </summary>
@@ -103,8 +103,8 @@ public static partial class RuleHints
                     Add(proposal);
 
         // The file name is the most specific place a level range is written, so it is looked at last. Images are left
-        // out (videos too), and so are folder names: there "Level 2" is far more often a dungeon level than a character level.
-        if (!SourceFormats.IsPicture(SourceFormats.FromFileName(fileName) ?? ""))
+        // out (videos and audio too), and so are folder names: there "Level 2" is far more often a dungeon level than a character level.
+        if (!SourceFormats.IsPackable(SourceFormats.FromFileName(fileName) ?? ""))
             foreach (var text in new[] { source.EmbeddedSubject, source.EmbeddedTitle, Path.GetFileNameWithoutExtension(fileName) })
                 if (Clean(text) is { } t)
                 {

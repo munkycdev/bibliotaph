@@ -172,7 +172,9 @@ public class ClassifierPromptTests
         var starter = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "src", "Bibliotaph.Catalog", "Vocabulary", "starter-vocabulary.json")))!;
         var types = starter["terms"]!.AsArray().Where(t => t!["vocabulary"]!.GetValue<string>() == "type").Select(t => t!["key"]!.GetValue<string>()).ToHashSet();
 
-        Assert.Equal(types.Order(), ClassifierPrompt.TypeMeanings.Keys.Order());
+        // The audio types come from tags and folder names and are never put to the AI, so they need no meaning.
+        Assert.Subset(types, ClassifierPrompt.AudioTypes.ToHashSet());
+        Assert.Equal(types.Except(ClassifierPrompt.AudioTypes).Order(), ClassifierPrompt.TypeMeanings.Keys.Order());
     }
 
     /// <summary>The checkout this test runs from: the folder holding Bibliotaph.slnx, above the test's output.</summary>

@@ -246,16 +246,17 @@ static class FolderText
         return $"Added {added} · {state}{DescribeContents(scan.Summary!)}";
     }
 
-    /// <summary>"488 PDFs, 12 e-books, 120 images, 3 ZIPs · 15 other files ignored".</summary>
+    /// <summary>"488 PDFs, 12 e-books, 120 images, 24 audio files, 3 ZIPs · 15 other files ignored".</summary>
     static string DescribeContents(ScanSummary summary)
     {
         var pdfs = summary.ByFormat.GetValueOrDefault(SourceFormats.Pdf);
         var ebooks = SourceFormats.Ebooks.Sum(f => summary.ByFormat.GetValueOrDefault(f));
-        var images = summary.Indexable - pdfs - ebooks;
+        var audio = SourceFormats.Audio.Sum(f => summary.ByFormat.GetValueOrDefault(f));
+        var images = summary.Indexable - pdfs - ebooks - audio;
         var parts = new List<string>
         {
-            summary.Indexable + summary.Archives == 0 ? "No PDFs, e-books or images"
-                : string.Join(", ", new[] { Count(pdfs, "PDF", "PDFs"), Count(ebooks, "e-book", "e-books"), Count(images, "image", "images"), Count(summary.Archives, "ZIP", "ZIPs") }
+            summary.Indexable + summary.Archives == 0 ? "No PDFs, e-books, images or audio"
+                : string.Join(", ", new[] { Count(pdfs, "PDF", "PDFs"), Count(ebooks, "e-book", "e-books"), Count(images, "image", "images"), Count(audio, "audio file", "audio files"), Count(summary.Archives, "ZIP", "ZIPs") }
                     .Where(p => p.Length > 0)),
         };
         if (summary.Unsupported > 0) parts.Add($"{Count(summary.Unsupported, "other file", "other files")} ignored");

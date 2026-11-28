@@ -180,7 +180,7 @@ public static class EditApi
             if (await library.Get<LibraryQueries>().GetDetailsAsync(new EntryId(entryId), ct) is not { Entry: { IsPack: true } pack }) return Results.NotFound();
             var packs = library.Get<PackService>();
             if (await packs.SplitAsync(pack.EntryId, ct) is not { } files) return Results.NotFound();
-            var made = pack.PdfMembers > 0 ? CardText.Files(files.Count) : CardText.Images(files.Count);
+            var made = CardText.Members(pack with { Members = files.Count });
             return Results.Ok(new ActionResult($"Split {pack.Title} into {made}.",
                 Hold(library, () => packs.RepackAsync(pack.EntryId, files, CancellationToken.None), "The split couldn't be undone.")));
         });

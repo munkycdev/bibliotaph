@@ -39,6 +39,18 @@ public sealed record LibraryEntry(
     /// </summary>
     public int PdfMembers { get; init; }
 
+    /// <summary>How many of a pack's files are audio: a pack of nothing else is an album ("12 tracks").</summary>
+    public int AudioMembers { get; init; }
+
+    /// <summary>
+    /// An album: a pack of tracks with no PDF, any pictures in it (its artwork, a booklet's pages) no more than the
+    /// tracks. A map pack with a track or two of ambience stays a pack.
+    /// </summary>
+    public bool IsAlbum => IsPack && AudioMembers > 0 && PdfMembers == 0 && AudioMembers * 2 >= Members;
+
+    /// <summary>How long a track plays, from its file, when it is audio.</summary>
+    public TimeSpan? Duration { get; init; }
+
     /// <summary>
     /// The file chosen as a pack's cover, while it is in the pack and its cover is drawn: the card shows that file's
     /// cover (<see cref="Cover"/>) and has no mosaic.
@@ -116,9 +128,9 @@ public sealed record LibraryEntry(
     /// <summary>Typed as a map pack, handout or character sheet: something that goes with a book rather than being one.</summary>
     public bool LooseType { get; init; }
 
-    /// <summary>What Organize mode's drops go by: a picture, a video or a pack is loose too.</summary>
+    /// <summary>What Organize mode's drops go by: a picture, a video, a track or a pack is loose too.</summary>
     public OrganizeCard Organize => new(EntryId.Value, PackFile is not null ? PackTitle ?? Title : Title, Format, IsPack || IsPackFile, IsElsewhere, IsPart,
-        Parts, LooseType || IsPack || IsPackFile || SourceFormats.IsPicture(Format), SourceEntryId is not null, Companions);
+        Parts, LooseType || IsPack || IsPackFile || SourceFormats.IsPackable(Format), SourceEntryId is not null, Companions);
 
     /// <summary>"goes with The Big Adventure", for a companion's card; null for any other.</summary>
     public string? SourceLine => SourceEntryId is null ? null : $"goes with {SourceTitle ?? "a book"}";
@@ -132,6 +144,9 @@ public sealed record LibraryEntry(
 /// and its cover.
 /// </summary>
 public sealed record PackImage(long DocumentId, EntryId MemberEntryId, string Name, string Format, string? Cover);
+
+/// <summary>An audio file as the player lists it: its title and artist, from its tags when it has them, and how long it plays.</summary>
+public sealed record AudioTrack(long DocumentId, string Title, string? Artist, string Format, TimeSpan? Duration, string? Cover);
 
 public enum LibrarySort
 {
@@ -161,6 +176,8 @@ public enum KindFilter
     Elsewhere,
     /// <summary>Everything with a file on this PC: books, images and packs, but no book owned only elsewhere.</summary>
     Here,
+    /// <summary>Audio tracks, and albums of them.</summary>
+    Audio,
 }
 
 /// <summary>The AI choice in the filter panel: books a model has read, or those it hasn't yet.</summary>

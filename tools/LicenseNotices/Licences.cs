@@ -52,6 +52,9 @@ static class Licences
         new("SQLite", "blessing", "SQLite is Public Domain"),
         // The in-app browser's control and loader; the browser itself is the Edge WebView2 Runtime, part of Windows.
         new("Microsoft.Web.WebView2", "BSD-3-Clause", "The name of Microsoft Corporation, or the names of its contributors"),
+        // ATL.NET's text-encoding detector, a port of Mozilla's, under MPL-1.1, GPL-2.0 or LGPL-2.1 at the user's choice
+        // (its repository's license folder); its package's file only points there. Bibliotaph takes the LGPL 2.1.
+        new("Ude.NetStandard", "LGPL-2.1-only (chosen from MPL-1.1 / GPL-2.0 / LGPL-2.1)", "See license directory", Standard: "LGPL-2.1-only"),
     ];
 
     /// <summary>
@@ -145,7 +148,11 @@ static class Licences
 }
 
 /// <summary>A package whose licence file was read and found to be <see cref="Licence"/>, an SPDX id on the list.</summary>
-sealed record KnownFile(string Id, string Licence, string Says);
+/// <summary>
+/// A package whose licence file someone read: it names <see cref="Licence"/> and still says <see cref="Says"/>. When the
+/// file only points elsewhere, <see cref="Standard"/> is the SPDX id whose standard text is written out with it.
+/// </summary>
+sealed record KnownFile(string Id, string Licence, string Says, string? Standard = null);
 
 /// <summary>A part of the platform that ships beside the app under <see cref="Licence"/>, and why that is allowed.</summary>
 sealed record ExceptedPackage(string Id, string Licence, string Why);

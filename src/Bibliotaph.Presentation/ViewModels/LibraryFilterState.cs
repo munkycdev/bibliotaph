@@ -53,10 +53,10 @@ public sealed partial class LibraryFilterState : ObservableObject
     public event EventHandler? Changed;
 
     /// <summary>
-    /// Books, single images, packs, everything with a file on this PC or books owned elsewhere.
+    /// Books, single images, tracks and albums, packs, everything with a file on this PC or books owned elsewhere.
     /// </summary>
     public IReadOnlyList<Choice<KindFilter>> KindChoices { get; } =
-        [AllKinds, new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Packs, "Packs"),
+        [AllKinds, new(KindFilter.Books, "Books"), new(KindFilter.Images, "Images"), new(KindFilter.Audio, "Audio"), new(KindFilter.Packs, "Packs"),
             new(KindFilter.Here, "On this PC"), new(KindFilter.Elsewhere, "Owned elsewhere")];
 
     public Choice<KindFilter> KindChoice { get; set => Choose(ref field, value, AllKinds); } = AllKinds;

@@ -73,3 +73,15 @@ M:System.IO.Directory.Move(System.String,System.String);Directory moves are not 
 M:System.IO.DirectoryInfo.Delete;Directory deletes are not allowed here.
 M:System.IO.DirectoryInfo.Delete(System.Boolean);Directory deletes are not allowed here.
 M:System.IO.DirectoryInfo.MoveTo(System.String);Directory moves are not allowed here.
+# Audio files are read through ATL.NET from a stream; its tag writing and its own file opening are never used.
+M:ATL.Track.#ctor(System.String,System.Boolean);Read audio from the stream ISourceFileReader gives: new Track(stream, mediaType).
+M:ATL.Track.Save(System.Action{System.Single});Bibliotaph never writes to a source file.
+M:ATL.Track.Save(ATL.AudioData.MetaDataIOFactory.TagType,System.Action{System.Single});Bibliotaph never writes to a source file.
+M:ATL.Track.SaveAsync(System.IProgress{System.Single});Bibliotaph never writes to a source file.
+M:ATL.Track.SaveAsync(ATL.AudioData.MetaDataIOFactory.TagType,System.IProgress{System.Single});Bibliotaph never writes to a source file.
+M:ATL.Track.SaveTo(System.String,System.Action{System.Single});Bibliotaph never writes to a source file.
+M:ATL.Track.SaveTo(System.IO.Stream,System.Action{System.Single});Bibliotaph never writes to a source file.
+M:ATL.Track.SaveToAsync(System.String,System.Action{System.Single});Bibliotaph never writes to a source file.
+M:ATL.Track.SaveToAsync(System.IO.Stream,System.Action{System.Single});Bibliotaph never writes to a source file.
+M:ATL.Track.Remove(ATL.AudioData.MetaDataIOFactory.TagType,System.Action{System.Single});Bibliotaph never writes to a source file.
+M:ATL.Track.RemoveAsync(ATL.AudioData.MetaDataIOFactory.TagType,System.IProgress{System.Single});Bibliotaph never writes to a source file.

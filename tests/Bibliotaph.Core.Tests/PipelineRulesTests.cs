@@ -143,4 +143,29 @@ public class SourceFormatsTests
         Assert.Contains(SourceFormats.Webm, SourceFormats.Pictures);
         Assert.DoesNotContain(SourceFormats.Webm, SourceFormats.Images);
     }
+
+    [Theory]
+    [InlineData("Rainy Tavern.mp3", SourceFormats.Mp3)]
+    [InlineData("Theme.M4A", SourceFormats.M4a)]
+    [InlineData("Battle.flac", SourceFormats.Flac)]
+    [InlineData("Door.wav", SourceFormats.Wav)]
+    [InlineData("Wind.ogg", SourceFormats.Ogg)]
+    [InlineData("Choir.opus", SourceFormats.Opus)]
+    public void Audio_files_are_recognised_by_their_extension(string name, string expected)
+    {
+        Assert.Equal(expected, SourceFormats.FromFileName(name));
+        Assert.True(SourceFormats.IsAudio(expected));
+        Assert.Contains(expected, SourceFormats.Audio);
+    }
+
+    [Fact]
+    public void Audio_has_no_pages_isnt_a_picture_and_packs_into_albums()
+    {
+        Assert.False(SourceFormats.HasPages(SourceFormats.Mp3));
+        Assert.False(SourceFormats.IsPicture(SourceFormats.Mp3));
+        Assert.True(SourceFormats.IsPackable(SourceFormats.Mp3));
+        Assert.True(SourceFormats.IsPackable(SourceFormats.Png));
+        Assert.False(SourceFormats.IsPackable(SourceFormats.Pdf));
+        Assert.All(SourceFormats.Audio, f => Assert.True(SourceFormats.IsAudio(f)));
+    }
 }

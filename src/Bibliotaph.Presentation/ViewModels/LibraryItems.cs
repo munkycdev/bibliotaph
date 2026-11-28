@@ -99,7 +99,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry) : ObservableObject
     /// </summary>
     public ViewerRequest BookRequest() => Entry is { IsPart: true, Pages: { } pages }
         ? PartOpen.Open(DocumentId, Title, EntryId, Entry.ParentTitle, pages)
-        : new ViewerRequest(DocumentId, Title) { Resume = true };
+        : new ViewerRequest(DocumentId, Title) { Resume = true, Format = Entry.Format };
 
     /// <summary>Why the file's text isn't read by itself, if it isn't: it's locked, protected (DRM), or forgotten.</summary>
     public TextAccess TextAccess => IsElsewhere ? TextAccess.Readable : Entry.TextAccess;
@@ -151,7 +151,7 @@ public sealed class LibraryItemViewModel(LibraryEntry entry) : ObservableObject
     public bool ShowsMosaic => IsPack && Entry.CoverMember is null;
 
     /// <summary>A pack with PDFs in it as well as images, such as a party's character sheets: it counts files, not images.</summary>
-    public bool HasPdfMembers => IsPack && Entry.PdfMembers > 0;
+    public bool HasPdfMembers => IsPack && (Entry.PdfMembers > 0 || Entry.AudioMembers > 0);
 
     /// <summary>"120 images", or "6 files" when PDFs are among them, for a pack.</summary>
     public string MembersLabel => IsPack ? Members(Entry) : "";

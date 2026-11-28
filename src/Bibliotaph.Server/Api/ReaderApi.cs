@@ -36,6 +36,13 @@ public static partial class ReaderApi
             return await OpenAsync(lease.Library, new EntryId(entryId), doc, page, q, keep == true, ct, item) is { } book ? Results.Ok(book) : Results.NotFound();
         });
 
+        // A track or an album for the player: its tracks from the one asked for, each read like a book through its link.
+        api.MapGet("/library/books/{entryId:long}/tracks", async (long entryId, long? doc, ClaimsPrincipal principal, UserLibraries libraries, CancellationToken ct) =>
+        {
+            await using var lease = await libraries.OpenAsync(principal.UserId()!, ct);
+            return await TracksAsync(lease.Library, new EntryId(entryId), doc, ct) is { } queue ? Results.Ok(queue) : Results.NotFound();
+        });
+
         var document = api.MapGroup("/library/documents/{documentId:long}");
 
         // Asked for when the book opens and again whenever the link has expired, which takes about an hour.
@@ -158,6 +165,39 @@ public static partial class ReaderApi
             CoverPage = readerKind == ReaderKinds.Pdf && !guest ? await library.Get<CoverPages>().GetAsync(documentId, ct) : 0,
             Item = opened is { } open && open.Target.DocumentId == documentId ? ToItem(open, readerKind != ReaderKinds.Image) : null,
         };
+    }
+
+    /// <summary>
+    /// What the player plays for a card: an album's tracks in its order from <paramref name="asked"/> (else its first),
+    /// or the card's own track. Null when it has no audio. Records the open, for Home, as the Windows player does.
+    /// </summary>
+    internal static async Task<PlayerTracks?> TracksAsync(UserLibrary library, EntryId entryId, long? asked, CancellationToken ct)
+    {
+        var queries = library.Get<LibraryQueries>();
+        if (await queries.GetDetailsAsync(entryId, ct) is not { Entry: { IsElsewhere: false } entry }) return null;
+        List<long> ids = entry.IsPack
+            ? [.. (await queries.GetPackImagesAsync(entryId, ct)).Where(p => SourceFormats.IsAudio(p.Format)).Select(p => p.DocumentId)]
+            : SourceFormats.IsAudio(entry.Format) ? [entry.DocumentId] : [];
+        if (ids.Count == 0) return null;
+        var found = await queries.GetTracksAsync(ids, ct);
+        var store = library.Get<LibraryStore>();
+        await using var db = library.Catalog.CreateContext();
+        var located = await db.FileLocations.Where(l => l.DocumentId != null && ids.Contains(l.DocumentId.Value))
+            .Select(l => new { DocumentId = l.DocumentId!.Value, l.SizeBytes }).ToListAsync(ct);
+        var sizes = located.GroupBy(l => l.DocumentId).ToDictionary(g => g.Key, g => g.Max(l => l.SizeBytes));
+        var albumCover = ids.Select(id => found.GetValueOrDefault(id)?.Cover).FirstOrDefault(c => c is not null);
+        List<PlayerTrack> tracks = [];
+        foreach (var id in ids)
+        {
+            if (!found.TryGetValue(id, out var track) || await store.GetSourceAsync(id, ct) is not { } source) continue;
+            var problem = source.InArchive ? "Bibliotaph on the web can't play a file inside a ZIP yet. The Windows app can." : null;
+            tracks.Add(new PlayerTrack(id, track.Title, track.Artist, source.Format, Bibliotaph.Audio.AudioFile.MediaType(source.Format) ?? "audio/mpeg",
+                source.ContentHash, sizes.GetValueOrDefault(id), (long?)track.Duration?.TotalMilliseconds, track.Cover ?? albumCover, problem));
+        }
+        if (tracks.Count == 0) return null;
+        var start = Math.Max(0, tracks.FindIndex(t => t.DocumentId == asked));
+        await library.Get<ReadingService>().RecordOpenAsync(tracks[start].DocumentId, ct);
+        return new PlayerTracks(entryId.Value, entry.IsPack ? entry.Title : null, start, tracks);
     }
 
     /// <summary>A binder's item, its binder's title, its name and where it opens now; null when it isn't this book's.</summary>

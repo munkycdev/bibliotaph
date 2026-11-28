@@ -330,6 +330,14 @@ WebM videos, such as the animated versions of a map, count as images here, so a 
 versions is one pack. A video's cover is the image beside it whose name is most like its own (map makers ship a still
 of each animated map); with no image beside it, its card shows the placeholder.
 
+Audio goes in **albums**. A folder (or ZIP) of two or more tracks and no PDFs becomes one card, "Album · 12 tracks",
+named after the folder, with the album's artwork (cover.jpg, folder.jpg or the like) in it. Opening an album plays it
+(see [Music and ambience](reading.md#music-and-ambience)). A folder of maps with a track or two of ambience beside them
+isn't made an album; Needs review asks about it instead. A track's card shows how long it plays ("MP3 · 4:32") and its
+cover is the artwork in the file, else the album's picture beside it. Its title, artist, album and genre come from
+the file's tags, and its type from them and the folder names: **Music**, **Ambience** or **Sound effect**. Audio has
+no text to read, so it's found by its name, tags and folders. Bibliotaph never changes a file's tags.
+
 Packs can hold PDFs too, such as a party's character sheets or a set of pregenerated characters with their
 portraits. Bibliotaph never puts a PDF in a pack by itself: tick the PDFs (and any images or packs to go with them) in
 **Organize** mode and click **Pack together**. The card then says "Pack · 6 files" instead of "Image pack · 6 images",
@@ -402,9 +410,11 @@ library already knows:
 
 The first three link the file at once, as a suggestion. A name, the AI, or a folder of two or three books only
 suggest it, and Needs review asks with a **Goes with a book?** card. A file counts when it isn't a book: an image, a
-pack, or a PDF typed as a map pack, handout or character sheet, or of a page or two, or named like one ("character
+pack, a track or an album, or a PDF typed as a map pack, handout or character sheet, or of a page or two, or named like one ("character
 sheet", "battle map"), or like a boxed set's other parts ("maps", "cards", "stickers", "standees"). **Character sheet**
-is a type of its own for that.
+is a type of its own for that. Music works the same way: an album or track beside a book, or in a folder of extras
+under it such as **Music**, **Soundtrack**, **OST**, **Ambience** or **SFX**, goes with that book, and one named after
+the book ("Harbor of Shadows OST") is suggested. An album goes with it as a whole.
 
 In a map's details, **Goes with** names its book and why. **Keep** makes the suggestion yours, so later passes leave it
 alone; **Change…** picks another book (any book, an adventure inside a file, or a book you own elsewhere); **Not from

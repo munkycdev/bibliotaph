@@ -82,6 +82,7 @@ static class MacComposition
         services.AddSingleton<IUserPrompts, MacUserPrompts>();
         services.AddSingleton<IClipboard, MacClipboard>();
         services.AddSingleton<IDesktopShell, MacDesktopShell>();
+        services.AddSingleton<IAudioOutput, MacAudioOutput>();
         services.AddSingleton<IPasswordPrompt, MacPasswordPrompt>();
         services.AddSingleton<IUpdateService, MacUpdates>();
         services.AddSingleton<IAppDialogs, MacAppDialogs>();

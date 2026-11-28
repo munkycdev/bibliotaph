@@ -28,6 +28,7 @@ public sealed partial class SessionReaderViewModel : PageViewModel
     readonly SessionPages _sessionPages;
     readonly LibraryQueries _queries;
     readonly IReaderWindows _readers;
+    readonly PlayerViewModel? _player;
     readonly OnlineReaders _online;
     readonly SessionDirectory _directory;
     readonly PinDirectory _pins;
@@ -43,9 +44,10 @@ public sealed partial class SessionReaderViewModel : PageViewModel
 
     public SessionReaderViewModel(SessionsService sessions, SessionPages sessionPages, LibraryQueries queries, IReaderWindows readers,
         SessionDirectory directory, PinDirectory pins, OnlineReaders online, IUiThread ui, TimeProvider time,
-        ILogger<SessionReaderViewModel> log)
+        ILogger<SessionReaderViewModel> log, PlayerViewModel? player = null)
     {
         _ui = ui;
+        _player = player;
         _online = online;
         _directory = directory;
         _pins = pins;
@@ -480,6 +482,8 @@ public sealed partial class SessionReaderViewModel : PageViewModel
             var request = await SessionPackRows.RequestAsync(row, Pack?.Title ?? "", _queries);
             if (Current != row) return;
             if (request is null) Viewer.ShowUnavailable($"{row.Heading} can't be opened right now.", "Its file can't be reached.");
+            // A binder's music plays under the page in hand rather than taking its place, so the map stays up while it plays.
+            else if (request.IsAudio && _player is { } player && !Viewer.ShowEmptyState) await player.PlayAsync(request);
             else await Viewer.ShowAsync(request);
         }
         if (Current == row) ReadAheadAsync().FireAndForget();

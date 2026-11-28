@@ -24,6 +24,15 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
     public EntryId? PackEntryId { get; init; }
 
     /// <summary>
+    /// The file's format, when whoever asked knew it: audio goes to the player rather than the reader. A request without
+    /// one that turns out to be audio is handed over by the reader.
+    /// </summary>
+    public string? Format { get; init; }
+
+    /// <summary>The file is audio, which plays in the player and keeps playing while books are read.</summary>
+    public bool IsAudio => SourceFormats.IsAudio(Format ?? "");
+
+    /// <summary>
     /// A pack opened at one of its files, <paramref name="at"/> when it is one of them and the first otherwise, with
     /// every file to step through: images open as images and PDFs as PDFs. Null for a pack with no file to show.
     /// </summary>
@@ -32,7 +41,7 @@ public sealed record ViewerRequest(long DocumentId, string Title, int PageIndex 
         if (files.Count == 0) return null;
         List<PackStep> steps = [.. files.Select(f => new PackStep(f.DocumentId, System.IO.Path.GetFileNameWithoutExtension(f.Name), f.Format, f.MemberEntryId))];
         var index = at is { } id ? Math.Max(0, steps.FindIndex(p => p.DocumentId == id)) : 0;
-        return new ViewerRequest(steps[index].DocumentId, steps[index].Title) { Pack = steps, PackTitle = packTitle, PackEntryId = packId };
+        return new ViewerRequest(steps[index].DocumentId, steps[index].Title) { Pack = steps, PackTitle = packTitle, PackEntryId = packId, Format = steps[index].Format };
     }
 
     /// <summary>
@@ -87,10 +96,12 @@ public sealed record SessionItemOpen(long ItemId, string PackTitle, Bibliotaph.P
 /// </summary>
 public sealed record PageNoteOpen(long NoteId, Bibliotaph.Processing.PagePlaceState State, string? Reason, int FirstPage, int LastPage);
 
-/// <summary>A file of a pack the viewer can step to: an image or a video, or a PDF packed with them.</summary>
+/// <summary>A file of a pack the viewer can step to: an image or a video, or a PDF packed with them; or a track the player plays.</summary>
 public sealed record PackStep(long DocumentId, string Title, string Format = "", EntryId? MemberEntryId = null)
 {
     public bool IsPicture => SourceFormats.IsPicture(Format);
+
+    public bool IsAudio => SourceFormats.IsAudio(Format);
 }
 
 /// <summary>

@@ -72,7 +72,7 @@ public sealed record ViewerServices(LibraryStore Library, LibraryQueries Queries
     SourceFiles Sources, FavoritesService Favorites, ReadingService Reading, SessionsService Sessions, Func<SessionActions> SessionActions,
     NotesService Notes, OtherApps OtherApps, PinDirectory Pins, IPageThumbnails Thumbnails, PagePlaces Places, PartsService Parts, AskService Ask, CoverPages Covers, LibraryActivity Activity,
     IUserPrompts UserPrompts, IDesktopShell Shell, IUiThread Ui, TimeProvider Time, ILogger<ViewerViewModel> Log, ChapterScanService? Chapters = null, PackService? Packs = null,
-    IEbookBrowser? Ebooks = null, WebLibraryCopies? WebCopies = null, NornisScope? Nornis = null, WebLibrary? Web = null);
+    IEbookBrowser? Ebooks = null, WebLibraryCopies? WebCopies = null, NornisScope? Nornis = null, WebLibrary? Web = null, PlayerViewModel? Player = null);
 
 /// <summary>
 /// One open book. A PDF opens in the viewer worker at the page the search hit was on, with the search's words marked
@@ -100,6 +100,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
     readonly JobBoard _jobs;
     readonly ISourceFileReader _files;
     readonly SourceFiles _sources;
+    readonly PlayerViewModel? _player;
     readonly WebLibraryCopies? _webCopies;
     readonly IPictureDecoder _pictures;
     readonly IReaderDocuments _documents;
@@ -187,6 +188,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         _ask = services.Ask;
         _nornis = services.Nornis;
         _web = services.Web;
+        _player = services.Player;
         EbookBrowser = services.Ebooks;
         _log = services.Log;
         _windows = windows;
@@ -611,7 +613,8 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             Subtitle = DescribeSource(_source, null);
             PrioritizeAsync(request.DocumentId).FireAndForget();
             _coverPage = await _covers.GetAsync(request.DocumentId);
-            if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
+            if (SourceFormats.IsAudio(_source.Format)) await HandToPlayerAsync(request);
+            else if (SourceFormats.IsImage(_source.Format)) await OpenImageAsync(_source, version);
             else if (SourceFormats.IsVideo(_source.Format)) await OpenVideoAsync(_source, version);
             else if (SourceFormats.IsEbook(_source.Format)) await OpenEbookAsync(_source, request, version);
             else await OpenPdfAsync(_source, request, version);
@@ -774,7 +777,7 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
             if (_windowClosed) return;
             var source = await _library.GetSourceAsync(request.DocumentId);
             // Only a PDF is drawn ahead; an e-book or an image opens quickly enough as it is.
-            if (source is null || SourceFormats.IsPicture(source.Format) || SourceFormats.IsEbook(source.Format) || version != _standbyVersion) return;
+            if (source is null || SourceFormats.IsPicture(source.Format) || SourceFormats.IsEbook(source.Format) || SourceFormats.IsAudio(source.Format) || version != _standbyVersion) return;
             file = await _sources.OpenToReadAsync(source);
             document = _documents.Create(Worker());
             var password = _opener.KnownPassword(source.ContentHash);
@@ -1395,6 +1398,22 @@ public sealed partial class ViewerViewModel : PageViewModel, ISessionChoices, IP
         Mode = ViewerMode.Video;
         ShowSessionBanner();
         await RecordOpenAsync(source.DocumentId);
+    }
+
+    /// <summary>
+    /// Audio that came here without saying it was, such as a pack's track stepped to from one of its PDFs: the player
+    /// takes it, and the reader says where it went rather than showing nothing.
+    /// </summary>
+    async Task HandToPlayerAsync(ViewerRequest request)
+    {
+        CloseBook();
+        if (_player is not { } player)
+        {
+            Problem("This is an audio file.", "It can't be played here; your own music app can play it.", "Open in another app", OpenElsewhereCommand);
+            return;
+        }
+        Problem("Playing in the player.", "Audio plays in the bar at the bottom of the main window, and goes on while you read.", null, null);
+        await player.PlayAsync(request);
     }
 
     /// <summary>The view couldn't play the video: why, with the user's own video app instead.</summary>

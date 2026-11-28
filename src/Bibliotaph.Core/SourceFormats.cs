@@ -31,6 +31,21 @@ public static class SourceFormats
     /// <summary>A WebM video, such as an animated battle map; it plays in the reader, and its cover is a still beside it.</summary>
     public const string Webm = "webm";
 
+    /// <summary>An MP3 track: music, an ambience loop, a sound effect. Played, never read; its tags give its title and album.</summary>
+    public const string Mp3 = "mp3";
+
+    /// <summary>An MPEG-4 audio track (.m4a, .m4b): AAC or Apple Lossless.</summary>
+    public const string M4a = "m4a";
+
+    public const string Flac = "flac";
+    public const string Wav = "wav";
+
+    /// <summary>An Ogg Vorbis track (.ogg, .oga). Windows plays it with Microsoft's free Web Media Extensions.</summary>
+    public const string Ogg = "ogg";
+
+    /// <summary>An Opus track in Ogg. Windows plays it with Microsoft's free Web Media Extensions.</summary>
+    public const string Opus = "opus";
+
     /// <summary>Every still image format: the ones a cover can be drawn from.</summary>
     public static IReadOnlyList<string> Images { get; } = [Jpeg, Png, Webp];
 
@@ -39,6 +54,9 @@ public static class SourceFormats
 
     /// <summary>Every format that is looked at rather than read, images and videos, for "format:image" and the Images kind.</summary>
     public static IReadOnlyList<string> Pictures { get; } = [.. Images, .. Videos];
+
+    /// <summary>Every audio format, for "format:audio" and the Audio kind.</summary>
+    public static IReadOnlyList<string> Audio { get; } = [Mp3, M4a, Flac, Wav, Ogg, Opus];
 
     /// <summary>Every Kindle format, for "format:kindle".</summary>
     public static IReadOnlyList<string> Kindle { get; } = [Mobi, Azw, Azw3, Kfx];
@@ -62,6 +80,12 @@ public static class SourceFormats
         ".png" => Png,
         ".webp" => Webp,
         ".webm" => Webm,
+        ".mp3" => Mp3,
+        ".m4a" or ".m4b" => M4a,
+        ".flac" => Flac,
+        ".wav" => Wav,
+        ".ogg" or ".oga" => Ogg,
+        ".opus" => Opus,
         _ => null,
     };
 
@@ -76,13 +100,22 @@ public static class SourceFormats
     /// </summary>
     public static bool IsPicture(string format) => IsImage(format) || IsVideo(format);
 
+    /// <summary>
+    /// Whether a format is audio. Audio has no pages and isn't looked at: it is played, goes into albums with the tracks
+    /// beside it, and is found by its name and its tags.
+    /// </summary>
+    public static bool IsAudio(string format) => format is Mp3 or M4a or Flac or Wav or Ogg or Opus;
+
+    /// <summary>Whether a format has no pages and goes into packs with the files beside it: a picture or audio.</summary>
+    public static bool IsPackable(string format) => IsPicture(format) || IsAudio(format);
+
     public static bool IsEbook(string format) => format is Epub or Mobi or Azw or Azw3 or Kfx;
 
     /// <summary>Whether a format has pages of text, as a PDF or an e-book does.</summary>
     public static bool HasPages(string format) => format is Pdf || IsEbook(format);
 
     /// <summary>
-    /// Whether a file is a ZIP, whose PDFs, e-books and images Bibliotaph reads in place. An EPUB is a ZIP too, but is
+    /// Whether a file is a ZIP, whose PDFs, e-books, images and audio Bibliotaph reads in place. An EPUB is a ZIP too, but is
     /// read as a book, never listed as a ZIP of files.
     /// </summary>
     public static bool IsArchive(string name) => Path.GetExtension(name).Equals(".zip", StringComparison.OrdinalIgnoreCase);

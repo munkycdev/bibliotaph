@@ -2,6 +2,7 @@
 @using Bibliotaph.Core
 @using Bibliotaph.Core.Search
 @implements IAsyncDisposable
+@inject Player Player
 @inject CollectionsClient CollectionsApi
 @inject LibraryClient LibraryApi
 @inject SearchesClient SearchesApi
@@ -959,7 +960,8 @@ else
     async Task OpenBook(BookCard book)
     {
         if (_select.On) return;
-        if (!book.Elsewhere) Navigation.NavigateTo(ReaderUrl.For(book));
+        if (book.Plays) await Player.PlayAsync(book);
+        else if (!book.Elsewhere) Navigation.NavigateTo(ReaderUrl.For(book));
         else if (book.OnlineLink is { } online)
         {
             try
@@ -1128,7 +1130,7 @@ else
     /// Where Shift+Enter or a middle-click pops the book out; none in Select
     /// mode, where the keys tick books, or for a book with no file here.
     /// </summary>
-    string? PopOutUrl(BookCard book) => _select.On || book.Elsewhere ? null : ReaderUrl.For(book, popout: true);
+    string? PopOutUrl(BookCard book) => _select.On || book.Elsewhere || book.Plays ? null : ReaderUrl.For(book, popout: true);
 
     /// <summary>In Select mode a click ticks a book, and Shift+click every book from the last one clicked to this one.</summary>
     async Task CardClickAsync(BookCard book, MouseEventArgs e)

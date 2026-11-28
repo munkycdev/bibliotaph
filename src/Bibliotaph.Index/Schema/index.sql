@@ -28,7 +28,8 @@ CREATE TABLE doc (
     folder_hint     TEXT,                          -- folder names above the file, for search
     cover           TEXT,                          -- cover file name in the cache folder, once made
     added_utc       TEXT    NOT NULL,
-    meta_isbn       TEXT                           -- an e-book package's ISBN, as 13 digits
+    meta_isbn       TEXT,                          -- an e-book package's ISBN, as 13 digits
+    duration_ms     INTEGER                        -- how long an audio file plays
 );
 
 -- Bookmarks, flattened in reading order. pdf_page is -1 for a bookmark that points outside the file.
@@ -379,4 +380,4 @@ CREATE TABLE shared_state (
     value           TEXT    NOT NULL
 );
 
-PRAGMA user_version = 27;
+PRAGMA user_version = 28;

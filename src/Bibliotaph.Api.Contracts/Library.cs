@@ -91,7 +91,8 @@ public sealed record LibraryQuery
 /// opens. <see cref="Cover"/> and each of <see cref="Mosaic"/> are names for /api/library/covers/.
 /// <see cref="OnlineLink"/> is the book's page where the user owns it online, on <see cref="OnlineLabel"/>
 /// ("D&amp;D Beyond"). <see cref="HasText"/> is a file whose pages can be read, for Ask this book; <see
-/// cref="Protected"/> one whose protection Bibliotaph can't open, for Download the file.
+/// cref="Protected"/> one whose protection Bibliotaph can't open, for Download the file. <see cref="Plays"/> is a track or
+/// an album, which the player plays rather than the reader opening.
 /// </summary>
 public sealed record BookCard(
     string Id, long EntryId, long DocumentId, string Title, string Meta, string Byline, string Size, string Format,
@@ -99,7 +100,7 @@ public sealed record BookCard(
     string Initial, bool Favorite, string? AiTip, string TextMark, string? TextMarkTip, bool Elsewhere, string Badge,
     bool Part, bool FoundInBook, string Availability, string? AvailabilityTip,
     string? OnlineLink = null, string? OnlineLabel = null, bool HasText = false, bool CanForgetText = false, bool CanReadAgain = false,
-    bool Protected = false, IReadOnlyList<BookBadge>? Badges = null, OrganizeFacts? Organize = null, string Folder = "");
+    bool Protected = false, IReadOnlyList<BookBadge>? Badges = null, OrganizeFacts? Organize = null, string Folder = "", bool Plays = false);
 
 /// <summary>
 /// A mark down a card's cover that says how it is put together: its <see cref="Kind"/>, the Lucide <see cref="Icon"/>,
@@ -186,7 +187,7 @@ public static class LibraryChoices
     public static IReadOnlyList<FilterChoice> BrowseSorts { get; } = [.. SearchSorts.Skip(1)];
 
     public static IReadOnlyList<FilterChoice> Kinds { get; } =
-        [new("", "All kinds"), new("Books", "Books"), new("Images", "Images"), new("Packs", "Packs"), new("Here", "In your storage"), new("Elsewhere", "Owned elsewhere")];
+        [new("", "All kinds"), new("Books", "Books"), new("Images", "Images"), new("Audio", "Audio"), new("Packs", "Packs"), new("Here", "In your storage"), new("Elsewhere", "Owned elsewhere")];
 
     public static IReadOnlyList<FilterChoice> Levels { get; } =
         [new("", "Any level"), .. Enumerable.Range(1, 20).Select(l => new FilterChoice(l.ToString(System.Globalization.CultureInfo.InvariantCulture), $"Level {l}"))];

@@ -182,8 +182,8 @@ the tagged commit and PATCH counts it. Then it tags and pushes the tag. By hand,
 ```powershell
 git fetch origin
 $n = git rev-list --count origin/main
-git tag "v1.6.$n" origin/main
-git push origin "v1.6.$n"
+git tag "v1.7.$n" origin/main
+git push origin "v1.7.$n"
 ```
 
 Since CI checks only what each change touches, the release is the sanity check that nothing slipped through between

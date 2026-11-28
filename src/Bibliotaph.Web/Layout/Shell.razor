@@ -180,6 +180,7 @@ else
                 <AskBar @ref="_askBar" Text="@_searchText" Close="CloseAsk" Search="SearchFromAsk" />
             }
             <main id="bt-main">@Body</main>
+            <PlayerBar />
             @* The site's footer under every page but the readers, which fill the window. Its pages open in a tab of their
                own, so whatever is open here stays as it is. *@
             <footer class="bt-appfoot">

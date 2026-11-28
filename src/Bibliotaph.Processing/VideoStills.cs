@@ -29,6 +29,22 @@ public static class VideoStills
             .First().Still.DocumentId;
     }
 
+    /// <summary>Names an album's picture goes by: "cover.jpg", "folder.jpg", "Front.png", "AlbumArt.jpg".</summary>
+    static readonly HashSet<string> AlbumArt = new(StringComparer.Ordinal) { "cover", "folder", "front", "album", "albumart", "art", "artwork" };
+
+    /// <summary>
+    /// The picture beside a track that is its album's: one named like album art, else the only picture there, else one
+    /// sharing a word with the track's name. Null when none is, so a track beside a book's maps doesn't take a map.
+    /// </summary>
+    public static long? PickForAudio(string trackPath, IReadOnlyList<StillBeside> stills)
+    {
+        if (stills.OrderBy(s => Path.GetFileName(s.Path), NaturalOrder.Instance).FirstOrDefault(s => Words(s.Path).Overlaps(AlbumArt)) is { } art)
+            return art.DocumentId;
+        if (stills is [var only]) return only.DocumentId;
+        var words = Words(trackPath);
+        return stills.Any(s => Words(s.Path).Overlaps(words)) ? Pick(trackPath, stills) : null;
+    }
+
     /// <summary>The words of a file's name, lowercased and split at anything but letters and digits, and between a lowercase letter and a capital.</summary>
     static HashSet<string> Words(string path)
     {

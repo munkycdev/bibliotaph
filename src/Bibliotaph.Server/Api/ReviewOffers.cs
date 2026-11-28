@@ -146,7 +146,7 @@ static class ReviewOffers
                 if (tiles.Count == PackCardText.Tiles) break;
                 if (await queries.GetCoverAsync(image, ct) is { } cover) tiles.Add(cover);
             }
-            offers.Add(Make(proposal, $"packs:{proposal.PackId.Value}", "packs", proposal.Name, PackCardText.Chip, text.Heading, Where(proposal.Place.FullPath), null,
+            offers.Add(Make(proposal, $"packs:{proposal.PackId.Value}", "packs", proposal.Name, text.Label, text.Heading, Where(proposal.Place.FullPath), null,
                 text.Detail, PackCardText.Choices, "separate", null, [], tiles));
         }
         foreach (var item in list.Elsewhere ?? [])

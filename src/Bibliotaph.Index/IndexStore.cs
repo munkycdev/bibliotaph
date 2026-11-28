@@ -27,6 +27,8 @@ public sealed record DocRow
     /// <summary>An e-book package's ISBN, as 13 digits.</summary>
     public string? MetaIsbn { get; init; }
     public string? FolderHint { get; init; }
+    /// <summary>How long an audio file plays.</summary>
+    public long? DurationMs { get; init; }
 }
 
 public sealed record PageRow(int PdfPage, string? Label, double WidthPt, double HeightPt);
@@ -147,15 +149,16 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
             c.Execute(
                 """
                 INSERT INTO doc (document_id, content_hash, format, display_title, page_count, width_px, height_px, encrypted, can_copy,
-                                 meta_title, meta_author, meta_subject, meta_keywords, meta_producer, meta_isbn, folder_hint, added_utc)
+                                 meta_title, meta_author, meta_subject, meta_keywords, meta_producer, meta_isbn, folder_hint, duration_ms, added_utc)
                 VALUES (@DocumentId, @ContentHash, @Format, @DisplayTitle, @PageCount, @WidthPx, @HeightPx, @Encrypted, @CanCopy,
-                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @MetaProducer, @MetaIsbn, @FolderHint, @now)
+                        @MetaTitle, @MetaAuthor, @MetaSubject, @MetaKeywords, @MetaProducer, @MetaIsbn, @FolderHint, @DurationMs, @now)
                 ON CONFLICT (document_id) DO UPDATE SET
                     content_hash = excluded.content_hash, format = excluded.format, display_title = excluded.display_title,
                     page_count = excluded.page_count, width_px = excluded.width_px, height_px = excluded.height_px,
                     encrypted = excluded.encrypted, can_copy = excluded.can_copy, meta_title = excluded.meta_title,
                     meta_author = excluded.meta_author, meta_subject = excluded.meta_subject, meta_keywords = excluded.meta_keywords,
-                    meta_producer = excluded.meta_producer, meta_isbn = excluded.meta_isbn, folder_hint = excluded.folder_hint
+                    meta_producer = excluded.meta_producer, meta_isbn = excluded.meta_isbn, folder_hint = excluded.folder_hint,
+                    duration_ms = excluded.duration_ms
                 """,
                 new
                 {
@@ -175,6 +178,7 @@ public sealed class IndexStore(IndexWriter writer, TimeProvider? clock = null)
                     doc.MetaProducer,
                     doc.MetaIsbn,
                     doc.FolderHint,
+                    doc.DurationMs,
                     now = JobBoard.Timestamp(_clock.GetUtcNow()),
                 }, t);
             RefreshDocumentSearch(c, t, doc.DocumentId);

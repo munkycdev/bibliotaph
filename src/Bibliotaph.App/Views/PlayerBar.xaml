@@ -1,0 +1,169 @@
+<UserControl x:Class="Bibliotaph.App.Views.PlayerBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:c="clr-namespace:Bibliotaph.App.Controls"
+             xmlns:vm="clr-namespace:Bibliotaph.Presentation.ViewModels;assembly=Bibliotaph.Presentation"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:PlayerViewModel}"
+             Visibility="{Binding IsShowing, Converter={StaticResource Bt.VisibleWhenTrue}}"
+             AutomationProperties.Name="Player">
+  <!--
+    The player, along the bottom of the main window while there is music or ambience: what's playing on the left, the
+    controls and the track's position in the middle, volume, the ambience layer and the queue on the right. It stays
+    as pages change, so the music goes on while books are read.
+  -->
+  <UserControl.Resources>
+    <Style x:Key="Time" TargetType="TextBlock" BasedOn="{StaticResource Text.Small}">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="MinWidth" Value="36" />
+    </Style>
+  </UserControl.Resources>
+
+  <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="0,1,0,0" Padding="16,8">
+    <Grid>
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" MinWidth="180" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition Width="*" MinWidth="180" />
+      </Grid.ColumnDefinitions>
+
+      <!-- What's playing, or why the last track didn't. -->
+      <DockPanel Grid.Column="0" Margin="0,0,16,0" Visibility="{Binding HasMusic, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <Border DockPanel.Dock="Left" Width="44" Height="44" CornerRadius="4" Background="{DynamicResource Bt.Soft}" ClipToBounds="True" Margin="0,0,10,0">
+          <Grid>
+            <c:LucideIcon Data="{StaticResource Icon.Music}" Foreground="{DynamicResource Bt.Muted}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Image c:CoverSource.Cover="{Binding Current.Cover}" Stretch="UniformToFill" RenderOptions.BitmapScalingMode="HighQuality" />
+          </Grid>
+        </Border>
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock x:Name="NowPlayingTitle" Text="{Binding Current.Title}" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip="{Binding Current.Title}" />
+          <TextBlock Text="{Binding Current.Byline}" Style="{StaticResource Text.Small}" TextTrimming="CharacterEllipsis"
+                     Visibility="{Binding HasProblem, Converter={StaticResource Bt.CollapsedWhenTrue}}" />
+          <TextBlock Text="{Binding Problem}" Style="{StaticResource Text.Small}" Foreground="{DynamicResource Bt.Warm}" TextTrimming="CharacterEllipsis"
+                     ToolTip="{Binding Problem}" Visibility="{Binding HasProblem, Converter={StaticResource Bt.VisibleWhenTrue}}" />
+        </StackPanel>
+      </DockPanel>
+
+      <!-- The controls, over the track's position. -->
+      <StackPanel Grid.Column="1" Width="420" VerticalAlignment="Center" Visibility="{Binding HasMusic, Converter={StaticResource Bt.VisibleWhenTrue}}">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+          <Button x:Name="Shuffle" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.Shuffle}" c:Ui.IsActive="{Binding Shuffle}"
+                  Command="{Binding ToggleShuffleCommand}" ToolTip="{Binding ShuffleLabel}" AutomationProperties.Name="{Binding ShuffleLabel}" />
+          <Button x:Name="Previous" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SkipBack}" Margin="6,0,0,0"
+                  Command="{Binding PreviousCommand}" ToolTip="Previous" AutomationProperties.Name="Previous" />
+          <Button x:Name="PlayPause" Command="{Binding PlayPauseCommand}" Margin="6,0" ToolTip="{Binding PlayPauseLabel}" AutomationProperties.Name="{Binding PlayPauseLabel}">
+            <Button.Style>
+              <Style TargetType="Button" BasedOn="{StaticResource Bt.IconButton}">
+                <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.Play}" />
+                <Setter Property="c:Ui.IsActive" Value="True" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                    <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.Pause}" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Button.Style>
+          </Button>
+          <Button x:Name="Next" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.SkipForward}" Margin="0,0,6,0"
+                  Command="{Binding NextCommand}" IsEnabled="{Binding CanGoNext}" ToolTip="Next" AutomationProperties.Name="Next" />
+          <Button x:Name="Repeat" Command="{Binding CycleRepeatCommand}" ToolTip="{Binding RepeatLabel}" AutomationProperties.Name="{Binding RepeatLabel}"
+                  c:Ui.IsActive="{Binding IsRepeating}">
+            <Button.Style>
+              <Style TargetType="Button" BasedOn="{StaticResource Bt.IconButton}">
+                <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.Repeat}" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding RepeatsOne}" Value="True">
+                    <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.Repeat1}" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Button.Style>
+          </Button>
+        </StackPanel>
+        <DockPanel Margin="0,2,0,0">
+          <TextBlock DockPanel.Dock="Left" Style="{StaticResource Time}" Text="{Binding PositionText}" TextAlignment="Right" Margin="0,0,8,0" />
+          <TextBlock DockPanel.Dock="Right" Style="{StaticResource Time}" Text="{Binding LengthText}" Margin="8,0,0,0" />
+          <Slider x:Name="Position" Style="{StaticResource Bt.Slider}" Minimum="0" Maximum="{Binding Length}" Value="{Binding Position}"
+                  SmallChange="5" LargeChange="15" AutomationProperties.Name="Position in the track" />
+        </DockPanel>
+      </StackPanel>
+
+      <!-- Volume, the ambience layer, the queue and Close. -->
+      <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Visibility="{Binding HasMusic, Converter={StaticResource Bt.VisibleWhenTrue}}">
+          <c:LucideIcon Data="{StaticResource Icon.Volume2}" Foreground="{DynamicResource Bt.Muted}" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <Slider x:Name="Volume" Style="{StaticResource Bt.Slider}" Width="84" Minimum="0" Maximum="100" Value="{Binding Volume}" SmallChange="5" LargeChange="10"
+                  AutomationProperties.Name="Music volume" ToolTip="Music volume" />
+          <Button x:Name="LoopAsAmbience" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.AudioLines}" Margin="8,0,0,0"
+                  Command="{Binding LoopCurrentAsAmbienceCommand}"
+                  ToolTip="Loop this track as ambience, under whatever plays next" AutomationProperties.Name="Loop this track as ambience" />
+          <Button x:Name="ShowQueue" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.List}" c:Ui.IsActive="{Binding IsQueueOpen}"
+                  Command="{Binding ToggleQueueCommand}" ToolTip="Up next" AutomationProperties.Name="Up next" />
+          <Popup x:Name="QueuePopup" PlacementTarget="{Binding ElementName=ShowQueue}" Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                 IsOpen="{Binding IsQueueOpen}">
+            <Border Background="{DynamicResource Bt.Panel}" BorderBrush="{DynamicResource Bt.Line}" BorderThickness="1" CornerRadius="7" Padding="6,8" Margin="0,0,0,6"
+                    Width="340" TextElement.Foreground="{DynamicResource Bt.Text}" TextElement.FontFamily="{StaticResource Font.Sans}" TextElement.FontSize="13">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="{Binding QueueTitle, TargetNullValue='UP NEXT'}" Style="{StaticResource Text.Eyebrow}" Margin="8,0,8,6"
+                           TextTrimming="CharacterEllipsis" />
+                <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Focusable="False">
+                  <ItemsControl x:Name="QueueList" ItemsSource="{Binding Queue}" Focusable="False" AutomationProperties.Name="Tracks">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate DataType="{x:Type vm:PlayerTrackViewModel}">
+                        <Button Style="{StaticResource Bt.NavButton}" Margin="0" Content="{Binding}" AutomationProperties.Name="{Binding Title}"
+                                Command="{Binding DataContext.PlayTrackCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}"
+                                c:Ui.IsActive="{Binding IsCurrent}">
+                          <Button.ContentTemplate>
+                            <DataTemplate>
+                              <DockPanel>
+                                <TextBlock DockPanel.Dock="Right" Text="{Binding LengthText}" Style="{StaticResource Text.Small}" Margin="10,0,0,0" />
+                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                              </DockPanel>
+                            </DataTemplate>
+                          </Button.ContentTemplate>
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </ScrollViewer>
+              </DockPanel>
+            </Border>
+          </Popup>
+        </StackPanel>
+
+        <!-- The ambience layer: what loops, its own pause and volume, and Stop. -->
+        <Border Margin="12,0,0,0" Padding="8,2" CornerRadius="5" Background="{DynamicResource Bt.Soft}"
+                Visibility="{Binding HasAmbience, Converter={StaticResource Bt.VisibleWhenTrue}}" AutomationProperties.Name="Ambience">
+          <StackPanel Orientation="Horizontal">
+            <c:LucideIcon Data="{StaticResource Icon.AudioLines}" Foreground="{DynamicResource Bt.Accent}" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBlock x:Name="AmbienceTitle" Text="{Binding Ambience.Title}" MaxWidth="140" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                       ToolTip="{Binding Ambience.Title, StringFormat='Looping as ambience: {0}'}" />
+            <Button x:Name="AmbiencePlayPause" Command="{Binding ToggleAmbienceCommand}" Margin="4,0,0,0"
+                    ToolTip="{Binding AmbiencePlayPauseLabel}" AutomationProperties.Name="{Binding AmbiencePlayPauseLabel}">
+              <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource Bt.IconButton}">
+                  <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.Play}" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsAmbiencePlaying}" Value="True">
+                      <Setter Property="c:Ui.Icon" Value="{StaticResource Icon.Pause}" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </Button.Style>
+            </Button>
+            <Slider x:Name="AmbienceVolume" Style="{StaticResource Bt.Slider}" Width="64" Minimum="0" Maximum="100" Value="{Binding AmbienceVolume}"
+                    SmallChange="5" LargeChange="10" AutomationProperties.Name="Ambience volume" ToolTip="Ambience volume" />
+            <Button x:Name="StopAmbience" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Command="{Binding StopAmbienceCommand}"
+                    ToolTip="Stop the ambience" AutomationProperties.Name="Stop the ambience" />
+          </StackPanel>
+        </Border>
+
+        <Button x:Name="ClosePlayer" Style="{StaticResource Bt.IconButton}" c:Ui.Icon="{StaticResource Icon.X}" Margin="12,0,0,0"
+                Command="{Binding CloseCommand}" ToolTip="Stop and close the player" AutomationProperties.Name="Stop and close the player" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>

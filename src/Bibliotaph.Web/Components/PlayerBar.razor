@@ -1,0 +1,115 @@
+@* .bt-player: the player along the foot of the work area while there is music or ambience, as the Windows app's bar:
+   what's playing, the controls over the track's position, volume, the ambience layer and the queue. It stays as pages
+   change, so the music goes on while books are read. *@
+@implements IDisposable
+@using Bibliotaph.Core
+@inject Player Player
+
+@if (Player.IsShowing)
+{
+    <section class="bt-player" aria-label="Player">
+        @if (Player.Current is { } track)
+        {
+            <div class="bt-playernow">
+                <div class="bt-playercover">
+                    @if (track.Cover is { } cover)
+                    {
+                        <img src="@BookCover.CoverUrl(cover)" alt="" />
+                    }
+                    else
+                    {
+                        <Icon Name="Music" />
+                    }
+                </div>
+                <div class="bt-playertext">
+                    <strong title="@track.Title">@track.Title</strong>
+                    @if (Player.Problem is { } problem)
+                    {
+                        <span class="bt-playerproblem" title="@problem">@problem</span>
+                    }
+                    else
+                    {
+                        <span>@Player.Byline(track)</span>
+                    }
+                </div>
+            </div>
+            <div class="bt-playercontrols">
+                <div class="bt-playerbuttons">
+                    <button class="bt-icon @(Player.Shuffle ? "active" : "")" title="@Player.ShuffleLabel" aria-label="@Player.ShuffleLabel"
+                            aria-pressed="@(Player.Shuffle ? "true" : "false")" @onclick="Player.ToggleShuffle"><Icon Name="Shuffle" /></button>
+                    <button class="bt-icon" title="Previous" aria-label="Previous" @onclick="Player.PreviousAsync"><Icon Name="SkipBack" /></button>
+                    <button class="bt-icon bt-playpause" title="@(Player.IsPlaying ? "Pause" : "Play")" aria-label="@(Player.IsPlaying ? "Pause" : "Play")"
+                            @onclick="Player.PlayPauseAsync"><Icon Name="@(Player.IsPlaying ? "Pause" : "Play")" /></button>
+                    <button class="bt-icon" title="Next" aria-label="Next" disabled="@(!Player.CanGoNext)" @onclick="Player.NextAsync"><Icon Name="SkipForward" /></button>
+                    <button class="bt-icon @(Player.Repeat != RepeatMode.Off ? "active" : "")" title="@Player.RepeatLabel" aria-label="@Player.RepeatLabel"
+                            @onclick="Player.CycleRepeat"><Icon Name="@(Player.Repeat == RepeatMode.One ? "Repeat1" : "Repeat")" /></button>
+                </div>
+                <div class="bt-playertime">
+                    <span>@Time(Player.Position)</span>
+                    <input type="range" class="bt-range" min="0" max="@Number(Math.Max(Player.Length, 1))" step="1" value="@Number(Player.Position)"
+                           aria-label="Position in the track" @onchange="SeekAsync" />
+                    <span>@(Player.Length > 0 ? Time(Player.Length) : "")</span>
+                </div>
+            </div>
+        }
+        <div class="bt-playerside">
+            @if (Player.Current is not null)
+            {
+                <Icon Name="Volume2" Size="15" />
+                <input type="range" class="bt-range bt-volume" min="0" max="100" step="1" value="@Number(Player.Volume)" aria-label="Music volume" title="Music volume"
+                       @oninput="e => Player.SetVolumeAsync(Parse(e.Value))" />
+                <button class="bt-icon" title="Loop this track as ambience, under whatever plays next" aria-label="Loop this track as ambience"
+                        @onclick="Player.LoopCurrentAsAmbienceAsync"><Icon Name="AudioLines" /></button>
+                <div class="bt-playerqueue">
+                    <button class="bt-icon @(Player.IsQueueOpen ? "active" : "")" title="Up next" aria-label="Up next" aria-expanded="@(Player.IsQueueOpen ? "true" : "false")"
+                            @onclick="() => Player.IsQueueOpen = !Player.IsQueueOpen"><Icon Name="List" /></button>
+                    @if (Player.IsQueueOpen)
+                    {
+                        <div class="bt-backdrop fixed bt-menuback" @onclick="() => Player.IsQueueOpen = false"></div>
+                        <div class="bt-menu bt-queuemenu" role="menu" aria-label="Tracks">
+                            <span class="bt-eyebrow">@(Player.QueueTitle ?? "UP NEXT")</span>
+                            @for (var i = 0; i < Player.Queue.Count; i++)
+                            {
+                                var at = i;
+                                var queued = Player.Queue[i];
+                                <button class="bt-menuitem @(ReferenceEquals(queued, Player.Current) ? "active" : "")" role="menuitem" @onclick="() => Player.PlayTrackAsync(at)">
+                                    <span>@queued.Title</span><span class="bt-gesture">@(queued.DurationMs is { } ms ? Time(ms / 1000.0) : "")</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            @if (Player.Ambience is { } ambience)
+            {
+                <div class="bt-ambience" aria-label="Ambience">
+                    <Icon Name="AudioLines" Size="15" />
+                    <span class="bt-ambiencetitle" title="Looping as ambience: @ambience.Title">@ambience.Title</span>
+                    <button class="bt-icon" title="@(Player.IsAmbiencePlaying ? "Pause ambience" : "Play ambience")" aria-label="@(Player.IsAmbiencePlaying ? "Pause ambience" : "Play ambience")"
+                            @onclick="Player.ToggleAmbienceAsync"><Icon Name="@(Player.IsAmbiencePlaying ? "Pause" : "Play")" Size="15" /></button>
+                    <input type="range" class="bt-range bt-volume small" min="0" max="100" step="1" value="@Number(Player.AmbienceVolume)" aria-label="Ambience volume"
+                           title="Ambience volume" @oninput="e => Player.SetAmbienceVolumeAsync(Parse(e.Value))" />
+                    <button class="bt-icon" title="Stop the ambience" aria-label="Stop the ambience" @onclick="Player.StopAmbienceAsync"><Icon Name="X" Size="15" /></button>
+                </div>
+            }
+            <button class="bt-icon" title="Stop and close the player" aria-label="Stop and close the player" @onclick="Player.CloseAsync"><Icon Name="X" /></button>
+        </div>
+    </section>
+}
+
+@code {
+    protected override void OnInitialized() => Player.Changed += OnChanged;
+
+    void OnChanged() => InvokeAsync(StateHasChanged);
+
+    Task SeekAsync(ChangeEventArgs e) => Player.SeekAsync(Parse(e.Value));
+
+    static double Parse(object? value) =>
+        double.TryParse(value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var number) ? number : 0;
+
+    static string Number(double value) => Math.Round(value).ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    static string Time(double seconds) => PlayOrder.Length(TimeSpan.FromSeconds(Math.Max(0, seconds)));
+
+    public void Dispose() => Player.Changed -= OnChanged;
+}

@@ -2,6 +2,7 @@
 @implements IAsyncDisposable
 @implements IDetailsHost
 @using Bibliotaph.Core
+@inject Player Player
 @inject BooksClient BooksApi
 @inject LibraryClient LibraryApi
 @inject ReaderClient ReaderApi
@@ -56,9 +57,16 @@
             {
                 var opens = Card is { } shownCard && shownCard.EntryId == book.Card.EntryId ? shownCard : book.Card;
                 <div class="bt-openbuttons">
-                    <a class="bt-button primary" href="@ReaderUrl.For(opens)" aria-label="Open @book.Card.Title"><Icon Name="BookOpen" />Open</a>
-                    <button class="bt-icon" title="Open in new window" aria-label="Open @book.Card.Title in new window"
-                            @onclick="() => BrowserWindow.OpenAsync(JS, Navigation.ToAbsoluteUri(ReaderUrl.For(opens, popout: true)).ToString())"><Icon Name="SquareArrowOutUpRight" Size="15" /></button>
+                    @if (opens.Plays)
+                    {
+                        <button class="bt-button primary" aria-label="Play @book.Card.Title" @onclick="() => Player.PlayAsync(opens)"><Icon Name="Play" />Play</button>
+                    }
+                    else
+                    {
+                        <a class="bt-button primary" href="@ReaderUrl.For(opens)" aria-label="Open @book.Card.Title"><Icon Name="BookOpen" />Open</a>
+                        <button class="bt-icon" title="Open in new window" aria-label="Open @book.Card.Title in new window"
+                                @onclick="() => BrowserWindow.OpenAsync(JS, Navigation.ToAbsoluteUri(ReaderUrl.For(opens, popout: true)).ToString())"><Icon Name="SquareArrowOutUpRight" Size="15" /></button>
+                    }
                 </div>
             }
             @{

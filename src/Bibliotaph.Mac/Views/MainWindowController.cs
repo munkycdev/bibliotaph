@@ -34,6 +34,9 @@ public sealed class MainWindowController : NSWindowController
     Bindings _title = new();
     PageViewModel? _shown;
 
+    /// <summary>The player, for the Controls menu and the toolbar's Now Playing.</summary>
+    public PlayerViewModel Player { get; }
+
     public MainWindowController(IServiceProvider services) : base(MakeWindow())
     {
         _services = services;
@@ -77,7 +80,10 @@ public sealed class MainWindowController : NSWindowController
 
         var window = Window!;
         window.ContentViewController = split;
-        _toolbar = new ToolbarDelegate(_shell, folders, services.GetRequiredService<SearchGuideViewModel>());
+        Player = services.GetRequiredService<PlayerViewModel>();
+        var nowPlaying = new NowPlayingItem(Player, services.GetRequiredService<MacCovers>());
+        _bindings.Add(nowPlaying.Dispose);
+        _toolbar = new ToolbarDelegate(_shell, folders, services.GetRequiredService<SearchGuideViewModel>(), nowPlaying);
         window.Toolbar = new NSToolbar("main") { Delegate = _toolbar, DisplayMode = NSToolbarDisplayMode.Icon };
         window.SetContentSize(new CGSize(1320, 840));
         // The sidebar, one column of covers and the reader's bar; the pages' own rows wrap to fit anything wider.
@@ -304,11 +310,11 @@ public sealed class MainWindowController : NSWindowController
 }
 
 /// <summary>
-/// The toolbar: the sidebar's toggle and Back at the leading edge; search, which searches the whole library as typing pauses, and
+/// The toolbar: the sidebar's toggle and Back at the leading edge; what's playing in the middle; search, which searches the whole library as typing pauses, and
 /// the inspector's toggle at the trailing edge. Adding a folder is in the File menu and Settings › Library, and asking
 /// in plain English in the Edit menu (⌥⌘F).
 /// </summary>
-sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders, SearchGuideViewModel guide) : NSToolbarDelegate
+sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders, SearchGuideViewModel guide, NowPlayingItem nowPlaying) : NSToolbarDelegate
 {
     SearchGuidePanel? _guide;
     const string Search = "search";
@@ -321,6 +327,9 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders, SearchG
         NSToolbar.NSToolbarToggleSidebarItemIdentifier,
         NSToolbar.NSToolbarSidebarTrackingSeparatorItemIdentifier,
         Back,
+        NSToolbar.NSToolbarFlexibleSpaceItemIdentifier,
+        // What's playing, in the middle as Music has it; hidden while nothing plays.
+        NowPlayingItem.Identifier,
         NSToolbar.NSToolbarFlexibleSpaceItemIdentifier,
         Search,
         // The inspector's own toggle sits over it, at the trailing edge, as the Mac's apps put it.
@@ -355,6 +364,7 @@ sealed class ToolbarDelegate(ShellViewModel shell, FolderAdding folders, SearchG
             Enable();
             return back;
         }
+        if (itemIdentifier == NowPlayingItem.Identifier) return nowPlaying.Item;
         if (itemIdentifier != Search) return null!;
         var item = new NSSearchToolbarItem(Search);
         // A field that says when it takes the keyboard, for the search guide, which Windows shows under its box.

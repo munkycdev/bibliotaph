@@ -23,7 +23,7 @@ OneDrive, Google Drive, Dropbox or a WebDAV server such as Nextcloud. It looks a
 keeps your catalogue, never a copy of your books. It's invite-only for now. Connect the Windows app to it and your work
 is the same on every PC and browser. See [Bibliotaph on the web](docs/guide/web.md).
 
-This is version 1.6. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
+This is version 1.7. Everything below is in it, and [CHANGELOG.md](CHANGELOG.md) says what changed in each version.
 
 <p align="center">
   <img src="docs/images/library.png" width="860" alt="The Library: a grid of book covers with a search box, filters and the sidebar">
@@ -98,7 +98,7 @@ library at bibliotaph.online, never the books themselves.
 ## What it does
 
 **Indexes what you have, where it is.** Add your folders and Bibliotaph reads every PDF, EPUB, Kindle book (MOBI,
-AZW, AZW3), JPG, PNG, WebP and WebM (animated maps) in them, ZIPs included. Scanned books get their text read too, so they're searchable. It works on folders on USB drives,
+AZW, AZW3), JPG, PNG, WebP, WebM (animated maps) and audio (MP3, M4A, FLAC, WAV, Ogg, Opus) in them, ZIPs included. Scanned books get their text read too, so they're searchable. It works on folders on USB drives,
 network drives and OneDrive, and notices when files are added, moved or changed.
 
 **Finds books and pages.** Type into the search box and the **Documents** tab shows matching books while

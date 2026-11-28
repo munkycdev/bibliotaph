@@ -3,6 +3,7 @@
    are read straight from the user's storage; the server never passes a book's bytes on. *@
 @using Bibliotaph.Core.Reading
 @implements IAsyncDisposable
+@inject Player Player
 @inject AskClient AskApi
 @inject BindersClient BindersApi
 @inject BooksClient BooksApi
@@ -479,6 +480,15 @@ else
         catch (HttpRequestException)
         {
             _loadProblem = new ReaderProblem("This book could not be opened.", "Check your connection, then try again.");
+            return;
+        }
+        // Audio plays in the player, under whatever is read next, rather than in a reader.
+        if (!Guest && Bibliotaph.Core.SourceFormats.IsAudio(_book.Format))
+        {
+            var track = _book;
+            _book = null;
+            _loadProblem = new ReaderProblem("Playing in the player.", "Audio plays in the bar at the foot of the page, and goes on while you read.");
+            await Player.PlayAsync(track.EntryId, track.DocumentId);
             return;
         }
         if (!InBinder && !Guest) Breadcrumb.Show(_book.Title);

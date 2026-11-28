@@ -22,6 +22,11 @@ public sealed class ReaderClient(ApiHttp http)
     public Task<ReaderLink> ReaderLinkAsync(long documentId, CancellationToken ct = default) =>
         http.SendAsync<ReaderLink>(HttpMethod.Get, $"{Document(documentId)}/link", null, ct);
 
+    /// <summary>A track's or an album's tracks for the player, from <paramref name="documentId"/> in an album.</summary>
+    public Task<PlayerTracks> TracksAsync(long entryId, long? documentId, CancellationToken ct = default) =>
+        http.SendAsync<PlayerTracks>(HttpMethod.Get,
+            $"{Book(entryId)}/tracks" + (documentId is { } doc ? $"?doc={doc.ToString(CultureInfo.InvariantCulture)}" : ""), null, ct);
+
     /// <summary>The password remembered for a locked PDF, tried before the reader asks.</summary>
     public Task<ReaderPassword> RememberedPasswordAsync(long documentId, CancellationToken ct = default) =>
         http.SendAsync<ReaderPassword>(HttpMethod.Get, $"{Document(documentId)}/password", null, ct);

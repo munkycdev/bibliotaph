@@ -11,10 +11,18 @@ public sealed record PackPlace(string RootPath, string FolderPath, bool IsArchiv
 }
 
 /// <summary>
-/// A smaller or mixed folder or ZIP that Needs review asks about: "Make these 12 images one card?".
-/// <see cref="Images"/> are its images' documents in file name order, and <see cref="BesidePdfs"/> says PDFs share it.
+/// A smaller or mixed folder or ZIP that Needs review asks about: "Make these 12 images one card?", or "Make these 3
+/// tracks one album?". <see cref="Images"/> are its files' documents (images, videos and tracks) in file name order,
+/// <see cref="Tracks"/> how many of them are audio, and <see cref="BesidePdfs"/> says PDFs share it.
 /// </summary>
-public sealed record PackProposal(EntryId PackId, PackPlace Place, string Name, IReadOnlyList<long> Images, bool BesidePdfs);
+public sealed record PackProposal(EntryId PackId, PackPlace Place, string Name, IReadOnlyList<long> Images, bool BesidePdfs, int Tracks = 0)
+{
+    /// <summary>
+    /// It would be an album: its files are tracks, or mostly tracks with their artwork or booklet pages beside them. A
+    /// map pack with a track or two of ambience stays a pack.
+    /// </summary>
+    public bool IsAlbum => Tracks > 0 && Tracks * 2 >= Images.Count;
+}
 
 /// <summary>What answering about a folder changed: the cards to project, and the answer it had before, which undoes it.</summary>
 public sealed record PackChange(IReadOnlyList<EntryId> Changed, PackAnswer Previous);
@@ -33,9 +41,9 @@ internal readonly record struct PlaceMove(long FromRootId, string FromPath, long
 public sealed record PackFolder(string FullPath, bool IsArchive, int Files);
 
 /// <summary>
-/// Packs in catalog.db: a folder or ZIP of many images becomes one card. Each file keeps its own entry, which points
+/// Packs in catalog.db: a folder or ZIP of many images, or of a few tracks (an album), becomes one card. Each file keeps its own entry, which points
 /// at the pack's while it is in it, so splitting gives every file its card back with anything set on it. The
-/// folders' decisions are remembered by path, so a rescan doesn't undo them. Only images (and videos) are packed by folder; Pack
+/// folders' decisions are remembered by path, so a rescan doesn't undo them. Only images, videos and audio are packed by folder; Pack
 /// together makes packs by hand of images and PDFs alike (character sheets, pregens), which have no folder, and merges
 /// packs: a merged pack keeps its entry, marked as merged, and its folder's new images join the pack it merged into.
 /// </summary>
@@ -46,6 +54,12 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
 
     /// <summary>A folder or ZIP with at least this many images and no PDF becomes a pack by itself.</summary>
     public const int AutomaticMinimum = 20;
+
+    /// <summary>
+    /// A folder or ZIP with at least this many tracks, no PDF and no more pictures than tracks is an album by itself, the
+    /// pictures (its artwork) in it. Tracks come by the album, so two are enough; a single track keeps its own card.
+    /// </summary>
+    public const int AlbumMinimum = 2;
 
     /// <summary>
     /// A folder or ZIP with at least this many images that isn't packed by itself is proposed as a pack.
@@ -78,7 +92,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         var changed = new List<EntryId>();
         foreach (var group in groups.Values)
         {
-            var automatic = group.Images.Count >= AutomaticMinimum && !group.HasPdf;
+            var automatic = !group.HasPdf && (group.Images.Count >= AutomaticMinimum || group.IsAlbum);
             if (!decisions.TryGetValue(Key(group.RootId, group.Folder), out var decision) && packed.TryGetValue(Key(group.RootId, group.Folder), out var already))
             {
                 // Its images are one pack's card already: the pack's folder or ZIP moved here, so its decision follows,
@@ -93,7 +107,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
             }
             if (decision is null)
             {
-                if (!automatic && group.Images.Count < ProposalMinimum) continue;
+                if (!automatic && !group.Proposable) continue;
                 decision = await AddDecisionAsync(db, group, automatic ? PackAnswer.Packed : PackAnswer.Proposed, ct);
                 decisions[Key(group.RootId, group.Folder)] = decision;
                 if (!automatic) continue;
@@ -159,7 +173,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         if (moves.Count == 0 || !await db.PackDecisions.AnyAsync(d => d.Answer != PackAnswer.Packed, ct)) return;
         // A ZIP moves as one file; a folder by the images that were directly in it.
         var places = moves.Where(m => SourceFormats.IsArchive(m.FromPath) && SourceFormats.IsArchive(m.ToPath)).Select(m => (Move: m, IsArchive: true)).ToList();
-        foreach (var folder in moves.Where(m => IsPicture(m.FromPath) && IsPicture(m.ToPath)).GroupBy(m => Key(m.FromRootId, Parent(m.FromPath))))
+        foreach (var folder in moves.Where(m => IsPackable(m.FromPath) && IsPackable(m.ToPath)).GroupBy(m => Key(m.FromRootId, Parent(m.FromPath))))
         {
             var to = folder.Select(m => (m.ToRootId, Folder: Parent(m.ToPath))).DistinctBy(t => Key(t.ToRootId, t.Folder)).ToList();
             if (to is not [var only] || only.Folder.Length == 0) continue;
@@ -181,7 +195,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         }
     }
 
-    static bool IsPicture(string path) => SourceFormats.FromFileName(path) is { } format && SourceFormats.IsPicture(format);
+    static bool IsPackable(string path) => SourceFormats.FromFileName(path) is { } format && SourceFormats.IsPackable(format);
 
     /// <summary>Whether a folder (the images directly in it) or ZIP still holds an image that isn't missing.</summary>
     static async Task<bool> HoldsImagesAsync(CatalogDbContext db, long rootId, string folder, bool isArchive, CancellationToken ct)
@@ -191,7 +205,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
             ? present.Where(f => f.Container != null && f.Container.RelativePath == folder)
             : present.Where(f => f.ContainerId == null);
         var paths = await present.Select(f => f.RelativePath).ToListAsync(ct);
-        return paths.Any(p => IsPicture(p) && (isArchive || string.Equals(Parent(p), folder, StringComparison.OrdinalIgnoreCase)));
+        return paths.Any(p => IsPackable(p) && (isArchive || string.Equals(Parent(p), folder, StringComparison.OrdinalIgnoreCase)));
     }
 
     /// <summary>A new pack entry for a folder or ZIP, and the decision that remembers it.</summary>
@@ -326,7 +340,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         var sources = await db.EntrySources.AsNoTracking().Where(s => fileIds.Contains(s.EntryId))
             .Select(s => new { s.EntryId, s.FirstPdfPage, s.Document.Format }).ToListAsync(ct);
         if (files.Any(i => i.Kind != EntryKind.Whole || sources.All(s => s.EntryId != i.Id))
-            || sources.Any(s => s.FirstPdfPage is not null || !SourceFormats.IsPicture(s.Format) && s.Format != SourceFormats.Pdf)) return null;
+            || sources.Any(s => s.FirstPdfPage is not null || !SourceFormats.IsPackable(s.Format) && s.Format != SourceFormats.Pdf)) return null;
         // A file's adventures show as cards of their own that name it, so a file that has them keeps its own card.
         if (await db.Entries.AnyAsync(e => e.Kind == EntryKind.Part && e.MergedIntoEntryId == null && e.ParentEntryId != null
             && fileIds.Contains(e.ParentEntryId.Value), ct)) return null;
@@ -573,7 +587,7 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
 
     /// <summary>
     /// The proposals waiting in Needs review, by path: folders and ZIPs proposed that still have
-    /// <see cref="ProposalMinimum"/> images or more.
+    /// <see cref="ProposalMinimum"/> images or <see cref="AlbumMinimum"/> tracks or more.
     /// </summary>
     public async Task<IReadOnlyList<PackProposal>> GetProposalsAsync(CancellationToken ct = default)
     {
@@ -585,9 +599,9 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
         var groups = await LocateAsync(db, ct);
         return [.. proposed
             .Select(p => (p.Decision, p.RootPath, Group: groups.GetValueOrDefault(Key(p.Decision.SourceRootId, p.Decision.FolderPath))))
-            .Where(p => p.Group is { Images.Count: >= ProposalMinimum })
+            .Where(p => p.Group is { Proposable: true })
             .Select(p => new PackProposal(new EntryId(p.Decision.EntryId), new PackPlace(p.RootPath, p.Decision.FolderPath, p.Decision.IsArchive, p.Decision.Answer),
-                Name(p.Decision.FolderPath, p.Decision.IsArchive), [.. p.Group!.Images.Select(i => i.DocumentId)], p.Group.HasPdf))
+                Name(p.Decision.FolderPath, p.Decision.IsArchive), [.. p.Group!.Images.Select(i => i.DocumentId)], p.Group.HasPdf, p.Group.Tracks))
             .OrderBy(p => p.Place.FullPath, StringComparer.CurrentCultureIgnoreCase)];
     }
 
@@ -630,16 +644,27 @@ public sealed class PackStore(IDbContextFactory<CatalogDbContext> contexts, Time
             .ToDictionary(g => g.Key, g =>
             {
                 var (rootId, folder, isArchive, _, _, _) = g.First();
-                var images = g.Where(l => SourceFormats.IsPicture(l.Format)).DistinctBy(l => l.DocumentId)
-                    .OrderBy(l => l.Name, NaturalOrder.Instance).Select(l => (l.DocumentId, l.Name)).ToList();
-                return new FolderGroup(rootId, folder, isArchive, images, g.Any(l => SourceFormats.HasPages(l.Format)));
+                var files = g.Where(l => SourceFormats.IsPackable(l.Format)).DistinctBy(l => l.DocumentId)
+                    .OrderBy(l => l.Name, NaturalOrder.Instance).ToList();
+                return new FolderGroup(rootId, folder, isArchive, [.. files.Select(l => (l.DocumentId, l.Name))], g.Any(l => SourceFormats.HasPages(l.Format)),
+                    files.Count(l => SourceFormats.IsAudio(l.Format)));
             });
     }
 
     static (long, string) Key(long rootId, string folder) => (rootId, folder.ToUpperInvariant());
 
-    /// <summary>The files a pack would hold: its images, and whether books (PDFs or e-books) sit beside them.</summary>
-    sealed record FolderGroup(long RootId, string Folder, bool IsArchive, List<(long DocumentId, string Name)> Images, bool HasPdf);
+    /// <summary>
+    /// The files a pack would hold: its images, videos and tracks (<see cref="Tracks"/> of them audio), and whether books
+    /// (PDFs or e-books) sit beside them.
+    /// </summary>
+    sealed record FolderGroup(long RootId, string Folder, bool IsArchive, List<(long DocumentId, string Name)> Images, bool HasPdf, int Tracks)
+    {
+        /// <summary>Enough to ask about when it isn't packed by itself: a few images, or a book's soundtrack beside it.</summary>
+        public bool Proposable => Images.Count - Tracks >= ProposalMinimum || Tracks >= AlbumMinimum;
+
+        /// <summary>An album: enough tracks, and no more pictures than tracks (its artwork), so maps with a loop or two stay a question.</summary>
+        public bool IsAlbum => Tracks >= AlbumMinimum && Tracks * 2 >= Images.Count;
+    }
 
     /// <summary>Where a pack's images are, for the inspector; null for an entry that isn't a pack.</summary>
     public async Task<PackPlace?> GetPlaceAsync(EntryId packId, CancellationToken ct = default)

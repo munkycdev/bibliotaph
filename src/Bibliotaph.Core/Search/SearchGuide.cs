@@ -95,8 +95,8 @@ public static class SearchGuide
 
     /// <summary>
     /// The formats to offer after <c>format:</c>: those in the library, most first, then <c>image</c> for any picture
-    /// format (videos too), <c>video</c> for any video format and <c>ebook</c> for any e-book format when the library has
-    /// more than one of them.
+    /// format (videos too), <c>video</c> for any video format, <c>audio</c> for any audio format and <c>ebook</c> for any
+    /// e-book format when the library has more than one of them.
     /// </summary>
     public static IReadOnlyList<GuideValue> FormatValues(IEnumerable<GuideValue> formats)
     {
@@ -105,6 +105,8 @@ public static class SearchGuide
         if (pictures.Count > 1) values.Add(new GuideValue("image", "Any picture", pictures.Sum(p => p.Count)));
         var videos = values.Where(v => SourceFormats.IsVideo(v.Value)).ToList();
         if (videos.Count > 1) values.Add(new GuideValue("video", "Any video", videos.Sum(p => p.Count)));
+        var audio = values.Where(v => SourceFormats.IsAudio(v.Value)).ToList();
+        if (audio.Count > 1) values.Add(new GuideValue("audio", "Any audio", audio.Sum(p => p.Count)));
         var ebooks = values.Where(v => SourceFormats.IsEbook(v.Value)).ToList();
         if (ebooks.Count > 1) values.Add(new GuideValue("ebook", "Any e-book", ebooks.Sum(p => p.Count)));
         return values;

@@ -16,6 +16,9 @@ internal static class LibrarySql
     /// <summary>A card's title: its effective title, or the one from its file name; a file in a pack on a card of its own has its file's.</summary>
     public const string Title = "coalesce(CASE WHEN e.pack_file IS NOT NULL THEN d.display_title END, m.title, e.name, d.display_title, '')";
 
+    /// <summary>The audio formats as an SQL list. An album's tracks share their artwork, so its card shows one cover, not a mosaic.</summary>
+    internal const string AudioFormats = "'mp3', 'm4a', 'flac', 'wav', 'ogg', 'opus'";
+
     public const string EntryColumns = $"""
         e.entry_id AS EntryId, coalesce(e.document_id, 0) AS DocumentId, {Title} AS Title, coalesce(d.format, '') AS Format,
         CASE WHEN e.kind = 'Part' THEN e.last_page - e.first_page + 1 ELSE d.page_count END AS PageCount,
@@ -29,7 +32,9 @@ internal static class LibrarySql
         coalesce(m.level_state, 'unknown') AS LevelState, m.players_min AS PlayersMin, m.players_max AS PlayersMax,
         coalesce(m.needs_review, 0) AS NeedsReview, coalesce(m.suggested, 0) AS Suggested,
         ai.model AS AiModel, e.copies AS Copies, e.kind AS EntryKind, e.members AS Members,
-        CASE WHEN e.kind = 'Pack' AND cvd.cover IS NULL THEN (
+        CASE WHEN e.kind = 'Pack' AND cvd.cover IS NULL AND EXISTS (
+            SELECT 1 FROM entry_member xm JOIN doc xd ON xd.document_id = xm.document_id
+            WHERE xm.entry_id = e.entry_id AND xd.format NOT IN ({AudioFormats})) THEN (
             SELECT json_group_array(cover) FROM (
                 SELECT md.cover FROM entry_member em JOIN doc md ON md.document_id = em.document_id
                 WHERE em.entry_id = e.entry_id AND md.cover IS NOT NULL ORDER BY em.ord LIMIT 4)) END AS MemberCovers,
@@ -37,6 +42,10 @@ internal static class LibrarySql
         CASE WHEN e.kind = 'Pack' THEN (
             SELECT count(*) FROM entry_member em JOIN doc md ON md.document_id = em.document_id
             WHERE em.entry_id = e.entry_id AND md.format = 'pdf') ELSE 0 END AS PdfMembers,
+        CASE WHEN e.kind = 'Pack' THEN (
+            SELECT count(*) FROM entry_member em JOIN doc md ON md.document_id = em.document_id
+            WHERE em.entry_id = e.entry_id AND md.format IN ({AudioFormats})) ELSE 0 END AS AudioMembers,
+        d.duration_ms AS DurationMs,
         (SELECT group_concat(label, ' · ') FROM (SELECT ef.label FROM entry_facet ef WHERE ef.entry_id = e.entry_id AND ef.field = 'own' ORDER BY ef.label)) AS AlsoOwn,
         (SELECT ol.link FROM entry_facet ol WHERE ol.entry_id = e.entry_id AND ol.field = 'own' AND ol.link IS NOT NULL ORDER BY ol.label LIMIT 1) AS OnlineLink,
         (SELECT ol.label FROM entry_facet ol WHERE ol.entry_id = e.entry_id AND ol.field = 'own' AND ol.link IS NOT NULL ORDER BY ol.label LIMIT 1) AS OnlineLabel,
