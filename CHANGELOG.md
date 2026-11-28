@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 1.6 · 9 November 2026
+
+New in 1.6.1472 (28 November 2026):
+
 - **New: a new PC takes what your other devices already worked out.** A book one of your devices looked up online
   isn't looked up again on another, as long as it was asked of every online library and searched by the same ISBNs,
   codes and titles; its record, or that nothing was found, is used as it is. Adventures the AI read on their own
@@ -10,8 +14,6 @@
   or sends anything to the AI. **Look every book up again** and **Only the N not found** in Settings > Processing
   still ask the online libraries afresh, and share what they find. What your devices already did before this update
   is shared too, the first time each one connects after it. On Windows, the Mac and the web.
-
-## 1.6 · 9 November 2026
 
 New in 1.6.1467 (27 November 2026):
 
