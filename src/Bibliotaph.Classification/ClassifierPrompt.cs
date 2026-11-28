@@ -154,7 +154,8 @@ public static partial class ClassifierPrompt
         text.AppendLine("Names to use:");
         foreach (var (heading, name) in names)
         {
-            var terms = vocabulary.InVocabulary(name).OrderBy(t => t.Label, StringComparer.Ordinal).ToList();
+            // The AI reads books' pages; the types that only audio has would only lead it astray.
+            var terms = vocabulary.InVocabulary(name).Where(t => name != "type" || !AudioTypes.Contains(t.Key)).OrderBy(t => t.Label, StringComparer.Ordinal).ToList();
             if (terms.Count == 0) continue;
             if (name == "type")
             {
@@ -187,6 +188,9 @@ public static partial class ClassifierPrompt
     };
 
     /// <summary>"5th edition (Dungeons &amp; Dragons)", "Dungeons &amp; Dragons (D&amp;D)".</summary>
+    /// <summary>The types for audio (music, ambience, sound effects), which come from tags and folder names, never from pages.</summary>
+    public static IReadOnlySet<string> AudioTypes { get; } = new HashSet<string>(StringComparer.Ordinal) { "music", "ambience", "sound-effect" };
+
     internal static string Describe(Term term, Vocabulary vocabulary)
     {
         if (term.ParentKey is { } parent && vocabulary.Find("system", parent) is { } system) return $"{term.Label} ({system.Label})";

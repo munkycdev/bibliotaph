@@ -14,7 +14,7 @@ public sealed record SharedReading(
     string Format, string DisplayTitle, int? PageCount, int? WidthPx, int? HeightPx, bool Encrypted, bool CanCopy,
     string? MetaTitle, string? MetaAuthor, string? MetaSubject, string? MetaKeywords, string? MetaProducer,
     string Protection, string? Capabilities, string? Cover,
-    IReadOnlyList<StoredPage> Pages, IReadOnlyList<OutlineRow> Outline, string TextStatus, string? TextReason);
+    IReadOnlyList<StoredPage> Pages, IReadOnlyList<OutlineRow> Outline, string TextStatus, string? TextReason, long? DurationMs = null);
 
 /// <summary>
 /// What the web library says of a file: its <see cref="Reading"/> once it has one; <see cref="ReadHere"/> when it
@@ -44,6 +44,7 @@ public sealed class SharedReadings(LibraryStore library, IndexQueries queries)
         var doc = reading.Doc;
         return new WebReading(new SharedReading(doc.Format, doc.DisplayTitle, doc.PageCount, doc.WidthPx, doc.HeightPx, doc.Encrypted, doc.CanCopy,
             doc.MetaTitle, doc.MetaAuthor, doc.MetaSubject, doc.MetaKeywords, doc.MetaProducer,
-            result.Protection.ToString(), result.Capabilities, reading.Cover, reading.Pages, reading.Outline, finished.Status.ToString(), finished.Reason), false);
+            result.Protection.ToString(), result.Capabilities, reading.Cover, reading.Pages, reading.Outline, finished.Status.ToString(), finished.Reason,
+            doc.DurationMs), false);
     }
 }

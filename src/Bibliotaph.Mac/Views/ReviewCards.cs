@@ -344,7 +344,7 @@ public sealed partial class ReviewController
     /// <summary>Images that could be one card, with the first few to show what they are.</summary>
     CardView PackCard(PackCardViewModel card)
     {
-        var body = Stack(Head(FolderLink(card.Title, card.ShowFolderCommand), PackCardText.Chip, card), Label(card.Heading, secondary: true));
+        var body = Stack(Head(FolderLink(card.Title, card.ShowFolderCommand), card.Chip, card), Label(card.Heading, secondary: true));
         var tiles = new NSStackView { Spacing = 6 };
         foreach (var tile in card.Tiles.Take(8))
         {

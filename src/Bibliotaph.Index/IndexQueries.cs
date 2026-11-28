@@ -752,7 +752,8 @@ public sealed class IndexQueries(IndexDatabase database)
         var doc = await connection.QuerySingleOrDefaultAsync<DocReadingRow>(new CommandDefinition("""
             SELECT document_id AS DocumentId, content_hash AS ContentHash, format AS Format, display_title AS DisplayTitle, page_count AS PageCount,
                    width_px AS WidthPx, height_px AS HeightPx, encrypted AS Encrypted, can_copy AS CanCopy, meta_title AS MetaTitle,
-                   meta_author AS MetaAuthor, meta_subject AS MetaSubject, meta_keywords AS MetaKeywords, meta_producer AS MetaProducer, cover AS Cover
+                   meta_author AS MetaAuthor, meta_subject AS MetaSubject, meta_keywords AS MetaKeywords, meta_producer AS MetaProducer, cover AS Cover,
+                   duration_ms AS DurationMs
             FROM doc WHERE document_id = @documentId
             """, new { documentId }, cancellationToken: ct));
         if (doc is null) return null;
@@ -779,6 +780,7 @@ public sealed class IndexQueries(IndexDatabase database)
             MetaSubject = doc.MetaSubject,
             MetaKeywords = doc.MetaKeywords,
             MetaProducer = doc.MetaProducer,
+            DurationMs = doc.DurationMs,
         }, doc.Cover,
             [.. pages.Select(p => new StoredPage((int)p.Page, p.Label, p.Width, p.Height, p.Text, p.Source, p.Quality, p.NeedsOcr != 0, p.Error))],
             [.. outline.Select(o => new OutlineRow(o.Title, (int)o.PdfPage, (int)o.Depth))]);
@@ -797,6 +799,7 @@ public sealed class IndexQueries(IndexDatabase database)
         public long Encrypted { get; init; }
         public long CanCopy { get; init; }
         public string? MetaTitle { get; init; }
+        public long? DurationMs { get; init; }
         public string? MetaAuthor { get; init; }
         public string? MetaSubject { get; init; }
         public string? MetaKeywords { get; init; }

@@ -90,7 +90,7 @@ public static class DetailsApi
             var packs = library.Get<PackService>();
             packFiles = [.. (await queries.GetPackImagesAsync(entryId, ct)).Select(i =>
                 new PackFile(i.MemberEntryId.Value, i.Name, i.Cover, i.Format == SourceFormats.Pdf, i.MemberEntryId == entry.CoverMember))];
-            var pdfs = entry.PdfMembers > 0 || packFiles.Any(f => f.IsPdf);
+            var pdfs = entry.PdfMembers > 0 || entry.AudioMembers > 0 || packFiles.Any(f => f.IsPdf);
             var place = await packs.GetPlaceAsync(entryId, ct);
             var folders = await packs.GetFoldersAsync(entryId, ct);
             locations = [.. place is null ? [] : new[] { new DetailLocation(Where(place.FullPath), DetailsText.PackPlaceState(place), FolderText.Service(place.FullPath)) },
@@ -123,7 +123,7 @@ public static class DetailsApi
         var stages = library.Get<IStageCatalog>();
         var notes = library.Get<NotesService>();
         var noted = (string.IsNullOrWhiteSpace(await notes.GetEntryNoteAsync(entryId, ct)) ? 0 : 1) + (await notes.GetPageNotesAsync(entryId, ct)).Count;
-        var hasPdfs = entry.PdfMembers > 0 || packFiles.Any(f => f.IsPdf);
+        var hasPdfs = entry.PdfMembers > 0 || entry.AudioMembers > 0 || packFiles.Any(f => f.IsPdf);
         var links = library.Get<LookupLinks>();
         var onRpgGeek = await links.GetAsync(entry, ct);
         var collections = await CollectionsApi.AllAsync(library, ct);

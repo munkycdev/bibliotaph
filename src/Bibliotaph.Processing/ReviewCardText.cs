@@ -99,10 +99,13 @@ public sealed record VersionCardText(VersionItem Item)
     };
 }
 
-/// <summary>"Make these 12 images one card?", with the first few images to show what they are.</summary>
+/// <summary>"Make these 12 images one card?" or "Make these 3 tracks one album?", with the first few files to show what they are.</summary>
 public sealed record PackCardText(PackProposal Proposal)
 {
     public const string Chip = "Image pack?";
+
+    /// <summary>The card's chip: <see cref="Chip"/>, or "Album?" for tracks.</summary>
+    public string Label => Proposal.IsAlbum ? "Album?" : Chip;
 
     /// <summary>The images shown on the card.</summary>
     public const int Tiles = 4;
@@ -113,15 +116,20 @@ public sealed record PackCardText(PackProposal Proposal)
         new("separate", "Keep separate", "Each image keeps its own card. Bibliotaph won't ask about this folder again."),
     ];
 
-    public string Heading => $"Make these {CardText.Images(Proposal.Images.Count)} one card?";
+    public string Heading => Proposal.IsAlbum
+        ? $"Make these {CardText.Tracks(Proposal.Images.Count)} one album?"
+        : Proposal.Tracks > 0 ? $"Make these {CardText.Files(Proposal.Images.Count)} one card?"
+        : $"Make these {CardText.Images(Proposal.Images.Count)} one card?";
 
     public string Detail => Proposal.BesidePdfs
-        ? "They sit beside PDFs, so they may be a book's handouts rather than a set of their own."
-        : "A pack shows as one card, with its images a click away. Nothing on disk changes.";
+        ? Proposal.IsAlbum
+            ? "They sit beside PDFs, so they may be a book's soundtrack. As an album they can go with that book as one."
+            : "They sit beside PDFs, so they may be a book's handouts rather than a set of their own."
+        : "A pack shows as one card, with its files a click away. Nothing on disk changes.";
 
     public string Packed => $"{Proposal.Name} is now one card.";
 
-    public string KeptSeparate => $"Kept the images in {Proposal.Name} as separate cards.";
+    public string KeptSeparate => $"Kept the {(Proposal.IsAlbum ? "tracks" : Proposal.Tracks > 0 ? "files" : "images")} in {Proposal.Name} as separate cards.";
 }
 
 /// <summary>"You own X elsewhere. Is this its file?": Same book or Separate book.</summary>

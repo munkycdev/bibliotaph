@@ -40,10 +40,12 @@ public static class DetailsText
     public static bool IsAdventure(LibraryEntry entry, EffectiveMetadata metadata) =>
         entry.IsPart || metadata[MetadataFields.Types].Values.Any(v => v.Value == PartStore.AdventureType);
 
-    /// <summary>The line over the details: "PACK", "OWNED ELSEWHERE", "ADVENTURE IN A FILE", the format, "VIDEO" or "IMAGE".</summary>
+    /// <summary>The line over the details: "PACK", "ALBUM", "OWNED ELSEWHERE", "ADVENTURE IN A FILE", the format, "VIDEO", "AUDIO" or "IMAGE".</summary>
     public static string Eyebrow(LibraryEntry entry, bool packHasPdfs) =>
-        entry.IsPack ? packHasPdfs ? "PACK" : "IMAGE PACK" : entry.IsElsewhere ? "OWNED ELSEWHERE" : entry.IsPart ? "ADVENTURE IN A FILE"
-        : SourceFormats.HasPages(entry.Format) ? CardText.FormatName(entry.Format) : SourceFormats.IsVideo(entry.Format) ? "VIDEO" : "IMAGE";
+        entry.IsPack ? entry.IsAlbum ? "ALBUM" : packHasPdfs || entry.AudioMembers > 0 ? "PACK" : "IMAGE PACK"
+        : entry.IsElsewhere ? "OWNED ELSEWHERE" : entry.IsPart ? "ADVENTURE IN A FILE"
+        : SourceFormats.HasPages(entry.Format) ? CardText.FormatName(entry.Format) : SourceFormats.IsVideo(entry.Format) ? "VIDEO"
+        : SourceFormats.IsAudio(entry.Format) ? "AUDIO" : "IMAGE";
 
     /// <summary>A book owned elsewhere has no file to say anything about.</summary>
     public static string FactsHeading(LibraryEntry entry) => entry.IsElsewhere ? "IN YOUR LIBRARY" : "THE FILE";
@@ -148,7 +150,8 @@ public static class DetailsText
         // A pack's card shows its first file: what that file says of itself isn't the pack's.
         if (entry.IsPack)
         {
-            facts.Add(("Search", entry.PdfMembers > 0 ? "Found by its files' names, and by the text of its PDFs" : "Found by its name"));
+            facts.Add(("Search", entry.PdfMembers > 0 ? "Found by its files' names, and by the text of its PDFs"
+                : entry.AudioMembers > 0 ? "Found by its name and its files' names" : "Found by its name"));
             return facts;
         }
 
@@ -172,16 +175,19 @@ public static class DetailsText
         // Only the numbers as the book prints them: a page beside one reads as part of it, and gets copied with it.
         foreach (var kind in details.Identifiers.GroupBy(i => i.Kind))
             facts.Add((kind.Key == IdentifierKind.Isbn ? "ISBN" : "Product code", string.Join(" · ", kind.Select(i => i.Printed).Distinct())));
-        // The PDF's own information is often wrong ("Microsoft Word - final2.doc"), so it is labelled as the file's.
-        if (!string.IsNullOrWhiteSpace(details.MetaTitle)) facts.Add(("Title in the file", details.MetaTitle));
-        if (!string.IsNullOrWhiteSpace(details.MetaAuthor)) facts.Add(("Author in the file", details.MetaAuthor));
-        if (!string.IsNullOrWhiteSpace(details.MetaSubject)) facts.Add(("Subject in the file", details.MetaSubject));
+        // The PDF's own information is often wrong ("Microsoft Word - final2.doc"), so it is labelled as the file's; a
+        // track's is its tags.
+        var audio = SourceFormats.IsAudio(entry.Format);
+        if (!string.IsNullOrWhiteSpace(details.MetaTitle)) facts.Add((audio ? "Title in its tags" : "Title in the file", details.MetaTitle));
+        if (!string.IsNullOrWhiteSpace(details.MetaAuthor)) facts.Add((audio ? "Artist in its tags" : "Author in the file", details.MetaAuthor));
+        if (!string.IsNullOrWhiteSpace(details.MetaSubject)) facts.Add((audio ? "Comment in its tags" : "Subject in the file", details.MetaSubject));
         return facts;
     }
 
     static string Search(LibraryEntry entry, DocumentDetails details)
     {
         if (entry.IsPack || SourceFormats.IsPicture(entry.Format)) return "Found by its name";
+        if (SourceFormats.IsAudio(entry.Format)) return "Found by its name and its tags";
         switch (entry.TextAccess)
         {
             case TextAccess.Locked: return "Locked: open it to unlock, and its text becomes searchable";

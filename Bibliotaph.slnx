@@ -12,6 +12,7 @@
   <Folder Name="/src/">
     <Project Path="src/Bibliotaph.Api.Contracts/Bibliotaph.Api.Contracts.csproj" />
     <Project Path="src/Bibliotaph.App/Bibliotaph.App.csproj" />
+    <Project Path="src/Bibliotaph.Audio/Bibliotaph.Audio.csproj" />
     <Project Path="src/Bibliotaph.Catalog/Bibliotaph.Catalog.csproj" />
     <Project Path="src/Bibliotaph.Classification/Bibliotaph.Classification.csproj" />
     <Project Path="src/Bibliotaph.Core/Bibliotaph.Core.csproj" />

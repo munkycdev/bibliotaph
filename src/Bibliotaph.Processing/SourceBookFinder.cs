@@ -16,11 +16,11 @@ public sealed record SourceCard(EntryId EntryId, EntryKind Kind, string Format, 
     IReadOnlyList<FolderKey> Folders)
 {
     /// <summary>
-    /// Whether it may go with a book: a pack, a picture, or a PDF that isn't a book (a map, a handout, a character
-    /// sheet, or a few pages that say nothing of what they are).
+    /// Whether it may go with a book: a pack or album, a picture, a track, or a PDF that isn't a book (a map, a handout,
+    /// a character sheet, or a few pages that say nothing of what they are).
     /// </summary>
     public bool IsCompanion => Kind == EntryKind.Pack
-        || (Kind == EntryKind.Whole && (SourceFormats.IsPicture(Format) || (Format == SourceFormats.Pdf && BookLookups.IsNotABook(Types, [Title], Pages))));
+        || (Kind == EntryKind.Whole && (SourceFormats.IsPackable(Format) || (Format == SourceFormats.Pdf && BookLookups.IsNotABook(Types, [Title], Pages))));
 
     /// <summary>Whether a companion may go with it: a book's own file, an adventure inside one, or a book owned elsewhere.</summary>
     public bool IsBook => !IsCompanion && Kind is EntryKind.Whole or EntryKind.Part or EntryKind.Elsewhere;
@@ -45,6 +45,8 @@ public static class SourceBookRules
         "map", "maps", "handout", "handouts", "extra", "extras", "image", "images", "art", "artwork", "pregen", "pregens", "pregenerated", "sheet",
         "sheets", "token", "tokens", "bonus", "vtt", "asset", "assets", "battlemap", "battlemaps", "printable", "printables", "card", "cards", "player",
         "players", "foundry", "roll20", "jpg", "png", "hi", "res", "lo", "dungeondraft", "posters", "poster",
+        "audio", "music", "soundtrack", "soundtracks", "ost", "ambience", "ambiance", "ambient", "sound", "sounds", "sfx", "score", "mp3", "mp3s",
+        "flac", "track", "tracks",
     };
 
     /// <summary>Words a title's initials leave out when they are written short ("LMoP", or "LMP").</summary>
@@ -58,6 +60,7 @@ public static class SourceBookRules
     {
         "rpg", "rpgs", "ttrpg", "osr", "npc", "npcs", "pcs", "gms", "dms", "dnd", "pdf", "pdfs", "zip", "jpg", "png", "vtt", "set", "kit", "box", "art",
         "map", "new", "all", "one", "two", "the", "and", "for", "web", "low", "res", "print", "screen", "core", "book", "rules",
+        "ost", "mp3", "sfx", "bgm", "mix", "loop",
     };
 
     /// <summary>How many books' titles may have a word before it counts as a word of the library, not anyone's initials.</summary>

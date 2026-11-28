@@ -8,7 +8,7 @@ public enum SearchField
     /// <summary><c>title:</c>, the document's title (its effective title, or the one from its file name).</summary>
     Title,
 
-    /// <summary><c>format:</c> pdf, epub, mobi, azw, azw3, kfx, jpg, png, webp, webm, image for any picture format (videos too), video for any video format, ebook for any e-book format, or kindle for any Kindle format.</summary>
+    /// <summary><c>format:</c> pdf, epub, mobi, azw, azw3, kfx, jpg, png, webp, webm, mp3, m4a, flac, wav, ogg, opus, image for any picture format (videos too), video for any video format, audio for any audio format, ebook for any e-book format, or kindle for any Kindle format.</summary>
     Format,
 
     /// <summary><c>folder:</c>, part of a folder name between the source folder and the file.</summary>
@@ -407,7 +407,7 @@ sealed class QueryParser(string text)
         {
             if (value is not TermNode { Prefix: false } term || NormalizeFormat(term.Text) is not { } format)
             {
-                Issue("format: can be pdf, epub, mobi, azw3, jpg, png, webp, webm, ebook, kindle, image or video.", Span(token, valueToken));
+                Issue("format: can be pdf, epub, mobi, azw3, jpg, png, webp, webm, mp3, m4a, flac, wav, ogg, opus, ebook, kindle, image, video or audio.", Span(token, valueToken));
                 return null;
             }
             value = new TermNode(format);
@@ -510,7 +510,7 @@ sealed class QueryParser(string text)
         _ => null,
     };
 
-    /// <summary>A file format, or image, video, ebook or kindle for every format of that kind.</summary>
+    /// <summary>A file format, or image, video, audio, ebook or kindle for every format of that kind.</summary>
     static string? NormalizeFormat(string value) => value.ToLowerInvariant() switch
     {
         "pdf" => SourceFormats.Pdf,
@@ -525,8 +525,15 @@ sealed class QueryParser(string text)
         "png" => SourceFormats.Png,
         "webp" => SourceFormats.Webp,
         "webm" => SourceFormats.Webm,
+        "mp3" => SourceFormats.Mp3,
+        "m4a" or "m4b" or "aac" => SourceFormats.M4a,
+        "flac" => SourceFormats.Flac,
+        "wav" => SourceFormats.Wav,
+        "ogg" => SourceFormats.Ogg,
+        "opus" => SourceFormats.Opus,
         "image" or "images" or "picture" or "pictures" => "image",
         "video" or "videos" => "video",
+        "audio" or "music" or "sound" or "sounds" => "audio",
         _ => null,
     };
 

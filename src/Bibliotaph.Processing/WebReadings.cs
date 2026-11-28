@@ -65,6 +65,7 @@ public sealed class WebReadings(IWebBooks web, TimeSpan? wait = null)
             MetaKeywords = reading.MetaKeywords,
             MetaProducer = reading.MetaProducer,
             FolderHint = source.FolderHint,
+            DurationMs = reading.DurationMs,
         },
         [.. reading.Pages.Select(p => new PageRow(p.Page, p.Label, p.Width, p.Height))], reading.Outline, ct);
         var protection = Enum.TryParse<ProtectionType>(reading.Protection, out var parsed) ? parsed : ProtectionType.None;

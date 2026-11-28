@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Bibliotaph.Audio;
 using Bibliotaph.Catalog;
 using Bibliotaph.Core;
 using Bibliotaph.Ebooks;
@@ -330,6 +331,19 @@ public sealed class ProbeStage(StageServices s) : IStage
             return StageOutcome.Complete();
         }
 
+        if (SourceFormats.IsAudio(source.Format))
+        {
+            AudioDetails? details;
+            var (file, unreadable) = await StageHelpers.OpenFileAsync(s, source, ct);
+            if (file is null) return unreadable!;
+            await using (file)
+            await using (var stream = s.Reader.OpenRead(file.Path)) details = AudioFile.Read(stream, source.Format);
+            if (details is null) return new StageOutcome.Failed(Unreadable(source.Format), Retry: false);
+            await StageHelpers.UpsertDocumentAsync(s, AudioFiles.Row(job, source, title, details), [], [], ct);
+            await s.Library.SetProbeResultAsync(job.DocumentId, null, ProtectionType.None, AudioFiles.Capabilities(details), ct);
+            return StageOutcome.Complete();
+        }
+
         // The document is in the library from here, by its file name, even if it turns out not to open.
         var basic = new DocRow { DocumentId = job.DocumentId, ContentHash = job.ContentHash, Format = source.Format, DisplayTitle = title, FolderHint = source.FolderHint };
         if (EbookFiles.Is(source)) return await ProbeEbookAsync(job, source, basic, ct);
@@ -420,6 +434,7 @@ public sealed class ProbeStage(StageServices s) : IStage
     {
         SourceFormats.Webp => "Windows couldn't read this WebP image. If Microsoft's free WebP Image Extensions aren't installed, get them from the Microsoft Store, then retry.",
         SourceFormats.Webm => "This video could not be read; it may be damaged, or not a WebM video.",
+        _ when SourceFormats.IsAudio(format) => $"This audio file could not be read; it may be damaged, or not {CardText.FormatName(format)} audio.",
         _ => "This image could not be read; it may be damaged.",
     };
 }
@@ -448,6 +463,7 @@ public sealed class TextStage(StageServices s) : IStage
         if (source is null) return new StageOutcome.Blocked(StageOutcome.Blocked.Unreachable);
         if (SourceFormats.IsImage(source.Format)) return new StageOutcome.Done(StageStatus.Skipped, [], "Images have no text layer.");
         if (SourceFormats.IsVideo(source.Format)) return new StageOutcome.Done(StageStatus.Skipped, [], "Videos have no text layer.");
+        if (SourceFormats.IsAudio(source.Format)) return new StageOutcome.Done(StageStatus.Skipped, [], "Audio has no text layer.");
         if (s.Web is { } web && WebReadings.Serves(source) && await web.TextAsync(s, job, ct) is { } read) return read;
         if (EbookFiles.Is(source)) return await ReadEbookAsync(job, source, ct);
 
@@ -528,8 +544,8 @@ public sealed class TextStage(StageServices s) : IStage
 }
 
 /// <summary>
-/// Covers: the first page, or the page the user chose, or the image itself, or an e-book's cover image, as a JPEG in the
-/// cover cache. A missing cover is not an error.
+/// Covers: the first page, or the page the user chose, or the image itself, or an e-book's cover image, or a track's
+/// artwork, as a JPEG in the cover cache. A missing cover is not an error.
 /// </summary>
 public sealed class CoversStage(StageServices s) : IStage
 {
@@ -569,6 +585,28 @@ public sealed class CoversStage(StageServices s) : IStage
             if (file is null) return unreadable!;
             await using (file)
             await using (var stream = s.Reader.OpenRead(file.Path)) jpeg = s.Images.Thumbnail(stream, CoverCache.Width);
+        }
+        else if (SourceFormats.IsAudio(source.Format))
+        {
+            // The artwork in the file, else the album's picture beside it (cover.jpg, folder.jpg), as music players show.
+            byte[]? artwork;
+            var (file, unreadable) = await StageHelpers.OpenFileAsync(s, source, ct);
+            if (file is null) return unreadable!;
+            await using (file)
+            await using (var stream = s.Reader.OpenRead(file.Path)) artwork = AudioFile.ReadArtwork(stream, source.Format);
+            jpeg = null;
+            if (artwork is not null)
+                using (var image = new MemoryStream(artwork, writable: false)) jpeg = s.Images.Thumbnail(image, CoverCache.Width);
+            if (jpeg is null)
+            {
+                var stills = await s.Library.GetStillsBesideAsync(job.DocumentId, ct);
+                if (VideoStills.PickForAudio(source.FullPath, stills) is not { } still || await s.Library.GetSourceAsync(still, ct) is not { } stillSource)
+                    return new StageOutcome.Done(StageStatus.Skipped, [], "There's no artwork in this file or beside it to make its cover from.");
+                var (picture, failed) = await StageHelpers.OpenFileAsync(s, stillSource, ct);
+                if (picture is null) return failed!;
+                await using (picture)
+                await using (var stream = s.Reader.OpenRead(picture.Path)) jpeg = s.Images.Thumbnail(stream, CoverCache.Width);
+            }
         }
         else if (EbookFiles.Is(source))
         {

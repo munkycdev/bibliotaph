@@ -151,6 +151,7 @@ string? Describe(string id, string version, string folder)
         }
         licence = known.Licence;
         if (!licenceFiles.Contains(file!, StringComparer.OrdinalIgnoreCase)) texts.Add((file!, text));
+        if (known.Standard is { } standard) texts.Add(($"{standard} (standard text)", StandardText(standard, Meta("copyright") ?? Meta("authors"))));
     }
     else
     {

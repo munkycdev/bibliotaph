@@ -107,7 +107,7 @@ public sealed class SourceBooksService(CompanionStore store, EntryStore entries,
             {
                 var scope = await files.GetVisibleEntryIdsAsync(folder, ct);
                 var found = await library.ListAsync(new LibraryFilter(scope, Sort: LibrarySort.Title, HideCompanions: true, HideParts: true), ct: ct);
-                var books = found.Where(e => e.EntryId != card && !e.IsPack && !SourceFormats.IsPicture(e.Format)).Take(limit).ToList();
+                var books = found.Where(e => e.EntryId != card && !e.IsPack && !SourceFormats.IsPackable(e.Format)).Take(limit).ToList();
                 if (books.Count > 0) return [.. books.Select(e => new SourceBookChoice(e.EntryId, e.Title, CardText.Byline(e)))];
                 if (folder.Folder.Length == 0) break;
             }

@@ -22,6 +22,8 @@ internal static class LibraryRows
             r.EntryKind == nameof(Core.EntryKind.Pack) ? TextAccess.Readable : Access(r))
         {
             PdfMembers = (int)r.PdfMembers,
+            AudioMembers = (int)r.AudioMembers,
+            Duration = r.DurationMs is { } duration ? TimeSpan.FromMilliseconds(duration) : null,
             CoverMember = r.CoverMember is { } coverMember ? new EntryId(coverMember) : null,
             ParentEntryId = r.ParentId is { } parent ? new EntryId(parent) : null,
             ParentTitle = r.ParentTitle,
@@ -104,6 +106,8 @@ internal static class LibraryRows
         public long Members { get; init; }
         public string? MemberCovers { get; init; }
         public long PdfMembers { get; init; }
+        public long AudioMembers { get; init; }
+        public long? DurationMs { get; init; }
         public long? CoverMember { get; init; }
         public string? MatchedMember { get; init; }
         public long? MatchedDocumentId { get; init; }

@@ -23,6 +23,8 @@
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="Dapper" Version="2.1.89" />
     <PackageVersion Include="AngleSharp" Version="1.8.3" />
+    <!-- Audio tags and durations (MIT), read only; it brings Ude.NetStandard (LGPL-2.1 of its three licences) for text encodings. -->
+    <PackageVersion Include="z440.atl.core" Version="7.21.0" />
     <PackageVersion Include="PDFiumCore" Version="156.0.8076" />
     <PackageVersion Include="SkiaSharp" Version="4.153.1" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.153.1" />

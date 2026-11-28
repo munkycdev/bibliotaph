@@ -186,7 +186,7 @@ public static class LibraryChoices
     public static IReadOnlyList<FilterChoice> BrowseSorts { get; } = [.. SearchSorts.Skip(1)];
 
     public static IReadOnlyList<FilterChoice> Kinds { get; } =
-        [new("", "All kinds"), new("Books", "Books"), new("Images", "Images"), new("Packs", "Packs"), new("Here", "In your storage"), new("Elsewhere", "Owned elsewhere")];
+        [new("", "All kinds"), new("Books", "Books"), new("Images", "Images"), new("Audio", "Audio"), new("Packs", "Packs"), new("Here", "In your storage"), new("Elsewhere", "Owned elsewhere")];
 
     public static IReadOnlyList<FilterChoice> Levels { get; } =
         [new("", "Any level"), .. Enumerable.Range(1, 20).Select(l => new FilterChoice(l.ToString(System.Globalization.CultureInfo.InvariantCulture), $"Level {l}"))];

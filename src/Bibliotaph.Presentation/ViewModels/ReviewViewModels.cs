@@ -436,6 +436,9 @@ public sealed partial class PackCardViewModel(PackProposal proposal, IReadOnlyLi
 
     public string Detail => Text.Detail;
 
+    /// <summary>"Image pack?", or "Album?" for tracks.</summary>
+    public string Chip => Text.Label;
+
     public string Path => Proposal.Place.FullPath;
 
     /// <summary>The first images' covers, in file name order.</summary>
